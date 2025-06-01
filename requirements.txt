@@ -8,3 +8,10 @@ pillow>=8.0.0
 pydot>=1.4.0
 streamlit>=1.30.0
 skl2onnx==1.18.0
+onnx>=1.13.0
+mpld3>=0.5.8
+graphviz>=0.20
+python-dotenv>=1.0.0
+protobuf>=3.20.0
+plotly>=5.14.0
+joblib>=1.2.0
