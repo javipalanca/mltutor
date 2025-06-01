@@ -5,8 +5,10 @@ Incluye funciones para renderizar diferentes tipos de visualizaciones en la apli
 
 import streamlit as st
 import numpy as np
+import base64
 from sklearn.tree import plot_tree, export_text, DecisionTreeClassifier, DecisionTreeRegressor
 import matplotlib.pyplot as plt
+from utils import get_image_download_link, get_code_download_link, show_code_with_download
 
 # Verificar disponibilidad de módulos de visualización
 
@@ -143,7 +145,7 @@ def get_tree_text(tree_model, feature_names):
 
 
 def render_tree_visualization(viz_type, tree_model, feature_names, class_names=None,
-                              X=None, y=None, fps=1.0, use_improved=True, show_math=True):
+                              X=None, y=None, fps=1.0, use_improved=True, show_math=True, show_code=True):
     """
     Renderiza una visualización del árbol en Streamlit.
     Nota: Se ha simplificado para mantener solo visualizaciones estáticas.
@@ -168,6 +170,8 @@ def render_tree_visualization(viz_type, tree_model, feature_names, class_names=N
         No utilizado en visualizaciones estáticas
     show_math : bool, default=True
         No utilizado en visualizaciones estáticas
+    show_code : bool, default=True
+        Si se debe mostrar el código que genera la visualización
     """
     # Verificar disponibilidad de módulos
     availability = check_visualization_modules()
@@ -176,12 +180,99 @@ def render_tree_visualization(viz_type, tree_model, feature_names, class_names=N
         # Visualización estándar
         fig = create_tree_visualization(tree_model, feature_names, class_names)
         st.pyplot(fig)
+
+        # Enlace para descargar la imagen
+        st.markdown(get_image_download_link(fig, "arbol_decision", "📥 Descargar visualización del árbol"),
+                    unsafe_allow_html=True)
+
+        # Mostrar el código que genera esta visualización
+        if show_code:
+            code = """
+import matplotlib.pyplot as plt
+from sklearn.tree import plot_tree
+import numpy as np
+
+# Crear la figura
+fig, ax = plt.subplots(figsize=(12, 8))
+
+# Añadir título
+is_classifier = hasattr(tree_model, 'classes_')
+max_depth = tree_model.get_params()['max_depth']
+criterion = tree_model.get_params()['criterion']
+title = f"Árbol de {'Clasificación' if is_classifier else 'Regresión'} (Profundidad: {max_depth}, Criterio: {criterion})"
+ax.set_title(title, fontsize=14, fontweight='bold')
+
+# Crear la visualización del árbol
+plot_tree(
+    tree_model,
+    feature_names=feature_names,
+    class_names=class_names,
+    filled=True,
+    rounded=True,
+    ax=ax,
+    proportion=True,
+    impurity=True,
+    precision=2,
+    fontsize=10
+)
+
+# Añadir leyenda para clasificación
+if is_classifier and class_names:
+    import matplotlib.patches as mpatches
+    
+    # Generar colores para la leyenda
+    cmap = plt.cm.Blues if len(class_names) <= 2 else plt.cm.viridis
+    colors = [cmap(i) for i in np.linspace(0.2, 0.8, len(class_names))]
+    
+    # Crear parches para la leyenda
+    patches = [mpatches.Patch(color=colors[i], label=class_names[i])
+              for i in range(len(class_names))]
+    
+    # Añadir la leyenda
+    ax.legend(handles=patches, title="Clases", loc='upper right',
+              bbox_to_anchor=(1.1, 1), frameon=True, fontsize=9)
+
+plt.tight_layout()
+
+# Para mostrar en Streamlit
+st.pyplot(fig)
+"""
+            show_code_with_download(
+                code, "Código para generar esta visualización", "visualizacion_arbol.py")
+
         return fig
 
     elif viz_type == 'text':
         # Visualización textual
         tree_text = get_tree_text(tree_model, feature_names)
         st.text(tree_text)
+
+        # Enlace para descargar el texto
+        text_bytes = tree_text.encode()
+        b64 = base64.b64encode(text_bytes).decode()
+        href = f'<a href="data:text/plain;base64,{b64}" download="arbol_texto.txt">📥 Descargar texto del árbol</a>'
+        st.markdown(href, unsafe_allow_html=True)
+
+        # Mostrar el código que genera esta visualización
+        if show_code:
+            code = """
+from sklearn.tree import export_text
+
+# Generar representación textual del árbol
+tree_text = export_text(
+    tree_model,
+    feature_names=list(feature_names),
+    show_weights=True,
+    spacing=3,
+    decimals=2
+)
+
+# Para mostrar en Streamlit
+st.text(tree_text)
+"""
+            show_code_with_download(
+                code, "Código para generar esta visualización", "arbol_texto.py")
+
         return tree_text
 
     else:

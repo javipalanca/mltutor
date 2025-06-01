@@ -37,6 +37,69 @@ def get_image_download_link(fig, filename, link_text):
     href = f'<a href="data:file/png;base64,{img_str}" download="{filename}.png">{link_text}</a>'
     return href
 
+
+def get_code_download_link(code, filename, link_text):
+    """
+    Genera un enlace HTML para descargar código como archivo Python o texto.
+
+    Parameters:
+    -----------
+    code : str
+        Código a descargar
+    filename : str
+        Nombre del archivo sin extensión
+    link_text : str
+        Texto para mostrar en el enlace
+
+    Returns:
+    --------
+    html : str
+        Código HTML con el enlace de descarga
+    """
+    b64 = base64.b64encode(code.encode()).decode()
+    extension = "py" if filename.endswith(".py") else "txt"
+    if "." not in filename:
+        filename = f"{filename}.{extension}"
+    href = f'<a href="data:text/plain;base64,{b64}" download="{filename}">{link_text}</a>'
+    return href
+
+
+def show_code_with_download(code, title="Código", filename="codigo.py"):
+    """
+    Muestra un bloque de código con opción para copiarlo y descargarlo.
+
+    Parameters:
+    -----------
+    code : str
+        Código a mostrar
+    title : str, default="Código"
+        Título del bloque de código
+    filename : str, default="codigo.py"
+        Nombre del archivo para descargar
+
+    Returns:
+    --------
+    None
+    """
+    import streamlit as st
+
+    st.markdown(f"#### {title}")
+
+    # Mostrar el código en un expander para no ocupar demasiado espacio
+    with st.expander("Ver código", expanded=False):
+        st.code(code, language="python")
+
+        # Botones para copiar y descargar
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown(get_code_download_link(code, filename,
+                        "📥 Descargar código"), unsafe_allow_html=True)
+        with col2:
+            # No necesitamos un botón específico para copiar ya que Streamlit ya proporciona esta funcionalidad
+            # en los bloques de código, pero añadimos una nota informativa
+            st.info(
+                "Usa el botón de copia en la esquina superior derecha del bloque de código para copiarlo")
+
 # Funciones para exportar modelos
 
 

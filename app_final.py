@@ -29,7 +29,7 @@ from tree_visualizer import (
 )
 from utils import (
     get_image_download_link, generate_model_code, export_model_pickle, export_model_onnx,
-    create_info_box, format_number
+    create_info_box, format_number, show_code_with_download
 )
 
 
@@ -335,6 +335,89 @@ def main():
 
                         st.pyplot(fig)
 
+                        # Enlace para descargar la imagen
+                        st.markdown(get_image_download_link(fig, "scatter_plot", "📥 Descargar gráfico"),
+                                    unsafe_allow_html=True)
+
+                        # Mostrar el código que genera este gráfico
+                        if tree_type == "Clasificación":
+                            code_scatter = f"""
+import matplotlib.pyplot as plt
+import numpy as np
+
+# Crear la figura
+fig, ax = plt.subplots(figsize=(10, 6))
+
+# Graficar cada clase con un color diferente
+for i, class_name in enumerate(class_names):
+    # Obtener índices para esta clase
+    idx = np.where(y == i)[0]
+    
+    # Extraer valores para las características seleccionadas
+    if isinstance(X, pd.DataFrame):
+        x_values = X.iloc[idx]['{x_axis}']
+        y_values = X.iloc[idx]['{y_axis}']
+    else:
+        x_idx = feature_names.index('{x_axis}')
+        y_idx = feature_names.index('{y_axis}')
+        x_values = X[idx, x_idx]
+        y_values = X[idx, y_idx]
+    
+    # Graficar los puntos
+    ax.scatter(x_values, y_values, label=class_name, alpha=0.7)
+
+# Añadir leyenda y etiquetas
+ax.legend(title="Clase")
+ax.set_xlabel('{x_axis}')
+ax.set_ylabel('{y_axis}')
+ax.set_title('Relación entre {x_axis} y {y_axis}')
+ax.grid(True, linestyle='--', alpha=0.7)
+
+# Para mostrar en Streamlit
+# st.pyplot(fig)
+
+# Para uso normal en Python/Jupyter
+# plt.tight_layout()
+# plt.show()
+"""
+                        else:
+                            code_scatter = f"""
+import matplotlib.pyplot as plt
+import numpy as np
+
+# Crear la figura
+fig, ax = plt.subplots(figsize=(10, 6))
+
+# Extraer valores para las características seleccionadas
+if isinstance(X, pd.DataFrame):
+    x_values = X['{x_axis}']
+    y_values = X['{y_axis}']
+else:
+    x_idx = feature_names.index('{x_axis}')
+    y_idx = feature_names.index('{y_axis}')
+    x_values = X[:, x_idx]
+    y_values = X[:, y_idx]
+
+# Graficar los puntos coloreados por el valor objetivo
+scatter = ax.scatter(x_values, y_values, c=y, cmap='viridis', alpha=0.7)
+plt.colorbar(scatter, ax=ax, label="Valor objetivo")
+
+# Añadir etiquetas
+ax.set_xlabel('{x_axis}')
+ax.set_ylabel('{y_axis}')
+ax.set_title('Relación entre {x_axis} y {y_axis}')
+ax.grid(True, linestyle='--', alpha=0.7)
+
+# Para mostrar en Streamlit
+# st.pyplot(fig)
+
+# Para uso normal en Python/Jupyter
+# plt.tight_layout()
+# plt.show()
+"""
+                        show_code_with_download(
+                            code_scatter, "Código para generar este gráfico", "scatter_plot.py")
+
                 elif viz_data_type == "Matriz de Correlación":
                     st.write("### Matriz de Correlación")
                     st.write(
@@ -353,6 +436,40 @@ def main():
 
                     plt.title('Matriz de Correlación de Características')
                     st.pyplot(fig)
+
+                    # Enlace para descargar la imagen
+                    st.markdown(get_image_download_link(fig, "matriz_correlacion", "📥 Descargar matriz de correlación"),
+                                unsafe_allow_html=True)
+
+                    # Mostrar el código que genera este gráfico
+                    code_corr = """
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+import pandas as pd
+
+# Calcular la matriz de correlación
+corr_matrix = df.corr()
+
+# Crear el heatmap
+fig, ax = plt.subplots(figsize=(10, 8))
+mask = np.triu(np.ones_like(corr_matrix, dtype=bool))
+cmap = sns.diverging_palette(220, 10, as_cmap=True)
+
+sns.heatmap(corr_matrix, mask=mask, cmap=cmap, vmax=1, vmin=-1, center=0,
+           annot=True, fmt=".2f", square=True, linewidths=.5, ax=ax)
+
+plt.title('Matriz de Correlación de Características')
+
+# Para mostrar en Streamlit
+# st.pyplot(fig)
+
+# Para uso normal en Python/Jupyter
+# plt.tight_layout()
+# plt.show()
+"""
+                    show_code_with_download(
+                        code_corr, "Código para generar esta matriz", "matriz_correlacion.py")
 
                     # Añadir explicación
                     st.write("""
@@ -450,6 +567,65 @@ def main():
 
                             # Mostrar la figura
                             st.pyplot(g.fig)
+
+                            # Enlace para descargar la imagen
+                            st.markdown(get_image_download_link(g.fig, "matriz_dispersion", "📥 Descargar matriz de dispersión"),
+                                        unsafe_allow_html=True)
+
+                            # Mostrar el código que genera este gráfico
+                            code_scatter = f"""
+import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd
+import numpy as np
+
+# Seleccionar las características para visualizar
+selected_features = {selected_features}
+
+# Crear un DataFrame con los datos seleccionados
+plot_df = pd.DataFrame(X, columns=feature_names)[selected_features].copy()
+
+# Añadir la columna objetivo para colorear los puntos
+if tree_type == "Clasificación" and class_names:
+    plot_df['target'] = [class_names[int(val)] for val in y]
+    hue_col = 'target'
+else:
+    hue_col = None
+
+# Ajustar el tamaño según el número de características
+fig_size = max(8, len(selected_features) * 2)
+
+# Crear la visualización
+if {corner}:  # Mostrar solo mitad inferior
+    g = sns.PairGrid(plot_df, hue=hue_col, diag_sharey=False,
+                    height=fig_size / len(selected_features),
+                    aspect=1)
+    g.map_lower(sns.scatterplot, alpha=0.7)
+    if "{diag_kind}" == "hist":
+        g.map_diag(sns.histplot)
+    else:
+        g.map_diag(sns.kdeplot)
+    
+    if hue_col:
+        g.add_legend(title="Clase", bbox_to_anchor=(1.05, 1), loc='upper left')
+else:
+    # Usar pairplot directamente para la matriz completa
+    g = sns.pairplot(plot_df, hue=hue_col, diag_kind="{diag_kind}",
+                    height=fig_size / len(selected_features),
+                    plot_kws={{'alpha': 0.7}})
+
+# Ajustar espaciado y título
+plt.tight_layout()
+plt.suptitle('Matriz de Dispersión de Características', fontsize=16, y=1.02)
+
+# Para mostrar en Streamlit
+# st.pyplot(g.fig)
+
+# Para uso normal en Python/Jupyter
+# plt.show()
+"""
+                            show_code_with_download(
+                                code_scatter, "Código para generar esta matriz", "matriz_dispersion.py")
 
                             # Añadir explicación
                             st.write("""

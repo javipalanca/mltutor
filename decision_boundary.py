@@ -4,9 +4,11 @@ from matplotlib.colors import ListedColormap
 import matplotlib.patches as mpatches
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 import pandas as pd
+import streamlit as st
+from utils import get_image_download_link, show_code_with_download
 
 
-def plot_decision_boundary(model, X, y, ax=None, feature_names=None, class_names=None):
+def plot_decision_boundary(model, X, y, ax=None, feature_names=None, class_names=None, show_code=True):
     """
     Plot the decision boundary of a tree model for 2D data.
 
@@ -24,6 +26,8 @@ def plot_decision_boundary(model, X, y, ax=None, feature_names=None, class_names
         Names of the features (only first 2 are used)
     class_names : list, optional
         Names of the classes
+    show_code : bool, optional
+        Whether to show the code that generates this plot
 
     Returns:
     --------
@@ -140,6 +144,143 @@ def plot_decision_boundary(model, X, y, ax=None, feature_names=None, class_names
     # Set axis limits
     ax.set_xlim(xx.min(), xx.max())
     ax.set_ylim(yy.min(), yy.max())
+
+    # Si se solicita y estamos en Streamlit, mostramos el código
+    if show_code and 'st' in globals():
+        fig = ax.figure  # Obtener la figura desde los ejes
+
+        # Código para generar esta visualización
+        code = """
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap
+import matplotlib.patches as mpatches
+from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
+import pandas as pd
+
+def plot_decision_boundary(model, X, y, feature_names=None, class_names=None):
+    \"\"\"
+    Visualiza la frontera de decisión de un modelo de árbol para datos 2D.
+    \"\"\"
+    # Asegurar que X sea un array numpy y tenga exactamente 2 características
+    if isinstance(X, pd.DataFrame):
+        X_plot = X.values
+        if feature_names is None:
+            feature_names = X.columns.tolist()
+    else:
+        X_plot = X
+    
+    # Asegurar que y sea un array numpy
+    if hasattr(y, 'values'):
+        y = y.values
+    
+    # Crear una malla
+    h = 0.02  # tamaño del paso en la malla
+    x_min, x_max = X_plot[:, 0].min() - 1, X_plot[:, 0].max() + 1
+    y_min, y_max = X_plot[:, 1].min() - 1, X_plot[:, 1].max() + 1
+    xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
+                         np.arange(y_min, y_max, h))
+    
+    # Crear figura
+    fig, ax = plt.subplots(figsize=(10, 8))
+    
+    # Obtener clases únicas
+    classes = np.unique(y)
+    n_classes = len(classes)
+    
+    # Crear colormap
+    if n_classes <= 10:
+        cmap = plt.cm.tab10
+    else:
+        cmap = plt.cm.viridis
+    
+    # Entrenar un nuevo modelo usando solo las 2 características seleccionadas
+    if isinstance(model, DecisionTreeClassifier):
+        new_model = DecisionTreeClassifier(
+            max_depth=model.max_depth,
+            min_samples_split=model.min_samples_split,
+            criterion=model.criterion,
+            random_state=42
+        )
+    else:
+        new_model = DecisionTreeRegressor(
+            max_depth=model.max_depth,
+            min_samples_split=model.min_samples_split,
+            criterion=model.criterion,
+            random_state=42
+        )
+    
+    # Entrenar el nuevo modelo con solo las 2 características seleccionadas
+    new_model.fit(X_plot, y)
+    
+    # Crear la frontera de decisión usando el nuevo modelo
+    if hasattr(new_model, 'predict_proba'):
+        if n_classes == 2:  # Clasificación binaria
+            Z = new_model.predict_proba(np.c_[xx.ravel(), yy.ravel()])[:, 1]
+        else:  # Clasificación multiclase
+            Z = new_model.predict(np.c_[xx.ravel(), yy.ravel()])
+    else:
+        Z = new_model.predict(np.c_[xx.ravel(), yy.ravel()])
+    
+    # Remodelar Z para que coincida con la malla
+    Z = Z.reshape(xx.shape)
+    
+    # Graficar la frontera de decisión
+    if n_classes == 2:  # Clasificación binaria
+        contour = ax.contourf(xx, yy, Z, alpha=0.3, cmap=plt.cm.RdBu)
+    else:  # Clasificación multiclase o regresión
+        contour = ax.contourf(xx, yy, Z, alpha=0.3, cmap=cmap)
+    
+    # Crear scatter plot de los datos de entrenamiento
+    if n_classes <= 10:  # Clasificación
+        scatter = ax.scatter(X_plot[:, 0], X_plot[:, 1], c=y,
+                           cmap=cmap, edgecolor='k', s=20)
+    else:  # Regresión
+        scatter = ax.scatter(X_plot[:, 0], X_plot[:, 1], c=y,
+                           cmap=plt.cm.viridis, edgecolor='k', s=20)
+    
+    # Establecer etiquetas de los ejes
+    if feature_names is not None and len(feature_names) >= 2:
+        ax.set_xlabel(feature_names[0])
+        ax.set_ylabel(feature_names[1])
+    else:
+        ax.set_xlabel('Característica 1')
+        ax.set_ylabel('Característica 2')
+    
+    # Añadir leyenda
+    if class_names is not None and n_classes <= 10:
+        legend_labels = [class_names[i] for i in range(n_classes)]
+        patches = [mpatches.Patch(color=cmap(i / n_classes), label=legend_labels[i])
+                 for i in range(n_classes)]
+        ax.legend(handles=patches, loc='lower right')
+    
+    # Establecer título
+    ax.set_title('Frontera de Decisión')
+    
+    # Establecer límites de los ejes
+    ax.set_xlim(xx.min(), xx.max())
+    ax.set_ylim(yy.min(), yy.max())
+    
+    return fig, ax
+
+# Uso del código
+fig, ax = plot_decision_boundary(
+    model=tree_model,  # Tu modelo de árbol entrenado
+    X=X,               # Tus datos de características (solo se usan las primeras 2)
+    y=y,               # Tus etiquetas de clase
+    feature_names=feature_names,  # Nombres de las características
+    class_names=class_names       # Nombres de las clases
+)
+
+# Para mostrar en Streamlit
+# st.pyplot(fig)
+
+# Para uso normal en Python/Jupyter
+# plt.tight_layout()
+# plt.show()
+"""
+        show_code_with_download(
+            code, "Código para generar esta visualización", "frontera_decision.py")
 
     return ax
 

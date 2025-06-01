@@ -9,8 +9,9 @@ import pandas as pd
 import numpy as np
 import io
 import base64
+from sklearn.tree import plot_tree
 
-from utils import get_image_download_link, generate_model_code, export_model_pickle, export_model_onnx
+from utils import get_image_download_link, generate_model_code, export_model_pickle, export_model_onnx, show_code_with_download
 from model_evaluation import show_detailed_evaluation, show_prediction_path
 from tree_visualization import (
     create_static_tree_visualization, get_tree_text,
@@ -389,8 +390,69 @@ def display_feature_importance(tree_model, feature_names):
         ax.set_ylabel('Importancia')
         st.pyplot(fig)
 
+        # Enlace para descargar la imagen
+        st.markdown(get_image_download_link(fig, "importancia_caracteristicas", "📥 Descargar gráfico"),
+                    unsafe_allow_html=True)
+
+        # Mostrar el código que genera esta visualización
+        code = """
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+
+# Obtener la importancia de las características
+importances = tree_model.feature_importances_
+indices = np.argsort(importances)[::-1]
+
+# Crear DataFrame para visualizar
+importance_df = pd.DataFrame({
+    'Característica': [feature_names[i] for i in indices],
+    'Importancia': importances[indices]
+})
+
+# Crear la visualización
+fig, ax = plt.subplots(figsize=(10, 6))
+ax.bar(range(len(indices)), importances[indices])
+ax.set_xticks(range(len(indices)))
+ax.set_xticklabels([feature_names[i] for i in indices], rotation=45, ha='right')
+ax.set_title('Importancia de Características')
+ax.set_ylabel('Importancia')
+
+# Para mostrar en Streamlit
+st.pyplot(fig)
+# Para usar en Jupyter/Python normal
+# plt.tight_layout()
+# plt.show()
+"""
+        show_code_with_download(
+            code, "Código para generar este gráfico", "importancia_caracteristicas.py")
+
     with col2:
         st.dataframe(importance_df)
+
+        # Mostrar código para generar y exportar el DataFrame
+        code_df = """
+import pandas as pd
+import numpy as np
+
+# Obtener la importancia de las características
+importances = tree_model.feature_importances_
+indices = np.argsort(importances)[::-1]
+
+# Crear DataFrame con las importancias ordenadas
+importance_df = pd.DataFrame({
+    'Característica': [feature_names[i] for i in indices],
+    'Importancia': importances[indices]
+})
+
+# Para mostrar en Streamlit
+st.dataframe(importance_df)
+
+# Para exportar a CSV
+# importance_df.to_csv('importancia_caracteristicas.csv', index=False)
+"""
+        show_code_with_download(
+            code_df, "Código para generar esta tabla", "importancia_tabla.py")
 
         with st.expander("ℹ️ ¿Qué significa la importancia?"):
             st.markdown("""
@@ -452,6 +514,47 @@ def display_model_export_options(tree_model, feature_names, class_names, tree_ty
             mime="text/plain"
         )
 
+        # Mostrar código para generar esta exportación
+        code_gen = f"""
+import numpy as np
+from sklearn.tree import {'DecisionTreeClassifier' if tree_type == 'Clasificación' else 'DecisionTreeRegressor'}
+
+# Definir los nombres de las características
+feature_names = {feature_names}
+
+# Definir los nombres de las clases (solo para clasificación)
+{'class_names = ' + str(class_names) if tree_type == 'Clasificación' and class_names else '# No hay nombres de clases para regresión'}
+
+# Crear el modelo
+model = {'DecisionTreeClassifier' if tree_type == 'Clasificación' else 'DecisionTreeRegressor'}(
+    max_depth={max_depth},
+    min_samples_split={min_samples_split},
+    criterion="{criterion}",
+    random_state=42
+)
+
+# El modelo ya está entrenado, para recrearlo necesitarás entrenarlo con tus datos:
+# model.fit(X_train, y_train)
+
+# Ejemplo de uso para predicción:
+# Nuevos datos: [característica1, característica2, ...]
+nuevo_ejemplo = [[{', '.join(['0.0' for _ in feature_names])}]]
+prediccion = model.predict(nuevo_ejemplo)
+
+# Para mostrar la predicción
+print(f"Predicción: {{prediccion}}")
+"""
+
+        # Add probability code based on tree type
+        if tree_type == 'Clasificación':
+            code_gen += """
+# Para obtener probabilidades (solo para clasificación):
+# probabilidades = model.predict_proba(nuevo_ejemplo)
+"""
+
+        show_code_with_download(
+            code_gen, "Código para generar la exportación de código", "generar_exportacion_codigo.py")
+
     elif export_option == "Modelo (.pkl)":
         model_pickle = export_model_pickle(tree_model)
         st.download_button(
@@ -475,6 +578,33 @@ nuevos_datos = [[5.1, 3.5, 1.4, 0.2]]  # Reemplaza con tus datos
 prediccion = modelo_cargado.predict(nuevos_datos)
 print(f"Predicción: {prediccion}")
             """, language="python")
+
+        # Mostrar código para generar esta exportación
+        code_pickle = """
+import pickle
+
+# Exportar el modelo a formato pickle
+def export_model_pickle(model):
+    # Serializar el modelo a bytes
+    modelo_serializado = pickle.dumps(model)
+    
+    # Para guardar a un archivo
+    # with open('modelo_arbol_decision.pkl', 'wb') as f:
+    #    pickle.dump(model, f)
+    
+    return modelo_serializado
+
+# Para usar con Streamlit:
+# model_pickle = export_model_pickle(tree_model)
+# st.download_button(
+#     label="Descargar modelo (.pkl)",
+#     data=model_pickle,
+#     file_name="modelo_arbol_decision.pkl",
+#     mime="application/octet-stream"
+# )
+"""
+        show_code_with_download(
+            code_pickle, "Código para generar la exportación pickle", "exportar_modelo_pickle.py")
 
     elif export_option == "ONNX (.onnx)":
         try:
@@ -520,6 +650,53 @@ datos = np.array([[5.1, 3.5, 1.4, 0.2]], dtype=np.float32)  # Reemplaza con tus 
 prediccion = session.run([output_name], {input_name: datos})[0]
 print(f"Predicción: {prediccion}")
                     """, language="python")
+
+                # Mostrar código para generar esta exportación
+                code_onnx = f"""
+from skl2onnx import convert_sklearn
+from skl2onnx.common.data_types import FloatTensorType
+import numpy as np
+
+def export_modelo_onnx(model, num_features):
+    \"\"\"
+    Convierte un modelo scikit-learn a formato ONNX.
+    
+    Parameters:
+    -----------
+    model : objeto modelo scikit-learn
+        El modelo a convertir
+    num_features : int
+        Número de características que acepta el modelo
+        
+    Returns:
+    --------
+    bytes
+        Datos serializados del modelo en formato ONNX
+    \"\"\"
+    # Configuración inicial para la conversión
+    initial_type = [('float_input', FloatTensorType([None, num_features]))]
+    
+    # Convertir el modelo
+    onnx_model = convert_sklearn(model, initial_types=initial_type)
+    
+    # Serializar a bytes
+    return onnx_model.SerializeToString()
+
+# Para guardar el modelo a un archivo:
+# with open('modelo_arbol_decision.onnx', 'wb') as f:
+#     f.write(export_modelo_onnx(tree_model, {len(feature_names)}))
+
+# Para usar con Streamlit:
+# model_onnx = export_modelo_onnx(tree_model, {len(feature_names)})
+# st.download_button(
+#     label="Descargar modelo ONNX",
+#     data=model_onnx,
+#     file_name="modelo_arbol_decision.onnx",
+#     mime="application/octet-stream"
+# )
+"""
+                show_code_with_download(
+                    code_onnx, "Código para generar la exportación ONNX", "exportar_modelo_onnx.py")
             else:
                 st.error(
                     "No se pudo generar el modelo ONNX. Verifica que las dependencias estén instaladas.")
