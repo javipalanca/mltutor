@@ -10,10 +10,15 @@ Esta aplicación permite visualizar y comprender algoritmos de machine learning 
 ## Características
 
 - Interfaz interactiva para experimentar con diferentes parámetros
-- Visualización detallada de modelos de machine learning
+- Visualizaciones avanzadas de modelos:
+  - **Árbol interactivo completo**: Con explicaciones al pasar el cursor
+  - **Árbol paso a paso**: Construcción animada del árbol
+  - **Árbol explicativo detallado**: Guía educativa completa
 - Métricas de evaluación y explicaciones
 - Exportación de modelos en diferentes formatos
 - Datasets de ejemplo incluidos
+
+Para más detalles sobre las visualizaciones, consulta [README_visualizaciones.md](README_visualizaciones.md).
 
 ## Requisitos
 
