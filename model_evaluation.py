@@ -125,7 +125,7 @@ def show_detailed_evaluation(y_test, y_pred, class_names, tree_type):
 
         # Matriz de confusión
         cm = confusion_matrix(y_test, y_pred)
-        fig_cm, ax_cm = plt.subplots(figsize=(8, 6))
+        fig_cm, ax_cm = plt.subplots(figsize=(6, 5))  # Reducir tamaño
         sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax_cm,
                     xticklabels=class_names, yticklabels=class_names)
         ax_cm.set_xlabel('Predicción')
@@ -134,7 +134,11 @@ def show_detailed_evaluation(y_test, y_pred, class_names, tree_type):
 
         col1, col2 = st.columns([1, 1])
         with col1:
-            st.pyplot(fig_cm)
+            # Mostrar con tamaño reducido
+            col_inner1, col_inner2, col_inner3 = st.columns([1, 3, 1])
+            with col_inner2:
+                st.pyplot(fig_cm, use_container_width=True)
+
             st.markdown(get_image_download_link(
                 fig_cm, "matriz_confusion", "📥 Descargar matriz de confusión"), unsafe_allow_html=True)
 
@@ -207,7 +211,7 @@ ax.set_title('Matriz de Confusión')
                 st.info("¡Todas las muestras fueron clasificadas correctamente!")
 
         # Gráfico de precisión por clase
-        fig_prec, ax_prec = plt.subplots(figsize=(10, 5))
+        fig_prec, ax_prec = plt.subplots(figsize=(8, 4))  # Reducir altura
         prec_by_class = {
             class_name: report[class_name]['precision'] for class_name in class_names}
         sns.barplot(x=list(prec_by_class.keys()), y=list(
@@ -216,7 +220,12 @@ ax.set_title('Matriz de Confusión')
         ax_prec.set_title('Precisión por clase')
         ax_prec.set_ylabel('Precisión')
         ax_prec.set_xlabel('Clase')
-        st.pyplot(fig_prec)
+
+        # Mostrar con tamaño reducido
+        col1, col2, col3 = st.columns([1, 3, 1])
+        with col2:
+            st.pyplot(fig_prec, use_container_width=True)
+
         st.markdown(get_image_download_link(
             fig_prec, "precision_por_clase", "📥 Descargar gráfico de precisión"), unsafe_allow_html=True)
 
@@ -275,7 +284,7 @@ ax.set_xlabel('Clase')
                       help="Proporción de la varianza explicada por el modelo. 1 es predicción perfecta.")
 
         # Gráfico de predicciones vs valores reales
-        fig, ax = plt.subplots(figsize=(8, 6))
+        fig, ax = plt.subplots(figsize=(6, 5))  # Reducir tamaño
         scatter = ax.scatter(y_test, y_pred, alpha=0.5,
                              c=np.abs(y_test - y_pred), cmap='viridis')
         ax.plot([y_test.min(), y_test.max()], [
@@ -285,7 +294,11 @@ ax.set_xlabel('Clase')
         ax.set_title('Predicciones vs Valores reales')
         plt.colorbar(scatter, ax=ax, label='Error absoluto')
 
-        st.pyplot(fig)
+        # Mostrar con tamaño reducido
+        col1, col2, col3 = st.columns([1, 3, 1])
+        with col2:
+            st.pyplot(fig, use_container_width=True)
+
         st.markdown(get_image_download_link(
             fig, "predicciones_vs_reales", "📥 Descargar gráfico"), unsafe_allow_html=True)
 
@@ -315,14 +328,18 @@ plt.colorbar(scatter, ax=ax, label='Error absoluto')
             code_pred, "Código para generar este gráfico", "predicciones_vs_reales.py")
 
         # Distribución de errores
-        fig_err, ax_err = plt.subplots(figsize=(8, 6))
+        fig_err, ax_err = plt.subplots(figsize=(6, 4))  # Reducir tamaño
         errors = y_test - y_pred
         sns.histplot(errors, kde=True, ax=ax_err)
         ax_err.axvline(x=0, color='r', linestyle='--')
         ax_err.set_title('Distribución de errores')
         ax_err.set_xlabel('Error (Real - Predicción)')
 
-        st.pyplot(fig_err)
+        # Mostrar con tamaño reducido
+        col1, col2, col3 = st.columns([1, 3, 1])
+        with col2:
+            st.pyplot(fig_err, use_container_width=True)
+
         st.markdown(get_image_download_link(
             fig_err, "distribucion_errores", "📥 Descargar gráfico"), unsafe_allow_html=True)
 
@@ -397,7 +414,8 @@ def show_prediction_path(tree_model, X_new, feature_names, class_names=None):
         leaf_id = tree_model.apply(X_new)
 
         # Obtener los nodos en el camino
-        node_index = node_indicator.indices[node_indicator.indptr[0]                                            :node_indicator.indptr[1]]
+        node_index = node_indicator.indices[node_indicator.indptr[0]
+            :node_indicator.indptr[1]]
 
         path_explanation = []
         for node_id in node_index:

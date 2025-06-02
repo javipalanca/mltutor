@@ -24,7 +24,7 @@ from ui import (
     display_feature_importance, display_model_export_options, create_prediction_interface
 )
 from tree_visualizer import (
-    check_visualization_modules, render_tree_visualization,
+    render_tree_visualization,
     create_tree_visualization, get_tree_text
 )
 from utils import (
@@ -40,9 +40,6 @@ def main():
 
     # Inicializar estado de la sesión
     init_session_state()
-
-    # Verificar disponibilidad de módulos de visualización
-    viz_availability = check_visualization_modules()
 
     # Configurar navegación principal con botones en lugar de radio
     st.sidebar.markdown("### Navegación:")
@@ -109,7 +106,7 @@ def main():
 
     # Páginas de algoritmos
     if st.session_state.navigation == "🌲 Árboles de Decisión":
-        run_decision_trees_app(viz_availability)
+        run_decision_trees_app()
     elif st.session_state.navigation in ["📊 Regresión Logística (próximamente)",
                                          "🔍 K-Nearest Neighbors (próximamente)",
                                          "🧠 Redes Neuronales (próximamente)"]:
@@ -130,7 +127,7 @@ def main():
                      caption="Ilustración de Redes Neuronales")
 
 
-def run_decision_trees_app(viz_availability):
+def run_decision_trees_app():
     """Ejecuta la aplicación específica de árboles de decisión."""
     st.header("🌲 Árboles de Decisión")
     st.markdown("Aprende sobre los árboles de decisión de forma interactiva")
@@ -164,8 +161,8 @@ def run_decision_trees_app(viz_availability):
 
     # Crear pestañas para organizar la información
     tab_options = [
-        "⚙️ Configuración",
         "📊 Datos",
+        "🏋️ Entrenamiento",
         "📈 Evaluación",
         "🌲 Visualización",
         "🔍 Características",
@@ -211,8 +208,255 @@ def run_decision_trees_app(viz_availability):
     # Separador visual
     st.markdown("---")
 
-    # Pestaña de Configuración
+    # Pestaña de Datos
     if st.session_state.active_tab == 0:
+        st.header("Exploración de Datos")
+
+        # Selección de dataset para exploración
+        st.markdown("### Selecciona un Dataset para Explorar")
+        dataset_option = st.selectbox(
+            "Dataset de ejemplo:",
+            ("Iris (clasificación de flores)",
+             "Vino (clasificación de vinos)",
+             "Cáncer de mama (diagnóstico)"),
+            key="dataset_selector_exploration"
+        )
+
+        try:
+            # Cargar datos para exploración
+            X, y, feature_names, class_names, dataset_info, task_type = load_data(
+                dataset_option)
+
+            # Convertir a DataFrames para facilitar el manejo
+            X_df = pd.DataFrame(X, columns=feature_names)
+            y_df = pd.Series(y, name="target")
+
+            # Mapear nombres de clases si están disponibles
+            if task_type == "Clasificación" and class_names is not None:
+                y_df = y_df.map(
+                    {i: name for i, name in enumerate(class_names)})
+
+            df = pd.concat([X_df, y_df], axis=1)
+
+            # Mostrar información del dataset
+            st.markdown("### Información del Dataset")
+            st.markdown(create_info_box(dataset_info), unsafe_allow_html=True)
+
+            # Mostrar las primeras filas de los datos
+            st.markdown("### Vista previa de datos")
+            st.dataframe(df.head(10))
+
+            # Estadísticas descriptivas
+            st.markdown("### Estadísticas Descriptivas")
+            st.dataframe(df.describe())
+
+            # Distribución de clases o valores objetivo
+            st.markdown("### Distribución del Objetivo")
+
+            fig, ax = plt.subplots(figsize=(10, 6))
+
+            if task_type == "Clasificación":
+                # Gráfico de barras para clasificación
+                value_counts = y_df.value_counts().sort_index()
+                sns.barplot(x=value_counts.index, y=value_counts.values, ax=ax)
+                ax.set_title("Distribución de Clases")
+                ax.set_xlabel("Clase")
+                ax.set_ylabel("Cantidad")
+
+                # Rotar etiquetas si son muchas
+                if len(value_counts) > 3:
+                    plt.xticks(rotation=45, ha='right')
+            else:
+                # Histograma para regresión
+                sns.histplot(y_df, kde=True, ax=ax)
+                ax.set_title("Distribución de Valores Objetivo")
+                ax.set_xlabel("Valor")
+                ax.set_ylabel("Frecuencia")
+
+            # Mostrar la figura con tamaño reducido pero expandible
+            col1, col2, col3 = st.columns([1, 3, 1])
+            with col2:
+                st.pyplot(fig, use_container_width=True)
+
+            # Análisis de correlación
+            st.markdown("### Matriz de Correlación")
+
+            # Matriz de correlación
+            corr = X_df.corr()
+
+            # Generar máscara para el triángulo superior
+            mask = np.triu(np.ones_like(corr, dtype=bool))
+
+            # Generar mapa de calor
+            fig_corr, ax = plt.subplots(figsize=(10, 8))
+            sns.heatmap(corr, mask=mask, annot=True, fmt=".2f", cmap="coolwarm",
+                        square=True, linewidths=.5, cbar_kws={"shrink": .8}, ax=ax)
+            ax.set_title("Matriz de Correlación de Características")
+
+            # Mostrar la figura con tamaño reducido pero expandible
+            col1, col2, col3 = st.columns([1, 3, 1])
+            with col2:
+                st.pyplot(fig_corr, use_container_width=True)
+
+            # Matriz de dispersión (Scatterplot Matrix)
+            st.markdown("### Matriz de Dispersión (Pairplot)")
+
+            # Opciones de visualización
+            st.markdown("#### Opciones de visualización")
+            col1, col2 = st.columns(2)
+
+            with col1:
+                # Seleccionar tipo de gráfico para la diagonal
+                diag_kind = st.radio(
+                    "Tipo de gráfico en la diagonal:",
+                    ["Histograma", "KDE (Estimación de Densidad)"],
+                    index=1,
+                    horizontal=True
+                )
+                diag_kind = "hist" if diag_kind == "Histograma" else "kde"
+
+            with col2:
+                # Seleccionar número máximo de características
+                max_features_selected = st.slider(
+                    "Número máximo de características:",
+                    min_value=2,
+                    max_value=min(6, len(X_df.columns)),
+                    value=min(4, len(X_df.columns)),
+                    help="Un número mayor de características puede hacer que el gráfico sea más difícil de interpretar."
+                )
+
+            # Permitir al usuario seleccionar las características específicas
+            st.markdown("#### Selecciona las características para visualizar")
+
+            # Limitar a max_features_selected
+            available_features = X_df.columns.tolist()
+
+            # Usar multiselect para seleccionar características
+            selected_features = st.multiselect(
+                "Características a incluir en la matriz de dispersión:",
+                available_features,
+                default=available_features[:max_features_selected],
+                max_selections=max_features_selected,
+                help=f"Selecciona hasta {max_features_selected} características para incluir en la visualización."
+            )
+
+            # Si no se seleccionó ninguna característica, usar las primeras por defecto
+            if not selected_features:
+                selected_features = available_features[:max_features_selected]
+                st.info(
+                    f"No se seleccionaron características. Usando las primeras {max_features_selected} por defecto.")
+
+            # Crear el dataframe para la visualización
+            plot_df = X_df[selected_features].copy()
+            # Añadir la variable objetivo para colorear
+            plot_df['target'] = y_df
+
+            # Generar el pairplot
+            with st.spinner("Generando matriz de dispersión..."):
+                pair_plot = sns.pairplot(
+                    plot_df,
+                    hue='target',
+                    diag_kind=diag_kind,
+                    plot_kws={'alpha': 0.6, 's': 30, 'edgecolor': 'k'},
+                    diag_kws={'alpha': 0.5},
+                    height=2.0  # Reducir altura para que sea más compacto
+                )
+                pair_plot.fig.suptitle(
+                    "Matriz de Dispersión de Características", y=1.02, fontsize=14)
+
+                # Mostrar la figura con tamaño reducido pero expandible
+                col1, col2, col3 = st.columns([1, 3, 1])
+                with col2:
+                    st.pyplot(pair_plot.fig, use_container_width=True)
+
+                # Enlace para descargar
+                st.markdown(
+                    get_image_download_link(
+                        pair_plot.fig, "matriz_dispersion", "📥 Descargar matriz de dispersión"),
+                    unsafe_allow_html=True
+                )
+
+            # Generar código para este análisis
+            code = """
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Cargar tus datos (reemplaza esto con tu método de carga)
+# df = pd.read_csv('tu_archivo.csv')
+
+# Separar características y objetivo
+X = df.iloc[:, :-1]  # Todas las columnas excepto la última
+y = df.iloc[:, -1]   # Última columna como objetivo
+
+# Estadísticas descriptivas
+print(df.describe())
+
+# Distribución del objetivo
+fig, ax = plt.subplots(figsize=(10, 6))
+
+# Para clasificación:
+if len(np.unique(y)) <= 10:  # Si hay pocas clases únicas
+    value_counts = y.value_counts().sort_index()
+    sns.barplot(x=value_counts.index, y=value_counts.values, ax=ax)
+    ax.set_title("Distribución de Clases")
+    ax.set_xlabel("Clase")
+    ax.set_ylabel("Cantidad")
+else:  # Para regresión
+    sns.histplot(y, kde=True, ax=ax)
+    ax.set_title("Distribución de Valores Objetivo")
+    ax.set_xlabel("Valor")
+    ax.set_ylabel("Frecuencia")
+
+plt.tight_layout()
+plt.show()
+
+# Matriz de correlación
+corr = X.corr()
+mask = np.triu(np.ones_like(corr, dtype=bool))  # Máscara para triángulo superior
+
+fig, ax = plt.subplots(figsize=(12, 10))
+sns.heatmap(corr, mask=mask, annot=True, fmt=".2f", cmap="coolwarm",
+           square=True, linewidths=.5, cbar_kws={"shrink": .8}, ax=ax)
+ax.set_title("Matriz de Correlación de Características")
+
+plt.tight_layout()
+plt.show()
+
+# Matriz de dispersión (Scatterplot Matrix)
+# Seleccionar características específicas para visualizar
+selected_features = ['feature1', 'feature2', 'feature3']  # Reemplaza con tus características de interés
+max_features = min(6, len(selected_features))
+
+# Crear el dataframe para la visualización
+plot_df = X[selected_features].copy()
+plot_df['target'] = y  # Añadir la variable objetivo para colorear
+
+# Generar el pairplot
+pair_plot = sns.pairplot(
+    plot_df, 
+    hue='target', 
+    diag_kind='kde',  # Opciones: 'hist' para histograma o 'kde' para densidad
+    plot_kws={'alpha': 0.6, 's': 30, 'edgecolor': 'k'},
+    diag_kws={'alpha': 0.5},
+    height=2.5
+)
+pair_plot.fig.suptitle("Matriz de Dispersión de Características", y=1.02, fontsize=16)
+plt.tight_layout()
+plt.show()
+"""
+
+            show_code_with_download(
+                code, "Código para análisis exploratorio", "analisis_exploratorio.py")
+
+        except Exception as e:
+            st.error(f"Error al cargar el dataset: {str(e)}")
+            st.info(
+                "Por favor, selecciona un dataset válido para continuar con la exploración.")
+
+    # Pestaña de Entrenamiento
+    elif st.session_state.active_tab == 1:
         st.header("Configuración del Modelo")
 
         # Selección de dataset
@@ -387,235 +631,13 @@ def run_decision_trees_app(viz_availability):
                 except Exception as e:
                     st.error(f"Error al entrenar el modelo: {str(e)}")
 
-    # Pestaña de Datos
-    elif st.session_state.active_tab == 1:
-        st.header("Exploración de Datos")
-
-        if not st.session_state.is_trained:
-            st.warning(
-                "Primero debes entrenar un modelo en la pestaña '⚙️ Configuración'.")
-        else:
-            # Mostrar información del dataset
-            st.markdown("### Información del Dataset")
-            st.markdown(create_info_box(
-                st.session_state.dataset_info), unsafe_allow_html=True)
-
-            # Mostrar las primeras filas de los datos
-            st.markdown("### Vista previa de datos")
-            X_df = pd.DataFrame(np.vstack((st.session_state.X_train, st.session_state.X_test)),
-                                columns=st.session_state.feature_names)
-            y_df = pd.Series(np.hstack((st.session_state.y_train, st.session_state.y_test)),
-                             name="target")
-
-            if st.session_state.tree_type == "Clasificación" and st.session_state.class_names is not None:
-                y_df = y_df.map(
-                    {i: name for i, name in enumerate(st.session_state.class_names)})
-
-            df = pd.concat([X_df, y_df], axis=1)
-            st.dataframe(df.head(10))
-
-            # Estadísticas descriptivas
-            st.markdown("### Estadísticas Descriptivas")
-            st.dataframe(df.describe())
-
-            # Distribución de clases o valores objetivo
-            st.markdown("### Distribución del Objetivo")
-
-            fig, ax = plt.subplots(figsize=(10, 6))
-
-            if st.session_state.tree_type == "Clasificación":
-                # Gráfico de barras para clasificación
-                value_counts = y_df.value_counts().sort_index()
-                sns.barplot(x=value_counts.index, y=value_counts.values, ax=ax)
-                ax.set_title("Distribución de Clases")
-                ax.set_xlabel("Clase")
-                ax.set_ylabel("Cantidad")
-
-                # Rotar etiquetas si son muchas
-                if len(value_counts) > 3:
-                    plt.xticks(rotation=45, ha='right')
-            else:
-                # Histograma para regresión
-                sns.histplot(y_df, kde=True, ax=ax)
-                ax.set_title("Distribución de Valores Objetivo")
-                ax.set_xlabel("Valor")
-                ax.set_ylabel("Frecuencia")
-
-            st.pyplot(fig)
-
-            # Análisis de correlación
-            st.markdown("### Matriz de Correlación")
-
-            # Matriz de correlación
-            corr = X_df.corr()
-
-            # Generar máscara para el triángulo superior
-            mask = np.triu(np.ones_like(corr, dtype=bool))
-
-            # Generar mapa de calor
-            fig, ax = plt.subplots(figsize=(12, 10))
-            sns.heatmap(corr, mask=mask, annot=True, fmt=".2f", cmap="coolwarm",
-                        square=True, linewidths=.5, cbar_kws={"shrink": .8}, ax=ax)
-            ax.set_title("Matriz de Correlación de Características")
-
-            st.pyplot(fig)
-
-            # Matriz de dispersión (Scatterplot Matrix)
-            st.markdown("### Matriz de Dispersión (Pairplot)")
-
-            # Opciones de visualización
-            st.markdown("#### Opciones de visualización")
-            col1, col2 = st.columns(2)
-
-            with col1:
-                # Seleccionar tipo de gráfico para la diagonal
-                diag_kind = st.radio(
-                    "Tipo de gráfico en la diagonal:",
-                    ["Histograma", "KDE (Estimación de Densidad)"],
-                    index=1,
-                    horizontal=True
-                )
-                diag_kind = "hist" if diag_kind == "Histograma" else "kde"
-
-            with col2:
-                # Seleccionar número máximo de características
-                max_features_selected = st.slider(
-                    "Número máximo de características:",
-                    min_value=2,
-                    max_value=min(6, len(X_df.columns)),
-                    value=min(4, len(X_df.columns)),
-                    help="Un número mayor de características puede hacer que el gráfico sea más difícil de interpretar."
-                )
-
-            # Permitir al usuario seleccionar las características específicas
-            st.markdown("#### Selecciona las características para visualizar")
-
-            # Limitar a max_features_selected
-            available_features = X_df.columns.tolist()
-
-            # Usar multiselect para seleccionar características
-            selected_features = st.multiselect(
-                "Características a incluir en la matriz de dispersión:",
-                available_features,
-                default=available_features[:max_features_selected],
-                max_selections=max_features_selected,
-                help=f"Selecciona hasta {max_features_selected} características para incluir en la visualización."
-            )
-
-            # Si no se seleccionó ninguna característica, usar las primeras por defecto
-            if not selected_features:
-                selected_features = available_features[:max_features_selected]
-                st.info(
-                    f"No se seleccionaron características. Usando las primeras {max_features_selected} por defecto.")
-
-            # Crear el dataframe para la visualización
-            plot_df = X_df[selected_features].copy()
-            # Añadir la variable objetivo para colorear
-            plot_df['target'] = y_df
-
-            # Generar el pairplot
-            with st.spinner("Generando matriz de dispersión..."):
-                pair_fig = plt.figure(figsize=(12, 10))
-                pair_plot = sns.pairplot(
-                    plot_df,
-                    hue='target',
-                    diag_kind=diag_kind,
-                    plot_kws={'alpha': 0.6, 's': 30, 'edgecolor': 'k'},
-                    diag_kws={'alpha': 0.5},
-                    height=2.5
-                )
-                pair_plot.fig.suptitle(
-                    "Matriz de Dispersión de Características", y=1.02, fontsize=16)
-                st.pyplot(pair_plot.fig)
-
-                # Enlace para descargar
-                st.markdown(
-                    get_image_download_link(
-                        pair_plot.fig, "matriz_dispersion", "📥 Descargar matriz de dispersión"),
-                    unsafe_allow_html=True
-                )
-
-            # Generar código para este análisis
-            code = """
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-# Cargar tus datos (reemplaza esto con tu método de carga)
-# df = pd.read_csv('tu_archivo.csv')
-
-# Separar características y objetivo
-X = df.iloc[:, :-1]  # Todas las columnas excepto la última
-y = df.iloc[:, -1]   # Última columna como objetivo
-
-# Estadísticas descriptivas
-print(df.describe())
-
-# Distribución del objetivo
-fig, ax = plt.subplots(figsize=(10, 6))
-
-# Para clasificación:
-if len(np.unique(y)) <= 10:  # Si hay pocas clases únicas
-    value_counts = y.value_counts().sort_index()
-    sns.barplot(x=value_counts.index, y=value_counts.values, ax=ax)
-    ax.set_title("Distribución de Clases")
-    ax.set_xlabel("Clase")
-    ax.set_ylabel("Cantidad")
-else:  # Para regresión
-    sns.histplot(y, kde=True, ax=ax)
-    ax.set_title("Distribución de Valores Objetivo")
-    ax.set_xlabel("Valor")
-    ax.set_ylabel("Frecuencia")
-
-plt.tight_layout()
-plt.show()
-
-# Matriz de correlación
-corr = X.corr()
-mask = np.triu(np.ones_like(corr, dtype=bool))  # Máscara para triángulo superior
-
-fig, ax = plt.subplots(figsize=(12, 10))
-sns.heatmap(corr, mask=mask, annot=True, fmt=".2f", cmap="coolwarm",
-           square=True, linewidths=.5, cbar_kws={"shrink": .8}, ax=ax)
-ax.set_title("Matriz de Correlación de Características")
-
-plt.tight_layout()
-plt.show()
-
-# Matriz de dispersión (Scatterplot Matrix)
-# Seleccionar características específicas para visualizar
-selected_features = ['feature1', 'feature2', 'feature3']  # Reemplaza con tus características de interés
-max_features = min(6, len(selected_features))
-
-# Crear el dataframe para la visualización
-plot_df = X[selected_features].copy()
-plot_df['target'] = y  # Añadir la variable objetivo para colorear
-
-# Generar el pairplot
-pair_plot = sns.pairplot(
-    plot_df, 
-    hue='target', 
-    diag_kind='kde',  # Opciones: 'hist' para histograma o 'kde' para densidad
-    plot_kws={'alpha': 0.6, 's': 30, 'edgecolor': 'k'},
-    diag_kws={'alpha': 0.5},
-    height=2.5
-)
-pair_plot.fig.suptitle("Matriz de Dispersión de Características", y=1.02, fontsize=16)
-plt.tight_layout()
-plt.show()
-"""
-
-            show_code_with_download(
-                code, "Código para análisis exploratorio", "analisis_exploratorio.py")
-
     # Pestaña de Evaluación
     elif st.session_state.active_tab == 2:
         st.header("Evaluación del Modelo")
 
         if not st.session_state.is_trained:
             st.warning(
-                "Primero debes entrenar un modelo en la pestaña '⚙️ Configuración'.")
+                "Primero debes entrenar un modelo en la pestaña '🏋️ Entrenamiento'.")
         else:
             # Obtener predicciones del modelo
             y_pred = st.session_state.tree_model.predict(
@@ -666,7 +688,7 @@ plt.show()
                     X_plot = st.session_state.X_train[:, feature_idx]
                     feature_names_plot = [feature1, feature2]
 
-                # Generar y mostrar el plot
+                # Generar y mostrar el plot en tamaño reducido
                 fig = plot_decision_boundary(
                     st.session_state.tree_model,
                     X_plot,
@@ -675,9 +697,10 @@ plt.show()
                     class_names=st.session_state.class_names
                 )
 
-                st.pyplot(fig)
-
-                # Enlace para descargar
+                # Mostrar en columnas para reducir el tamaño al 75%
+                col1, col2, col3 = st.columns([1, 3, 1])
+                with col2:
+                    st.pyplot(fig)                # Enlace para descargar
                 st.markdown(
                     get_image_download_link(
                         fig, "frontera_decision", "📥 Descargar visualización de la frontera"),
@@ -715,7 +738,7 @@ def plot_decision_boundary(model, X, y, feature_names=None, class_names=None):
     X_plot = X[:, :2] if X.shape[1] > 2 else X
     
     # Crear figura
-    fig, ax = plt.subplots(figsize=(10, 8))
+    fig, ax = plt.subplots(figsize=(8, 6))
     
     # Crear objeto de visualización de frontera
     disp = DecisionBoundaryDisplay.from_estimator(
@@ -776,7 +799,7 @@ def plot_decision_boundary(model, X, y, feature_names=None, class_names=None):
 
         if not st.session_state.is_trained:
             st.warning(
-                "Primero debes entrenar un modelo en la pestaña '⚙️ Configuración'.")
+                "Primero debes entrenar un modelo en la pestaña '🏋️ Entrenamiento'.")
         else:
             # Configuración de la visualización
             st.markdown("### Tipo de visualización")
@@ -839,7 +862,10 @@ def plot_decision_boundary(model, X, y, feature_names=None, class_names=None):
                     impurity=True
                 )
 
-                st.pyplot(fig)
+                # Mostrar con tamaño reducido pero expandible
+                col1, col2, col3 = st.columns([1, 4, 1])
+                with col2:
+                    st.pyplot(fig, use_container_width=True)
 
                 # Enlace para descargar
                 st.markdown(
@@ -879,91 +905,11 @@ plt.show()
                 show_code_with_download(
                     code_tree, "Código para visualizar el árbol", "visualizar_arbol.py")
 
-            elif viz_type == "Detallada":
-                # Verificar disponibilidad de visualización mejorada
-                if viz_availability["graphviz"]:
-                    # Visualización mejorada (requiere graphviz)
-                    try:
-                        # Mostrar visualización
-                        viz_data = create_tree_visualization(
-                            st.session_state.tree_model,
-                            st.session_state.feature_names,
-                            st.session_state.class_names if st.session_state.tree_type == "Clasificación" else None,
-                            st.session_state.tree_type
-                        )
-
-                        render_tree_visualization(
-                            viz_data, width=fig_width, height=fig_height)
-
-                        # Mostrar código para generar esta visualización
-                        code_detailed = """
-from sklearn.tree import export_graphviz
-import graphviz
-
-def create_tree_visualization(model, feature_names, class_names=None, tree_type="Clasificación"):
-    \"\"\"
-    Crea una visualización detallada de un árbol de decisión usando graphviz.
-    
-    Parameters:
-    -----------
-    model : DecisionTreeClassifier o DecisionTreeRegressor
-        Modelo de árbol entrenado
-    feature_names : list
-        Nombres de las características
-    class_names : list, opcional
-        Nombres de las clases (para clasificación)
-    tree_type : str
-        "Clasificación" o "Regresión"
-        
-    Returns:
-    --------
-    graphviz.Source
-        Objeto de visualización
-    \"\"\"
-    # Exportar a DOT
-    dot_data = export_graphviz(
-        model,
-        feature_names=feature_names,
-        class_names=class_names if tree_type == "Clasificación" else None,
-        filled=True,
-        rounded=True,
-        special_characters=True,
-        proportion=True,
-        impurity=True,
-        out_file=None
-    )
-    
-    # Crear y devolver objeto de visualización
-    return graphviz.Source(dot_data)
-
-# Para usar:
-# viz = create_tree_visualization(tree_model, feature_names, class_names, tree_type)
-# viz.render("arbol_decision", format="png", cleanup=True)  # Guardar como imagen
-# display(viz)  # Mostrar en Jupyter
-"""
-
-                        show_code_with_download(
-                            code_detailed, "Código para visualización detallada", "visualizacion_detallada.py")
-
-                    except Exception as e:
-                        st.error(
-                            f"Error al crear la visualización detallada: {str(e)}")
-                        st.info(
-                            "Vuelve a intentarlo con la visualización 'Estándar' o 'Texto'.")
-                else:
-                    st.warning(
-                        "La visualización detallada requiere que Graphviz esté instalado.")
-                    st.info(
-                        "Puedes instalarlo con `pip install graphviz` y asegurarte de que el ejecutable de Graphviz esté en tu PATH.")
-                    st.info(
-                        "Mientras tanto, puedes usar la visualización 'Estándar' o 'Texto'.")
-
             else:  # Visualización de texto
                 # Obtener representación de texto
                 tree_text = get_tree_text(
                     st.session_state.tree_model,
                     st.session_state.feature_names,
-                    show_class_name=st.session_state.tree_type == "Clasificación"
                 )
 
                 # Mostrar en un área de texto
@@ -1021,7 +967,7 @@ def get_tree_text(model, feature_names, show_class_name=True):
 
         if not st.session_state.is_trained:
             st.warning(
-                "Primero debes entrenar un modelo en la pestaña '⚙️ Configuración'.")
+                "Primero debes entrenar un modelo en la pestaña '🏋️ Entrenamiento'.")
         else:
             # Mostrar importancia de características
             display_feature_importance(
@@ -1035,7 +981,7 @@ def get_tree_text(model, feature_names, show_class_name=True):
 
         if not st.session_state.is_trained:
             st.warning(
-                "Primero debes entrenar un modelo en la pestaña '⚙️ Configuración'.")
+                "Primero debes entrenar un modelo en la pestaña '🏋️ Entrenamiento'.")
         else:
             # Interfaz para hacer predicciones
             create_prediction_interface(
@@ -1051,7 +997,7 @@ def get_tree_text(model, feature_names, show_class_name=True):
 
         if not st.session_state.is_trained:
             st.warning(
-                "Primero debes entrenar un modelo en la pestaña '⚙️ Configuración'.")
+                "Primero debes entrenar un modelo en la pestaña '🏋️ Entrenamiento'.")
         else:
             # Opciones para exportar el modelo
             display_model_export_options(

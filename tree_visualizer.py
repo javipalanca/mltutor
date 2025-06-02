@@ -12,32 +12,10 @@ from utils import get_image_download_link, get_code_download_link, show_code_wit
 
 # Verificar disponibilidad de módulos de visualización
 
-
-def check_visualization_modules():
-    """
-    Verifica qué módulos de visualización están disponibles.
-    Nota: Se ha simplificado para mantener solo visualizaciones estáticas.
-
-    Returns:
-    --------
-    dict
-        Diccionario con la disponibilidad de cada módulo
-    """
-    # Eliminamos las verificaciones para módulos dinámicos
-    # Solo mantenemos el diccionario para compatibilidad
-    availability = {
-        "animated": False,
-        "interactive": False,
-        "interactive_improved": False,
-        "explanatory": False
-    }
-
-    return availability
-
 # Funciones para visualización estándar
 
 
-def create_tree_visualization(tree_model, feature_names, class_names=None, figsize=(12, 8)):
+def create_tree_visualization(tree_model, feature_names, class_names=None, figsize=(10, 6)):
     """
     Crea una visualización estática del árbol de decisión con elementos explicativos.
 
@@ -49,7 +27,7 @@ def create_tree_visualization(tree_model, feature_names, class_names=None, figsi
         Nombres de las características
     class_names : list, opcional
         Nombres de las clases (para clasificación)
-    figsize : tuple, default=(12, 8)
+    figsize : tuple, default=(10, 6)
         Tamaño de la figura
 
     Returns:
@@ -173,8 +151,6 @@ def render_tree_visualization(viz_type, tree_model, feature_names, class_names=N
     show_code : bool, default=True
         Si se debe mostrar el código que genera la visualización
     """
-    # Verificar disponibilidad de módulos
-    availability = check_visualization_modules()
 
     if viz_type == 'standard':
         # Visualización estándar
@@ -193,7 +169,7 @@ from sklearn.tree import plot_tree
 import numpy as np
 
 # Crear la figura
-fig, ax = plt.subplots(figsize=(12, 8))
+fig, ax = plt.subplots(figsize=(10, 6))
 
 # Añadir título
 is_classifier = hasattr(tree_model, 'classes_')

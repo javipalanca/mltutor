@@ -19,9 +19,6 @@ ENV PYTHONUNBUFFERED=1 \
 # Actualizar pip y herramientas de desarrollo
 RUN pip install --upgrade pip setuptools wheel
 
-# Instalar Streamlit
-RUN pip install streamlit
-
 # Configurar el workspace
 WORKDIR /workspace
 

@@ -63,7 +63,7 @@ def plot_decision_boundary(model, X, y, ax=None, feature_names=None, class_names
 
     # Create figure if ax is not provided
     if ax is None:
-        fig, ax = plt.subplots(figsize=(10, 8))
+        fig, ax = plt.subplots(figsize=(8, 6))
 
     # Get unique classes
     classes = np.unique(y)
@@ -182,7 +182,7 @@ def plot_decision_boundary(model, X, y, feature_names=None, class_names=None):
                          np.arange(y_min, y_max, h))
     
     # Crear figura
-    fig, ax = plt.subplots(figsize=(10, 8))
+    fig, ax = plt.subplots(figsize=(8, 6))
     
     # Obtener clases únicas
     classes = np.unique(y)
@@ -310,7 +310,7 @@ def create_boundary_animation_frames(models, X, y, feature_names=None, class_nam
     figs = []
 
     for i, model in enumerate(models):
-        fig, ax = plt.subplots(figsize=(10, 8))
+        fig, ax = plt.subplots(figsize=(8, 6))
         plot_decision_boundary(model, X, y, ax, feature_names, class_names)
         ax.set_title(f'Decision Boundary - Depth: {i+1}')
         figs.append(fig)

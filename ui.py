@@ -15,7 +15,7 @@ from utils import get_image_download_link, generate_model_code, export_model_pic
 from model_evaluation import show_detailed_evaluation, show_prediction_path
 from tree_visualization import (
     create_static_tree_visualization, get_tree_text,
-    check_visualization_availability, render_visualization
+    render_visualization
 )
 
 # Funciones para la configuración de la página
@@ -292,7 +292,7 @@ def show_welcome_page():
     # Imagen ilustrativa en la parte inferior
     st.image("https://scikit-learn.org/stable/_images/sphx_glr_plot_classifier_comparison_001.png",
              caption="Comparación visual de diferentes algoritmos de Machine Learning",
-             use_column_width=True)
+             use_container_width=True)
 
 
 def show_sidebar_config():
@@ -323,7 +323,7 @@ def show_sidebar_config():
         # Información acerca de la ubicación de configuración
         if algorithm_type == "Árboles de Decisión":
             st.info(
-                "La configuración del modelo se encuentra en la pestaña '⚙️ Configuración'.")
+                "La configuración del modelo se encuentra en la pestaña '🏋️ Entrenamiento'.")
 
             return {
                 "algorithm_type": algorithm_type
@@ -453,7 +453,11 @@ def display_feature_importance(tree_model, feature_names):
                            for i in indices], rotation=45, ha='right')
         ax.set_title('Importancia de Características')
         ax.set_ylabel('Importancia')
-        st.pyplot(fig)
+
+        # Mostrar con tamaño reducido pero expandible
+        col_inner1, col_inner2, col_inner3 = st.columns([1, 3, 1])
+        with col_inner2:
+            st.pyplot(fig, use_container_width=True)
 
         # Enlace para descargar la imagen
         st.markdown(get_image_download_link(fig, "importancia_caracteristicas", "📥 Descargar gráfico"),
