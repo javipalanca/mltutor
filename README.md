@@ -2,14 +2,15 @@
 
 Esta aplicación permite visualizar y comprender algoritmos de machine learning de forma interactiva. Actualmente incluye:
 
-- Árboles de Decisión (disponible)
-- Regresión Logística (próximamente)
-- K-Nearest Neighbors (próximamente)
-- Redes Neuronales (próximamente)
+- 🌲 Árboles de Decisión (disponible)
+- 📊 Regresión Logística (próximamente)
+- 🔍 K-Nearest Neighbors (próximamente)
+- 🧠 Redes Neuronales (próximamente)
 
 ## Características
 
 - Interfaz interactiva para experimentar con diferentes parámetros
+- Navegación mejorada con separación entre página de inicio y algoritmos
 - Visualizaciones avanzadas de modelos:
   - **Árbol interactivo completo**: Con explicaciones al pasar el cursor
   - **Árbol paso a paso**: Construcción animada del árbol
@@ -17,8 +18,6 @@ Esta aplicación permite visualizar y comprender algoritmos de machine learning 
 - Métricas de evaluación y explicaciones
 - Exportación de modelos en diferentes formatos
 - Datasets de ejemplo incluidos
-
-Para más detalles sobre las visualizaciones, consulta [README_visualizaciones.md](README_visualizaciones.md).
 
 ## Requisitos
 
@@ -39,15 +38,40 @@ pip install -r requirements.txt
 Para iniciar la aplicación, ejecuta:
 
 ```bash
-streamlit run app_streamlit_v2.py
+./run_mltutor.sh
 ```
+
+o directamente:
+
+```bash
+streamlit run app_refactored.py
+```
+
+## Estructura del Proyecto
+
+- `app_refactored.py`: Versión actualizada con navegación mejorada
+- `streamlit_app.py`: Versión original
+- `ui.py`: Componentes de la interfaz de usuario
+- `dataset_manager.py`: Gestión y procesamiento de conjuntos de datos
+- `model_training.py`: Entrenamiento de modelos de ML
+- `model_evaluation.py`: Evaluación y métricas de rendimiento
+- `tree_visualizer.py` y `tree_visualization.py`: Visualizaciones para árboles de decisión
+- `utils.py`: Funciones auxiliares
+- `data/`: Conjunto de datos de ejemplo
 
 ## Guía de uso
 
-1. Selecciona el algoritmo que quieres explorar en la barra lateral
-2. Selecciona un dataset de ejemplo
-3. Configura los parámetros del modelo (específicos para cada algoritmo)
-4. Haz clic en "Entrenar" y explora las visualizaciones en las diferentes pestañas
+1. Al abrir la aplicación, verás la página de inicio con información general
+2. Selecciona un algoritmo desde el menú lateral o usando los botones de la página principal
+3. Configura los parámetros del modelo
+4. Explora los datos, entrena el modelo y analiza las visualizaciones
+
+## Novedades en la Versión Actual
+
+- Separación entre página de inicio y páginas específicas de algoritmos
+- Interfaz mejorada con tarjetas informativas
+- Sistema de navegación optimizado
+- Contenido educativo expandido
 
 ## Despliegue con Docker
 

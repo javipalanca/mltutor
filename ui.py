@@ -149,6 +149,8 @@ def init_session_state():
         st.session_state.y_test = None
     if 'feature_names' not in st.session_state:
         st.session_state.feature_names = None
+    if 'navigation' not in st.session_state:
+        st.session_state.navigation = "🏠 Inicio"
     if 'class_names' not in st.session_state:
         st.session_state.class_names = None
     if 'tree_type' not in st.session_state:
@@ -201,33 +203,96 @@ def show_welcome_page():
     """
     Muestra la página de bienvenida para los usuarios que visitan por primera vez.
     """
-    st.markdown(f"""
-    <div style="background-color: #E1F5FE; padding: 30px; border-radius: 10px; border-left: 5px solid #03A9F4; margin: 20px 0;">
-        <h2 style="color: #0288D1; margin-top: 0;">Bienvenido a MLTutor</h2>
-        <p style="font-size: 18px;">MLTutor es una plataforma educativa para aprender Machine Learning de forma interactiva.</p>
-        <p style="font-size: 16px;">Para comenzar, selecciona un algoritmo en el menú lateral.</p>
-        <h3>Algoritmos disponibles:</h3>
+    st.header("🌟 Bienvenido a MLTutor")
+    st.markdown("### Una plataforma interactiva para aprender Machine Learning")
+
+    # Introducción a ML
+    st.markdown("""
+    <div style="background-color: #E1F5FE; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+        <h3 style="color: #0288D1;">¿Qué es el Machine Learning?</h3>
+        <p>El Machine Learning es una rama de la inteligencia artificial que permite a los sistemas aprender patrones a partir 
+        de datos y tomar decisiones sin ser explícitamente programados para ello.</p>
+        <p>Con MLTutor podrás:</p>
         <ul>
-            <li><strong>Árboles de Decisión</strong> - Completamente implementado</li>
-            <li>Regresión Logística (próximamente)</li>
-            <li>K-Nearest Neighbors (próximamente)</li>
-            <li>Redes Neuronales (próximamente)</li>
+            <li>Aprender conceptos fundamentales de Machine Learning</li>
+            <li>Experimentar con algoritmos en tiempo real</li>
+            <li>Visualizar cómo funcionan los modelos internamente</li>
+            <li>Entrenar modelos con datos reales y realizar predicciones</li>
         </ul>
     </div>
-    
-    <div style="text-align: center; margin-top: 40px;">
-        <img src="https://scikit-learn.org/stable/_images/sphx_glr_plot_classifier_comparison_001.png" 
-             alt="Comparación de algoritmos de ML" 
-             style="max-width: 80%; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
-        <p style="margin-top: 10px; color: #666; font-style: italic;">Comparación visual de diferentes algoritmos de Machine Learning</p>
-    </div>
+    """, unsafe_allow_html=True)
 
-    <div style="margin-top: 40px; padding: 20px; background-color: #F5F5F5; border-radius: 10px;">
-        <h3>¿Qué es el Machine Learning?</h3>
-        <p>El Machine Learning es una rama de la inteligencia artificial que permite a los sistemas aprender patrones a partir de datos y tomar decisiones sin ser explícitamente programados para ello.</p>
-        <p>En esta plataforma, aprenderás de forma interactiva cómo funcionan diferentes algoritmos de ML, empezando por los árboles de decisión.</p>
+    # Sección: Algoritmos disponibles
+    st.markdown("## 📚 Algoritmos disponibles")
+    # Crear una disposición de tarjetas para los algoritmos
+    st.markdown("Selecciona un algoritmo para comenzar a aprender:")
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.markdown("""
+        <div style="background-color: #E8F5E9; padding: 15px; border-radius: 10px; height: 200px; border-left: 5px solid #4CAF50;">
+            <h3 style="color: #2E7D32;">🌲 Árboles de Decisión</h3>
+            <p>Algoritmos que toman decisiones basadas en condiciones en forma de árbol.</p>
+            <p><strong>Estado:</strong> <span style="color: #2E7D32;">Disponible</span></p>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("✨ Explorar Árboles de Decisión", use_container_width=True):
+            st.session_state.navigation = "🌲 Árboles de Decisión"
+            st.rerun()
+
+    with col2:
+        st.markdown("""
+        <div style="background-color: #FFF3E0; padding: 15px; border-radius: 10px; height: 200px; border-left: 5px solid #FF9800;">
+            <h3 style="color: #E65100;">📊 Regresión Logística</h3>
+            <p>Modelo para clasificación basado en la función logística.</p>
+            <p><strong>Estado:</strong> <span style="color: #9E9E9E;">Próximamente</span></p>
+        </div>
+        """, unsafe_allow_html=True)
+        st.button("🔜 Próximamente", use_container_width=True, disabled=True)
+
+    with col3:
+        st.markdown("""
+        <div style="background-color: #E0F7FA; padding: 15px; border-radius: 10px; height: 200px; border-left: 5px solid #00BCD4;">
+            <h3 style="color: #006064;">🔍 K-Nearest Neighbors</h3>
+            <p>Algoritmo basado en la similitud entre ejemplos.</p>
+            <p><strong>Estado:</strong> <span style="color: #9E9E9E;">Próximamente</span></p>
+        </div>
+        """, unsafe_allow_html=True)
+        st.button("🔜 Próximamente", key="knn_button",
+                  use_container_width=True, disabled=True)
+
+    with col4:
+        st.markdown("""
+        <div style="background-color: #F3E5F5; padding: 15px; border-radius: 10px; height: 200px; border-left: 5px solid #9C27B0;">
+            <h3 style="color: #4A148C;">🧠 Redes Neuronales</h3>
+            <p>Modelos inspirados en el cerebro humano.</p>
+            <p><strong>Estado:</strong> <span style="color: #9E9E9E;">Próximamente</span></p>
+        </div>
+        """, unsafe_allow_html=True)
+        st.button("🔜 Próximamente", key="nn_button",
+                  use_container_width=True, disabled=True)
+
+    # Sección: Cómo usar MLTutor
+    st.markdown("## 📝 Cómo usar MLTutor")
+
+    st.markdown("""
+    <div style="background-color: #F5F5F5; padding: 20px; border-radius: 10px; margin-top: 20px;">
+        <h3>Guía de uso</h3>
+        <ol>
+            <li><strong>Selecciona un algoritmo</strong> en el menú lateral o desde las tarjetas de arriba.</li>
+            <li><strong>Explora los datos</strong> disponibles o carga tus propios conjuntos de datos.</li>
+            <li><strong>Configura los parámetros</strong> del modelo según tus necesidades.</li>
+            <li><strong>Entrena el modelo</strong> y observa cómo funciona internamente.</li>
+            <li><strong>Analiza los resultados</strong> y realiza predicciones con nuevos datos.</li>
+        </ol>
+        <p><i>Nota: Actualmente, solo los Árboles de Decisión están completamente implementados. Estamos trabajando para agregar más algoritmos pronto.</i></p>
     </div>
     """, unsafe_allow_html=True)
+
+    # Imagen ilustrativa en la parte inferior
+    st.image("https://scikit-learn.org/stable/_images/sphx_glr_plot_classifier_comparison_001.png",
+             caption="Comparación visual de diferentes algoritmos de Machine Learning",
+             use_column_width=True)
 
 
 def show_sidebar_config():

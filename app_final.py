@@ -44,60 +44,85 @@ def main():
     # Verificar disponibilidad de módulos de visualización
     viz_availability = check_visualization_modules()
 
-    # Mostrar página de bienvenida en la primera visita
-    if st.session_state.first_visit:
+    # Configurar navegación principal
+    navigation = st.sidebar.radio(
+        "Navegación:",
+        ["🏠 Inicio", "🌲 Árboles de Decisión", "📊 Regresión Logística (próximamente)",
+         "🔍 K-Nearest Neighbors (próximamente)", "🧠 Redes Neuronales (próximamente)"]
+    )
+
+    # Página de inicio
+    if navigation == "🏠 Inicio":
         show_welcome_page()
-        st.session_state.first_visit = False
+        return
 
-    # Configurar sidebar y obtener parámetros
-    # Ejecutar flujo principal solo para árboles de decisión
-    params = show_sidebar_config()
-    if params["algorithm_type"] == "Árboles de Decisión":
-        # Extraer parámetros
-        algorithm_type = params["algorithm_type"]
-        # dataset_option y tree_type se establecerán en la pestaña de configuración
+    # Páginas de algoritmos
+    if navigation == "🌲 Árboles de Decisión":
+        run_decision_trees_app(viz_availability)
+    elif navigation in ["📊 Regresión Logística (próximamente)",
+                        "🔍 K-Nearest Neighbors (próximamente)",
+                        "🧠 Redes Neuronales (próximamente)"]:
+        st.header(f"{navigation.split(' ')[1]} {navigation.split(' ')[2]}")
+        st.info("Esta funcionalidad estará disponible próximamente. Por ahora, puedes explorar los Árboles de Decisión.")
 
-        # Variables para almacenar datos
-        dataset_loaded = False
-        X, y, feature_names, class_names, dataset_info, task_type = None, None, None, None, None, None
+        # Mostrar una imagen ilustrativa según el algoritmo
+        if "Regresión Logística" in navigation:
+            st.image("https://scikit-learn.org/stable/_images/sphx_glr_plot_logistic_001.png",
+                     caption="Ilustración de Regresión Logística")
+        elif "K-Nearest Neighbors" in navigation:
+            st.image("https://scikit-learn.org/stable/_images/sphx_glr_plot_classification_001.png",
+                     caption="Ilustración de K-Nearest Neighbors")
+        elif "Redes Neuronales" in navigation:
+            st.image("https://scikit-learn.org/stable/_images/sphx_glr_plot_mlp_001.png",
+                     caption="Ilustración de Redes Neuronales")
 
-        # Inicializar el estado de la pestaña activa si no existe
-        if 'active_tab' not in st.session_state:
-            st.session_state.active_tab = 0
 
-        # Crear pestañas para organizar la información
-        tab_options = [
-            "⚙️ Configuración",
-            "📊 Datos",
-            "📈 Evaluación",
-            "🌲 Visualización",
-            "🔍 Características",
-            "🔮 Predicciones",
-            "💾 Exportar Modelo"
-        ]
+def run_decision_trees_app(viz_availability):
+    """Ejecuta la aplicación específica de árboles de decisión."""
+    st.header("Árboles de Decisión")
+    st.markdown("Aprende sobre los árboles de decisión de forma interactiva")
 
-        # Usar radio para emular tabs con estado persistente
-        selected_tab = st.radio("", tab_options, index=st.session_state.active_tab,
-                                horizontal=True, label_visibility="collapsed")
-        st.session_state.active_tab = tab_options.index(selected_tab)
+    # Variables para almacenar datos
+    dataset_loaded = False
+    X, y, feature_names, class_names, dataset_info, task_type = None, None, None, None, None, None
 
-        # Separador visual
-        st.markdown("---")
+    # Inicializar el estado de la pestaña activa si no existe
+    if 'active_tab' not in st.session_state:
+        st.session_state.active_tab = 0
 
-        # Pestaña de Configuración
-        if st.session_state.active_tab == 0:
-            st.header("Configuración del Modelo")
+    # Crear pestañas para organizar la información
+    tab_options = [
+        "⚙️ Configuración",
+        "📊 Datos",
+        "📈 Evaluación",
+        "🌲 Visualización",
+        "🔍 Características",
+        "🔮 Predicciones",
+        "💾 Exportar Modelo"
+    ]
 
-            # Selección de dataset
-            dataset_option = st.selectbox(
-                "Dataset de ejemplo:",
+    # Usar radio para emular tabs con estado persistente
+    selected_tab = st.radio("", tab_options, index=st.session_state.active_tab,
+                            horizontal=True, label_visibility="collapsed")
+    st.session_state.active_tab = tab_options.index(selected_tab)
+
+    # Separador visual
+    st.markdown("---")
+
+    # Pestaña de Configuración
+    if st.session_state.active_tab == 0:
+        st.header("Configuración del Modelo")
+
+          # Selección de dataset
+          dataset_option = st.selectbox(
+               "Dataset de ejemplo:",
                 ("Iris (clasificación de flores)",
                  "Vino (clasificación de vinos)", "Cáncer de mama (diagnóstico)"),
                 key="dataset_selector_config"
-            )
+               )
 
-            # Cargar datos para la vista previa si cambia el dataset o si no se ha cargado
-            if dataset_option != st.session_state.dataset_option or not dataset_loaded:
+           # Cargar datos para la vista previa si cambia el dataset o si no se ha cargado
+           if dataset_option != st.session_state.dataset_option or not dataset_loaded:
                 try:
                     X, y, feature_names, class_names, dataset_info, task_type = load_data(
                         dataset_option)
