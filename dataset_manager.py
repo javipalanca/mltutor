@@ -9,6 +9,9 @@ import streamlit as st
 import os
 from sklearn.datasets import load_iris, load_wine, load_breast_cancer
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+import seaborn as sns
+from additional_datasets import load_additional_dataset
 
 
 def load_builtin_dataset(dataset_name):
@@ -18,7 +21,7 @@ def load_builtin_dataset(dataset_name):
     Parameters:
     -----------
     dataset_name : str
-        Nombre del conjunto de datos ('Iris', 'Vino', 'Cáncer')
+        Nombre del conjunto de datos ('Iris', 'Vino', 'Cáncer', 'Titanic', 'Propinas', 'Viviendas California', 'Pingüinos')
 
     Returns:
     --------
@@ -37,6 +40,8 @@ def load_builtin_dataset(dataset_name):
         data = load_iris()
         X = pd.DataFrame(data.data, columns=data.feature_names)
         y = pd.Series(data.target, name="species")
+        feature_names = data.feature_names.tolist() if hasattr(
+            data.feature_names, 'tolist') else list(data.feature_names)
         class_names = data.target_names.tolist()
         dataset_info = "Dataset Iris: 150 muestras, 4 características, 3 clases de flores"
         task_type = "Clasificación"
@@ -45,6 +50,8 @@ def load_builtin_dataset(dataset_name):
         data = load_wine()
         X = pd.DataFrame(data.data, columns=data.feature_names)
         y = pd.Series(data.target, name="wine_type")
+        feature_names = data.feature_names.tolist() if hasattr(
+            data.feature_names, 'tolist') else list(data.feature_names)
         class_names = data.target_names.tolist()
         dataset_info = "Dataset Vino: 178 muestras, 13 características, 3 tipos de vino"
         task_type = "Clasificación"
@@ -53,16 +60,30 @@ def load_builtin_dataset(dataset_name):
         data = load_breast_cancer()
         X = pd.DataFrame(data.data, columns=data.feature_names)
         y = pd.Series(data.target, name="malignant")
+        feature_names = data.feature_names.tolist() if hasattr(
+            data.feature_names, 'tolist') else list(data.feature_names)
         class_names = data.target_names.tolist()
         dataset_info = "Dataset Cáncer: 569 muestras, 30 características, diagnóstico binario"
         task_type = "Clasificación"
 
+    elif "Titanic" in dataset_name:
+        X, y, feature_names, class_names, dataset_info, task_type = load_additional_dataset(
+            dataset_name)
+
+    elif "Propinas" in dataset_name:
+        X, y, feature_names, class_names, dataset_info, task_type = load_additional_dataset(
+            dataset_name)
+
+    elif "Viviendas California" in dataset_name:
+        X, y, feature_names, class_names, dataset_info, task_type = load_additional_dataset(
+            dataset_name)
+
+    elif "Pingüinos" in dataset_name:
+        X, y, feature_names, class_names, dataset_info, task_type = load_additional_dataset(
+            dataset_name)
+
     else:
         raise ValueError(f"Conjunto de datos '{dataset_name}' no reconocido")
-
-    # Asegurarse de que feature_names sea una lista
-    feature_names = data.feature_names.tolist() if hasattr(
-        data.feature_names, 'tolist') else list(data.feature_names)
 
     return X, y, feature_names, class_names, dataset_info, task_type
 
@@ -215,18 +236,29 @@ def load_data(dataset_option):
         Nombres de las clases (para clasificación)
     dataset_info : str
         Información sobre el conjunto de datos
+    task_type : str
+        Tipo de tarea
     """
-    # Conjuntos de datos integrados
-    builtin_datasets = [
-        "Iris (clasificación de flores)",
-        "Vino (clasificación de vinos)",
-        "Cáncer de mama (diagnóstico)"
-    ]
+    # Lista de datasets integrados (tanto formato antiguo como nuevo)
+    dataset_mapping = {
+        "Iris (clasificación de flores)": "🌸 Iris - Clasificación de flores",
+        "Vino (clasificación de vinos)": "🍷 Vino - Clasificación de vinos",
+        "Cáncer de mama (diagnóstico)": "🔬 Cáncer - Diagnóstico binario",
+        "🌸 Iris - Clasificación de flores": "🌸 Iris - Clasificación de flores",
+        "🍷 Vino - Clasificación de vinos": "🍷 Vino - Clasificación de vinos",
+        "🔬 Cáncer - Diagnóstico binario": "🔬 Cáncer - Diagnóstico binario",
+        "🚢 Titanic - Supervivencia": "🚢 Titanic - Supervivencia",
+        "💰 Propinas - Predicción de propinas": "💰 Propinas - Predicción de propinas",
+        "🏠 Viviendas California - Precios": "🏠 Viviendas California - Precios",
+        "🐧 Pingüinos - Clasificación de especies": "🐧 Pingüinos - Clasificación de especies"
+    }
 
-    if dataset_option in builtin_datasets:
-        return load_builtin_dataset(dataset_option)
+    # Normalizar el nombre del dataset
+    if dataset_option in dataset_mapping:
+        normalized_name = dataset_mapping[dataset_option]
+        return load_builtin_dataset(normalized_name)
 
-    # Comprobar si es un conjunto de datos personalizado
+    # Comprobar si es un conjunto de datos personalizado (CSV)
     if dataset_option.endswith('.csv'):
         file_path = dataset_option
         if not os.path.exists(file_path):
@@ -245,85 +277,168 @@ def load_data(dataset_option):
 
 def create_dataset_selector():
     """
-    Crea un selector de conjuntos de datos para la interfaz de usuario.
+    Crea un selector de conjuntos de datos mejorado para la interfaz de usuario.
 
     Returns:
     --------
-    str
-        Opción de conjunto de datos seleccionada
+    str or tuple
+        Si se carga un archivo CSV: tuple (ruta_archivo, columna_objetivo, tipo_tarea)
+        Si no: nombre del dataset seleccionado
     """
-    # Conjuntos de datos integrados
+    st.subheader("📊 Selección de Dataset")
+
+    # Opciones de datasets expandidas
     builtin_options = [
-        "Iris (clasificación de flores)",
-        "Vino (clasificación de vinos)",
-        "Cáncer de mama (diagnóstico)"
+        "🌸 Iris - Clasificación de flores",
+        "🍷 Vino - Clasificación de vinos",
+        "🔬 Cáncer - Diagnóstico binario",
+        "🚢 Titanic - Supervivencia",
+        "💰 Propinas - Predicción de propinas",
+        "🏠 Viviendas California - Precios",
+        "🐧 Pingüinos - Clasificación de especies"
     ]
 
-    # Conjuntos de datos de ejemplo
-    sample_files = list_sample_datasets()
-    sample_options = [os.path.basename(f) for f in sample_files]
+    # Método de carga
+    data_source = st.radio(
+        "Fuente de datos:",
+        ["Datasets predefinidos", "Cargar archivo CSV"],
+        help="Selecciona si quieres usar un dataset incluido o cargar tu propio archivo CSV"
+    )
 
-    # Opción de cargar archivo personalizado
-    has_upload = st.checkbox("Cargar mi propio conjunto de datos", value=False)
+    if data_source == "Cargar archivo CSV":
+        st.markdown("### 📁 Cargar Archivo CSV")
 
-    if has_upload:
         uploaded_file = st.file_uploader(
-            "Selecciona un archivo CSV", type=["csv"])
+            "Selecciona un archivo CSV:",
+            type=['csv'],
+            help="El archivo debe estar en formato CSV con encabezados"
+        )
+
         if uploaded_file is not None:
-            # Guardar el archivo temporalmente
-            temp_path = os.path.join(os.path.dirname(
-                os.path.abspath(__file__)), "data", "temp", uploaded_file.name)
-            os.makedirs(os.path.dirname(temp_path), exist_ok=True)
-            with open(temp_path, "wb") as f:
-                f.write(uploaded_file.getbuffer())
+            try:
+                # Leer el archivo
+                df = pd.read_csv(uploaded_file)
 
-            # Mostrar vista previa
-            df = pd.read_csv(temp_path)
-            st.write("Vista previa de los datos:")
-            st.dataframe(df.head())
+                # Validaciones básicas
+                if df.empty:
+                    st.error("❌ El archivo está vacío")
+                    return None
 
-            # Configuración adicional
-            target_col = st.selectbox(
-                "Columna objetivo:", df.columns.tolist(), index=len(df.columns)-1)
-            task_type = st.radio("Tipo de tarea:", [
-                                 "auto", "Clasificación", "Regresión"])
+                if len(df.columns) < 2:
+                    st.error(
+                        "❌ El archivo debe tener al menos 2 columnas (características + objetivo)")
+                    return None
 
-            # Devolver ruta al archivo temporal y configuración
-            return temp_path, target_col, task_type
+                # Mostrar vista previa
+                st.success(
+                    f"✅ Archivo cargado exitosamente: {df.shape[0]} filas, {df.shape[1]} columnas")
 
-        # Si no hay archivo cargado, mostrar los conjuntos integrados y de ejemplo
+                with st.expander("👀 Vista previa del dataset", expanded=True):
+                    st.dataframe(df.head(), use_container_width=True)
+
+                    # Información del dataset
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Filas", df.shape[0])
+                    with col2:
+                        st.metric("Columnas", df.shape[1])
+                    with col3:
+                        missing_values = df.isnull().sum().sum()
+                        st.metric("Valores faltantes", missing_values)
+
+                # Configuración
+                st.markdown("### ⚙️ Configuración")
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    target_col = st.selectbox(
+                        "Columna objetivo:",
+                        df.columns.tolist(),
+                        index=len(df.columns)-1,
+                        help="Selecciona la columna que contiene la variable a predecir"
+                    )
+
+                with col2:
+                    # Detectar tipo de tarea automáticamente
+                    if target_col:
+                        unique_values = df[target_col].nunique()
+                        total_values = len(df[target_col])
+
+                        if unique_values <= 20 and unique_values < total_values * 0.1:
+                            suggested_task = "Clasificación"
+                        else:
+                            suggested_task = "Regresión"
+                    else:
+                        suggested_task = "Clasificación"
+
+                    task_options = ["auto", "Clasificación", "Regresión"]
+                    default_idx = task_options.index(
+                        suggested_task) if suggested_task in task_options else 0
+
+                    task_type = st.selectbox(
+                        "Tipo de tarea:",
+                        task_options,
+                        index=default_idx,
+                        help="'auto' detecta automáticamente, o selecciona manualmente"
+                    )
+
+                # Información adicional sobre la columna objetivo
+                if target_col:
+                    st.markdown("### 🎯 Información de la Variable Objetivo")
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        st.write(f"**Columna:** {target_col}")
+                        st.write(
+                            f"**Valores únicos:** {df[target_col].nunique()}")
+                        st.write(f"**Tipo de datos:** {df[target_col].dtype}")
+
+                    with col2:
+                        if df[target_col].nunique() <= 10:
+                            st.write("**Distribución de valores:**")
+                            value_counts = df[target_col].value_counts()
+                            for val, count in value_counts.items():
+                                st.write(
+                                    f"• {val}: {count} ({count/len(df)*100:.1f}%)")
+
+                # Guardar en archivo temporal
+                import tempfile
+                temp_file = tempfile.NamedTemporaryFile(
+                    mode='w+', delete=False, suffix='.csv')
+                df.to_csv(temp_file.name, index=False)
+                temp_file.close()
+
+                return temp_file.name, target_col, task_type
+
+            except Exception as e:
+                st.error(f"❌ Error al procesar el archivo: {str(e)}")
+                return None
+
+        else:
+            st.info("👆 Por favor, carga un archivo CSV para continuar")
+            return None
+
+    else:  # Datasets predefinidos
+        st.markdown("### 🎯 Datasets Disponibles")
         dataset_option = st.selectbox(
-            "Dataset de ejemplo:",
-            builtin_options + sample_options
-        )
-    else:
-        # Si no se selecciona cargar archivo, mostrar solo los conjuntos integrados y de ejemplo
-        dataset_option = st.selectbox(
-            "Dataset de ejemplo:",
-            builtin_options + sample_options
+            "Selecciona un dataset:",
+            builtin_options,
+            help="Estos datasets están listos para usar y son perfectos para aprender Machine Learning"
         )
 
-    return dataset_option
+        # Mostrar información del dataset seleccionado
+        dataset_info = {
+            "🌸 Iris - Clasificación de flores": "150 muestras • 4 características • 3 especies de iris • Clasificación clásica",
+            "🍷 Vino - Clasificación de vinos": "178 muestras • 13 características químicas • 3 clases de vino • Clasificación",
+            "🔬 Cáncer - Diagnóstico binario": "569 muestras • 30 características • Benigno/Maligno • Clasificación médica",
+            "🚢 Titanic - Supervivencia": "891 pasajeros • 11 características • Supervivencia • Clasificación histórica",
+            "💰 Propinas - Predicción de propinas": "244 cuentas • 6 características • Monto de propina • Regresión",
+            "🏠 Viviendas California - Precios": "20,640 distritos • 8 características • Precio vivienda • Regresión",
+            "🐧 Pingüinos - Clasificación de especies": "333 pingüinos • 6 características • 3 especies • Clasificación biológica"
+        }
 
+        if dataset_option in dataset_info:
+            st.info(f"ℹ️ {dataset_info[dataset_option]}")
 
-def preprocess_data(X, y, test_size=0.3, random_state=42):
-    """
-    Divide los datos en conjuntos de entrenamiento y prueba.
-
-    Parameters:
-    -----------
-    X : DataFrame o array
-        Características
-    y : array
-        Variable objetivo
-    test_size : float, default=0.3
-        Proporción de datos para prueba
-    random_state : int, default=42
-        Semilla para reproducibilidad
-
-    Returns:
-    --------
-    X_train, X_test, y_train, y_test : arrays
-        Conjuntos de entrenamiento y prueba
-    """
-    return train_test_split(X, y, test_size=test_size, random_state=random_state)
+        return dataset_option
