@@ -17,6 +17,7 @@ from tree_visualization import (
     create_static_tree_visualization, get_tree_text,
     render_visualization
 )
+from dataset_metadata import get_dataset_metadata
 
 # Funciones para la configuración de la página
 
@@ -775,7 +776,7 @@ def export_modelo_onnx(model, num_features):
             st.code("pip install skl2onnx", language="bash")
 
 
-def create_prediction_interface(tree_model, feature_names, class_names, tree_type, X_train=None):
+def create_prediction_interface(tree_model, feature_names, class_names, tree_type, X_train=None, dataset_name=None):
     """
     Crea una interfaz para hacer predicciones con nuevos datos.
 
@@ -791,8 +792,17 @@ def create_prediction_interface(tree_model, feature_names, class_names, tree_typ
         Tipo de árbol ("Clasificación" o "Regresión")
     X_train : pd.DataFrame or np.array, optional
         Datos de entrenamiento para determinar rangos dinámicos de características
+    dataset_name : str, optional
+        Nombre del dataset para obtener metadata adicional
     """
     st.subheader("Predicciones con nuevos datos")
+
+    # Obtener metadata del dataset si está disponible
+    metadata = get_dataset_metadata(dataset_name) if dataset_name else {}
+    feature_descriptions = metadata.get('feature_descriptions', {})
+    value_mappings = metadata.get('value_mappings', {})
+    original_to_display = metadata.get('original_to_display', {})
+    categorical_features = metadata.get('categorical_features', [])
 
     # Crear sliders para cada característica
     st.markdown("### Ingresa valores para predecir")
@@ -805,11 +815,23 @@ def create_prediction_interface(tree_model, feature_names, class_names, tree_typ
     if X_train is not None:
         # Convertir a DataFrame si es necesario
         if isinstance(X_train, np.ndarray):
-            df_train = pd.DataFrame(X_train, columns=feature_names)
+            df_train = pd.DataFrame(X_train, columns=range(len(feature_names)))
+            # Mapear columnas originales si están disponibles
+            if hasattr(X_train, 'columns'):
+                column_names = X_train.columns
+            else:
+                column_names = range(len(feature_names))
         else:
             df_train = X_train
+            column_names = df_train.columns
 
-        for i, feature in enumerate(feature_names):
+        for i, feature_display_name in enumerate(feature_names):
+            # Obtener el nombre original de la columna
+            if i < len(column_names):
+                original_col_name = column_names[i]
+            else:
+                original_col_name = feature_display_name
+            
             # Siempre usar el índice para acceder a las columnas para evitar problemas con nombres traducidos
             feature_col = df_train.iloc[:, i]
             
@@ -817,29 +839,48 @@ def create_prediction_interface(tree_model, feature_names, class_names, tree_typ
             unique_values = feature_col.nunique()
             unique_vals = sorted(feature_col.unique())
             
+            # Verificar si es categórica según metadata
+            is_categorical_by_metadata = original_col_name in categorical_features
+            
             if unique_values <= 2:
                 # Característica binaria
-                feature_info[feature] = {
-                    'type': 'binary',
-                    'values': unique_vals,
-                    'min': min(unique_vals),
-                    'max': max(unique_vals)
-                }
-            elif unique_values <= 10 and all(isinstance(x, (int, np.integer)) for x in unique_vals):
-                # Característica categórica (pocos valores enteros)
-                feature_info[feature] = {
-                    'type': 'categorical',
-                    'values': unique_vals,
-                    'min': min(unique_vals),
-                    'max': max(unique_vals)
-                }
+                feature_type = 'binary'
+            elif unique_values <= 10 and (all(isinstance(x, (int, np.integer)) for x in unique_vals) or is_categorical_by_metadata):
+                # Característica categórica (pocos valores enteros o marcada en metadata)
+                feature_type = 'categorical'
             else:
                 # Característica numérica continua
-                feature_info[feature] = {
-                    'type': 'continuous',
-                    'min': float(feature_col.min()),
-                    'max': float(feature_col.max()),
-                    'mean': float(feature_col.mean())
+                feature_type = 'continuous'
+            
+            # Preparar valores para mostrar
+            if feature_type in ['binary', 'categorical'] and original_col_name in value_mappings:
+                # Usar mapeo de valores si está disponible
+                display_values = []
+                value_to_original = {}
+                for orig_val in unique_vals:
+                    if orig_val in value_mappings[original_col_name]:
+                        display_val = value_mappings[original_col_name][orig_val]
+                        display_values.append(display_val)
+                        value_to_original[display_val] = orig_val
+                    else:
+                        display_values.append(str(orig_val))
+                        value_to_original[str(orig_val)] = orig_val
+                
+                feature_info[feature_display_name] = {
+                    'type': feature_type,
+                    'values': unique_vals,
+                    'display_values': display_values,
+                    'value_to_original': value_to_original,
+                    'original_column': original_col_name
+                }
+            else:
+                feature_info[feature_display_name] = {
+                    'type': feature_type,
+                    'values': unique_vals,
+                    'min': float(feature_col.min()) if feature_type == 'continuous' else min(unique_vals),
+                    'max': float(feature_col.max()) if feature_type == 'continuous' else max(unique_vals),
+                    'mean': float(feature_col.mean()) if feature_type == 'continuous' else None,
+                    'original_column': original_col_name
                 }
     else:
         # Valores por defecto si no hay datos de entrenamiento
@@ -848,7 +889,8 @@ def create_prediction_interface(tree_model, feature_names, class_names, tree_typ
                 'type': 'continuous',
                 'min': 0.0,
                 'max': 10.0,
-                'mean': 5.0
+                'mean': 5.0,
+                'original_column': feature
             }
 
     # Crear dos columnas para los controles
@@ -860,20 +902,39 @@ def create_prediction_interface(tree_model, feature_names, class_names, tree_typ
     # Crear controles para todas las características en orden
     feature_values = {}
     
+    # Función auxiliar para crear etiqueta con descripción
+    def create_feature_label(feature_name, info):
+        original_col = info.get('original_column', feature_name)
+        description = feature_descriptions.get(original_col, '')
+        if description:
+            return f"**{feature_name}**\n\n*{description}*"
+        return feature_name
+
     # Primera columna
     with col1:
         for i, feature in enumerate(feature_names[:half]):
             info = feature_info[feature]
+            label = create_feature_label(feature, info)
             
             if info['type'] == 'binary':
-                # Checkbox para características binarias
-                if len(info['values']) == 2 and 0 in info['values'] and 1 in info['values']:
-                    value = st.checkbox(f"{feature}", key=f"feature_{i}")
+                # Checkbox para características binarias con valores descriptivos
+                if 'display_values' in info and 'value_to_original' in info:
+                    # Usar valores descriptivos
+                    selected_display = st.selectbox(
+                        label,
+                        options=info['display_values'],
+                        index=0,
+                        key=f"feature_{i}"
+                    )
+                    # Convertir valor descriptivo de vuelta al original
+                    feature_values[i] = info['value_to_original'][selected_display]
+                elif len(info['values']) == 2 and 0 in info['values'] and 1 in info['values']:
+                    value = st.checkbox(label, key=f"feature_{i}")
                     feature_values[i] = 1 if value else 0
                 else:
                     # Selectbox para binaria no 0/1
                     value = st.selectbox(
-                        f"{feature}:",
+                        label,
                         options=info['values'],
                         index=0,
                         key=f"feature_{i}"
@@ -881,14 +942,26 @@ def create_prediction_interface(tree_model, feature_names, class_names, tree_typ
                     feature_values[i] = value
             
             elif info['type'] == 'categorical':
-                # Selectbox para características categóricas
-                value = st.selectbox(
-                    f"{feature}:",
-                    options=info['values'],
-                    index=len(info['values'])//2 if len(info['values']) > 1 else 0,
-                    key=f"feature_{i}"
-                )
-                feature_values[i] = value
+                # Selectbox para características categóricas con valores descriptivos
+                if 'display_values' in info and 'value_to_original' in info:
+                    # Usar valores descriptivos
+                    selected_display = st.selectbox(
+                        label,
+                        options=info['display_values'],
+                        index=len(info['display_values'])//2 if len(info['display_values']) > 1 else 0,
+                        key=f"feature_{i}"
+                    )
+                    # Convertir valor descriptivo de vuelta al original
+                    feature_values[i] = info['value_to_original'][selected_display]
+                else:
+                    # Usar valores originales
+                    value = st.selectbox(
+                        label,
+                        options=info['values'],
+                        index=len(info['values'])//2 if len(info['values']) > 1 else 0,
+                        key=f"feature_{i}"
+                    )
+                    feature_values[i] = value
             
             else:  # continuous
                 # Slider para características continuas
@@ -896,7 +969,7 @@ def create_prediction_interface(tree_model, feature_names, class_names, tree_typ
                 default_val = info.get('mean', (info['min'] + info['max']) / 2)
                 
                 value = st.slider(
-                    f"{feature}:",
+                    label,
                     min_value=info['min'],
                     max_value=info['max'],
                     value=default_val,
@@ -909,16 +982,27 @@ def create_prediction_interface(tree_model, feature_names, class_names, tree_typ
     with col2:
         for i, feature in enumerate(feature_names[half:], start=half):
             info = feature_info[feature]
+            label = create_feature_label(feature, info)
             
             if info['type'] == 'binary':
-                # Checkbox para características binarias
-                if len(info['values']) == 2 and 0 in info['values'] and 1 in info['values']:
-                    value = st.checkbox(f"{feature}", key=f"feature_{i}")
+                # Checkbox para características binarias con valores descriptivos
+                if 'display_values' in info and 'value_to_original' in info:
+                    # Usar valores descriptivos
+                    selected_display = st.selectbox(
+                        label,
+                        options=info['display_values'],
+                        index=0,
+                        key=f"feature_{i}"
+                    )
+                    # Convertir valor descriptivo de vuelta al original
+                    feature_values[i] = info['value_to_original'][selected_display]
+                elif len(info['values']) == 2 and 0 in info['values'] and 1 in info['values']:
+                    value = st.checkbox(label, key=f"feature_{i}")
                     feature_values[i] = 1 if value else 0
                 else:
                     # Selectbox para binaria no 0/1
                     value = st.selectbox(
-                        f"{feature}:",
+                        label,
                         options=info['values'],
                         index=0,
                         key=f"feature_{i}"
@@ -926,14 +1010,26 @@ def create_prediction_interface(tree_model, feature_names, class_names, tree_typ
                     feature_values[i] = value
             
             elif info['type'] == 'categorical':
-                # Selectbox para características categóricas
-                value = st.selectbox(
-                    f"{feature}:",
-                    options=info['values'],
-                    index=len(info['values'])//2 if len(info['values']) > 1 else 0,
-                    key=f"feature_{i}"
-                )
-                feature_values[i] = value
+                # Selectbox para características categóricas con valores descriptivos
+                if 'display_values' in info and 'value_to_original' in info:
+                    # Usar valores descriptivos
+                    selected_display = st.selectbox(
+                        label,
+                        options=info['display_values'],
+                        index=len(info['display_values'])//2 if len(info['display_values']) > 1 else 0,
+                        key=f"feature_{i}"
+                    )
+                    # Convertir valor descriptivo de vuelta al original
+                    feature_values[i] = info['value_to_original'][selected_display]
+                else:
+                    # Usar valores originales
+                    value = st.selectbox(
+                        label,
+                        options=info['values'],
+                        index=len(info['values'])//2 if len(info['values']) > 1 else 0,
+                        key=f"feature_{i}"
+                    )
+                    feature_values[i] = value
             
             else:  # continuous
                 # Slider para características continuas
@@ -941,7 +1037,7 @@ def create_prediction_interface(tree_model, feature_names, class_names, tree_typ
                 default_val = info.get('mean', (info['min'] + info['max']) / 2)
                 
                 value = st.slider(
-                    f"{feature}:",
+                    label,
                     min_value=info['min'],
                     max_value=info['max'],
                     value=default_val,

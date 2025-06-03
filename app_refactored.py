@@ -1071,7 +1071,8 @@ def get_tree_text(model, feature_names, show_class_name=True):
                 st.session_state.feature_names,
                 st.session_state.class_names,
                 st.session_state.get('tree_type', 'Clasificación'),
-                st.session_state.get('X_train', None)  # Pasar datos de entrenamiento para rangos dinámicos
+                st.session_state.get('X_train', None),  # Pasar datos de entrenamiento para rangos dinámicos
+                st.session_state.get('selected_dataset', 'Titanic')  # Pasar nombre del dataset para metadata
             )
 
     # Pestaña de Exportar Modelo
