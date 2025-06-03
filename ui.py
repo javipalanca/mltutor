@@ -775,7 +775,7 @@ def export_modelo_onnx(model, num_features):
             st.code("pip install skl2onnx", language="bash")
 
 
-def create_prediction_interface(tree_model, feature_names, class_names, tree_type):
+def create_prediction_interface(tree_model, feature_names, class_names, tree_type, X_train=None):
     """
     Crea una interfaz para hacer predicciones con nuevos datos.
 
@@ -789,6 +789,8 @@ def create_prediction_interface(tree_model, feature_names, class_names, tree_typ
         Nombres de las clases (para clasificación)
     tree_type : str
         Tipo de árbol ("Clasificación" o "Regresión")
+    X_train : pd.DataFrame or np.array, optional
+        Datos de entrenamiento para determinar rangos dinámicos de características
     """
     st.subheader("Predicciones con nuevos datos")
 
@@ -798,37 +800,158 @@ def create_prediction_interface(tree_model, feature_names, class_names, tree_typ
     # Inicializar lista para almacenar valores de características
     new_data_values = []
 
-    # Crear dos columnas para los sliders
+    # Analizar características si tenemos datos de entrenamiento
+    feature_info = {}
+    if X_train is not None:
+        # Convertir a DataFrame si es necesario
+        if isinstance(X_train, np.ndarray):
+            df_train = pd.DataFrame(X_train, columns=feature_names)
+        else:
+            df_train = X_train
+
+        for i, feature in enumerate(feature_names):
+            # Siempre usar el índice para acceder a las columnas para evitar problemas con nombres traducidos
+            feature_col = df_train.iloc[:, i]
+            
+            # Determinar tipo de característica
+            unique_values = feature_col.nunique()
+            unique_vals = sorted(feature_col.unique())
+            
+            if unique_values <= 2:
+                # Característica binaria
+                feature_info[feature] = {
+                    'type': 'binary',
+                    'values': unique_vals,
+                    'min': min(unique_vals),
+                    'max': max(unique_vals)
+                }
+            elif unique_values <= 10 and all(isinstance(x, (int, np.integer)) for x in unique_vals):
+                # Característica categórica (pocos valores enteros)
+                feature_info[feature] = {
+                    'type': 'categorical',
+                    'values': unique_vals,
+                    'min': min(unique_vals),
+                    'max': max(unique_vals)
+                }
+            else:
+                # Característica numérica continua
+                feature_info[feature] = {
+                    'type': 'continuous',
+                    'min': float(feature_col.min()),
+                    'max': float(feature_col.max()),
+                    'mean': float(feature_col.mean())
+                }
+    else:
+        # Valores por defecto si no hay datos de entrenamiento
+        for feature in feature_names:
+            feature_info[feature] = {
+                'type': 'continuous',
+                'min': 0.0,
+                'max': 10.0,
+                'mean': 5.0
+            }
+
+    # Crear dos columnas para los controles
     col1, col2 = st.columns(2)
 
     # Distribuir las características en las columnas
     half = len(feature_names) // 2 + len(feature_names) % 2
 
+    # Crear controles para todas las características en orden
+    feature_values = {}
+    
     # Primera columna
     with col1:
         for i, feature in enumerate(feature_names[:half]):
-            value = st.slider(
-                f"{feature}:",
-                float(0),
-                float(10),  # Valores arbitrarios, podrían ajustarse
-                float(5),
-                step=0.1,
-                key=f"feature_{i}"
-            )
-            new_data_values.append(value)
+            info = feature_info[feature]
+            
+            if info['type'] == 'binary':
+                # Checkbox para características binarias
+                if len(info['values']) == 2 and 0 in info['values'] and 1 in info['values']:
+                    value = st.checkbox(f"{feature}", key=f"feature_{i}")
+                    feature_values[i] = 1 if value else 0
+                else:
+                    # Selectbox para binaria no 0/1
+                    value = st.selectbox(
+                        f"{feature}:",
+                        options=info['values'],
+                        index=0,
+                        key=f"feature_{i}"
+                    )
+                    feature_values[i] = value
+            
+            elif info['type'] == 'categorical':
+                # Selectbox para características categóricas
+                value = st.selectbox(
+                    f"{feature}:",
+                    options=info['values'],
+                    index=len(info['values'])//2 if len(info['values']) > 1 else 0,
+                    key=f"feature_{i}"
+                )
+                feature_values[i] = value
+            
+            else:  # continuous
+                # Slider para características continuas
+                step = (info['max'] - info['min']) / 100 if info['max'] != info['min'] else 0.1
+                default_val = info.get('mean', (info['min'] + info['max']) / 2)
+                
+                value = st.slider(
+                    f"{feature}:",
+                    min_value=info['min'],
+                    max_value=info['max'],
+                    value=default_val,
+                    step=step,
+                    key=f"feature_{i}"
+                )
+                feature_values[i] = value
 
     # Segunda columna
     with col2:
         for i, feature in enumerate(feature_names[half:], start=half):
-            value = st.slider(
-                f"{feature}:",
-                float(0),
-                float(10),  # Valores arbitrarios, podrían ajustarse
-                float(5),
-                step=0.1,
-                key=f"feature_{i}"
-            )
-            new_data_values.append(value)
+            info = feature_info[feature]
+            
+            if info['type'] == 'binary':
+                # Checkbox para características binarias
+                if len(info['values']) == 2 and 0 in info['values'] and 1 in info['values']:
+                    value = st.checkbox(f"{feature}", key=f"feature_{i}")
+                    feature_values[i] = 1 if value else 0
+                else:
+                    # Selectbox para binaria no 0/1
+                    value = st.selectbox(
+                        f"{feature}:",
+                        options=info['values'],
+                        index=0,
+                        key=f"feature_{i}"
+                    )
+                    feature_values[i] = value
+            
+            elif info['type'] == 'categorical':
+                # Selectbox para características categóricas
+                value = st.selectbox(
+                    f"{feature}:",
+                    options=info['values'],
+                    index=len(info['values'])//2 if len(info['values']) > 1 else 0,
+                    key=f"feature_{i}"
+                )
+                feature_values[i] = value
+            
+            else:  # continuous
+                # Slider para características continuas
+                step = (info['max'] - info['min']) / 100 if info['max'] != info['min'] else 0.1
+                default_val = info.get('mean', (info['min'] + info['max']) / 2)
+                
+                value = st.slider(
+                    f"{feature}:",
+                    min_value=info['min'],
+                    max_value=info['max'],
+                    value=default_val,
+                    step=step,
+                    key=f"feature_{i}"
+                )
+                feature_values[i] = value
+
+    # Convertir el diccionario a lista en orden correcto
+    new_data_values = [feature_values[i] for i in range(len(feature_names))]
 
     # Botón para predecir
     predict_button = st.button("Realizar predicción", type="primary")
