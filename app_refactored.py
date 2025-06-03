@@ -229,23 +229,31 @@ def run_decision_trees_app():
         if 'selected_dataset' not in st.session_state:
             st.session_state.selected_dataset = "🌸 Iris - Clasificación de flores"
         
+        # Lista base de datasets predefinidos
+        builtin_datasets = [
+            "🌸 Iris - Clasificación de flores",
+            "🍷 Vino - Clasificación de vinos", 
+            "🔬 Cáncer - Diagnóstico binario",
+            "🚢 Titanic - Supervivencia",
+            "💰 Propinas - Predicción de propinas",
+            "🏠 Viviendas California - Precios",
+            "🐧 Pingüinos - Clasificación de especies"
+        ]
+        
+        # Añadir datasets CSV cargados si existen
+        available_datasets = builtin_datasets.copy()
+        if 'csv_datasets' in st.session_state:
+            available_datasets.extend(st.session_state.csv_datasets.keys())
+        
+        # Asegurar que el dataset seleccionado esté en la lista disponible
+        if st.session_state.selected_dataset not in available_datasets:
+            st.session_state.selected_dataset = builtin_datasets[0]
+        
         # Selector unificado
         dataset_option = st.selectbox(
-            "Dataset de ejemplo:",
-            ("🌸 Iris - Clasificación de flores",
-             "🍷 Vino - Clasificación de vinos",
-             "🔬 Cáncer - Diagnóstico binario",
-             "🚢 Titanic - Supervivencia",
-             "💰 Propinas - Predicción de propinas",
-             "🏠 Viviendas California - Precios",
-             "🐧 Pingüinos - Clasificación de especies"),
-            index=("🌸 Iris - Clasificación de flores",
-                   "🍷 Vino - Clasificación de vinos",
-                   "🔬 Cáncer - Diagnóstico binario",
-                   "🚢 Titanic - Supervivencia",
-                   "💰 Propinas - Predicción de propinas",
-                   "🏠 Viviendas California - Precios",
-                   "🐧 Pingüinos - Clasificación de especies").index(st.session_state.selected_dataset),
+            "Dataset:",
+            available_datasets,
+            index=available_datasets.index(st.session_state.selected_dataset),
             key="unified_dataset_selector",
             help="El dataset seleccionado se mantendrá entre las pestañas de Exploración y Entrenamiento"
         )
@@ -1096,377 +1104,50 @@ def get_tree_text(model, feature_names, show_class_name=True):
 
 
 def run_csv_loader_app():
-    """Aplicación para cargar y analizar datasets CSV personalizados."""
+    """Aplicación para cargar datasets CSV personalizados y redirigir a las pestañas principales."""
     st.header("📁 Cargar Dataset CSV Personalizado")
     st.markdown("""
     Esta herramienta te permite cargar y analizar tus propios datasets en formato CSV.
-    Puedes explorar los datos, entrenar modelos de Machine Learning y comparar diferentes algoritmos.
+    Una vez cargado, tu dataset estará disponible en las pestañas principales de la aplicación.
     """)
 
-    # Usar el selector de dataset mejorado
-    dataset_result = create_dataset_selector()
+    # Usar el selector de dataset mejorado (sin mostrar datasets predefinidos)
+    dataset_result = create_dataset_selector(show_predefined=False)
 
     if dataset_result is None:
-        st.info("👆 Por favor, carga un archivo CSV para continuar con el análisis.")
+        st.info("👆 Por favor, carga un archivo CSV para continuar.")
         return
 
-    # Verificar si se cargó un CSV o se seleccionó un dataset predefinido
+    # Verificar si se cargó un CSV
     if isinstance(dataset_result, tuple):
-        # Se cargó un CSV personalizado
+        # Se cargó un CSV personalizado exitosamente
         file_path, target_col, task_type = dataset_result
 
-        try:
-            # Cargar el dataset personalizado
-            X, y, feature_names, class_names, dataset_info, detected_task_type = load_dataset_from_file(
-                file_path, target_col, task_type
-            )
-
-            st.success(f"✅ Dataset cargado exitosamente: {dataset_info}")
-
-            # Mostrar tabs para análisis
-            tab1, tab2, tab3, tab4 = st.tabs([
-                "📊 Exploración de Datos",
-                "🏋️ Entrenamiento de Modelo",
-                "📈 Evaluación",
-                "🔍 Predicciones"
-            ])
-
-            with tab1:
-                st.subheader("📊 Análisis Exploratorio de Datos")
-
-                # Información general del dataset
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    st.metric("Muestras", len(X))
-                with col2:
-                    st.metric("Características", len(feature_names))
-                with col3:
-                    st.metric("Tipo de Tarea", detected_task_type)
-                with col4:
-                    if detected_task_type == "Clasificación":
-                        st.metric("Clases", len(class_names)
-                                  if class_names else "N/A")
-                    else:
-                        st.metric("Variable Objetivo", target_col)
-
-                # Vista previa de los datos
-                st.subheader("Vista Previa de los Datos")
-                df_combined = pd.DataFrame(X, columns=feature_names)
-                df_combined[target_col] = y
-                st.dataframe(df_combined.head(10), use_container_width=True)
-
-                # Estadísticas descriptivas
-                st.subheader("Estadísticas Descriptivas")
-                col1, col2 = st.columns(2)
-
-                with col1:
-                    st.write("**Características numéricas:**")
-                    numeric_features = X.select_dtypes(
-                        include=[np.number]).columns
-                    if len(numeric_features) > 0:
-                        st.dataframe(X[numeric_features].describe(),
-                                     use_container_width=True)
-                    else:
-                        st.info("No hay características numéricas")
-
-                with col2:
-                    st.write("**Variable objetivo:**")
-                    if detected_task_type == "Clasificación":
-                        value_counts = pd.Series(y).value_counts()
-                        st.dataframe(value_counts.to_frame(
-                            "Frecuencia"), use_container_width=True)
-                    else:
-                        target_stats = pd.Series(y).describe()
-                        st.dataframe(target_stats.to_frame(
-                            "Estadística"), use_container_width=True)
-
-                # Visualizaciones
-                if len(numeric_features) > 0:
-                    st.subheader("Visualizaciones")
-
-                    # Histogramas de características numéricas
-                    if len(numeric_features) <= 10:  # Evitar sobrecarga con muchas características
-                        fig, axes = plt.subplots(
-                            nrows=(len(numeric_features) + 2) // 3,
-                            ncols=3,
-                            figsize=(
-                                12, 4 * ((len(numeric_features) + 2) // 3))
-                        )
-                        if len(numeric_features) == 1:
-                            axes = [axes]
-                        elif (len(numeric_features) + 2) // 3 == 1:
-                            axes = [axes]
-                        else:
-                            axes = axes.flatten()
-
-                        for i, col in enumerate(numeric_features):
-                            axes[i].hist(X[col], bins=20,
-                                         alpha=0.7, edgecolor='black')
-                            axes[i].set_title(f'Distribución de {col}')
-                            axes[i].set_xlabel(col)
-                            axes[i].set_ylabel('Frecuencia')
-
-                        # Ocultar subplots vacíos
-                        for i in range(len(numeric_features), len(axes)):
-                            axes[i].set_visible(False)
-
-                        plt.tight_layout()
-                        st.pyplot(fig)
-                        plt.close()
-
-            with tab2:
-                st.subheader("🏋️ Entrenamiento de Modelo")
-
-                # División de datos
-                test_size = st.slider(
-                    "Porcentaje para prueba (%)", 10, 50, 30) / 100
-
-                # Preprocesamiento básico para datos categóricos
-                X_processed = X.copy()
-
-                # Codificar variables categóricas si existen
-                categorical_features = X.select_dtypes(
-                    include=['object']).columns
-                if len(categorical_features) > 0:
-                    st.info(
-                        f"Se encontraron {len(categorical_features)} características categóricas que serán codificadas automáticamente.")
-
-                    from sklearn.preprocessing import LabelEncoder
-                    for col in categorical_features:
-                        le = LabelEncoder()
-                        X_processed[col] = le.fit_transform(X[col].astype(str))
-
-                # Dividir los datos
-                X_train, X_test, y_train, y_test = train_test_split(
-                    X_processed, y, test_size=test_size, random_state=42
-                )
-
-                st.success(
-                    f"Datos divididos: {len(X_train)} muestras para entrenamiento, {len(X_test)} para prueba")
-
-                # Selección de algoritmo
-                st.subheader("Selección de Algoritmo")
-
-                if detected_task_type == "Clasificación":
-                    algorithm = st.selectbox(
-                        "Algoritmo:",
-                        ["Árbol de Decisión", "Random Forest", "Regresión Logística"]
-                    )
-                else:
-                    algorithm = st.selectbox(
-                        "Algoritmo:",
-                        ["Árbol de Decisión", "Random Forest", "Regresión Lineal"]
-                    )
-
-                # Entrenar modelo
-                if st.button("🚀 Entrenar Modelo", type="primary"):
-                    with st.spinner("Entrenando modelo..."):
-                        if algorithm == "Árbol de Decisión":
-                            from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
-
-                            if detected_task_type == "Clasificación":
-                                model = DecisionTreeClassifier(
-                                    random_state=42, max_depth=5)
-                            else:
-                                model = DecisionTreeRegressor(
-                                    random_state=42, max_depth=5)
-
-                            model.fit(X_train, y_train)
-                            y_pred = model.predict(X_test)
-
-                        elif algorithm == "Random Forest":
-                            from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
-
-                            if detected_task_type == "Clasificación":
-                                model = RandomForestClassifier(
-                                    random_state=42, n_estimators=100)
-                            else:
-                                model = RandomForestRegressor(
-                                    random_state=42, n_estimators=100)
-
-                            model.fit(X_train, y_train)
-                            y_pred = model.predict(X_test)
-
-                        else:  # Regresión Logística o Lineal
-                            if detected_task_type == "Clasificación":
-                                from sklearn.linear_model import LogisticRegression
-                                model = LogisticRegression(
-                                    random_state=42, max_iter=1000)
-                            else:
-                                from sklearn.linear_model import LinearRegression
-                                model = LinearRegression()
-
-                            model.fit(X_train, y_train)
-                            y_pred = model.predict(X_test)
-
-                        # Guardar en session state
-                        st.session_state.csv_model = model
-                        st.session_state.csv_X_test = X_test
-                        st.session_state.csv_y_test = y_test
-                        st.session_state.csv_y_pred = y_pred
-                        st.session_state.csv_feature_names = feature_names
-                        st.session_state.csv_task_type = detected_task_type
-                        st.session_state.csv_algorithm = algorithm
-
-                        st.success(
-                            f"✅ Modelo {algorithm} entrenado exitosamente!")
-
-            with tab3:
-                st.subheader("📈 Evaluación del Modelo")
-
-                if 'csv_model' not in st.session_state:
-                    st.warning(
-                        "Primero entrena un modelo en la pestaña 'Entrenamiento'.")
-                else:
-                    model = st.session_state.csv_model
-                    X_test = st.session_state.csv_X_test
-                    y_test = st.session_state.csv_y_test
-                    y_pred = st.session_state.csv_y_pred
-                    task_type = st.session_state.csv_task_type
-                    algorithm = st.session_state.csv_algorithm
-
-                    st.info(f"Evaluando modelo: {algorithm} para {task_type}")
-
-                    if task_type == "Clasificación":
-                        from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
-
-                        # Métricas principales
-                        accuracy = accuracy_score(y_test, y_pred)
-                        st.metric("Precisión", f"{accuracy:.3f}")
-
-                        # Matriz de confusión
-                        fig, ax = plt.subplots(figsize=(8, 6))
-                        cm = confusion_matrix(y_test, y_pred)
-                        sns.heatmap(cm, annot=True, fmt='d',
-                                    cmap='Blues', ax=ax)
-                        ax.set_title('Matriz de Confusión')
-                        ax.set_xlabel('Predicción')
-                        ax.set_ylabel('Valor Real')
-                        st.pyplot(fig)
-                        plt.close()
-
-                        # Reporte de clasificación
-                        st.subheader("Reporte Detallado")
-                        report = classification_report(
-                            y_test, y_pred, output_dict=True)
-                        report_df = pd.DataFrame(report).transpose()
-                        st.dataframe(report_df, use_container_width=True)
-
-                    else:  # Regresión
-                        from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
-
-                        # Métricas principales
-                        mse = mean_squared_error(y_test, y_pred)
-                        rmse = np.sqrt(mse)
-                        mae = mean_absolute_error(y_test, y_pred)
-                        r2 = r2_score(y_test, y_pred)
-
-                        col1, col2, col3, col4 = st.columns(4)
-                        with col1:
-                            st.metric("R²", f"{r2:.3f}")
-                        with col2:
-                            st.metric("RMSE", f"{rmse:.3f}")
-                        with col3:
-                            st.metric("MAE", f"{mae:.3f}")
-                        with col4:
-                            st.metric("MSE", f"{mse:.3f}")
-
-                        # Gráfico de predicciones vs valores reales
-                        fig, ax = plt.subplots(figsize=(8, 6))
-                        ax.scatter(y_test, y_pred, alpha=0.6)
-                        ax.plot([y_test.min(), y_test.max()], [
-                                y_test.min(), y_test.max()], 'r--', lw=2)
-                        ax.set_xlabel('Valores Reales')
-                        ax.set_ylabel('Predicciones')
-                        ax.set_title('Predicciones vs Valores Reales')
-                        st.pyplot(fig)
-                        plt.close()
-
-            with tab4:
-                st.subheader("🔍 Hacer Predicciones")
-
-                if 'csv_model' not in st.session_state:
-                    st.warning(
-                        "Primero entrena un modelo en la pestaña 'Entrenamiento'.")
-                else:
-                    st.info("Introduce los valores para hacer una predicción:")
-
-                    # Crear formulario para predicción
-                    prediction_values = {}
-
-                    # Obtener solo características numéricas para simplificar
-                    numeric_features = X.select_dtypes(
-                        include=[np.number]).columns
-
-                    # Limitar a 10 características
-                    for feature in numeric_features[:10]:
-                        min_val = float(X[feature].min())
-                        max_val = float(X[feature].max())
-                        mean_val = float(X[feature].mean())
-
-                        prediction_values[feature] = st.number_input(
-                            f"{feature}:",
-                            min_value=min_val,
-                            max_value=max_val,
-                            value=mean_val,
-                            step=(max_val - min_val) / 100
-                        )
-
-                    if st.button("🎯 Realizar Predicción"):
-                        # Preparar datos para predicción
-                        pred_data = []
-                        for feature in feature_names:
-                            if feature in prediction_values:
-                                pred_data.append(prediction_values[feature])
-                            else:
-                                # Para características categóricas, usar valor más común
-                                if feature in X.columns:
-                                    pred_data.append(X[feature].mode()[0] if len(
-                                        X[feature].mode()) > 0 else 0)
-                                else:
-                                    pred_data.append(0)
-
-                        # Hacer predicción
-                        model = st.session_state.csv_model
-                        pred_array = np.array([pred_data])
-                        prediction = model.predict(pred_array)[0]
-
-                        # Mostrar resultado
-                        task_type = st.session_state.csv_task_type
-                        if task_type == "Clasificación":
-                            if class_names and prediction < len(class_names):
-                                result = class_names[int(prediction)]
-                            else:
-                                result = f"Clase {int(prediction)}"
-                            st.success(f"🎯 Predicción: **{result}**")
-                        else:
-                            st.success(f"🎯 Predicción: **{prediction:.3f}**")
-
-                        # Mostrar confianza si es posible
-                        if hasattr(model, 'predict_proba') and task_type == "Clasificación":
-                            probabilities = model.predict_proba(pred_array)[0]
-                            st.subheader("Confianza por clase:")
-                            for i, prob in enumerate(probabilities):
-                                class_name = class_names[i] if class_names and i < len(
-                                    class_names) else f"Clase {i}"
-                                st.write(
-                                    f"• {class_name}: {prob:.3f} ({prob*100:.1f}%)")
-
-        except Exception as e:
-            st.error(f"❌ Error al procesar el dataset: {str(e)}")
-
-    else:
-        # Se seleccionó un dataset predefinido
-        st.info(f"Dataset seleccionado: {dataset_result}")
-        st.markdown("### 🎯 Análisis con Dataset Predefinido")
+        st.markdown("---")
+        st.success("🎉 **¡Dataset cargado exitosamente!**")
+        
         st.markdown("""
-        Para analizar datasets predefinidos como Iris, Titanic, etc., 
-        ve a la sección **🌲 Árboles de Decisión** donde encontrarás todas las herramientas de análisis.
+        ### 📋 Siguiente paso
+        
+        Tu dataset CSV ha sido añadido a la lista de datasets disponibles. 
+        Ahora puedes:
+        
+        1. **Ir a la pestaña "🌲 Árboles de Decisión"** para analizar y entrenar modelos con tu dataset
+        2. **Explorar, entrenar, evaluar y hacer predicciones** usando todas las herramientas de MLTutor
+        
+        Tu dataset aparecerá en el selector de datasets en la aplicación principal.
         """)
-
-        if st.button("🚀 Ir a Árboles de Decisión"):
-            st.session_state.navigation = "🌲 Árboles de Decisión"
-            st.rerun()
+        
+        # Botón para ir a árboles de decisión
+        col1, col2, col3 = st.columns([1,2,1])
+        with col2:
+            if st.button("🚀 Ir a Árboles de Decisión", type="primary", use_container_width=True):
+                st.session_state.navigation = "🌲 Árboles de Decisión"
+                st.rerun()
+    
+    else:
+        # Se seleccionó un dataset predefinido (no debería ocurrir con show_predefined=False)
+        st.info("Por favor, carga un archivo CSV usando el selector de arriba.")
 
 
 if __name__ == "__main__":

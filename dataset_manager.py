@@ -134,6 +134,20 @@ def load_dataset_from_file(file_path, target_column=None, task_type="auto"):
     X = df.drop(columns=[target_column])
     y = df[target_column]
 
+    # Codificar automáticamente características categóricas (string/object)
+    categorical_features = X.select_dtypes(include=['object']).columns
+    if len(categorical_features) > 0:
+        from sklearn.preprocessing import LabelEncoder
+        for col in categorical_features:
+            le = LabelEncoder()
+            X[col] = le.fit_transform(X[col].astype(str))
+
+    # Codificar variable objetivo si es categórica
+    if y.dtype == 'object':
+        from sklearn.preprocessing import LabelEncoder
+        le_target = LabelEncoder()
+        y = pd.Series(le_target.fit_transform(y.astype(str)), name=target_column)
+
     # Obtener nombres de características
     feature_names = X.columns.tolist()
 
@@ -195,6 +209,7 @@ def list_sample_datasets():
 def preprocess_data(X, y, test_size=0.3, random_state=42):
     """
     Divide los datos en conjuntos de entrenamiento y prueba.
+    Maneja automáticamente características categóricas restantes.
 
     Parameters:
     -----------
@@ -212,6 +227,23 @@ def preprocess_data(X, y, test_size=0.3, random_state=42):
     X_train, X_test, y_train, y_test : arrays
         Conjuntos de entrenamiento y prueba
     """
+    # Convertir a DataFrame si es necesario para manejar tipos de datos
+    if isinstance(X, np.ndarray):
+        X = pd.DataFrame(X)
+    
+    # Codificar cualquier característica categórica restante
+    categorical_features = X.select_dtypes(include=['object']).columns
+    if len(categorical_features) > 0:
+        X = X.copy()  # Evitar modificar el original
+        for col in categorical_features:
+            le = LabelEncoder()
+            X[col] = le.fit_transform(X[col].astype(str))
+    
+    # Codificar variable objetivo si es necesario
+    if hasattr(y, 'dtype') and y.dtype == 'object':
+        le_target = LabelEncoder()
+        y = le_target.fit_transform(y.astype(str))
+    
     return train_test_split(X, y, test_size=test_size, random_state=random_state)
 
 
@@ -253,12 +285,22 @@ def load_data(dataset_option):
         "🐧 Pingüinos - Clasificación de especies": "🐧 Pingüinos - Clasificación de especies"
     }
 
+    # Comprobar si es un dataset CSV personalizado cargado
+    import streamlit as st
+    if hasattr(st, 'session_state') and 'csv_datasets' in st.session_state and dataset_option in st.session_state.csv_datasets:
+        csv_info = st.session_state.csv_datasets[dataset_option]
+        return load_dataset_from_file(
+            csv_info['file_path'],
+            csv_info['target_col'],
+            csv_info['task_type']
+        )
+
     # Normalizar el nombre del dataset
     if dataset_option in dataset_mapping:
         normalized_name = dataset_mapping[dataset_option]
         return load_builtin_dataset(normalized_name)
 
-    # Comprobar si es un conjunto de datos personalizado (CSV)
+    # Comprobar si es un conjunto de datos personalizado (CSV) - compatibilidad con formato anterior
     if dataset_option.endswith('.csv'):
         file_path = dataset_option
         if not os.path.exists(file_path):
@@ -275,9 +317,14 @@ def load_data(dataset_option):
     raise ValueError(f"Conjunto de datos '{dataset_option}' no reconocido")
 
 
-def create_dataset_selector():
+def create_dataset_selector(show_predefined=True):
     """
     Crea un selector de conjuntos de datos mejorado para la interfaz de usuario.
+
+    Parameters:
+    -----------
+    show_predefined : bool, default=True
+        Si mostrar la opción de datasets predefinidos
 
     Returns:
     --------
@@ -299,11 +346,15 @@ def create_dataset_selector():
     ]
 
     # Método de carga
-    data_source = st.radio(
-        "Fuente de datos:",
-        ["Datasets predefinidos", "Cargar archivo CSV"],
-        help="Selecciona si quieres usar un dataset incluido o cargar tu propio archivo CSV"
-    )
+    if show_predefined:
+        data_source = st.radio(
+            "Fuente de datos:",
+            ["Datasets predefinidos", "Cargar archivo CSV"],
+            help="Selecciona si quieres usar un dataset incluido o cargar tu propio archivo CSV"
+        )
+    else:
+        data_source = "Cargar archivo CSV"
+        st.info("💡 En esta sección puedes cargar tu propio archivo CSV para análisis personalizado")
 
     if data_source == "Cargar archivo CSV":
         st.markdown("### 📁 Cargar Archivo CSV")
@@ -408,6 +459,23 @@ def create_dataset_selector():
                     mode='w+', delete=False, suffix='.csv')
                 df.to_csv(temp_file.name, index=False)
                 temp_file.close()
+
+                # Añadir dataset a la lista de datasets disponibles en session_state
+                dataset_name = f"📄 {uploaded_file.name}"
+                if 'csv_datasets' not in st.session_state:
+                    st.session_state.csv_datasets = {}
+                
+                st.session_state.csv_datasets[dataset_name] = {
+                    'file_path': temp_file.name,
+                    'target_col': target_col,
+                    'task_type': task_type,
+                    'original_name': uploaded_file.name
+                }
+
+                # Actualizar el dataset seleccionado para usar el nuevo CSV
+                st.session_state.selected_dataset = dataset_name
+
+                st.success(f"✅ Dataset '{uploaded_file.name}' añadido a la lista de datasets disponibles")
 
                 return temp_file.name, target_col, task_type
 
