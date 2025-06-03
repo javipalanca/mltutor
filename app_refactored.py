@@ -220,14 +220,17 @@ def run_decision_trees_app():
 
     # Separador visual
     st.markdown("---")
-
-    # Pestaña de Datos
-    if st.session_state.active_tab == 0:
-        st.header("Exploración de Datos")
-
-        # Selección de dataset para exploración
-        st.markdown("### Selecciona un Dataset para Explorar")
-        dataset_option_exploration = st.selectbox(
+    
+    # SELECTOR UNIFICADO DE DATASET (solo mostrar en pestañas que lo necesiten)
+    if st.session_state.active_tab in [0, 1]:  # Exploración y Entrenamiento
+        st.markdown("### 📊 Selección de Dataset")
+        
+        # Inicializar dataset seleccionado si no existe
+        if 'selected_dataset' not in st.session_state:
+            st.session_state.selected_dataset = "🌸 Iris - Clasificación de flores"
+        
+        # Selector unificado
+        dataset_option = st.selectbox(
             "Dataset de ejemplo:",
             ("🌸 Iris - Clasificación de flores",
              "🍷 Vino - Clasificación de vinos",
@@ -236,13 +239,36 @@ def run_decision_trees_app():
              "💰 Propinas - Predicción de propinas",
              "🏠 Viviendas California - Precios",
              "🐧 Pingüinos - Clasificación de especies"),
-            key="dataset_selector_exploration"
+            index=("🌸 Iris - Clasificación de flores",
+                   "🍷 Vino - Clasificación de vinos",
+                   "🔬 Cáncer - Diagnóstico binario",
+                   "🚢 Titanic - Supervivencia",
+                   "💰 Propinas - Predicción de propinas",
+                   "🏠 Viviendas California - Precios",
+                   "🐧 Pingüinos - Clasificación de especies").index(st.session_state.selected_dataset),
+            key="unified_dataset_selector",
+            help="El dataset seleccionado se mantendrá entre las pestañas de Exploración y Entrenamiento"
         )
+        
+        # Actualizar la variable de sesión
+        st.session_state.selected_dataset = dataset_option
+        
+        # Separador después del selector
+        st.markdown("---")
+    else:
+        # Para otras pestañas, mostrar qué dataset está seleccionado actualmente
+        if hasattr(st.session_state, 'selected_dataset'):
+            st.info(f"📊 **Dataset actual:** {st.session_state.selected_dataset}")
+            st.markdown("---")
+
+    # Pestaña de Datos
+    if st.session_state.active_tab == 0:
+        st.header("Exploración de Datos")
 
         try:
             # Cargar datos para exploración
             X, y, feature_names, class_names, dataset_info, task_type = load_data(
-                dataset_option_exploration)
+                st.session_state.selected_dataset)
 
             # Convertir a DataFrames para facilitar el manejo
             # FIXED: No sobrescribir las columnas si X ya es DataFrame para evitar NaN
@@ -514,34 +540,21 @@ plt.show()
     elif st.session_state.active_tab == 1:
         st.header("Configuración del Modelo")
 
-        # Selección de dataset
-        dataset_option = st.selectbox(
-            "Dataset de ejemplo:",
-            ("🌸 Iris - Clasificación de flores",
-             "🍷 Vino - Clasificación de vinos",
-             "🔬 Cáncer - Diagnóstico binario",
-             "🚢 Titanic - Supervivencia",
-             "💰 Propinas - Predicción de propinas",
-             "🏠 Viviendas California - Precios",
-             "🐧 Pingüinos - Clasificación de especies"),
-            key="dataset_selector_config"
-        )
-
         # Inicializar session state variables
         if 'dataset_option' not in st.session_state:
-            st.session_state.dataset_option = dataset_option
+            st.session_state.dataset_option = st.session_state.selected_dataset
         if 'tree_type' not in st.session_state:
             st.session_state.tree_type = "Clasificación"
         if 'is_trained' not in st.session_state:
             st.session_state.is_trained = False
 
         # Cargar datos para la vista previa si cambia el dataset o si no se ha cargado
-        if dataset_option != st.session_state.dataset_option or not dataset_loaded:
+        if st.session_state.selected_dataset != st.session_state.dataset_option or not dataset_loaded:
             try:
                 X, y, feature_names, class_names, dataset_info, task_type = load_data(
-                    dataset_option)
+                    st.session_state.selected_dataset)
 
-                st.session_state.dataset_option = dataset_option
+                st.session_state.dataset_option = st.session_state.selected_dataset
                 dataset_loaded = True
 
                 # Mostrar información del dataset
@@ -653,7 +666,7 @@ plt.show()
                 try:
                     # Cargar y preprocesar datos
                     X, y, feature_names, class_names, dataset_info, task_type = load_data(
-                        dataset_option)
+                        st.session_state.selected_dataset)
                     X_train, X_test, y_train, y_test = preprocess_data(
                         X, y, test_size=test_size)
 
