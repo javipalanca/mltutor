@@ -146,7 +146,8 @@ def load_dataset_from_file(file_path, target_column=None, task_type="auto"):
     if y.dtype == 'object':
         from sklearn.preprocessing import LabelEncoder
         le_target = LabelEncoder()
-        y = pd.Series(le_target.fit_transform(y.astype(str)), name=target_column)
+        y = pd.Series(le_target.fit_transform(
+            y.astype(str)), name=target_column)
 
     # Obtener nombres de características
     feature_names = X.columns.tolist()
@@ -209,7 +210,6 @@ def list_sample_datasets():
 def preprocess_data(X, y, test_size=0.3, random_state=42):
     """
     Divide los datos en conjuntos de entrenamiento y prueba.
-    Maneja automáticamente características categóricas restantes.
 
     Parameters:
     -----------
@@ -227,23 +227,6 @@ def preprocess_data(X, y, test_size=0.3, random_state=42):
     X_train, X_test, y_train, y_test : arrays
         Conjuntos de entrenamiento y prueba
     """
-    # Convertir a DataFrame si es necesario para manejar tipos de datos
-    if isinstance(X, np.ndarray):
-        X = pd.DataFrame(X)
-    
-    # Codificar cualquier característica categórica restante
-    categorical_features = X.select_dtypes(include=['object']).columns
-    if len(categorical_features) > 0:
-        X = X.copy()  # Evitar modificar el original
-        for col in categorical_features:
-            le = LabelEncoder()
-            X[col] = le.fit_transform(X[col].astype(str))
-    
-    # Codificar variable objetivo si es necesario
-    if hasattr(y, 'dtype') and y.dtype == 'object':
-        le_target = LabelEncoder()
-        y = le_target.fit_transform(y.astype(str))
-    
     return train_test_split(X, y, test_size=test_size, random_state=random_state)
 
 
@@ -354,7 +337,8 @@ def create_dataset_selector(show_predefined=True):
         )
     else:
         data_source = "Cargar archivo CSV"
-        st.info("💡 En esta sección puedes cargar tu propio archivo CSV para análisis personalizado")
+        st.info(
+            "💡 En esta sección puedes cargar tu propio archivo CSV para análisis personalizado")
 
     if data_source == "Cargar archivo CSV":
         st.markdown("### 📁 Cargar Archivo CSV")
@@ -464,7 +448,7 @@ def create_dataset_selector(show_predefined=True):
                 dataset_name = f"📄 {uploaded_file.name}"
                 if 'csv_datasets' not in st.session_state:
                     st.session_state.csv_datasets = {}
-                
+
                 st.session_state.csv_datasets[dataset_name] = {
                     'file_path': temp_file.name,
                     'target_col': target_col,
@@ -475,7 +459,8 @@ def create_dataset_selector(show_predefined=True):
                 # Actualizar el dataset seleccionado para usar el nuevo CSV
                 st.session_state.selected_dataset = dataset_name
 
-                st.success(f"✅ Dataset '{uploaded_file.name}' añadido a la lista de datasets disponibles")
+                st.success(
+                    f"✅ Dataset '{uploaded_file.name}' añadido a la lista de datasets disponibles")
 
                 return temp_file.name, target_col, task_type
 

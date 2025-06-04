@@ -10,7 +10,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import (
     accuracy_score, mean_squared_error, confusion_matrix,
-    classification_report, precision_recall_fscore_support
+    classification_report, precision_recall_fscore_support,
+    r2_score, mean_absolute_error
+
 )
 
 from utils import get_image_download_link, show_code_with_download
@@ -67,9 +69,10 @@ def evaluate_regression_model(y_test, y_pred):
     # Calcular métricas
     mse = mean_squared_error(y_test, y_pred)
     rmse = np.sqrt(mse)
-    mae = np.mean(np.abs(y_test - y_pred))
-    r2 = 1 - np.sum((y_test - y_pred)**2) / \
-        np.sum((y_test - np.mean(y_test))**2)
+    # np.mean(np.abs(y_test - y_pred))
+    mae = mean_absolute_error(y_test, y_pred)
+    r2 = r2_score(y_test, y_pred)  # 1 - np.sum((y_test - y_pred)**2) / \
+    # np.sum((y_test - np.mean(y_test))**2)
 
     return {
         "mse": mse,
@@ -265,9 +268,8 @@ ax.set_xlabel('Clase')
         # Métricas para regresión
         mse = mean_squared_error(y_test, y_pred)
         rmse = np.sqrt(mse)
-        mae = np.mean(np.abs(y_test - y_pred))
-        r2 = 1 - np.sum((y_test - y_pred)**2) / \
-            np.sum((y_test - np.mean(y_test))**2)
+        mae = mean_absolute_error(y_test, y_pred)
+        r2 = r2_score(y_test, y_pred)
 
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -414,8 +416,7 @@ def show_prediction_path(tree_model, X_new, feature_names, class_names=None):
         leaf_id = tree_model.apply(X_new)
 
         # Obtener los nodos en el camino
-        node_index = node_indicator.indices[node_indicator.indptr[0]
-            :node_indicator.indptr[1]]
+        node_index = node_indicator.indices[node_indicator.indptr[0]:node_indicator.indptr[1]]
 
         path_explanation = []
         for node_id in node_index:

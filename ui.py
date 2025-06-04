@@ -244,12 +244,14 @@ def show_welcome_page():
     with col2:
         st.markdown("""
         <div style="background-color: #FFF3E0; padding: 15px; border-radius: 10px; height: 200px; border-left: 5px solid #FF9800;">
-            <h3 style="color: #E65100;">📊 Regresión Logística</h3>
-            <p>Modelo para clasificación basado en la función logística.</p>
-            <p><strong>Estado:</strong> <span style="color: #9E9E9E;">Próximamente</span></p>
+            <h3 style="color: #E65100;">📊 Regresión</h3>
+            <p>Modelos lineales para regresión y clasificación logística.</p>
+            <p><strong>Estado:</strong> <span style="color: #4CAF50;">Disponible</span></p>
         </div>
         """, unsafe_allow_html=True)
-        st.button("🔜 Próximamente", use_container_width=True, disabled=True)
+        if st.button("✨ Explorar Regresión", use_container_width=True):
+            st.session_state.navigation = "📊 Regresión"
+            st.rerun()
 
     with col3:
         st.markdown("""
@@ -313,7 +315,7 @@ def show_sidebar_config():
         st.subheader("Algoritmo")
         algorithm_type = st.selectbox(
             "Selecciona un algoritmo:",
-            ("Árboles de Decisión", "Regresión Logística",
+            ("Árboles de Decisión", "Regresión",
              "K-Nearest Neighbors", "Redes Neuronales"),
             index=0,  # Árboles de Decisión como opción por defecto
             help="Selecciona el algoritmo de machine learning que quieres explorar",
@@ -340,9 +342,9 @@ def show_sidebar_config():
             """, unsafe_allow_html=True)
 
             # Imagen ilustrativa para el algoritmo seleccionado
-            if algorithm_type == "Regresión Logística":
+            if algorithm_type == "Regresión":
                 st.image("https://scikit-learn.org/stable/_images/sphx_glr_plot_logistic_001.png",
-                         caption="Ilustración de Regresión Logística")
+                         caption="Ilustración de Regresión")
             elif algorithm_type == "K-Nearest Neighbors":
                 st.image("https://scikit-learn.org/stable/_images/sphx_glr_plot_classification_001.png",
                          caption="Ilustración de K-Nearest Neighbors")
@@ -831,17 +833,17 @@ def create_prediction_interface(tree_model, feature_names, class_names, tree_typ
                 original_col_name = column_names[i]
             else:
                 original_col_name = feature_display_name
-            
+
             # Siempre usar el índice para acceder a las columnas para evitar problemas con nombres traducidos
             feature_col = df_train.iloc[:, i]
-            
+
             # Determinar tipo de característica
             unique_values = feature_col.nunique()
             unique_vals = sorted(feature_col.unique())
-            
+
             # Verificar si es categórica según metadata
             is_categorical_by_metadata = original_col_name in categorical_features
-            
+
             if unique_values <= 2:
                 # Característica binaria
                 feature_type = 'binary'
@@ -851,7 +853,7 @@ def create_prediction_interface(tree_model, feature_names, class_names, tree_typ
             else:
                 # Característica numérica continua
                 feature_type = 'continuous'
-            
+
             # Preparar valores para mostrar
             if feature_type in ['binary', 'categorical'] and original_col_name in value_mappings:
                 # Usar mapeo de valores si está disponible
@@ -865,7 +867,7 @@ def create_prediction_interface(tree_model, feature_names, class_names, tree_typ
                     else:
                         display_values.append(str(orig_val))
                         value_to_original[str(orig_val)] = orig_val
-                
+
                 feature_info[feature_display_name] = {
                     'type': feature_type,
                     'values': unique_vals,
@@ -901,7 +903,7 @@ def create_prediction_interface(tree_model, feature_names, class_names, tree_typ
 
     # Crear controles para todas las características en orden
     feature_values = {}
-    
+
     # Función auxiliar para crear etiqueta con descripción
     def create_feature_label(feature_name, info):
         original_col = info.get('original_column', feature_name)
@@ -915,7 +917,7 @@ def create_prediction_interface(tree_model, feature_names, class_names, tree_typ
         for i, feature in enumerate(feature_names[:half]):
             info = feature_info[feature]
             label = create_feature_label(feature, info)
-            
+
             if info['type'] == 'binary':
                 # Checkbox para características binarias con valores descriptivos
                 if 'display_values' in info and 'value_to_original' in info:
@@ -940,7 +942,7 @@ def create_prediction_interface(tree_model, feature_names, class_names, tree_typ
                         key=f"feature_{i}"
                     )
                     feature_values[i] = value
-            
+
             elif info['type'] == 'categorical':
                 # Selectbox para características categóricas con valores descriptivos
                 if 'display_values' in info and 'value_to_original' in info:
@@ -948,7 +950,8 @@ def create_prediction_interface(tree_model, feature_names, class_names, tree_typ
                     selected_display = st.selectbox(
                         label,
                         options=info['display_values'],
-                        index=len(info['display_values'])//2 if len(info['display_values']) > 1 else 0,
+                        index=len(
+                            info['display_values'])//2 if len(info['display_values']) > 1 else 0,
                         key=f"feature_{i}"
                     )
                     # Convertir valor descriptivo de vuelta al original
@@ -958,16 +961,18 @@ def create_prediction_interface(tree_model, feature_names, class_names, tree_typ
                     value = st.selectbox(
                         label,
                         options=info['values'],
-                        index=len(info['values'])//2 if len(info['values']) > 1 else 0,
+                        index=len(info['values']
+                                  )//2 if len(info['values']) > 1 else 0,
                         key=f"feature_{i}"
                     )
                     feature_values[i] = value
-            
+
             else:  # continuous
                 # Slider para características continuas
-                step = (info['max'] - info['min']) / 100 if info['max'] != info['min'] else 0.1
+                step = (info['max'] - info['min']) / \
+                    100 if info['max'] != info['min'] else 0.1
                 default_val = info.get('mean', (info['min'] + info['max']) / 2)
-                
+
                 value = st.slider(
                     label,
                     min_value=info['min'],
@@ -983,7 +988,7 @@ def create_prediction_interface(tree_model, feature_names, class_names, tree_typ
         for i, feature in enumerate(feature_names[half:], start=half):
             info = feature_info[feature]
             label = create_feature_label(feature, info)
-            
+
             if info['type'] == 'binary':
                 # Checkbox para características binarias con valores descriptivos
                 if 'display_values' in info and 'value_to_original' in info:
@@ -1008,7 +1013,7 @@ def create_prediction_interface(tree_model, feature_names, class_names, tree_typ
                         key=f"feature_{i}"
                     )
                     feature_values[i] = value
-            
+
             elif info['type'] == 'categorical':
                 # Selectbox para características categóricas con valores descriptivos
                 if 'display_values' in info and 'value_to_original' in info:
@@ -1016,7 +1021,8 @@ def create_prediction_interface(tree_model, feature_names, class_names, tree_typ
                     selected_display = st.selectbox(
                         label,
                         options=info['display_values'],
-                        index=len(info['display_values'])//2 if len(info['display_values']) > 1 else 0,
+                        index=len(
+                            info['display_values'])//2 if len(info['display_values']) > 1 else 0,
                         key=f"feature_{i}"
                     )
                     # Convertir valor descriptivo de vuelta al original
@@ -1026,16 +1032,18 @@ def create_prediction_interface(tree_model, feature_names, class_names, tree_typ
                     value = st.selectbox(
                         label,
                         options=info['values'],
-                        index=len(info['values'])//2 if len(info['values']) > 1 else 0,
+                        index=len(info['values']
+                                  )//2 if len(info['values']) > 1 else 0,
                         key=f"feature_{i}"
                     )
                     feature_values[i] = value
-            
+
             else:  # continuous
                 # Slider para características continuas
-                step = (info['max'] - info['min']) / 100 if info['max'] != info['min'] else 0.1
+                step = (info['max'] - info['min']) / \
+                    100 if info['max'] != info['min'] else 0.1
                 default_val = info.get('mean', (info['min'] + info['max']) / 2)
-                
+
                 value = st.slider(
                     label,
                     min_value=info['min'],

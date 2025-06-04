@@ -1,9 +1,10 @@
 """
-Este módulo contiene funciones para entrenar modelos de árboles de decisión.
+Este módulo contiene funciones para entrenar modelos de árboles de decisión y modelos lineales.
 Incluye funciones para crear, entrenar y evaluar modelos de clasificación y regresión.
 """
 
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
+from sklearn.linear_model import LinearRegression, LogisticRegression
 import streamlit as st
 from dataset_manager import preprocess_data
 from model_evaluation import evaluate_classification_model, evaluate_regression_model
@@ -184,3 +185,125 @@ def predict_sample(model, X_new):
         return prediction, proba
 
     return prediction, None
+
+
+def train_linear_regression(X, y, test_size=0.3, random_state=42):
+    """
+    Crea y entrena un modelo de regresión lineal.
+
+    Parameters:
+    -----------
+    X : DataFrame o array
+        Características
+    y : array
+        Variable objetivo
+    test_size : float, default=0.3
+        Proporción de datos para prueba
+    random_state : int, default=42
+        Semilla para reproducibilidad
+
+    Returns:
+    --------
+    dict
+        Diccionario con el modelo entrenado, datos de entrenamiento/prueba y métricas
+    """
+    # Dividir los datos en conjuntos de entrenamiento y prueba
+    X_train, X_test, y_train, y_test = preprocess_data(
+        X, y, test_size=test_size, random_state=random_state)
+
+    # Crear y entrenar el modelo
+    model = LinearRegression()
+    model.fit(X_train, y_train)
+
+    # Realizar predicciones
+    y_pred = model.predict(X_test)
+
+    # Evaluar el modelo
+    test_results = evaluate_regression_model(y_test, y_pred)
+
+    return {
+        "model": model,
+        "X_train": X_train,
+        "X_test": X_test,
+        "y_train": y_train,
+        "y_test": y_test,
+        "y_pred": y_pred,
+        "test_results": test_results
+    }
+
+
+def train_logistic_regression(X, y, max_iter=1000, test_size=0.3, random_state=42):
+    """
+    Crea y entrena un modelo de regresión logística.
+
+    Parameters:
+    -----------
+    X : DataFrame o array
+        Características
+    y : array
+        Variable objetivo
+    max_iter : int, default=1000
+        Número máximo de iteraciones para el algoritmo de optimización
+    test_size : float, default=0.3
+        Proporción de datos para prueba
+    random_state : int, default=42
+        Semilla para reproducibilidad
+
+    Returns:
+    --------
+    dict
+        Diccionario con el modelo entrenado, datos de entrenamiento/prueba y métricas
+    """
+    # Dividir los datos en conjuntos de entrenamiento y prueba
+    X_train, X_test, y_train, y_test = preprocess_data(
+        X, y, test_size=test_size, random_state=random_state)
+
+    # Crear y entrenar el modelo
+    model = LogisticRegression(max_iter=max_iter, random_state=random_state)
+    model.fit(X_train, y_train)
+
+    # Realizar predicciones
+    y_pred = model.predict(X_test)
+
+    # Evaluar el modelo
+    test_results = evaluate_classification_model(y_test, y_pred, None)
+
+    return {
+        "model": model,
+        "X_train": X_train,
+        "X_test": X_test,
+        "y_train": y_train,
+        "y_test": y_test,
+        "y_pred": y_pred,
+        "test_results": test_results
+    }
+
+
+def train_linear_model(X, y, model_type="Linear", max_iter=1000, test_size=0.3, random_state=42):
+    """
+    Crea y entrena un modelo lineal (regresión lineal o logística).
+
+    Parameters:
+    -----------
+    X : DataFrame o array
+        Características
+    y : array
+        Variable objetivo
+    model_type : str, default="Linear"
+        Tipo de modelo ("Linear" para regresión lineal, "Logistic" para regresión logística)
+    max_iter : int, default=1000
+        Número máximo de iteraciones (solo para regresión logística)
+    test_size : float, default=0.3
+        Proporción de datos para prueba
+    random_state : int, default=42
+        Semilla para reproducibilidad
+
+    Returns:
+    --------
+    dict
+        Diccionario con el modelo entrenado, datos de entrenamiento/prueba y métricas
+    """
+    if model_type == "Linear":
+        return train_linear_regression(X, y, test_size, random_state)
+    else:  # Logistic
+        return train_logistic_regression(X, y, max_iter, test_size, random_state)
