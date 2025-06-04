@@ -790,7 +790,7 @@ plt.show()
 
                 # Generar y mostrar el plot en tamaño reducido
                 try:
-                    ax = plot_decision_boundary(
+                    fig, ax = plot_decision_boundary(
                         st.session_state.tree_model,
                         X_plot,
                         st.session_state.y_train,
@@ -801,14 +801,12 @@ plt.show()
                     # Mostrar en columnas para reducir el tamaño al 75%
                     col1, col2, col3 = st.columns([1, 3, 1])
                     with col2:
-                        # Obtener la figura desde los ejes y mostrarla
+                        # Mostrar la figura directamente
                         plt.tight_layout()
-                        fig = ax.get_figure()  # Use get_figure() method instead
                         st.pyplot(fig, clear_figure=True,
                                   use_container_width=True)
 
                     # Enlace para descargar
-                    fig = ax.get_figure()  # Get figure for download link
                     st.markdown(
                         get_image_download_link(
                             fig, "frontera_decision", "📥 Descargar visualización de la frontera"),
@@ -1292,7 +1290,13 @@ def run_linear_regression_app():
             if task_type == "Clasificación":
                 # Gráfico de barras para clasificación (regresión logística)
                 value_counts = y_df.value_counts().sort_index()
-                sns.barplot(x=value_counts.index, y=value_counts.values, ax=ax)
+                try:
+                    import seaborn as sns
+                    sns.barplot(x=value_counts.index,
+                                y=value_counts.values, ax=ax)
+                except ImportError:
+                    # Fallback to matplotlib if seaborn is not available
+                    ax.bar(value_counts.index, value_counts.values)
                 ax.set_title("Distribución de Clases")
                 ax.set_xlabel("Clase")
                 ax.set_ylabel("Cantidad")
@@ -1312,7 +1316,7 @@ def run_linear_regression_app():
                 ax.set_ylabel("Frecuencia")
 
             # Mostrar la figura
-            col1, col2, col3 = st.columns([1, 3, 1])
+            col1, col2, col3 = st.columns([0.1, 0.8, 0.1])
             with col2:
                 st.pyplot(fig, use_container_width=True)
 
@@ -1327,12 +1331,28 @@ def run_linear_regression_app():
 
             # Generar mapa de calor
             fig_corr, ax = plt.subplots(figsize=(10, 8))
-            sns.heatmap(corr, mask=mask, annot=True, fmt=".2f", cmap="coolwarm",
-                        square=True, linewidths=.5, cbar_kws={"shrink": .8}, ax=ax)
+            try:
+                import seaborn as sns
+                sns.heatmap(corr, mask=mask, annot=True, fmt=".2f", cmap="coolwarm",
+                            square=True, linewidths=.5, cbar_kws={"shrink": .8}, ax=ax)
+            except ImportError:
+                # Fallback to matplotlib if seaborn is not available
+                im = ax.imshow(corr.where(~mask),
+                               cmap="coolwarm", aspect="auto")
+                ax.set_xticks(range(len(corr.columns)))
+                ax.set_yticks(range(len(corr.columns)))
+                ax.set_xticklabels(corr.columns, rotation=45, ha='right')
+                ax.set_yticklabels(corr.columns)
+                # Add text annotations
+                for i in range(len(corr.columns)):
+                    for j in range(len(corr.columns)):
+                        if not mask[i, j]:
+                            text = ax.text(j, i, f'{corr.iloc[i, j]:.2f}',
+                                           ha="center", va="center", color="black")
             ax.set_title("Matriz de Correlación de Características")
 
             # Mostrar la figura
-            col1, col2, col3 = st.columns([1, 3, 1])
+            col1, col2, col3 = st.columns([0.1, 0.8, 0.1])
             with col2:
                 st.pyplot(fig_corr, use_container_width=True)
 
@@ -1406,28 +1426,35 @@ def run_linear_regression_app():
 
             # Generar el pairplot
             with st.spinner("Generando matriz de dispersión..."):
-                pair_plot = sns.pairplot(
-                    plot_df,
-                    hue='target' if task_type == "Clasificación" else None,
-                    diag_kind=diag_kind,
-                    plot_kws={'alpha': 0.6, 's': 30, 'edgecolor': 'k'},
-                    diag_kws={'alpha': 0.5},
-                    height=2.0
-                )
-                pair_plot.fig.suptitle(
-                    "Matriz de Dispersión de Características", y=1.02, fontsize=14)
+                try:
+                    import seaborn as sns
+                    pair_plot = sns.pairplot(
+                        plot_df,
+                        hue='target' if task_type == "Clasificación" else None,
+                        diag_kind=diag_kind,
+                        plot_kws={'alpha': 0.6, 's': 30, 'edgecolor': 'k'},
+                        diag_kws={'alpha': 0.5},
+                        height=2.0
+                    )
+                    pair_plot.fig.suptitle(
+                        "Matriz de Dispersión de Características", y=1.02, fontsize=14)
 
-                # Mostrar la figura
-                col1, col2, col3 = st.columns([1, 3, 1])
-                with col2:
-                    st.pyplot(pair_plot.fig, use_container_width=True)
+                    # Mostrar la figura
+                    col1, col2, col3 = st.columns([0.1, 0.8, 0.1])
+                    with col2:
+                        st.pyplot(pair_plot.fig, use_container_width=True)
 
-                # Enlace para descargar
-                st.markdown(
-                    get_image_download_link(
-                        pair_plot.fig, "matriz_dispersion_lr", "📥 Descargar matriz de dispersión"),
-                    unsafe_allow_html=True
-                )
+                    # Enlace para descargar
+                    st.markdown(
+                        get_image_download_link(
+                            pair_plot.fig, "matriz_dispersion_lr", "📥 Descargar matriz de dispersión"),
+                        unsafe_allow_html=True
+                    )
+                except ImportError:
+                    st.error(
+                        "Seaborn no está disponible. Por favor, instala seaborn para usar la matriz de dispersión.")
+                    st.info(
+                        "Puedes instalar seaborn ejecutando: pip install seaborn")
 
         except Exception as e:
             st.error(f"Error al cargar el dataset: {str(e)}")
@@ -1583,23 +1610,132 @@ def run_linear_regression_app():
             metrics = st.session_state.get('metrics_lr', {})
             model_type = st.session_state.get('model_type_lr', 'Linear')
 
+            # Información sobre las métricas
+            with st.expander("ℹ️ ¿Qué significan estas métricas?", expanded=False):
+                if model_type == "Linear":
+                    st.markdown("""
+                    **Métricas de Regresión Lineal:**
+                    
+                    **R² Score (Coeficiente de Determinación):**
+                    - Mide qué tan bien el modelo explica la variabilidad de los datos
+                    - Rango: 0 a 1 (valores negativos indican un modelo muy malo)
+                    - **Interpretación:**
+                      - R² = 1.0: El modelo explica perfectamente toda la variabilidad
+                      - R² = 0.8: El modelo explica el 80% de la variabilidad (muy bueno)
+                      - R² = 0.5: El modelo explica el 50% de la variabilidad (moderado)
+                      - R² = 0.0: El modelo no explica nada de la variabilidad
+                    
+                    **MAE (Error Absoluto Medio):**
+                    - Promedio de las diferencias absolutas entre valores reales y predichos
+                    - Se expresa en las mismas unidades que la variable objetivo
+                    - **Interpretación:** Valores más bajos = mejor modelo
+                    
+                    **RMSE (Raíz del Error Cuadrático Medio):**
+                    - Similar al MAE pero penaliza más los errores grandes
+                    - Se expresa en las mismas unidades que la variable objetivo
+                    - **Interpretación:** Valores más bajos = mejor modelo
+                    """)
+                else:
+                    st.markdown("""
+                    **Métricas de Regresión Logística:**
+                    
+                    **Accuracy (Exactitud):**
+                    - Porcentaje de predicciones correctas del total
+                    - Rango: 0 a 1 (0% a 100%)
+                    - **Interpretación:** Valores más altos = mejor modelo
+                    
+                    **Precision (Precisión):**
+                    - De todas las predicciones positivas, cuántas fueron correctas
+                    - Importante cuando los falsos positivos son costosos
+                    - **Interpretación:** Valores más altos = mejor modelo
+                    
+                    **Recall (Sensibilidad):**
+                    - De todos los casos positivos reales, cuántos detectó el modelo
+                    - Importante cuando los falsos negativos son costosos
+                    - **Interpretación:** Valores más altos = mejor modelo
+                    """)
+
+            st.markdown("### 📊 Resultados de Evaluación")
+
             if model_type == "Linear":
                 col1, col2, col3 = st.columns(3)
                 with col1:
-                    st.metric("R² Score", f"{metrics.get('r2', 0):.4f}")
+                    r2_value = metrics.get('r2', 0)
+                    st.metric("R² Score", f"{r2_value:.4f}")
+                    # Indicador de calidad
+                    if r2_value >= 0.8:
+                        st.success("🎯 Excelente ajuste")
+                    elif r2_value >= 0.6:
+                        st.info("👍 Buen ajuste")
+                    elif r2_value >= 0.4:
+                        st.warning("⚠️ Ajuste moderado")
+                    else:
+                        st.error("❌ Ajuste pobre")
+
                 with col2:
-                    st.metric("MAE", f"{metrics.get('mae', 0):.4f}")
+                    mae_value = metrics.get('mae', 0)
+                    st.metric("MAE", f"{mae_value:.4f}")
+
                 with col3:
-                    st.metric("RMSE", f"{metrics.get('rmse', 0):.4f}")
+                    rmse_value = metrics.get('rmse', 0)
+                    st.metric("RMSE", f"{rmse_value:.4f}")
+
             else:
                 col1, col2, col3 = st.columns(3)
                 with col1:
-                    st.metric("Accuracy", f"{metrics.get('accuracy', 0):.4f}")
+                    acc_value = metrics.get('accuracy', 0)
+                    st.metric("Accuracy", f"{acc_value:.4f}")
+                    # Indicador de calidad
+                    if acc_value >= 0.9:
+                        st.success("🎯 Excelente")
+                    elif acc_value >= 0.8:
+                        st.info("👍 Muy bueno")
+                    elif acc_value >= 0.7:
+                        st.warning("⚠️ Bueno")
+                    else:
+                        st.error("❌ Necesita mejora")
+
                 with col2:
                     st.metric(
                         "Precision", f"{metrics.get('precision', 0):.4f}")
+
                 with col3:
                     st.metric("Recall", f"{metrics.get('recall', 0):.4f}")
+
+            # Mostrar interpretación contextual
+            st.markdown("### 🎯 Interpretación de Resultados")
+
+            if model_type == "Linear":
+                r2_value = metrics.get('r2', 0)
+                mae_value = metrics.get('mae', 0)
+                rmse_value = metrics.get('rmse', 0)
+
+                interpretation = f"""
+                **Resumen del Modelo:**
+                - Tu modelo de regresión lineal explica **{r2_value*100:.1f}%** de la variabilidad en los datos
+                - En promedio, las predicciones se desvían **{mae_value:.2f} unidades** del valor real (MAE)
+                - La raíz del error cuadrático medio es **{rmse_value:.2f} unidades** (RMSE)
+                """
+
+                if rmse_value > mae_value * 1.5:
+                    interpretation += "\n- ⚠️ El RMSE es significativamente mayor que el MAE, lo que indica la presencia de algunos errores grandes"
+
+                st.info(interpretation)
+
+            else:
+                acc_value = metrics.get('accuracy', 0)
+                prec_value = metrics.get('precision', 0)
+                rec_value = metrics.get('recall', 0)
+
+                interpretation = f"""
+                **Resumen del Modelo:**
+                - Tu modelo clasifica correctamente **{acc_value*100:.1f}%** de los casos
+                - De las predicciones positivas, **{prec_value*100:.1f}%** son correctas (Precisión)
+                - Detecta **{rec_value*100:.1f}%** de todos los casos positivos reales (Recall)
+                """
+
+                st.info(interpretation)
+
         else:
             st.info("Entrena un modelo primero para ver las métricas de evaluación.")
 
@@ -1611,19 +1747,264 @@ def run_linear_regression_app():
             model_type = st.session_state.get('model_type_lr', 'Linear')
             X_test = st.session_state.get('X_test_lr')
             y_test = st.session_state.get('y_test_lr')
+            X_train = st.session_state.get('X_train_lr')
+            y_train = st.session_state.get('y_train_lr')
             model = st.session_state.get('model_lr')
+
+            # Información sobre las visualizaciones
+            with st.expander("ℹ️ ¿Cómo interpretar estas visualizaciones?", expanded=False):
+                if model_type == "Linear":
+                    st.markdown("""
+                    **Gráfico de Predicciones vs Valores Reales:**
+                    - Cada punto representa una predicción del modelo
+                    - La línea roja diagonal representa predicciones perfectas
+                    - **Interpretación:**
+                      - Puntos cerca de la línea roja = buenas predicciones
+                      - Puntos dispersos = predicciones menos precisas
+                      - Patrones sistemáticos fuera de la línea pueden indicar problemas del modelo
+                    
+                    **Gráfico de Residuos:**
+                    - Muestra la diferencia entre valores reales y predicciones
+                    - **Interpretación:**
+                      - Residuos cerca de cero = buenas predicciones
+                      - Patrones en los residuos pueden indicar que el modelo lineal no es adecuado
+                      - Distribución aleatoria alrededor de cero es ideal
+                    """)
+                else:
+                    st.markdown("""
+                    **Matriz de Confusión:**
+                    - Muestra predicciones correctas e incorrectas por clase
+                    - **Interpretación:**
+                      - Diagonal principal = predicciones correctas
+                      - Fuera de la diagonal = errores del modelo
+                      - Colores más intensos = mayor cantidad de casos
+                    
+                    **Curva ROC (si es binaria):**
+                    - Muestra el rendimiento del clasificador en diferentes umbrales
+                    - **Interpretación:**
+                      - Línea más cerca de la esquina superior izquierda = mejor modelo
+                      - Área bajo la curva (AUC) cercana a 1 = excelente modelo
+                    """)
 
             if model_type == "Linear" and X_test is not None and y_test is not None and model is not None:
                 y_pred = model.predict(X_test)
 
-                fig, ax = plt.subplots(figsize=(10, 6))
-                ax.scatter(y_test, y_pred, alpha=0.7)
-                ax.plot([y_test.min(), y_test.max()], [
-                        y_test.min(), y_test.max()], 'r--', lw=2)
-                ax.set_xlabel('Valores Reales')
-                ax.set_ylabel('Predicciones')
-                ax.set_title('Predicciones vs Valores Reales')
-                st.pyplot(fig)
+                # Crear visualizaciones con mejor tamaño
+                st.markdown("### 📊 Gráfico de Predicciones vs Valores Reales")
+
+                fig, ax = plt.subplots(figsize=(12, 8))
+
+                # Scatter plot con mejor estilo
+                ax.scatter(y_test, y_pred, alpha=0.6, s=50,
+                           edgecolors='black', linewidth=0.5)
+
+                # Línea de predicción perfecta
+                min_val = min(y_test.min(), y_pred.min())
+                max_val = max(y_test.max(), y_pred.max())
+                ax.plot([min_val, max_val], [min_val, max_val],
+                        'r--', lw=2, label='Predicción Perfecta')
+
+                # Personalización del gráfico
+                ax.set_xlabel('Valores Reales', fontsize=12)
+                ax.set_ylabel('Predicciones', fontsize=12)
+                ax.set_title('Predicciones vs Valores Reales',
+                             fontsize=14, fontweight='bold')
+                ax.legend()
+                ax.grid(True, alpha=0.3)
+
+                # Añadir estadísticas al gráfico
+                r2_value = st.session_state.get('metrics_lr', {}).get('r2', 0)
+                ax.text(0.05, 0.95, f'R² = {r2_value:.4f}',
+                        transform=ax.transAxes, fontsize=12,
+                        bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
+
+                # Mostrar con 80% del ancho
+                col1, col2, col3 = st.columns([0.1, 0.8, 0.1])
+                with col2:
+                    st.pyplot(fig, use_container_width=True)
+
+                # Gráfico de residuos
+                st.markdown("### 📈 Análisis de Residuos")
+
+                # Información explicativa sobre los residuos
+                with st.expander("ℹ️ ¿Cómo interpretar el análisis de residuos?", expanded=False):
+                    st.markdown("""
+                    **¿Qué son los residuos?**
+                    Los residuos son las diferencias entre los valores reales y las predicciones del modelo:
+                    `Residuo = Valor Real - Predicción`
+                    
+                    **Gráfico de Residuos vs Predicciones:**
+                    - **Ideal:** Los puntos deben estar distribuidos aleatoriamente alrededor de la línea y=0
+                    - **Problema:** Si ves patrones (curvas, abanicos), puede indicar:
+                      - El modelo no captura relaciones no lineales
+                      - Heterocedasticidad (varianza no constante)
+                      - Variables importantes omitidas
+                    
+                    **Histograma de Residuos:**
+                    - **Ideal:** Distribución normal (campana) centrada en 0
+                    - **Problema:** Si la distribución está sesgada o tiene múltiples picos:
+                      - Puede indicar que el modelo no es apropiado
+                      - Sugiere la presencia de outliers o datos problemáticos
+                    
+                    **Línea roja punteada:** Marca el residuo = 0 (predicción perfecta)
+                    **Media de residuos:** Debería estar cerca de 0 para un modelo bien calibrado
+                    """)
+
+                residuals = y_test - y_pred
+
+                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+
+                # Residuos vs Predicciones
+                ax1.scatter(y_pred, residuals, alpha=0.6, s=50,
+                            edgecolors='black', linewidth=0.5)
+                ax1.axhline(y=0, color='r', linestyle='--',
+                            lw=2, label='Residuo = 0')
+                ax1.set_xlabel('Predicciones', fontsize=12)
+                ax1.set_ylabel('Residuos (Real - Predicción)', fontsize=12)
+                ax1.set_title('Residuos vs Predicciones',
+                              fontsize=14, fontweight='bold')
+                ax1.legend()
+                ax1.grid(True, alpha=0.3)
+
+                # Añadir estadísticas al gráfico
+                residual_std = residuals.std()
+                ax1.text(0.05, 0.95, f'Desv. Estándar: {residual_std:.3f}',
+                         transform=ax1.transAxes, fontsize=10,
+                         bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.8))
+
+                # Histograma de residuos
+                ax2.hist(residuals, bins=20, alpha=0.7,
+                         edgecolor='black', color='skyblue')
+                ax2.axvline(residuals.mean(), color='red', linestyle='--',
+                            lw=2, label=f'Media: {residuals.mean():.3f}')
+                ax2.axvline(0, color='green', linestyle='-',
+                            lw=2, alpha=0.7, label='Ideal (0)')
+                ax2.set_xlabel('Residuos', fontsize=12)
+                ax2.set_ylabel('Frecuencia', fontsize=12)
+                ax2.set_title('Distribución de Residuos',
+                              fontsize=14, fontweight='bold')
+                ax2.legend()
+                ax2.grid(True, alpha=0.3)
+
+                plt.tight_layout()
+
+                # Mostrar con 80% del ancho
+                col1, col2, col3 = st.columns([0.1, 0.8, 0.1])
+                with col2:
+                    st.pyplot(fig, use_container_width=True)
+
+                # Interpretación automática de los residuos
+                st.markdown("### 🔍 Interpretación de los Residuos")
+
+                mean_residual = abs(residuals.mean())
+                std_residual = residuals.std()
+
+                interpretation = []
+
+                if mean_residual < 0.1 * std_residual:
+                    interpretation.append(
+                        "✅ **Media de residuos cercana a 0:** El modelo está bien calibrado")
+                else:
+                    interpretation.append(
+                        "⚠️ **Media de residuos alejada de 0:** El modelo puede tener sesgo sistemático")
+
+                # Calcular R² de los residuos para detectar patrones
+                from scipy import stats
+                if len(residuals) > 10:
+                    slope, _, r_value, _, _ = stats.linregress(
+                        y_pred, residuals)
+                    if abs(r_value) < 0.1:
+                        interpretation.append(
+                            "✅ **Sin correlación entre residuos y predicciones:** Buen ajuste lineal")
+                    else:
+                        interpretation.append(
+                            "⚠️ **Correlación detectada en residuos:** Puede haber relaciones no lineales")
+
+                # Test de normalidad simplificado (basado en asimetría)
+                skewness = abs(stats.skew(residuals))
+                if skewness < 1:
+                    interpretation.append(
+                        "✅ **Distribución de residuos aproximadamente normal**")
+                else:
+                    interpretation.append(
+                        "⚠️ **Distribución de residuos sesgada:** Revisar outliers o transformaciones")
+
+                for item in interpretation:
+                    st.markdown(f"- {item}")
+
+                if mean_residual >= 0.1 * std_residual or abs(r_value) >= 0.1 or skewness >= 1:
+                    st.info(
+                        "💡 **Sugerencias de mejora:** Considera probar transformaciones de variables, añadir características polinómicas, o usar modelos no lineales.")
+
+            elif model_type == "Logistic" and X_test is not None and y_test is not None and model is not None:
+                from sklearn.metrics import confusion_matrix, classification_report
+
+                y_pred = model.predict(X_test)
+                y_pred_proba = model.predict_proba(X_test)
+
+                # Matriz de Confusión
+                st.markdown("### 📊 Matriz de Confusión")
+
+                cm = confusion_matrix(y_test, y_pred)
+
+                fig, ax = plt.subplots(figsize=(10, 8))
+
+                # Crear mapa de calor
+                try:
+                    import seaborn as sns
+                    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+                                ax=ax, cbar_kws={'shrink': 0.8})
+                except ImportError:
+                    # Fallback to matplotlib if seaborn is not available
+                    im = ax.imshow(cm, cmap='Blues', aspect='auto')
+                    # Add text annotations
+                    for i in range(cm.shape[0]):
+                        for j in range(cm.shape[1]):
+                            text = ax.text(j, i, f'{cm[i, j]}',
+                                           ha="center", va="center", color="white" if cm[i, j] > cm.max()/2 else "black")
+                    ax.set_xticks(range(cm.shape[1]))
+                    ax.set_yticks(range(cm.shape[0]))
+                ax.set_title('Matriz de Confusión',
+                             fontsize=14, fontweight='bold')
+                ax.set_xlabel('Predicciones', fontsize=12)
+                ax.set_ylabel('Valores Reales', fontsize=12)
+
+                # Mostrar con 80% del ancho
+                col1, col2, col3 = st.columns([0.1, 0.8, 0.1])
+                with col2:
+                    st.pyplot(fig, use_container_width=True)
+
+                # Curva ROC para clasificación binaria
+                if len(np.unique(y_test)) == 2:
+                    from sklearn.metrics import roc_curve, auc
+
+                    st.markdown("### 📈 Curva ROC")
+
+                    # Calcular curva ROC
+                    fpr, tpr, _ = roc_curve(y_test, y_pred_proba[:, 1])
+                    roc_auc = auc(fpr, tpr)
+
+                    fig, ax = plt.subplots(figsize=(10, 8))
+
+                    ax.plot(fpr, tpr, color='darkorange', lw=2,
+                            label=f'Curva ROC (AUC = {roc_auc:.3f})')
+                    ax.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--',
+                            label='Clasificador Aleatorio')
+
+                    ax.set_xlim([0.0, 1.0])
+                    ax.set_ylim([0.0, 1.05])
+                    ax.set_xlabel('Tasa de Falsos Positivos', fontsize=12)
+                    ax.set_ylabel('Tasa de Verdaderos Positivos', fontsize=12)
+                    ax.set_title(
+                        'Curva ROC (Receiver Operating Characteristic)', fontsize=14, fontweight='bold')
+                    ax.legend(loc="lower right")
+                    ax.grid(True, alpha=0.3)
+
+                    # Mostrar con 80% del ancho
+                    col1, col2, col3 = st.columns([0.1, 0.8, 0.1])
+                    with col2:
+                        st.pyplot(fig, use_container_width=True)
+
         else:
             st.info("Entrena un modelo primero para ver las visualizaciones.")
 
@@ -1634,24 +2015,149 @@ def run_linear_regression_app():
         if st.session_state.get('model_trained_lr', False):
             model = st.session_state.get('model_lr')
             feature_names = st.session_state.get('feature_names_lr', [])
+            model_type = st.session_state.get('model_type_lr', 'Linear')
+
+            # Información sobre los coeficientes
+            with st.expander("ℹ️ ¿Cómo interpretar los coeficientes?", expanded=False):
+                if model_type == "Linear":
+                    st.markdown("""
+                    **Coeficientes en Regresión Lineal:**
+                    
+                    - **Valor del coeficiente:** Indica cuánto cambia la variable objetivo por cada unidad de cambio en la característica
+                    - **Signo del coeficiente:**
+                      - **Positivo (+):** A mayor valor de la característica, mayor valor de la predicción
+                      - **Negativo (-):** A mayor valor de la característica, menor valor de la predicción
+                    - **Magnitud del coeficiente:** Indica la importancia/influencia de la característica
+                    
+                    **Ejemplo:** Si el coeficiente de "tamaño_casa" es 50, significa que por cada unidad adicional de tamaño, el precio aumenta en 50 unidades.
+                    
+                    **Intercepto:** Es el valor predicho cuando todas las características son 0.
+                    """)
+                else:
+                    st.markdown("""
+                    **Coeficientes en Regresión Logística:**
+                    
+                    - **Valor del coeficiente:** Indica el cambio en el log-odds por cada unidad de cambio en la característica
+                    - **Interpretación del signo:**
+                      - **Positivo (+):** Aumenta la probabilidad de la clase positiva
+                      - **Negativo (-):** Disminuye la probabilidad de la clase positiva
+                    - **Magnitud:** Indica la fuerza de la influencia en la probabilidad
+                    
+                    **Nota:** Los coeficientes se pueden convertir a "odds ratios" usando exp(coeficiente) para una interpretación más intuitiva.
+                    """)
 
             if model is not None and hasattr(model, 'coef_'):
+                # Preparar datos de coeficientes
+                if len(model.coef_.shape) > 1:
+                    coefficients = model.coef_.flatten()
+                else:
+                    coefficients = model.coef_
+
                 coef_df = pd.DataFrame({
-                    'Feature': feature_names,
-                    'Coefficient': model.coef_.flatten() if len(model.coef_.shape) > 1 else model.coef_
+                    'Característica': feature_names,
+                    'Coeficiente': coefficients,
+                    'Valor_Absoluto': np.abs(coefficients)
                 })
                 coef_df = coef_df.sort_values(
-                    'Coefficient', key=abs, ascending=False)
+                    'Valor_Absoluto', ascending=False)
 
-                st.dataframe(coef_df, use_container_width=True)
+                # Añadir interpretación
+                coef_df['Efecto'] = coef_df['Coeficiente'].apply(
+                    lambda x: '📈 Positivo' if x > 0 else '📉 Negativo'
+                )
+                coef_df['Importancia'] = coef_df['Valor_Absoluto'].apply(
+                    lambda x: '🔥 Alta' if x > coef_df['Valor_Absoluto'].quantile(0.75)
+                    else ('🔶 Media' if x > coef_df['Valor_Absoluto'].quantile(0.25) else '🔹 Baja')
+                )
+
+                # Mostrar tabla de coeficientes
+                st.markdown("### 📊 Tabla de Coeficientes")
+
+                # Formatear la tabla para mejor visualización
+                display_df = coef_df[[
+                    'Característica', 'Coeficiente', 'Efecto', 'Importancia']].copy()
+                display_df['Coeficiente'] = display_df['Coeficiente'].apply(
+                    lambda x: f"{x:.4f}")
+
+                st.dataframe(display_df, use_container_width=True,
+                             hide_index=True)
+
+                # Mostrar intercepto si existe
+                if hasattr(model, 'intercept_'):
+                    st.markdown("### 🎯 Intercepto del Modelo")
+                    intercept = model.intercept_[0] if hasattr(
+                        model.intercept_, '__len__') else model.intercept_
+                    st.metric("Intercepto", f"{intercept:.4f}")
+
+                    if model_type == "Linear":
+                        st.info(
+                            f"**Interpretación:** Cuando todas las características son 0, el modelo predice un valor de {intercept:.4f}")
+                    else:
+                        st.info(
+                            f"**Interpretación:** El log-odds base (cuando todas las características son 0) es {intercept:.4f}")
 
                 # Gráfico de coeficientes
-                fig, ax = plt.subplots(figsize=(10, 6))
-                ax.barh(coef_df['Feature'], coef_df['Coefficient'])
-                ax.set_xlabel('Coefficient Value')
-                ax.set_title('Feature Coefficients')
+                st.markdown("### 📈 Visualización de Coeficientes")
+
+                fig, ax = plt.subplots(
+                    figsize=(12, max(6, len(feature_names) * 0.4)))
+
+                # Crear gráfico de barras horizontal
+                colors = ['#ff6b6b' if x <
+                          0 else '#4ecdc4' for x in coef_df['Coeficiente']]
+                bars = ax.barh(range(
+                    len(coef_df)), coef_df['Coeficiente'], color=colors, alpha=0.7, edgecolor='black')
+
+                # Personalización
+                ax.set_yticks(range(len(coef_df)))
+                ax.set_yticklabels(coef_df['Característica'], fontsize=10)
+                ax.set_xlabel('Valor del Coeficiente', fontsize=12)
+                ax.set_title(
+                    'Coeficientes del Modelo (ordenados por importancia)', fontsize=14, fontweight='bold')
+                ax.axvline(x=0, color='black', linestyle='-',
+                           alpha=0.8, linewidth=1)
+                ax.grid(True, alpha=0.3, axis='x')
+
+                # Añadir valores en las barras
+                for i, (bar, coef) in enumerate(zip(bars, coef_df['Coeficiente'])):
+                    width = bar.get_width()
+                    ax.text(width + (0.01 * (max(coef_df['Coeficiente']) - min(coef_df['Coeficiente']))) if width >= 0
+                            else width - (0.01 * (max(coef_df['Coeficiente']) - min(coef_df['Coeficiente']))),
+                            bar.get_y() + bar.get_height()/2,
+                            f'{coef:.3f}', ha='left' if width >= 0 else 'right', va='center', fontsize=9)
+
+                # Leyenda
+                from matplotlib.patches import Patch
+                legend_elements = [
+                    Patch(facecolor='#4ecdc4', alpha=0.7,
+                          label='Efecto Positivo'),
+                    Patch(facecolor='#ff6b6b', alpha=0.7,
+                          label='Efecto Negativo')
+                ]
+                ax.legend(handles=legend_elements, loc='upper right')
+
                 plt.tight_layout()
-                st.pyplot(fig)
+
+                # Mostrar con 80% del ancho
+                col1, col2, col3 = st.columns([0.1, 0.8, 0.1])
+                with col2:
+                    st.pyplot(fig, use_container_width=True)
+
+                # Análisis de importancia
+                st.markdown("### 🔍 Análisis de Importancia")
+
+                # Identificar las características más importantes
+                top_features = coef_df.head(3)
+
+                importance_text = "**Características más influyentes:**\n\n"
+                for i, row in top_features.iterrows():
+                    effect = "aumenta" if row['Coeficiente'] > 0 else "disminuye"
+                    importance_text += f"• **{row['Característica']}**: {effect} {'la predicción' if model_type == 'Linear' else 'la probabilidad'} (coeficiente: {row['Coeficiente']:.4f})\n"
+
+                st.markdown(importance_text)
+
+            else:
+                st.error("El modelo no tiene coeficientes disponibles.")
         else:
             st.info("Entrena un modelo primero para ver los coeficientes.")
 
