@@ -757,8 +757,14 @@ plt.show()
 
                 if st.session_state.X_train.shape[1] == 1:
                     # Caso especial: solo una característica - agregar una segunda artificial
+                    if hasattr(st.session_state.X_train, 'values'):
+                        # DataFrame
+                        X_values = st.session_state.X_train.values
+                    else:
+                        # numpy array
+                        X_values = st.session_state.X_train
                     X_plot = np.column_stack(
-                        [st.session_state.X_train, np.zeros_like(st.session_state.X_train)])
+                        [X_values, np.zeros_like(X_values)])
                     feature_idx = [0]
                     feature_names_plot = [
                         st.session_state.feature_names[0], "Característica artificial"]
@@ -785,7 +791,15 @@ plt.show()
 
                     feature_idx = [st.session_state.feature_names.index(feature1),
                                    st.session_state.feature_names.index(feature2)]
-                    X_plot = st.session_state.X_train[:, feature_idx]
+
+                    # Manejar DataFrame vs numpy array
+                    if hasattr(st.session_state.X_train, 'iloc'):
+                        # DataFrame
+                        X_plot = st.session_state.X_train.iloc[:,
+                                                               feature_idx].values
+                    else:
+                        # numpy array
+                        X_plot = st.session_state.X_train[:, feature_idx]
                     feature_names_plot = [feature1, feature2]
 
                 # Generar y mostrar el plot en tamaño reducido
@@ -919,7 +933,15 @@ def plot_decision_boundary(model, X, y, feature_names=None, class_names=None):
             if "viz_type" not in st.session_state:
                 st.session_state.viz_type = "Estándar"
 
-            viz_col1, viz_col2 = st.columns(2)
+            # Determinar si mostrar la opción de frontera de decisión
+            show_boundary = (st.session_state.get('tree_type', 'Clasificación') == "Clasificación"
+                             and len(st.session_state.get('feature_names', [])) >= 2)
+
+            if show_boundary:
+                viz_col1, viz_col2, viz_col3 = st.columns(3)
+            else:
+                viz_col1, viz_col2 = st.columns(2)
+                viz_col3 = None
 
             with viz_col1:
                 if st.button("📊 Estándar",
@@ -936,6 +958,15 @@ def plot_decision_boundary(model, X, y, feature_names=None, class_names=None):
                              use_container_width=True):
                     st.session_state.viz_type = "Texto"
                     st.rerun()
+
+            if show_boundary and viz_col3:
+                with viz_col3:
+                    if st.button("🌈 Frontera",
+                                 key="viz_boundary",
+                                 type="primary" if st.session_state.viz_type == "Frontera" else "secondary",
+                                 use_container_width=True):
+                        st.session_state.viz_type = "Frontera"
+                        st.rerun()
 
             viz_type = st.session_state.viz_type
 
@@ -1008,7 +1039,7 @@ plt.show()
                 show_code_with_download(
                     code_tree, "Código para visualizar el árbol", "visualizar_arbol.py")
 
-            else:  # Visualización de texto
+            elif viz_type == "Texto":
                 # Obtener representación de texto
                 tree_text = get_tree_text(
                     st.session_state.tree_model,
@@ -1052,9 +1083,9 @@ def get_tree_text(model, feature_names, show_class_name=True):
         show_weights=True
     )
 
-# Para usar:
-# tree_text = get_tree_text(tree_model, feature_names)
-# print(tree_text)
+# Ejemplo de uso:
+tree_text = get_tree_text(tree_model, feature_names)
+print(tree_text)
 
 # Para guardar a un archivo:
 # with open('arbol_texto.txt', 'w') as f:
@@ -1062,7 +1093,151 @@ def get_tree_text(model, feature_names, show_class_name=True):
 """
 
                 show_code_with_download(
-                    code_text, "Código para visualización de texto", "visualizacion_texto.py")
+                    code_text, "Código para obtener el texto del árbol", "texto_arbol.py")
+
+            elif viz_type == "Frontera":
+                # Visualización de frontera de decisión
+                st.markdown("### Visualización de Frontera de Decisión")
+
+                st.info("""
+                **Cómo interpretar esta visualización:**
+                - Las áreas coloreadas muestran las regiones de decisión para cada clase
+                - Los puntos representan las muestras de entrenamiento
+                - Las líneas entre colores son las fronteras de decisión
+                - Solo se muestran las primeras dos características para crear la visualización 2D
+                """)
+
+                # Selección de características para la visualización
+                if len(st.session_state.feature_names) > 2:
+                    cols = st.columns(2)
+                    with cols[0]:
+                        feature1 = st.selectbox(
+                            "Primera característica:",
+                            st.session_state.feature_names,
+                            index=0,
+                            key="feature1_boundary_viz"
+                        )
+                    with cols[1]:
+                        feature2 = st.selectbox(
+                            "Segunda característica:",
+                            st.session_state.feature_names,
+                            index=1,
+                            key="feature2_boundary_viz"
+                        )
+
+                    # Obtener índices de las características seleccionadas
+                    feature_names_list = list(st.session_state.feature_names)
+                    f1_idx = feature_names_list.index(feature1)
+                    f2_idx = feature_names_list.index(feature2)
+
+                    # Crear array con solo las dos características seleccionadas
+                    # Verificar si X_train es DataFrame o numpy array
+                    if hasattr(st.session_state.X_train, 'iloc'):
+                        # Es un DataFrame, usar iloc para indexación posicional
+                        X_boundary = st.session_state.X_train.iloc[:, [
+                            f1_idx, f2_idx]].values
+                    else:
+                        # Es un numpy array, usar indexación normal
+                        X_boundary = st.session_state.X_train[:, [
+                            f1_idx, f2_idx]]
+                    feature_names_boundary = [feature1, feature2]
+                else:
+                    # Si solo hay dos características, usarlas directamente
+                    if hasattr(st.session_state.X_train, 'values'):
+                        # Es un DataFrame, convertir a numpy array
+                        X_boundary = st.session_state.X_train.values
+                    else:
+                        # Es un numpy array
+                        X_boundary = st.session_state.X_train
+                    feature_names_boundary = st.session_state.feature_names
+
+                # Crear figura y dibujar frontera de decisión
+                try:
+                    fig, ax = plt.subplots(figsize=(fig_width, fig_height))
+                    plot_decision_boundary(
+                        st.session_state.tree_model,
+                        X_boundary,
+                        st.session_state.y_train,
+                        ax=ax,
+                        feature_names=feature_names_boundary,
+                        class_names=st.session_state.class_names,
+                        show_code=False
+                    )
+
+                    # Mostrar la figura
+                    col1, col2, col3 = st.columns([1, 4, 1])
+                    with col2:
+                        st.pyplot(fig, use_container_width=True)
+
+                    # Enlace para descargar
+                    st.markdown(
+                        get_image_download_link(
+                            fig, "frontera_decision", "📥 Descargar visualización de frontera"),
+                        unsafe_allow_html=True
+                    )
+
+                    # Explicación adicional
+                    st.markdown("""
+                    **Nota:** Esta visualización muestra cómo el árbol de decisión divide el espacio de características
+                    en regiones de decisión. Cada color representa una clase diferente. 
+                    
+                    Para crear esta visualización 2D, se entrena un nuevo árbol utilizando solo las dos características 
+                    seleccionadas, por lo que puede diferir ligeramente del modelo completo que utiliza todas las características.
+                    """)
+
+                    # Advertencia sobre dimensionalidad
+                    if len(st.session_state.feature_names) > 2:
+                        st.warning("""
+                        ⚠️ Esta visualización solo muestra 2 características seleccionadas. El modelo real utiliza todas 
+                        las características para hacer predicciones. Las fronteras pueden variar si se seleccionan 
+                        diferentes pares de características.
+                        """)
+
+                    # Mostrar código para generar esta visualización
+                    code_boundary = f"""
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.tree import DecisionTreeClassifier
+from decision_boundary import plot_decision_boundary
+
+# Datos de entrenamiento (solo las primeras 2 características)
+X_2d = X_train[:, [0, 1]]  # Usar las características seleccionadas
+y_train = y_train
+
+# Crear figura
+fig, ax = plt.subplots(figsize=({fig_width}, {fig_height}))
+
+# Visualizar frontera de decisión
+plot_decision_boundary(
+    tree_model,
+    X_2d,
+    y_train,
+    ax=ax,
+    feature_names={feature_names_boundary},
+    class_names={st.session_state.class_names if st.session_state.class_names else None}
+)
+
+plt.tight_layout()
+plt.show()
+
+# Para guardar a un archivo:
+# plt.savefig('frontera_decision.png', dpi=300, bbox_inches='tight')
+"""
+
+                    show_code_with_download(
+                        code_boundary, "Código para generar la frontera de decisión", "frontera_decision.py")
+
+                except Exception as e:
+                    st.error(
+                        f"Error al mostrar la visualización de frontera de decisión: {str(e)}")
+                    st.info("""
+                    La frontera de decisión requiere:
+                    - Un modelo de clasificación entrenado
+                    - Exactamente 2 características para visualizar
+                    - Datos de entrenamiento válidos
+                    """)
+                    st.exception(
+                        e)  # Mostrar detalles del error para debugging
 
     # Pestaña de Características
     elif st.session_state.active_tab == 4:
