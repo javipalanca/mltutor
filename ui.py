@@ -772,9 +772,9 @@ def export_modelo_onnx(model, num_features):
             else:
                 st.error(
                     "No se pudo generar el modelo ONNX. Verifica que las dependencias estén instaladas.")
-        except ImportError:
+        except ImportError as e:
             st.error(
-                "La biblioteca skl2onnx no está instalada. Instálala con `pip install skl2onnx`.")
+                f"La biblioteca skl2onnx no está instalada. Instálala con `pip install skl2onnx`. {e}")
             st.code("pip install skl2onnx", language="bash")
 
 
