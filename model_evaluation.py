@@ -42,8 +42,14 @@ def evaluate_classification_model(y_test, y_pred, class_names):
         y_test, y_pred, target_names=class_names, output_dict=True)
     cm = confusion_matrix(y_test, y_pred)
 
+    # Extraer precision y recall promedio ponderado para compatibilidad
+    precision = report.get('weighted avg', {}).get('precision', 0.0)
+    recall = report.get('weighted avg', {}).get('recall', 0.0)
+
     return {
         "accuracy": accuracy,
+        "precision": precision,
+        "recall": recall,
         "report": report,
         "confusion_matrix": cm,
         "y_pred": y_pred

@@ -1593,6 +1593,8 @@ def run_linear_regression_app():
                         st.session_state.y_train_lr = result["y_train"]
                         st.session_state.y_test_lr = result["y_test"]
                         st.session_state.feature_names_lr = feature_names
+                        st.session_state.class_names_lr = class_names
+                        st.session_state.task_type_lr = task_type
                         st.session_state.model_trained_lr = True
 
                         st.success("¡Modelo entrenado exitosamente!")
@@ -2168,23 +2170,202 @@ def run_linear_regression_app():
         if st.session_state.get('model_trained_lr', False):
             model = st.session_state.get('model_lr')
             feature_names = st.session_state.get('feature_names_lr', [])
+            dataset_name = st.session_state.get('selected_dataset_lr', '')
+            X_train = st.session_state.get('X_train_lr')
+            class_names = st.session_state.get('class_names_lr', [])
+            model_type = st.session_state.get('model_type_lr', 'Linear')
+            task_type = st.session_state.get('task_type_lr', 'Regresión')
 
-            st.markdown("Ingresa los valores para hacer una predicción:")
+            # Obtener metadata del dataset para adaptar los inputs
+            from dataset_metadata import get_dataset_metadata
+            metadata = get_dataset_metadata(dataset_name)
+            feature_descriptions = metadata.get('feature_descriptions', {})
+            value_mappings = metadata.get('value_mappings', {})
+            original_to_display = metadata.get('original_to_display', {})
+            categorical_features = metadata.get('categorical_features', [])
 
+            st.markdown("### Ingresa los valores para hacer una predicción")
+
+            # Analizar características si tenemos datos de entrenamiento
+            feature_info = {}
+            if X_train is not None:
+                # Convertir a DataFrame si es necesario
+                if hasattr(X_train, 'columns'):
+                    column_names = X_train.columns
+                else:
+                    column_names = range(len(feature_names))
+
+                for i, feature_display_name in enumerate(feature_names):
+                    # Obtener el nombre original de la columna
+                    if i < len(column_names):
+                        original_col_name = column_names[i]
+                    else:
+                        original_col_name = feature_display_name
+
+                    # Encontrar el nombre original usando reverse mapping
+                    reverse_mapping = {v: k for k,
+                                       v in original_to_display.items()}
+                    if feature_display_name in reverse_mapping:
+                        original_col_name = reverse_mapping[feature_display_name]
+
+                    # Usar el índice para acceder a las columnas
+                    if hasattr(X_train, 'iloc'):
+                        feature_col = X_train.iloc[:, i]
+                    else:
+                        feature_col = X_train[:, i]
+
+                    # Determinar tipo de característica
+                    unique_values = len(set(feature_col)) if hasattr(
+                        feature_col, '__iter__') else 10
+                    unique_vals = sorted(list(set(feature_col))) if hasattr(
+                        feature_col, '__iter__') else [0, 1]
+
+                    # Verificar si es categórica según metadata
+                    is_categorical_by_metadata = original_col_name in categorical_features
+
+                    if unique_values <= 2:
+                        feature_type = 'binary'
+                    elif unique_values <= 10 and (all(isinstance(x, (int, float)) and x == int(x) for x in unique_vals) or is_categorical_by_metadata):
+                        feature_type = 'categorical'
+                    else:
+                        feature_type = 'continuous'
+
+                    # Preparar información de la característica
+                    if feature_type in ['binary', 'categorical'] and original_col_name in value_mappings:
+                        display_values = []
+                        value_to_original = {}
+                        for orig_val in unique_vals:
+                            if orig_val in value_mappings[original_col_name]:
+                                display_val = value_mappings[original_col_name][orig_val]
+                                display_values.append(display_val)
+                                value_to_original[display_val] = orig_val
+                            else:
+                                display_values.append(str(orig_val))
+                                value_to_original[str(orig_val)] = orig_val
+
+                        feature_info[i] = {
+                            'type': feature_type,
+                            'values': unique_vals,
+                            'display_values': display_values,
+                            'value_to_original': value_to_original,
+                            'original_column': original_col_name,
+                            'display_name': feature_display_name
+                        }
+                    else:
+                        feature_info[i] = {
+                            'type': feature_type,
+                            'values': unique_vals,
+                            'min': float(min(unique_vals)) if feature_type == 'continuous' else min(unique_vals),
+                            'max': float(max(unique_vals)) if feature_type == 'continuous' else max(unique_vals),
+                            'mean': float(sum(feature_col) / len(feature_col)) if feature_type == 'continuous' and hasattr(feature_col, '__iter__') else None,
+                            'original_column': original_col_name,
+                            'display_name': feature_display_name
+                        }
+            else:
+                # Valores por defecto si no hay datos de entrenamiento
+                for i, feature in enumerate(feature_names):
+                    feature_info[i] = {
+                        'type': 'continuous',
+                        'min': 0.0,
+                        'max': 10.0,
+                        'mean': 5.0,
+                        'original_column': feature,
+                        'display_name': feature
+                    }
+
+            # Crear controles adaptativos para cada característica
             input_values = []
             cols = st.columns(min(3, len(feature_names)))
 
             for i, feature in enumerate(feature_names):
                 with cols[i % len(cols)]:
-                    value = st.number_input(
-                        f"{feature}:", key=f"pred_input_{i}")
-                    input_values.append(value)
+                    info = feature_info.get(
+                        i, {'type': 'continuous', 'min': 0.0, 'max': 10.0, 'mean': 5.0})
+
+                    # Crear etiqueta con descripción si está disponible
+                    original_col = info.get('original_column', feature)
+                    description = feature_descriptions.get(original_col, '')
+                    if description:
+                        label = f"**{feature}**\n\n*{description}*"
+                    else:
+                        label = feature
+
+                    if info['type'] == 'binary':
+                        # Control para características binarias
+                        if 'display_values' in info and 'value_to_original' in info:
+                            selected_display = st.selectbox(
+                                label,
+                                options=info['display_values'],
+                                index=0,
+                                key=f"pred_input_{i}"
+                            )
+                            value = info['value_to_original'][selected_display]
+                        elif len(info['values']) == 2 and 0 in info['values'] and 1 in info['values']:
+                            value = st.checkbox(label, key=f"pred_input_{i}")
+                            value = 1 if value else 0
+                        else:
+                            value = st.selectbox(
+                                label,
+                                options=info['values'],
+                                index=0,
+                                key=f"pred_input_{i}"
+                            )
+                        input_values.append(value)
+
+                    elif info['type'] == 'categorical':
+                        # Control para características categóricas
+                        if 'display_values' in info and 'value_to_original' in info:
+                            selected_display = st.selectbox(
+                                label,
+                                options=info['display_values'],
+                                index=0,
+                                key=f"pred_input_{i}"
+                            )
+                            value = info['value_to_original'][selected_display]
+                        else:
+                            value = st.selectbox(
+                                label,
+                                options=info['values'],
+                                index=0,
+                                key=f"pred_input_{i}"
+                            )
+                        input_values.append(value)
+
+                    else:  # continuous
+                        # Control para características continuas
+                        if 'min' in info and 'max' in info:
+                            step = (info['max'] - info['min']) / \
+                                100 if info['max'] != info['min'] else 0.1
+                            default_val = info.get(
+                                'mean', (info['min'] + info['max']) / 2)
+                            value = st.slider(
+                                label,
+                                min_value=info['min'],
+                                max_value=info['max'],
+                                value=default_val,
+                                step=step,
+                                key=f"pred_input_{i}"
+                            )
+                        else:
+                            value = st.number_input(
+                                label,
+                                value=0.0,
+                                key=f"pred_input_{i}"
+                            )
+                        input_values.append(value)
 
             if st.button("🔮 Predecir", key="predict_lr_button"):
                 try:
                     if model is not None:
                         prediction = model.predict([input_values])[0]
-                        st.success(f"Predicción: {prediction:.4f}")
+
+                        # For logistic regression, convert numeric prediction to class label
+                        if task_type == 'Clasificación' and class_names is not None:
+                            prediction_label = class_names[int(prediction)]
+                            st.success(f"Predicción: {prediction_label}")
+                        else:
+                            # For regression, show numeric prediction
+                            st.success(f"Predicción: {prediction:.4f}")
                     else:
                         st.error("Modelo no disponible")
                 except Exception as e:
@@ -2201,7 +2382,7 @@ def run_linear_regression_app():
 
             col1, col2 = st.columns(2)
 
-            with col1:
+            with col2:
                 if st.button("📥 Descargar Modelo (Pickle)", key="download_pickle_lr"):
                     pickle_data = export_model_pickle(model)
                     st.download_button(
@@ -2211,22 +2392,30 @@ def run_linear_regression_app():
                         mime="application/octet-stream"
                     )
 
-            with col2:
+            with col1:
                 if st.button("📄 Generar Código", key="generate_code_lr"):
-                    # For linear models, we need a different function than generate_model_code which is for trees
-                    st.code(f"""
-import pickle
-from sklearn.linear_model import LinearRegression, LogisticRegression
+                    # Generate complete code for linear models
+                    model_type = st.session_state.get(
+                        'model_type_lr', 'Linear')
+                    feature_names = st.session_state.get(
+                        'feature_names_lr', [])
+                    class_names = st.session_state.get('class_names_lr', [])
 
-# Cargar el modelo (si lo guardaste como pickle)
-with open('linear_regression_model.pkl', 'rb') as f:
-    model = pickle.load(f)
+                    if model_type == "Logistic":
+                        code = generate_logistic_regression_code(
+                            feature_names, class_names)
+                    else:
+                        code = generate_linear_regression_code(feature_names)
 
-# Hacer predicciones con nuevos datos
-# new_data = [[valor1, valor2, valor3, ...]]  # Reemplaza con tus valores
-# prediction = model.predict(new_data)
-# print(f"Predicción: {{prediction[0]}}")
-""", language="python")
+                    st.code(code, language="python")
+
+                    # Download button for the code
+                    st.download_button(
+                        label="📥 Descargar código",
+                        data=code,
+                        file_name=f"{'logistic' if model_type == 'Logistic' else 'linear'}_regression_code.py",
+                        mime="text/plain"
+                    )
         else:
             st.info("Entrena un modelo primero para exportarlo.")
 
@@ -2412,6 +2601,265 @@ def run_csv_loader_app():
                     st.markdown(f"**{example['name']}** ({example['task']})")
                     st.markdown(f"_{example['description']}_")
                 st.markdown("---")
+
+
+def generate_linear_regression_code(feature_names):
+    """Generate complete Python code for linear regression."""
+    feature_names_str = str(feature_names)
+
+    code = f"""# Código completo para Regresión Lineal
+import numpy as np
+import pandas as pd
+from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
+import matplotlib.pyplot as plt
+
+# 1. CARGAR Y PREPARAR LOS DATOS
+# Reemplaza esta sección con tu método de carga de datos
+# df = pd.read_csv('tu_archivo.csv')  # Cargar desde CSV
+# O usa datos de ejemplo:
+
+# Datos de ejemplo (reemplaza con tus datos reales)
+# X = df[{feature_names_str}]  # Características
+# y = df['variable_objetivo']  # Variable objetivo
+
+# 2. DIVIDIR LOS DATOS
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.3, random_state=42
+)
+
+# 3. CREAR Y ENTRENAR EL MODELO
+model = LinearRegression()
+model.fit(X_train, y_train)
+
+# 4. HACER PREDICCIONES
+y_pred_train = model.predict(X_train)
+y_pred_test = model.predict(X_test)
+
+# 5. EVALUAR EL MODELO
+r2_train = r2_score(y_train, y_pred_train)
+r2_test = r2_score(y_test, y_pred_test)
+mae_test = mean_absolute_error(y_test, y_pred_test)
+rmse_test = np.sqrt(mean_squared_error(y_test, y_pred_test))
+
+print("=== RESULTADOS DEL MODELO ===")
+print(f"R² Score (Entrenamiento): {{r2_train:.4f}}")
+print(f"R² Score (Prueba): {{r2_test:.4f}}")
+print(f"MAE (Error Absoluto Medio): {{mae_test:.4f}}")
+print(f"RMSE (Raíz Error Cuadrático Medio): {{rmse_test:.4f}}")
+
+# 6. MOSTRAR COEFICIENTES
+print("\\n=== COEFICIENTES DEL MODELO ===")
+feature_names = {feature_names_str}
+for i, coef in enumerate(model.coef_):
+    print(f"{{feature_names[i]}}: {{coef:.4f}}")
+print(f"Intercepto: {{model.intercept_:.4f}}")
+
+# 7. VISUALIZAR RESULTADOS
+plt.figure(figsize=(12, 5))
+
+# Gráfico 1: Predicciones vs Valores Reales
+plt.subplot(1, 2, 1)
+plt.scatter(y_test, y_pred_test, alpha=0.6)
+plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--', lw=2)
+plt.xlabel('Valores Reales')
+plt.ylabel('Predicciones')
+plt.title('Predicciones vs Valores Reales')
+plt.grid(True, alpha=0.3)
+
+# Gráfico 2: Residuos
+plt.subplot(1, 2, 2)
+residuals = y_test - y_pred_test
+plt.scatter(y_pred_test, residuals, alpha=0.6)
+plt.axhline(y=0, color='r', linestyle='--')
+plt.xlabel('Predicciones')
+plt.ylabel('Residuos')
+plt.title('Análisis de Residuos')
+plt.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+
+# 8. FUNCIÓN PARA NUEVAS PREDICCIONES
+def predecir_nuevo_valor(nuevo_ejemplo):
+    \"\"\"
+    Función para hacer predicciones con nuevos datos.
+    
+    Parámetros:
+    nuevo_ejemplo: lista con valores para cada característica
+                  en el orden: {feature_names_str}
+    \"\"\"
+    nuevo_ejemplo = np.array(nuevo_ejemplo).reshape(1, -1)
+    prediccion = model.predict(nuevo_ejemplo)[0]
+    return prediccion
+
+# Ejemplo de uso para nuevas predicciones:
+# nuevo_ejemplo = [valor1, valor2, valor3, ...]  # Reemplaza con tus valores
+# resultado = predecir_nuevo_valor(nuevo_ejemplo)
+# print(f"Predicción para nuevo ejemplo: {{resultado:.4f}}")
+
+# 9. GUARDAR EL MODELO (OPCIONAL)
+import pickle
+
+# Guardar modelo
+with open('modelo_regresion_lineal.pkl', 'wb') as f:
+    pickle.dump(model, f)
+
+# Cargar modelo guardado
+# with open('modelo_regresion_lineal.pkl', 'rb') as f:
+#     modelo_cargado = pickle.load(f)
+"""
+    return code
+
+
+def generate_logistic_regression_code(feature_names, class_names):
+    """Generate complete Python code for logistic regression."""
+    feature_names_str = str(feature_names)
+    class_names_str = str(class_names)
+
+    code = f"""# Código completo para Regresión Logística
+import numpy as np
+import pandas as pd
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# 1. CARGAR Y PREPARAR LOS DATOS
+# Reemplaza esta sección con tu método de carga de datos
+# df = pd.read_csv('tu_archivo.csv')  # Cargar desde CSV
+# O usa datos de ejemplo:
+
+# Datos de ejemplo (reemplaza con tus datos reales)
+# X = df[{feature_names_str}]  # Características
+# y = df['variable_objetivo']  # Variable objetivo (0, 1, 2, ...)
+
+# 2. DIVIDIR LOS DATOS
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.3, random_state=42, stratify=y
+)
+
+# 3. CREAR Y ENTRENAR EL MODELO
+model = LogisticRegression(max_iter=1000, random_state=42)
+model.fit(X_train, y_train)
+
+# 4. HACER PREDICCIONES
+y_pred_train = model.predict(X_train)
+y_pred_test = model.predict(X_test)
+y_pred_proba = model.predict_proba(X_test)
+
+# 5. EVALUAR EL MODELO
+accuracy_train = accuracy_score(y_train, y_pred_train)
+accuracy_test = accuracy_score(y_test, y_pred_test)
+
+print("=== RESULTADOS DEL MODELO ===")
+print(f"Accuracy (Entrenamiento): {{accuracy_train:.4f}}")
+print(f"Accuracy (Prueba): {{accuracy_test:.4f}}")
+
+# Reporte detallado de clasificación
+class_names = {class_names_str}
+print("\\n=== REPORTE DE CLASIFICACIÓN ===")
+print(classification_report(y_test, y_pred_test, target_names=class_names))
+
+# 6. MATRIZ DE CONFUSIÓN
+plt.figure(figsize=(12, 5))
+
+# Gráfico 1: Matriz de Confusión
+plt.subplot(1, 2, 1)
+cm = confusion_matrix(y_test, y_pred_test)
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
+            xticklabels=class_names, yticklabels=class_names)
+plt.title('Matriz de Confusión')
+plt.xlabel('Predicciones')
+plt.ylabel('Valores Reales')
+
+# Gráfico 2: Importancia de características (coeficientes)
+plt.subplot(1, 2, 2)
+feature_names = {feature_names_str}
+coef = model.coef_.flatten() if len(model.coef_.shape) > 1 else model.coef_
+colors = ['red' if x < 0 else 'blue' for x in coef]
+plt.barh(range(len(coef)), coef, color=colors, alpha=0.7)
+plt.yticks(range(len(coef)), feature_names)
+plt.xlabel('Coeficientes')
+plt.title('Importancia de Características')
+plt.axvline(x=0, color='black', linestyle='-', alpha=0.8)
+plt.grid(True, alpha=0.3, axis='x')
+
+plt.tight_layout()
+plt.show()
+
+# 7. MOSTRAR COEFICIENTES DETALLADOS
+print("\\n=== COEFICIENTES DEL MODELO ===")
+for i, coef in enumerate(coef):
+    effect = "aumenta" if coef > 0 else "disminuye"
+    print(f"{{feature_names[i]}}: {{coef:.4f}} ({{effect}} la probabilidad)")
+print(f"Intercepto: {{model.intercept_[0]:.4f}}")
+
+# 8. FUNCIÓN PARA NUEVAS PREDICCIONES
+def predecir_nueva_muestra(nuevo_ejemplo):
+    \"\"\"
+    Función para hacer predicciones con nuevos datos.
+    
+    Parámetros:
+    nuevo_ejemplo: lista con valores para cada característica
+                  en el orden: {feature_names_str}
+    
+    Retorna:
+    prediccion: clase predicha
+    probabilidades: probabilidades para cada clase
+    \"\"\"
+    nuevo_ejemplo = np.array(nuevo_ejemplo).reshape(1, -1)
+    prediccion = model.predict(nuevo_ejemplo)[0]
+    probabilidades = model.predict_proba(nuevo_ejemplo)[0]
+    
+    clase_predicha = class_names[prediccion]
+    return clase_predicha, probabilidades
+
+# Ejemplo de uso para nuevas predicciones:
+# nuevo_ejemplo = [valor1, valor2, valor3, ...]  # Reemplaza con tus valores
+# clase, probas = predecir_nueva_muestra(nuevo_ejemplo)
+# print(f"Clase predicha: {{clase}}")
+# print("Probabilidades por clase:")
+# for i, prob in enumerate(probas):
+#     print(f"  {{class_names[i]}}: {{prob:.4f}} ({{prob*100:.1f}}%)")
+
+# 9. GUARDAR EL MODELO (OPCIONAL)
+import pickle
+
+# Guardar modelo
+with open('modelo_regresion_logistica.pkl', 'wb') as f:
+    pickle.dump(model, f)
+
+# Cargar modelo guardado
+# with open('modelo_regresion_logistica.pkl', 'rb') as f:
+#     modelo_cargado = pickle.load(f)
+
+# 10. FUNCIÓN PARA INTERPRETAR PROBABILIDADES
+def interpretar_prediccion(nuevo_ejemplo, umbral_confianza=0.8):
+    \"\"\"
+    Interpreta una predicción mostrando la confianza del modelo.
+    \"\"\"
+    clase, probabilidades = predecir_nueva_muestra(nuevo_ejemplo)
+    max_prob = max(probabilidades)
+    
+    print(f"Predicción: {{clase}}")
+    print(f"Confianza: {{max_prob:.4f}} ({{max_prob*100:.1f}}%)")
+    
+    if max_prob >= umbral_confianza:
+        print("✅ Alta confianza en la predicción")
+    elif max_prob >= 0.6:
+        print("⚠️ Confianza moderada en la predicción")
+    else:
+        print("❌ Baja confianza en la predicción")
+    
+    return clase, max_prob
+
+# Ejemplo de interpretación:
+# interpretar_prediccion([valor1, valor2, valor3, ...])
+"""
+    return code
 
 
 if __name__ == "__main__":
