@@ -784,14 +784,14 @@ def create_prediction_interface(tree_model, feature_names, class_names, tree_typ
 
     Parameters:
     -----------
-    tree_model : DecisionTreeClassifier o DecisionTreeRegressor
-        Modelo de árbol de decisión entrenado
+    tree_model : scikit-learn model
+        Modelo entrenado (DecisionTree, KNN, etc.)
     feature_names : list
         Nombres de las características
     class_names : list
         Nombres de las clases (para clasificación)
     tree_type : str
-        Tipo de árbol ("Clasificación" o "Regresión")
+        Tipo de tarea ("Clasificación" o "Regresión")
     X_train : pd.DataFrame or np.array, optional
         Datos de entrenamiento para determinar rangos dinámicos de características
     dataset_name : str, optional
@@ -1079,14 +1079,27 @@ def create_prediction_interface(tree_model, feature_names, class_names, tree_typ
             </div>
             """, unsafe_allow_html=True)
 
-            # Mostrar el camino de decisión
-            st.markdown("### Camino de decisión")
+            # Mostrar el camino de decisión solo para árboles de decisión
+            if hasattr(tree_model, 'tree_'):  # Solo para árboles de decisión
+                st.markdown("### Camino de decisión")
 
-            # Usar la función desde model_evaluation
-            # Nota: No necesitamos pasar new_data (ya es un array 2D)
-            # pero aseguramos el formato correcto
-            show_prediction_path(tree_model, new_data,
-                                 feature_names, class_names)
+                # Usar la función desde model_evaluation
+                # Nota: No necesitamos pasar new_data (ya es un array 2D)
+                # pero aseguramos el formato correcto
+                show_prediction_path(tree_model, new_data,
+                                     feature_names, class_names)
+            else:
+                # Para otros modelos como KNN, mostrar información del modelo
+                st.markdown("### Información del modelo")
+                if hasattr(tree_model, 'n_neighbors'):  # KNN
+                    st.info(f"""
+                    **Modelo KNN utilizado:**
+                    - **Número de vecinos (K):** {tree_model.n_neighbors}
+                    - **Tipo de peso:** {tree_model.weights}
+                    - **Métrica de distancia:** {tree_model.metric}
+                    
+                    El modelo KNN predice basándose en las {tree_model.n_neighbors} muestras más cercanas en el espacio de características.
+                    """)
 
         else:  # Regresión
             st.markdown(f"""
@@ -1096,8 +1109,21 @@ def create_prediction_interface(tree_model, feature_names, class_names, tree_typ
             </div>
             """, unsafe_allow_html=True)
 
-            # Mostrar el camino de decisión
-            st.markdown("### Camino de decisión")
+            # Mostrar el camino de decisión solo para árboles de decisión
+            if hasattr(tree_model, 'tree_'):  # Solo para árboles de decisión
+                st.markdown("### Camino de decisión")
 
-            # Usar la función desde model_evaluation
-            show_prediction_path(tree_model, new_data, feature_names)
+                # Usar la función desde model_evaluation
+                show_prediction_path(tree_model, new_data, feature_names)
+            else:
+                # Para otros modelos como KNN, mostrar información del modelo
+                st.markdown("### Información del modelo")
+                if hasattr(tree_model, 'n_neighbors'):  # KNN
+                    st.info(f"""
+                    **Modelo KNN utilizado:**
+                    - **Número de vecinos (K):** {tree_model.n_neighbors}
+                    - **Tipo de peso:** {tree_model.weights}
+                    - **Métrica de distancia:** {tree_model.metric}
+                    
+                    El modelo KNN predice basándose en las {tree_model.n_neighbors} muestras más cercanas en el espacio de características.
+                    """)
