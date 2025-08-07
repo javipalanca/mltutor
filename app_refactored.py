@@ -1,37 +1,394 @@
-#!/usr/bin/env python3
-"""
-MLTutor: Plataforma educativa para el aprendizaje de Machine Learning.
-
-Esta es la versión refactorizada de la aplicación MLTutor, que separa la página de inicio
-de los algoritmos específicos para una mejor experiencia de usuario.
-"""
-
-import streamlit as st
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-import base64
-import io
-
-# Importar módulos refactorizados
-from dataset_manager import load_data, preprocess_data, create_dataset_selector, load_dataset_from_file
-from model_training import train_decision_tree, predict_sample, train_linear_model
-from model_evaluation import evaluate_classification_model, evaluate_regression_model, show_detailed_evaluation
-from decision_boundary import plot_decision_boundary
-from sklearn.model_selection import train_test_split
-from ui import (
-    setup_page, init_session_state, show_welcome_page,
-    display_feature_importance, display_model_export_options, create_prediction_interface
+from utils import (
+    get_image_download_link, generate_model_code, export_model_pickle, export_model_onnx,
+    create_info_box, format_number, show_code_with_download
 )
 from tree_visualizer import (
     render_tree_visualization,
     create_tree_visualization, get_tree_text
 )
-from utils import (
-    get_image_download_link, generate_model_code, export_model_pickle, export_model_onnx,
-    create_info_box, format_number, show_code_with_download
+from ui import (
+    setup_page, init_session_state, show_welcome_page,
+    display_feature_importance, display_model_export_options, create_prediction_interface
 )
+from sklearn.model_selection import train_test_split
+from decision_boundary import plot_decision_boundary
+from model_evaluation import evaluate_classification_model, evaluate_regression_model, show_detailed_evaluation
+from model_training import train_decision_tree, predict_sample, train_linear_model, train_knn_model
+from dataset_manager import load_data, preprocess_data, create_dataset_selector, load_dataset_from_file
+import io
+import base64
+import seaborn as sns
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import streamlit as st
+
+
+def run_knn_app():
+    """Ejecuta la aplicación específica de K-Nearest Neighbors (KNN) para clasificación y regresión."""
+    import streamlit as st
+    import numpy as np
+    import pandas as pd
+    import matplotlib.pyplot as plt
+
+    st.header("🔍 K-Nearest Neighbors (KNN)")
+    st.markdown("Aprende sobre K-vecinos más cercanos de forma interactiva.")
+
+    # Explicación teórica
+    with st.expander("ℹ️ ¿Qué es K-Nearest Neighbors?", expanded=False):
+        st.markdown("""
+        K-Nearest Neighbors (KNN) es un algoritmo supervisado que predice la clase o el valor de una muestra basándose en las muestras más cercanas en el espacio de características.
+
+        **Características principales:**
+        - No requiere entrenamiento explícito (modelo perezoso)
+        - Puede usarse para clasificación y regresión
+        - La predicción depende de la distancia a los vecinos más cercanos
+        - Sensible a la escala de los datos y a la elección de K
+        """)
+
+    # Variables para almacenar datos
+    dataset_loaded = False
+    X, y, feature_names, class_names, dataset_info, task_type = None, None, None, None, None, None
+
+    # Inicializar el estado de la pestaña activa si no existe
+    if 'active_tab_knn' not in st.session_state:
+        st.session_state.active_tab_knn = 0
+
+    # Crear pestañas para organizar la información
+    tab_options = [
+        "📊 Datos",
+        "🏋️ Entrenamiento",
+        "📈 Evaluación",
+        "📉 Visualización",
+        "🔮 Predicciones"
+    ]
+
+    tab_cols = st.columns(len(tab_options))
+
+    # Estilo CSS para los botones de pestañas (KNN)
+    st.markdown("""
+    <style>
+    div.tab-button-knn > button {
+        border-radius: 4px 4px 0 0;
+        padding: 10px;
+        width: 100%;
+        white-space: nowrap;
+        background-color: #F0F2F6;
+        border-bottom: 2px solid #E0E0E0;
+        color: #333333;
+    }
+    div.tab-button-knn-active > button {
+        background-color: #E3F2FD !important;
+        border-bottom: 2px solid #1E88E5 !important;
+        font-weight: bold !important;
+        color: #1E88E5 !important;
+    }
+    div.tab-button-knn > button:hover {
+        background-color: #E8EAF6;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    for i, (tab_name, col) in enumerate(zip(tab_options, tab_cols)):
+        button_key = f"tab_knn_{i}"
+        button_style = "tab-button-knn-active" if st.session_state.active_tab_knn == i else "tab-button-knn"
+        is_active = st.session_state.active_tab_knn == i
+        with col:
+            st.markdown(f"<div class='{button_style}'>",
+                        unsafe_allow_html=True)
+            if st.button(tab_name, key=button_key, use_container_width=True, type="primary" if is_active else "secondary"):
+                st.session_state.active_tab_knn = i
+                st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
+
+    # Separador visual
+    st.markdown("---")
+
+    # SELECTOR UNIFICADO DE DATASET (solo mostrar en pestañas que lo necesiten)
+    # Exploración y Entrenamiento
+    if st.session_state.active_tab_knn in [0, 1]:
+        st.markdown("### 📊 Selección de Dataset")
+
+        # Inicializar dataset seleccionado si no existe
+        if 'selected_dataset_knn' not in st.session_state:
+            st.session_state.selected_dataset_knn = "🌸 Iris - Clasificación de flores"
+
+        # Lista base de datasets predefinidos
+        builtin_datasets = [
+            "🌸 Iris - Clasificación de flores",
+            "🍷 Vino - Clasificación de vinos",
+            "🔬 Cáncer - Diagnóstico binario",
+            "🚢 Titanic - Supervivencia",
+            "💰 Propinas - Predicción de propinas",
+            "🏠 Viviendas California - Precios",
+            "🐧 Pingüinos - Clasificación de especies"
+        ]
+
+        # Añadir datasets CSV cargados si existen
+        available_datasets = builtin_datasets.copy()
+        if 'csv_datasets' in st.session_state:
+            available_datasets.extend(st.session_state.csv_datasets.keys())
+
+        # Asegurar que el dataset seleccionado esté en la lista disponible
+        if st.session_state.selected_dataset_knn not in available_datasets:
+            st.session_state.selected_dataset_knn = builtin_datasets[0]
+
+        # Selector unificado
+        dataset_option = st.selectbox(
+            "Dataset:",
+            available_datasets,
+            index=available_datasets.index(
+                st.session_state.selected_dataset_knn),
+            key="unified_dataset_selector_knn",
+            help="El dataset seleccionado se mantendrá entre las pestañas de Exploración y Entrenamiento"
+        )
+
+        # Actualizar la variable de sesión
+        st.session_state.selected_dataset_knn = dataset_option
+
+        # Separador después del selector
+        st.markdown("---")
+    else:
+        # Para otras pestañas, mostrar qué dataset está seleccionado actualmente
+        if hasattr(st.session_state, 'selected_dataset_knn'):
+            st.info(
+                f"📊 **Dataset actual:** {st.session_state.selected_dataset_knn}")
+            st.markdown("---")
+
+    # Lógica de cada pestaña (similar a los otros algoritmos)
+    from dataset_manager import create_dataset_selector, load_data
+    from model_training import train_knn_model
+    from model_evaluation import evaluate_classification_model, evaluate_regression_model
+    from ui import create_prediction_interface
+    import seaborn as sns
+
+    # Estado de datos y modelo
+    if 'knn_dataset' not in st.session_state:
+        st.session_state.knn_dataset = None
+    if 'knn_X' not in st.session_state:
+        st.session_state.knn_X = None
+    if 'knn_y' not in st.session_state:
+        st.session_state.knn_y = None
+    if 'knn_feature_names' not in st.session_state:
+        st.session_state.knn_feature_names = None
+    if 'knn_class_names' not in st.session_state:
+        st.session_state.knn_class_names = None
+    if 'knn_task_type' not in st.session_state:
+        st.session_state.knn_task_type = 'Clasificación'
+    if 'knn_model' not in st.session_state:
+        st.session_state.knn_model = None
+    if 'knn_metrics' not in st.session_state:
+        st.session_state.knn_metrics = None
+    if 'knn_trained' not in st.session_state:
+        st.session_state.knn_trained = False
+
+    tab = st.session_state.active_tab_knn
+
+    # Pestaña 0: Datos
+    if tab == 0:
+        st.header("Exploración de Datos")
+
+        try:
+            # Cargar datos para exploración usando el dataset seleccionado
+            X, y, feature_names, class_names, info, task_type = load_data(
+                st.session_state.selected_dataset_knn)
+
+            # Crear DataFrame para mostrar los datos
+            import pandas as pd
+            if isinstance(X, pd.DataFrame):
+                data = X.copy()
+            else:
+                data = pd.DataFrame(X, columns=feature_names)
+
+            # Añadir la variable objetivo
+            target_name = 'target'
+            if isinstance(info, dict):
+                target_name = info.get('target', 'target')
+            data[target_name] = y
+
+            # Actualizar el estado de la sesión
+            st.session_state.knn_dataset = st.session_state.selected_dataset_knn
+            st.session_state.knn_X = X
+            st.session_state.knn_y = y
+            st.session_state.knn_feature_names = feature_names
+            st.session_state.knn_class_names = class_names
+            st.session_state.knn_task_type = task_type
+
+            # Mostrar información del dataset
+            st.markdown("### Información del Dataset")
+            from utils import create_info_box
+            st.markdown(create_info_box(info), unsafe_allow_html=True)
+
+            # Mostrar las primeras filas de los datos
+            st.markdown("### Vista previa de datos")
+            st.dataframe(data.head(20), use_container_width=True)
+            st.markdown(f"**Características:** {', '.join(feature_names)}")
+
+            # Determinar el nombre de la variable objetivo
+            if isinstance(info, dict):
+                target_display = info.get('target', 'target')
+            else:
+                target_display = 'target'
+            st.markdown(f"**Variable objetivo:** {target_display}")
+
+            st.markdown(f"**Tipo de tarea:** {task_type}")
+
+            # Mostrar clases correctamente
+            if class_names is not None:
+                if isinstance(class_names, list):
+                    st.markdown(
+                        f"**Clases:** {', '.join(map(str, class_names))}")
+                else:
+                    st.markdown(f"**Clases:** {class_names}")
+            else:
+                st.markdown("**Clases:** N/A (regresión)")
+
+            if X is not None and hasattr(X, 'shape') and len(X.shape) >= 2:
+                st.markdown(
+                    f"**Tamaño del dataset:** {X.shape[0]} muestras, {X.shape[1]} características")
+            elif X is not None and hasattr(X, 'shape') and len(X.shape) == 1:
+                st.markdown(
+                    f"**Tamaño del dataset:** {X.shape[0]} muestras, 1 característica")
+            else:
+                st.markdown("**Tamaño del dataset:** No disponible")
+            st.session_state.knn_trained = False
+
+        except Exception as e:
+            st.error(f"Error al cargar el dataset: {str(e)}")
+            st.info(
+                "Por favor, selecciona un dataset válido para continuar con la exploración.")
+
+    # Pestaña 1: Entrenamiento
+    elif tab == 1:
+        st.header("Configuración del Modelo KNN")
+
+        # Inicializar variables de sesión necesarias
+        if 'dataset_option_knn' not in st.session_state:
+            st.session_state.dataset_option_knn = st.session_state.selected_dataset_knn
+
+        # Cargar datos para la vista previa si cambia el dataset o si no se ha cargado
+        if st.session_state.selected_dataset_knn != st.session_state.dataset_option_knn or st.session_state.knn_X is None:
+            try:
+                X, y, feature_names, class_names, info, task_type = load_data(
+                    st.session_state.selected_dataset_knn)
+
+                st.session_state.dataset_option_knn = st.session_state.selected_dataset_knn
+
+                # Actualizar información del dataset
+                st.session_state.knn_dataset = st.session_state.selected_dataset_knn
+                st.session_state.knn_X = X
+                st.session_state.knn_y = y
+                st.session_state.knn_feature_names = feature_names
+                st.session_state.knn_class_names = class_names
+                st.session_state.knn_task_type = task_type
+
+                # Mostrar información del dataset
+                st.markdown("### Información del Dataset")
+                from utils import create_info_box
+                st.markdown(create_info_box(info), unsafe_allow_html=True)
+
+            except Exception as e:
+                st.error(f"Error al cargar el dataset: {str(e)}")
+
+        # Verificar que los datos estén disponibles
+        if st.session_state.knn_X is not None and st.session_state.knn_y is not None:
+            st.markdown("### Parámetros del Modelo")
+            st.markdown("Configura los hiperparámetros del modelo KNN:")
+
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                n_neighbors = st.number_input(
+                    "Vecinos (K)", min_value=1, max_value=20, value=5, step=1, key="knn_n_neighbors")
+            with col2:
+                weights = st.selectbox(
+                    "Pesos", options=["uniform", "distance"], key="knn_weights")
+            with col3:
+                metric = st.selectbox("Métrica", options=[
+                                      "minkowski", "euclidean", "manhattan"], key="knn_metric")
+
+            if st.button("🚀 Entrenar Modelo KNN", key="train_knn_button", type="primary"):
+                with st.spinner("Entrenando modelo..."):
+                    try:
+                        result = train_knn_model(
+                            st.session_state.knn_X,
+                            st.session_state.knn_y,
+                            task_type=st.session_state.knn_task_type,
+                            n_neighbors=n_neighbors,
+                            weights=weights,
+                            metric=metric
+                        )
+                        st.session_state.knn_model = result["model"]
+                        st.session_state.knn_metrics = result["evaluation"]
+                        st.session_state.knn_trained = True
+                        st.success("¡Modelo KNN entrenado correctamente!")
+
+                        # Sugerir ir a la pestaña de evaluación
+                        st.info(
+                            "👉 Ve a la pestaña '📈 Evaluación' para ver los resultados del modelo.")
+
+                    except Exception as e:
+                        st.error(f"Error al entrenar el modelo: {str(e)}")
+        else:
+            st.info("Primero selecciona y carga un dataset en la pestaña de Datos.")
+
+    # Pestaña 2: Evaluación
+    elif tab == 2:
+        st.header("📈 Evaluación del Modelo KNN")
+        if st.session_state.knn_trained and st.session_state.knn_metrics is not None:
+            st.markdown("### Resultados de Evaluación:")
+            metrics = st.session_state.knn_metrics
+            if st.session_state.knn_task_type == "Clasificación":
+                st.json(metrics)
+            else:
+                st.json(metrics)
+        else:
+            st.info("Primero entrena un modelo KNN.")
+
+    # Pestaña 3: Visualización
+    elif tab == 3:
+        st.header("📉 Visualización de KNN")
+        if st.session_state.knn_trained and st.session_state.knn_model is not None:
+            st.markdown("Visualización de las predicciones del modelo KNN.")
+            # Si es clasificación binaria y 2D, mostrar frontera de decisión
+            X = st.session_state.knn_X
+            y = st.session_state.knn_y
+            model = st.session_state.knn_model
+            feature_names = st.session_state.knn_feature_names
+            if X.shape[1] == 2 and st.session_state.knn_task_type == "Clasificación":
+                fig, ax = plt.subplots(figsize=(8, 6))
+                plot_decision_boundary(
+                    model, X, y, ax=ax, feature_names=feature_names)
+                plt.tight_layout()
+                st.pyplot(fig)
+            else:
+                st.info(
+                    "La visualización de frontera de decisión solo está disponible para clasificación binaria con 2 características.")
+        else:
+            st.info("Primero entrena un modelo KNN.")
+
+    # Pestaña 4: Predicciones
+    elif tab == 4:
+        st.header("🔮 Predicciones con KNN")
+        if st.session_state.knn_trained and st.session_state.knn_model is not None:
+            create_prediction_interface(
+                st.session_state.knn_model,
+                st.session_state.knn_feature_names,
+                st.session_state.knn_class_names,
+                st.session_state.knn_task_type,
+                st.session_state.knn_X,
+                st.session_state.knn_dataset
+            )
+        else:
+            st.info("Primero entrena un modelo KNN.")
+
+
+#!/usr/bin/env python3
+"""
+MLTutor: Plataforma educativa para el aprendizaje de Machine Learning.
+"""
+
+
+# Importar módulos refactorizados
 
 
 def main():
@@ -86,11 +443,11 @@ def main():
         st.session_state.navigation = "📊 Regresión"
         st.rerun()
 
-    if st.sidebar.button("🔍 K-Nearest Neighbors (próximamente)",
+    if st.sidebar.button("🔍 K-Nearest Neighbors",
                          key="nav_knn",
                          use_container_width=True,
-                         disabled=True):
-        st.session_state.navigation = "🔍 K-Nearest Neighbors (próximamente)"
+                         type="secondary" if st.session_state.navigation != "🔍 K-Nearest Neighbors" else "primary"):
+        st.session_state.navigation = "🔍 K-Nearest Neighbors"
         st.rerun()
 
     if st.sidebar.button("🧠 Redes Neuronales (próximamente)",
@@ -120,10 +477,11 @@ def main():
         run_decision_trees_app()
     elif st.session_state.navigation == "📊 Regresión":
         run_linear_regression_app()
+    elif st.session_state.navigation == "🔍 K-Nearest Neighbors":
+        run_knn_app()
     elif st.session_state.navigation == "📁 Cargar CSV Personalizado":
         run_csv_loader_app()
-    elif st.session_state.navigation in ["🔍 K-Nearest Neighbors (próximamente)",
-                                         "🧠 Redes Neuronales (próximamente)"]:
+    elif st.session_state.navigation in ["🧠 Redes Neuronales (próximamente)"]:
         algorithm_name = st.session_state.navigation.split(" ")[1]
         st.header(f"{algorithm_name} (próximamente)")
         st.info(

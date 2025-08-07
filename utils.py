@@ -228,15 +228,21 @@ def create_info_box(content):
 
     Parameters:
     -----------
-    content : str
-        Contenido de la caja de información
+    content : str or dict
+        Contenido de la caja de información. Si es un diccionario, 
+        se usa la clave 'description' para el texto principal.
 
     Returns:
     --------
     html : str
         Código HTML con la caja de información
     """
-    return f'<div class="info-box">{content}</div>'
+    if isinstance(content, dict):
+        text = content.get('description', str(content))
+    else:
+        text = str(content)
+
+    return f'<div class="info-box">{text}</div>'
 
 
 def format_number(value, precision=4):

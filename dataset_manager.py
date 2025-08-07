@@ -43,7 +43,14 @@ def load_builtin_dataset(dataset_name):
         feature_names = data.feature_names.tolist() if hasattr(
             data.feature_names, 'tolist') else list(data.feature_names)
         class_names = data.target_names.tolist()
-        dataset_info = "Dataset Iris: 150 muestras, 4 características, 3 clases de flores"
+        dataset_info = {
+            'description': "Dataset Iris: 150 muestras, 4 características, 3 clases de flores",
+            'target': 'species',
+            'task_type': 'Clasificación',
+            'samples': 150,
+            'features': 4,
+            'classes': 3
+        }
         task_type = "Clasificación"
 
     elif "Vino" in dataset_name:
@@ -53,7 +60,14 @@ def load_builtin_dataset(dataset_name):
         feature_names = data.feature_names.tolist() if hasattr(
             data.feature_names, 'tolist') else list(data.feature_names)
         class_names = data.target_names.tolist()
-        dataset_info = "Dataset Vino: 178 muestras, 13 características, 3 tipos de vino"
+        dataset_info = {
+            'description': "Dataset Vino: 178 muestras, 13 características, 3 tipos de vino",
+            'target': 'wine_type',
+            'task_type': 'Clasificación',
+            'samples': 178,
+            'features': 13,
+            'classes': 3
+        }
         task_type = "Clasificación"
 
     elif "Cáncer" in dataset_name:
@@ -63,7 +77,14 @@ def load_builtin_dataset(dataset_name):
         feature_names = data.feature_names.tolist() if hasattr(
             data.feature_names, 'tolist') else list(data.feature_names)
         class_names = data.target_names.tolist()
-        dataset_info = "Dataset Cáncer: 569 muestras, 30 características, diagnóstico binario"
+        dataset_info = {
+            'description': "Dataset Cáncer: 569 muestras, 30 características, diagnóstico binario",
+            'target': 'diagnosis',
+            'task_type': 'Clasificación',
+            'samples': 569,
+            'features': 30,
+            'classes': 2
+        }
         task_type = "Clasificación"
 
     elif "Titanic" in dataset_name:

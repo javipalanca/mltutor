@@ -1,10 +1,11 @@
 """
-Este módulo contiene funciones para entrenar modelos de árboles de decisión y modelos lineales.
+Este módulo contiene funciones para entrenar modelos de árboles de decisión, modelos lineales y K-Nearest Neighbors.
 Incluye funciones para crear, entrenar y evaluar modelos de clasificación y regresión.
 """
 
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from sklearn.linear_model import LinearRegression, LogisticRegression
+from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 import streamlit as st
 from dataset_manager import preprocess_data
 from model_evaluation import evaluate_classification_model, evaluate_regression_model
@@ -307,3 +308,149 @@ def train_linear_model(X, y, model_type="Linear", max_iter=1000, test_size=0.3, 
         return train_linear_regression(X, y, test_size, random_state)
     else:  # Logistic
         return train_logistic_regression(X, y, max_iter, test_size, random_state)
+
+
+def train_knn_classifier(X, y, n_neighbors=5, weights='uniform', metric='minkowski', test_size=0.3, random_state=42):
+    """
+    Crea y entrena un modelo de K-Nearest Neighbors para clasificación.
+
+    Parameters:
+    -----------
+    X : DataFrame o array
+        Características
+    y : array
+        Variable objetivo
+    n_neighbors : int, default=5
+        Número de vecinos cercanos a considerar
+    weights : str, default='uniform'
+        Función de peso ('uniform', 'distance')
+    metric : str, default='minkowski'
+        Métrica de distancia ('minkowski', 'euclidean', 'manhattan')
+    test_size : float, default=0.3
+        Proporción de datos para prueba
+    random_state : int, default=42
+        Semilla para reproducibilidad
+
+    Returns:
+    --------
+    dict
+        Diccionario con el modelo entrenado, datos de entrenamiento/prueba y métricas
+    """
+    # Dividir los datos en conjuntos de entrenamiento y prueba
+    X_train, X_test, y_train, y_test = preprocess_data(
+        X, y, test_size=test_size, random_state=random_state)
+
+    # Crear y entrenar el modelo
+    model = KNeighborsClassifier(
+        n_neighbors=n_neighbors,
+        weights=weights,
+        metric=metric
+    )
+    model.fit(X_train, y_train)
+
+    # Realizar predicciones
+    y_pred = model.predict(X_test)
+
+    # Evaluar el modelo
+    evaluation = evaluate_classification_model(y_test, y_pred, list(set(y)))
+
+    # Devolver resultados
+    return {
+        "model": model,
+        "X_train": X_train,
+        "X_test": X_test,
+        "y_train": y_train,
+        "y_test": y_test,
+        "evaluation": evaluation
+    }
+
+
+def train_knn_regressor(X, y, n_neighbors=5, weights='uniform', metric='minkowski', test_size=0.3, random_state=42):
+    """
+    Crea y entrena un modelo de K-Nearest Neighbors para regresión.
+
+    Parameters:
+    -----------
+    X : DataFrame o array
+        Características
+    y : array
+        Variable objetivo
+    n_neighbors : int, default=5
+        Número de vecinos cercanos a considerar
+    weights : str, default='uniform'
+        Función de peso ('uniform', 'distance')
+    metric : str, default='minkowski'
+        Métrica de distancia ('minkowski', 'euclidean', 'manhattan')
+    test_size : float, default=0.3
+        Proporción de datos para prueba
+    random_state : int, default=42
+        Semilla para reproducibilidad
+
+    Returns:
+    --------
+    dict
+        Diccionario con el modelo entrenado, datos de entrenamiento/prueba y métricas
+    """
+    # Dividir los datos en conjuntos de entrenamiento y prueba
+    X_train, X_test, y_train, y_test = preprocess_data(
+        X, y, test_size=test_size, random_state=random_state)
+
+    # Crear y entrenar el modelo
+    model = KNeighborsRegressor(
+        n_neighbors=n_neighbors,
+        weights=weights,
+        metric=metric
+    )
+    model.fit(X_train, y_train)
+
+    # Realizar predicciones
+    y_pred = model.predict(X_test)
+
+    # Evaluar el modelo
+    evaluation = evaluate_regression_model(y_test, y_pred)
+
+    # Devolver resultados
+    return {
+        "model": model,
+        "X_train": X_train,
+        "X_test": X_test,
+        "y_train": y_train,
+        "y_test": y_test,
+        "evaluation": evaluation
+    }
+
+
+def train_knn_model(X, y, task_type="Clasificación", n_neighbors=5, weights='uniform', metric='minkowski', test_size=0.3, random_state=42):
+    """
+    Crea y entrena un modelo de K-Nearest Neighbors para clasificación o regresión.
+
+    Parameters:
+    -----------
+    X : DataFrame o array
+        Características
+    y : array
+        Variable objetivo
+    task_type : str, default="Clasificación"
+        Tipo de tarea ('Clasificación' o 'Regresión')
+    n_neighbors : int, default=5
+        Número de vecinos cercanos a considerar
+    weights : str, default='uniform'
+        Función de peso ('uniform', 'distance')
+    metric : str, default='minkowski'
+        Métrica de distancia ('minkowski', 'euclidean', 'manhattan')
+    test_size : float, default=0.3
+        Proporción de datos para prueba
+    random_state : int, default=42
+        Semilla para reproducibilidad
+
+    Returns:
+    --------
+    dict
+        Diccionario con el modelo entrenado, datos de entrenamiento/prueba y métricas
+    """
+    if task_type == "Clasificación":
+        return train_knn_classifier(
+            X, y, n_neighbors, weights, metric, test_size, random_state)
+    else:
+        return train_knn_regressor(
+            X, y, n_neighbors, weights, metric, test_size, random_state)
