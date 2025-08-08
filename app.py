@@ -6319,6 +6319,20 @@ def create_animated_neighbors_plot(X_2d, y, test_point, model, feature1, feature
 
 # ===== FUNCIONES PARA REDES NEURONALES =====
 
+def safe_get_output_size(config):
+    """
+    Extrae el tamaño de salida de forma segura para evitar errores de comparación de arrays.
+    """
+    try:
+        output_size = config['output_size']
+        # Si es un array o lista, tomar el primer elemento
+        if hasattr(output_size, '__len__') and not isinstance(output_size, (str, bytes)):
+            return int(output_size[0]) if len(output_size) > 0 else 1
+        # Si es un escalar
+        return int(output_size)
+    except:
+        return 1
+
 def create_neural_network_visualization(architecture, activation, output_activation, task_type):
     """
     Crea una visualización dinámica de la arquitectura de red neuronal usando HTML5 Canvas.
@@ -6619,7 +6633,8 @@ def train_neural_network(df, target_col, config, learning_rate, epochs, validati
             y_test_encoded = label_encoder.transform(y_test)
 
             # Decisión de one-hot encoding basada en función de activación y número de clases
-            if config['output_activation'] == 'softmax' or (config['output_size'] > 1 and config['output_activation'] != 'sigmoid'):
+            output_size = safe_get_output_size(config)
+            if config['output_activation'] == 'softmax' or (output_size > 1 and config['output_activation'] != 'sigmoid'):
                 # Para softmax multiclase o funciones no-estándar multiclase
                 y_train_encoded = keras.utils.to_categorical(y_train_encoded)
                 y_test_encoded = keras.utils.to_categorical(y_test_encoded)
@@ -6654,14 +6669,15 @@ def train_neural_network(df, target_col, config, learning_rate, epochs, validati
         # Compilar modelo - Función de pérdida inteligente según activación
         if config['task_type'] == 'Clasificación':
             # Selección inteligente de función de pérdida
+            output_size = safe_get_output_size(config)
             if config['output_activation'] == 'sigmoid':
-                if config['output_size'] == 1:
+                if output_size == 1:
                     loss = 'binary_crossentropy'  # Estándar para binaria con sigmoid
                 else:
                     loss = 'binary_crossentropy'  # Sigmoid multiclase (multi-label)
                 metrics = ['accuracy']
             elif config['output_activation'] == 'softmax':
-                if config['output_size'] == 1:
+                if output_size == 1:
                     # Softmax con 1 neurona es problemático, pero manejar el caso
                     loss = 'sparse_categorical_crossentropy'
                     metrics = ['accuracy']
@@ -6681,7 +6697,7 @@ def train_neural_network(df, target_col, config, learning_rate, epochs, validati
                 st.warning("⚠️ Función tanh detectada en clasificación. Comportamiento no estándar.")
             else:
                 # Fallback
-                loss = 'categorical_crossentropy' if config['output_size'] > 1 else 'binary_crossentropy'
+                loss = 'categorical_crossentropy' if output_size > 1 else 'binary_crossentropy'
                 metrics = ['accuracy']
         else:
             # Para regresión
@@ -6854,19 +6870,20 @@ def show_neural_network_evaluation():
         label_encoder = st.session_state.nn_label_encoder
         config = st.session_state.nn_config
         
-        st.header("� Evaluación del Modelo")
-        
         # Hacer predicciones
         y_pred = model.predict(X_test, verbose=0)
         
         # Métricas según el tipo de tarea
         if config['task_type'] == 'Clasificación':
+            # Obtener el tamaño de salida de forma segura
+            output_size = safe_get_output_size(config)
+            
             # Para clasificación - detectar formato de y_test
             if len(y_test.shape) > 1 and y_test.shape[1] > 1:  # One-hot encoded (multiclase)
                 y_pred_classes = np.argmax(y_pred, axis=1)
                 y_test_classes = np.argmax(y_test, axis=1)
             else:  # Binaria o multiclase sin one-hot
-                if config['output_size'] == 1:  # Binaria con 1 neurona
+                if output_size == 1:  # Binaria con 1 neurona
                     y_pred_classes = (y_pred > 0.5).astype(int).flatten()
                     y_test_classes = y_test.flatten()
                 else:  # Multiclase sin one-hot (sparse)
@@ -6886,7 +6903,7 @@ def show_neural_network_evaluation():
                 # Calcular confianza promedio
                 if len(y_test.shape) > 1 and y_test.shape[1] > 1:  # One-hot multiclase
                     confidence = np.mean(np.max(y_pred, axis=1))
-                elif config['output_size'] == 1:  # Binaria
+                elif output_size == 1:  # Binaria
                     confidence = np.mean(np.maximum(y_pred.flatten(), 1 - y_pred.flatten()))
                 else:  # Multiclase sparse
                     confidence = np.mean(np.max(y_pred, axis=1))
@@ -6899,32 +6916,44 @@ def show_neural_network_evaluation():
             
             # Matriz de confusión
             st.subheader("🔍 Matriz de Confusión")
-            cm = confusion_matrix(y_test_classes, y_pred_classes)
             
-            # Obtener nombres de clases
-            if label_encoder:
-                class_names = label_encoder.classes_
-            else:
-                class_names = [f"Clase {i}" for i in range(config['output_size'])]
-            
-            # Crear heatmap de la matriz de confusión
-            fig_cm = ff.create_annotated_heatmap(
-                z=cm,
-                x=class_names,
-                y=class_names,
-                annotation_text=cm,
-                colorscale='Blues',
-                showscale=True
-            )
-            
-            fig_cm.update_layout(
-                title='Matriz de Confusión',
-                xaxis_title='Predicciones',
-                yaxis_title='Valores Reales',
-                height=500
-            )
-            
-            st.plotly_chart(fig_cm, use_container_width=True)
+            try:
+                cm = confusion_matrix(y_test_classes, y_pred_classes)
+                
+                # Obtener nombres de clases
+                if label_encoder and hasattr(label_encoder, 'classes_'):
+                    class_names = list(label_encoder.classes_)
+                else:
+                    # Determinar clases basado en los datos únicos
+                    all_classes = sorted(set(list(y_test_classes) + list(y_pred_classes)))
+                    class_names = [f"Clase {i}" for i in all_classes]
+                
+                # Ajustar class_names al tamaño de la matriz si es necesario
+                if len(class_names) != cm.shape[0]:
+                    class_names = [f"Clase {i}" for i in range(cm.shape[0])]
+                
+                # Crear heatmap de la matriz de confusión
+                fig_cm = ff.create_annotated_heatmap(
+                    z=cm,
+                    x=class_names,
+                    y=class_names,
+                    annotation_text=cm,
+                    colorscale='Blues',
+                    showscale=True
+                )
+                
+                fig_cm.update_layout(
+                    title='Matriz de Confusión',
+                    xaxis_title='Predicciones',
+                    yaxis_title='Valores Reales',
+                    height=500
+                )
+                
+                st.plotly_chart(fig_cm, use_container_width=True)
+                
+            except Exception as cm_error:
+                st.error(f"❌ Error creando matriz de confusión: {str(cm_error)}")
+                st.info("La matriz de confusión no pudo generarse. El modelo funciona correctamente pero hay un problema con la visualización.")
             
             # Reporte de clasificación detallado
             st.subheader("📋 Reporte de Clasificación")
@@ -7267,7 +7296,8 @@ def show_neural_network_visualizations():
                             Z = model.predict(full_grid_scaled, verbose=0)
                             
                             if config['task_type'] == 'Clasificación':
-                                if isinstance(config['output_size'], (int, float)) and config['output_size'] > 2:
+                                output_size = safe_get_output_size(config)
+                                if output_size > 2:
                                     Z = np.argmax(Z, axis=1)
                                 else:
                                     Z = (Z > 0.5).astype(int).flatten()
@@ -7438,7 +7468,8 @@ def show_neural_network_predictions():
                 st.success("✅ Predicción completada")
                 
                 if config['task_type'] == 'Clasificación':
-                    if isinstance(config['output_size'], (int, float)) and config['output_size'] > 2:  # Multiclase
+                    output_size = safe_get_output_size(config)
+                    if output_size > 2:  # Multiclase
                         predicted_class_idx = np.argmax(prediction[0])
                         confidence = prediction[0][predicted_class_idx]
                         
@@ -7584,7 +7615,8 @@ def show_neural_network_predictions():
                             
                             # Procesar resultados según el tipo de tarea
                             if config['task_type'] == 'Clasificación':
-                                if isinstance(config['output_size'], (int, float)) and config['output_size'] > 2:
+                                output_size = safe_get_output_size(config)
+                                if output_size > 2:
                                     predicted_classes_idx = np.argmax(batch_predictions, axis=1)
                                     confidences = np.max(batch_predictions, axis=1)
                                     
@@ -7672,7 +7704,8 @@ def show_neural_network_predictions():
             base_prediction = model.predict(base_scaled, verbose=0)
             
             if config['task_type'] == 'Clasificación':
-                if isinstance(config['output_size'], (int, float)) and config['output_size'] > 2:
+                output_size = safe_get_output_size(config)
+                if output_size > 2:
                     base_class_idx = np.argmax(base_prediction[0])
                     base_confidence = base_prediction[0][base_class_idx]
                     
@@ -7724,7 +7757,8 @@ def show_neural_network_predictions():
                 pred = model.predict(modified_scaled, verbose=0)
                 
                 if config['task_type'] == 'Clasificación':
-                    if isinstance(config['output_size'], (int, float)) and config['output_size'] > 2:
+                    output_size = safe_get_output_size(config)
+                    if output_size > 2:
                         pred_class_idx = np.argmax(pred[0])
                         confidence = pred[0][pred_class_idx]
                         exploration_predictions.append((pred_class_idx, confidence))
@@ -7740,7 +7774,8 @@ def show_neural_network_predictions():
             fig = go.Figure()
             
             if config['task_type'] == 'Clasificación':
-                if isinstance(config['output_size'], (int, float)) and config['output_size'] > 2:
+                output_size = safe_get_output_size(config)
+                if output_size > 2:
                     # Multiclase: mostrar clase predicha y confianza
                     classes = [pred[0] for pred in exploration_predictions]
                     confidences = [pred[1] for pred in exploration_predictions]
@@ -8002,7 +8037,8 @@ def predecir(nuevos_datos):
     prediccion = model.predict(datos_escalados)
     
     if config['task_type'] == 'Clasificación':
-        if isinstance(config['output_size'], (int, float)) and config['output_size'] > 2:
+        output_size = safe_get_output_size(config)
+        if output_size > 2:
             clase_idx = np.argmax(prediccion[0])
             if label_encoder:
                 clase = label_encoder.inverse_transform([clase_idx])[0]
@@ -8097,7 +8133,8 @@ class NeuralNetworkPredictor:
         predictions = self.predict(X)
         
         if self.config['task_type'] == 'Clasificación':
-            if isinstance(self.config['output_size'], (int, float)) and self.config['output_size'] > 2:
+            output_size = safe_get_output_size(self.config)
+            if output_size > 2:
                 class_indices = np.argmax(predictions, axis=1)
                 if self.label_encoder:
                     return self.label_encoder.inverse_transform(class_indices)
