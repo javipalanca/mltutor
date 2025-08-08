@@ -768,7 +768,6 @@ def run_knn_app():
 
 #!/usr/bin/env python3
 """
-MLTutor: Plataforma educativa para el aprendizaje de Machine Learning.
 """
 
 
@@ -7608,6 +7607,7 @@ def show_neural_network_visualizations():
         import plotly.graph_objects as go
         from plotly.subplots import make_subplots
         import numpy as np
+        import matplotlib.pyplot as plt
         from sklearn.preprocessing import StandardScaler
 
         model = st.session_state.nn_model
@@ -7962,30 +7962,194 @@ def show_neural_network_visualizations():
             st.markdown(
                 "🗺️ **¿Cómo divide tu red el espacio de características?**")
 
-            # Solo mostrar si tenemos 2 características o menos
-            if config['input_size'] <= 2:
-                st.info(
-                    "Generando superficie de decisión... (Puede tomar unos segundos)")
-                # Aquí iría el código para generar superficie de decisión
-                # Es complejo, por ahora mostrar mensaje
-                st.markdown("""
-                **Superficie de Decisión 2D:**
-                - Cada color representa una clase predicha
-                - Los puntos son tus datos de entrenamiento
-                - Las fronteras muestran cómo la red separa las clases
-                - Fronteras suaves = red bien generalizada
-                - Fronteras muy complejas = posible sobreajuste
-                """)
+            # Verificar si es clasificación para mostrar superficie de decisión
+            if config.get('task_type', 'Clasificación') == 'Clasificación':
+                # Si hay más de 2 características, permitir seleccionar 2
+                if config['input_size'] > 2:
+                    st.info("💡 Tu dataset tiene más de 2 características. Selecciona 2 para visualizar la superficie de decisión.")
+                    
+                    # Obtener nombres de características
+                    if 'nn_feature_names' in st.session_state:
+                        feature_names = st.session_state.nn_feature_names
+                    else:
+                        feature_names = [f'Característica {i+1}' for i in range(config['input_size'])]
+                    
+                    st.markdown("### Selección de Características")
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        feature1 = st.selectbox(
+                            "Primera característica:",
+                            feature_names,
+                            index=0,
+                            key="viz_feature1_nn"
+                        )
+                    
+                    with col2:
+                        feature2 = st.selectbox(
+                            "Segunda característica:",
+                            feature_names,
+                            index=min(1, len(feature_names) - 1),
+                            key="viz_feature2_nn"
+                        )
+                    
+                    if feature1 != feature2:
+                        # Obtener datos de test para la visualización
+                        X_test, y_test = st.session_state.nn_test_data
+                        
+                        # Obtener índices de las características seleccionadas
+                        feature_idx = [feature_names.index(feature1), feature_names.index(feature2)]
+                        
+                        # Extraer las características seleccionadas
+                        X_2d = X_test[:, feature_idx]
+                        
+                        # Generar superficie de decisión
+                        try:
+                            st.info("🎨 Generando superficie de decisión...")
+                            
+                            # Crear malla de puntos para la superficie
+                            h = 0.02  # tamaño del paso en la malla
+                            x_min, x_max = X_2d[:, 0].min() - 0.5, X_2d[:, 0].max() + 0.5
+                            y_min, y_max = X_2d[:, 1].min() - 0.5, X_2d[:, 1].max() + 0.5
+                            xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
+                                               np.arange(y_min, y_max, h))
+                            
+                            # Para hacer predicciones en la malla, necesitamos crear puntos completos
+                            # con valores promedio para las características no seleccionadas
+                            X_full_test = X_test.copy()
+                            mesh_points = []
+                            
+                            for i in range(xx.ravel().shape[0]):
+                                point = np.mean(X_full_test, axis=0)  # Usar valores promedio
+                                point[feature_idx[0]] = xx.ravel()[i]  # Primera característica seleccionada
+                                point[feature_idx[1]] = yy.ravel()[i]  # Segunda característica seleccionada
+                                mesh_points.append(point)
+                            
+                            mesh_points = np.array(mesh_points)
+                            
+                            # Hacer predicciones en la malla
+                            Z = model.predict(mesh_points, verbose=0)
+                            
+                            # Si es clasificación multiclase, tomar la clase con mayor probabilidad
+                            if len(Z.shape) > 1 and Z.shape[1] > 1:
+                                Z = np.argmax(Z, axis=1)
+                            else:
+                                # Para clasificación binaria
+                                Z = (Z > 0.5).astype(int).ravel()
+                            
+                            Z = Z.reshape(xx.shape)
+                            
+                            # Crear la visualización
+                            fig, ax = plt.subplots(figsize=(10, 8))
+                            
+                            # Dibujar la superficie de decisión
+                            contourf = ax.contourf(xx, yy, Z, levels=50, alpha=0.8, cmap='RdYlBu')
+                            
+                            # Añadir los puntos de datos reales
+                            if 'nn_class_names' in st.session_state and st.session_state.nn_class_names:
+                                class_names = st.session_state.nn_class_names
+                                # Mapear y_test a índices de clase si es necesario
+                                if hasattr(y_test, 'shape') and len(y_test.shape) > 1:
+                                    y_plot = np.argmax(y_test, axis=1)
+                                else:
+                                    y_plot = y_test
+                                
+                                # Crear scatter plot por clase
+                                unique_classes = np.unique(y_plot)
+                                colors = plt.cm.Set1(np.linspace(0, 1, len(unique_classes)))
+                                
+                                for i, class_idx in enumerate(unique_classes):
+                                    mask = y_plot == class_idx
+                                    class_name = class_names[class_idx] if class_idx < len(class_names) else f'Clase {class_idx}'
+                                    ax.scatter(X_2d[mask, 0], X_2d[mask, 1], 
+                                             c=[colors[i]], label=class_name, 
+                                             edgecolors='black', s=50, alpha=0.9)
+                            else:
+                                ax.scatter(X_2d[:, 0], X_2d[:, 1], c=y_test, 
+                                         cmap='RdYlBu', edgecolors='black', s=50, alpha=0.9)
+                            
+                            # Configurar etiquetas y título
+                            ax.set_xlabel(feature1, fontsize=12)
+                            ax.set_ylabel(feature2, fontsize=12)
+                            ax.set_title(f'Superficie de Decisión de Red Neuronal\n{feature1} vs {feature2}', fontsize=14)
+                            ax.grid(True, alpha=0.3)
+                            
+                            # Añadir leyenda si hay nombres de clase
+                            if 'nn_class_names' in st.session_state and st.session_state.nn_class_names:
+                                ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+                            
+                            # Añadir colorbar para la superficie
+                            plt.colorbar(contourf, ax=ax, label='Predicción de Clase')
+                            
+                            plt.tight_layout()
+                            st.pyplot(fig)
+                            
+                            # Información adicional
+                            st.success("✅ Superficie de decisión generada exitosamente")
+                            st.info(f"""
+                            🔍 **Información de la visualización:**
+                            - **Características mostradas:** {feature1} vs {feature2}
+                            - **Otras características:** Se mantienen en sus valores promedio
+                            - **Colores de fondo:** Regiones de decisión de la red neuronal
+                            - **Puntos:** Datos reales de prueba
+                            - **Fronteras:** Límites donde la red cambia de decisión
+                            """)
+                            
+                            # Interpretación de la superficie
+                            with st.expander("💡 ¿Cómo interpretar la superficie de decisión?"):
+                                st.markdown("""
+                                **Colores de fondo:**
+                                - Cada color representa una clase diferente que predice la red
+                                - Las transiciones suaves indican fronteras de decisión graduales
+                                - Las transiciones bruscas indican fronteras más definidas
+                                
+                                **Puntos de datos:**
+                                - Muestran dónde están ubicados los datos reales en este espacio 2D
+                                - Puntos del mismo color deberían estar en regiones del mismo color de fondo
+                                - Puntos en la región "incorrecta" indican errores de clasificación
+                                
+                                **Complejidad de las fronteras:**
+                                - Fronteras muy complejas pueden indicar sobreajuste
+                                - Fronteras muy simples pueden indicar subajuste
+                                - Lo ideal son fronteras que capturen el patrón sin ser excesivamente complejas
+                                """)
+                        
+                        except Exception as e:
+                            st.error(f"❌ Error al generar la superficie de decisión: {str(e)}")
+                            st.info("💡 Intenta con diferentes características o verifica que el modelo esté correctamente entrenado.")
+                    
+                    else:
+                        st.warning("⚠️ Por favor selecciona dos características diferentes.")
+                
+                else:
+                    # Dataset con 2 o menos características - mostrar directamente
+                    st.info("🎨 Generando superficie de decisión...")
+                    st.markdown("""
+                    **Superficie de Decisión 2D:**
+                    - Cada color representa una clase predicha
+                    - Los puntos son tus datos de entrenamiento
+                    - Las fronteras muestran cómo la red separa las clases
+                    - Fronteras suaves = red bien generalizada
+                    - Fronteras muy complejas = posible sobreajuste
+                    """)
+                    
+                    # Aquí se podría implementar la visualización directa para datasets 2D
+                    st.info("💡 Implementación completa para datasets 2D próximamente.")
+            
             else:
-                st.warning(f"⚠️ **No disponible**: Tu dataset tiene {config['input_size']} características. "
-                           "La superficie de decisión solo se puede visualizar con 2 características o menos.")
-
+                # Para tareas de regresión
+                st.info("🏔️ **Superficie de Predicción para Regresión**")
                 st.markdown("""
-                **Alternativas para datasets de alta dimensionalidad:**
-                - Usar PCA para reducir a 2D
-                - Seleccionar las 2 características más importantes
-                - Analizar pares de características individualmente
+                Para tareas de regresión, se puede visualizar una superficie de predicción que muestra 
+                cómo varían las predicciones numéricas en el espacio de características.
                 """)
+                
+                if config['input_size'] > 2:
+                    st.markdown("💡 Selecciona 2 características para visualizar la superficie de predicción.")
+                    # Aquí se podría implementar similar lógica para regresión
+                    st.info("🚧 Implementación de superficie de predicción para regresión próximamente.")
+                else:
+                    st.info("🚧 Implementación de superficie de predicción próximamente.")
 
         with viz_tab4:
             st.subheader("📉 Análisis de Capas")
