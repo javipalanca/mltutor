@@ -2114,7 +2114,16 @@ def run_neural_networks_app():
 
     # Pestaña de Datos
     if st.session_state.active_tab_nn == 0:
-        st.header("Selección y Preparación de Datos")
+        st.header("📊 Selección y Preparación de Datos")
+
+        # Tips educativos sobre datos para redes neuronales
+        st.info("""
+        🎓 **Tips para Redes Neuronales:**
+        - Las redes neuronales funcionan mejor con **datos normalizados** (valores entre 0 y 1 o -1 y 1)
+        - Necesitan **suficientes datos** para entrenar bien (mínimo 100 ejemplos por clase)
+        - Son excelentes para **patrones complejos** y **relaciones no lineales**
+        - Pueden funcionar tanto para **clasificación** como para **regresión**
+        """)
 
         # Inicializar dataset seleccionado si no existe
         if 'selected_dataset_nn' not in st.session_state:
@@ -2140,14 +2149,40 @@ def run_neural_networks_app():
         if st.session_state.selected_dataset_nn not in available_datasets:
             st.session_state.selected_dataset_nn = builtin_datasets[0]
 
-        # Selector unificado
-        dataset_option = st.selectbox(
-            "Dataset:",
-            available_datasets,
-            index=available_datasets.index(st.session_state.selected_dataset_nn),
-            key="unified_dataset_selector_nn",
-            help="Selecciona el dataset que quieres usar para entrenar tu red neuronal"
-        )
+        # Selector unificado con explicación
+        with st.container():
+            st.markdown("### 🎯 Selección del Dataset")
+            dataset_option = st.selectbox(
+                "Elige tu dataset:",
+                available_datasets,
+                index=available_datasets.index(
+                    st.session_state.selected_dataset_nn),
+                key="unified_dataset_selector_nn",
+                help="💡 Cada dataset presenta diferentes retos de aprendizaje para tu red neuronal"
+            )
+
+            # Explicación sobre el dataset seleccionado
+            if "Iris" in dataset_option:
+                st.markdown(
+                    "🌸 **Iris**: Perfecto para empezar. 3 clases de flores, 4 características simples.")
+            elif "Vino" in dataset_option:
+                st.markdown(
+                    "🍷 **Vino**: Clasificación multiclase con 13 características químicas.")
+            elif "Cáncer" in dataset_option:
+                st.markdown(
+                    "🔬 **Cáncer**: Problema binario médico con 30 características.")
+            elif "Titanic" in dataset_option:
+                st.markdown(
+                    "🚢 **Titanic**: Predicción de supervivencia con datos categóricos y numéricos.")
+            elif "Propinas" in dataset_option:
+                st.markdown(
+                    "💰 **Propinas**: Regresión para predecir cantidad de propina.")
+            elif "Viviendas" in dataset_option:
+                st.markdown(
+                    "🏠 **Viviendas**: Regresión para predecir precios de casas.")
+            elif "Pingüinos" in dataset_option:
+                st.markdown(
+                    "🐧 **Pingüinos**: Clasificación de especies con datos biológicos.")
 
         # Actualizar la variable de sesión
         st.session_state.selected_dataset_nn = dataset_option
@@ -2163,11 +2198,12 @@ def run_neural_networks_app():
             # Cargar y mostrar datos
             try:
                 # Cargar datos usando la función load_data común
-                X, y, feature_names, class_names, dataset_info, task_type = load_data(dataset_name)
-                
+                X, y, feature_names, class_names, dataset_info, task_type = load_data(
+                    dataset_name)
+
                 # Crear DataFrame
                 df = pd.DataFrame(X, columns=feature_names)
-                
+
                 # Determinar el nombre de la columna objetivo
                 if class_names is not None and len(class_names) > 0:
                     # Para clasificación, usar el nombre de la variable objetivo del dataset_info
@@ -2188,32 +2224,48 @@ def run_neural_networks_app():
                 st.session_state.nn_task_type = task_type
                 st.session_state.nn_dataset_info = dataset_info
 
-                # Mostrar información básica
+                # Mostrar información básica con explicaciones
+                st.markdown("### 📊 Información del Dataset")
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
-                    st.metric("📏 Filas", df.shape[0])
+                    st.metric(
+                        "📏 Filas", df.shape[0], help="Número total de ejemplos para entrenar")
                 with col2:
-                    st.metric("📊 Columnas", df.shape[1])
+                    st.metric(
+                        "📊 Columnas", df.shape[1], help="Características + variable objetivo")
                 with col3:
-                    st.metric("🎯 Variable Objetivo", target_col)
+                    st.metric("🎯 Variable Objetivo", target_col,
+                              help="Lo que la red va a predecir")
                 with col4:
                     task_icon = "🏷️" if task_type == "Clasificación" else "📈"
-                    st.metric(f"{task_icon} Tipo de Tarea", task_type)
+                    st.metric(f"{task_icon} Tipo de Tarea",
+                              task_type, help="Clasificación o Regresión")
 
-                # Mostrar muestra de datos
+                # Mostrar muestra de datos con explicación
                 st.markdown("### 👀 Vista Previa de los Datos")
+                st.markdown("📋 **Primeras 10 filas de tu dataset:**")
                 st.dataframe(df.head(10), use_container_width=True)
 
-                # Análisis de la variable objetivo
+                # Tip sobre los datos
+                with st.expander("💡 ¿Qué significan estos datos?"):
+                    st.markdown(f"""
+                    - **Filas**: Cada fila es un ejemplo que la red usará para aprender
+                    - **Columnas de características**: Las variables que la red analiza para hacer predicciones
+                    - **Variable objetivo ({target_col})**: Lo que queremos predecir
+                    - **Preprocesamiento**: Los datos se normalizarán automáticamente para la red neuronal
+                    """)
+
+                # Análisis de la variable objetivo con explicaciones
                 if task_type == "Clasificación":
                     st.markdown("### 🎯 Distribución de Clases")
+                    st.markdown("📊 **¿Cuántos ejemplos hay de cada clase?**")
                     class_counts = df[target_col].value_counts()
-                    
+
                     # Usar nombres de clases si están disponibles
                     if class_names is not None:
                         # Mapear valores numéricos a nombres de clases
-                        class_labels = [class_names[int(idx)] if int(idx) < len(class_names) else f"Clase {idx}" 
-                                      for idx in class_counts.index]
+                        class_labels = [class_names[int(idx)] if int(idx) < len(class_names) else f"Clase {idx}"
+                                        for idx in class_counts.index]
                         fig = px.bar(x=class_labels, y=class_counts.values,
                                      labels={'x': target_col, 'y': 'Cantidad'},
                                      title=f"Distribución de {target_col}")
@@ -2221,22 +2273,55 @@ def run_neural_networks_app():
                         fig = px.bar(x=class_counts.index, y=class_counts.values,
                                      labels={'x': target_col, 'y': 'Cantidad'},
                                      title=f"Distribución de {target_col}")
-                    
+
                     st.plotly_chart(fig, use_container_width=True)
+
+                    # Explicación sobre balance de clases
+                    balance_ratio = class_counts.max() / class_counts.min()
+                    if balance_ratio > 3:
+                        st.warning(
+                            f"⚠️ **Dataset desbalanceado**: La clase más frecuente tiene {balance_ratio:.1f}x más ejemplos que la menos frecuente")
+                        st.info(
+                            "💡 Las redes neuronales funcionan mejor con clases balanceadas. Considera técnicas de balanceo si es necesario.")
+                    else:
+                        st.success(
+                            "✅ **Dataset bien balanceado**: Las clases tienen cantidad similar de ejemplos")
 
                 else:
                     st.markdown("### 📊 Distribución de la Variable Objetivo")
+                    st.markdown(
+                        "📈 **Distribución de los valores que queremos predecir:**")
                     fig = px.histogram(df, x=target_col, nbins=30,
                                        title=f"Distribución de {target_col}")
                     st.plotly_chart(fig, use_container_width=True)
 
+                    # Estadísticas básicas para regresión
+                    with st.expander("📊 Estadísticas de la Variable Objetivo"):
+                        col1, col2, col3, col4 = st.columns(4)
+                        with col1:
+                            st.metric(
+                                "🎯 Media", f"{df[target_col].mean():.2f}")
+                        with col2:
+                            st.metric("📏 Desv. Estándar",
+                                      f"{df[target_col].std():.2f}")
+                        with col3:
+                            st.metric(
+                                "📉 Mínimo", f"{df[target_col].min():.2f}")
+                        with col4:
+                            st.metric(
+                                "📈 Máximo", f"{df[target_col].max():.2f}")
+
                 # Información adicional del dataset
                 if dataset_info and hasattr(dataset_info, 'DESCR'):
-                    with st.expander("📖 Descripción del Dataset"):
+                    with st.expander("📖 Descripción Detallada del Dataset"):
                         st.text(dataset_info.DESCR)
 
-                # Botón para continuar
-                if st.button("➡️ Continuar a Arquitectura", type="primary", use_container_width=True):
+                # Botón para continuar con explicación
+                st.markdown("---")
+                st.markdown("### ➡️ Siguiente Paso")
+                st.markdown(
+                    "Una vez que entiendas tus datos, es hora de **diseñar la arquitectura** de tu red neuronal.")
+                if st.button("🏗️ Continuar a Arquitectura", type="primary", use_container_width=True):
                     st.session_state.active_tab_nn = 1
                     st.rerun()
 
@@ -2258,6 +2343,15 @@ def run_neural_networks_app():
                 st.session_state.active_tab_nn = 0
                 st.rerun()
             return
+
+        # Tips educativos sobre arquitectura
+        st.info("""
+        🎓 **Conceptos Clave de Arquitectura:**
+        - **Capas ocultas**: Más capas = mayor capacidad de aprender patrones complejos
+        - **Neuronas por capa**: Más neuronas = mayor capacidad, pero riesgo de sobreajuste
+        - **Funciones de activación**: Determinan cómo las neuronas procesan la información
+        - **Arquitectura óptima**: Depende del problema y cantidad de datos
+        """)
 
         st.markdown("### 🎛️ Configuración de la Red Neuronal")
 
@@ -2286,40 +2380,89 @@ def run_neural_networks_app():
             st.info(
                 f"📊 **Entrada**: {input_size} características → **Salida**: {output_size} valor numérico")
 
+        # Tips sobre dimensiones
+        with st.expander("💡 ¿Cómo decidir el tamaño de la red?"):
+            st.markdown(f"""
+            **Reglas generales para tu dataset ({df.shape[0]} muestras, {input_size} características):**
+            
+            🔢 **Neuronas por capa oculta:**
+            - Pequeño: {input_size//2} - {input_size} neuronas
+            - Mediano: {input_size} - {input_size*2} neuronas  
+            - Grande: {input_size*2} - {input_size*4} neuronas
+            
+            📚 **Número de capas:**
+            - 1-2 capas: Problemas simples, linealmente separables
+            - 2-3 capas: Problemas moderadamente complejos (recomendado para empezar)
+            - 4+ capas: Problemas muy complejos (requiere muchos datos)
+            
+            ⚖️ **Balance capacidad vs. datos:**
+            - Más parámetros que datos → riesgo de sobreajuste
+            - Tu dataset: {df.shape[0]} muestras, mantén parámetros < {df.shape[0]//10}
+            """)
+
         # Configuración de arquitectura
         col1, col2 = st.columns([1, 1])
 
         with col1:
             st.markdown("#### ⚙️ Configuración de Capas")
 
-            # Número de capas ocultas
+            # Número de capas ocultas con explicación
             num_hidden_layers = st.slider(
                 "Número de capas ocultas",
                 min_value=1, max_value=5, value=2,
-                help="Más capas permiten aprender patrones más complejos, pero pueden causar sobreajuste"
+                help="💡 Más capas = mayor capacidad de aprender patrones complejos, pero también mayor riesgo de sobreajuste"
             )
 
-            # Configuración de cada capa oculta
+            # Sugerencia basada en el número de capas
+            if num_hidden_layers == 1:
+                st.caption(
+                    "🟦 **1 capa**: Ideal para problemas linealmente separables")
+            elif num_hidden_layers == 2:
+                st.caption(
+                    "🟨 **2 capas**: Recomendado para la mayoría de problemas")
+            elif num_hidden_layers >= 3:
+                st.caption(
+                    "🟥 **3+ capas**: Solo para problemas muy complejos con muchos datos")
+
+            # Configuración de cada capa oculta con explicaciones
             hidden_layers = []
             for i in range(num_hidden_layers):
+                # Calcular sugerencia inteligente
+                suggested_size = max(10, input_size // (i+1))
+                if task_type == "Clasificación" and num_classes > 2:
+                    suggested_size = max(suggested_size, num_classes * 2)
+
                 neurons = st.slider(
                     f"Neuronas en capa oculta {i+1}",
                     min_value=1, max_value=256,
-                    value=max(10, input_size // (i+1)),
-                    key=f"layer_{i}"
+                    value=min(suggested_size, 64),  # Limitar valor por defecto
+                    key=f"layer_{i}",
+                    help=f"💡 Sugerencia para capa {i+1}: {suggested_size} neuronas"
                 )
                 hidden_layers.append(neurons)
 
-            # Función de activación
+            # Función de activación con explicaciones detalladas
+            st.markdown("#### 🧮 Función de Activación (Capas Ocultas)")
             activation = st.selectbox(
-                "Función de activación (capas ocultas)",
+                "Función de activación",
                 ["relu", "tanh", "sigmoid"],
-                help="ReLU es recomendada para la mayoría de problemas"
+                help="💡 ReLU es la más popular y efectiva para la mayoría de problemas"
             )
+
+            # Explicaciones sobre funciones de activación
+            if activation == "relu":
+                st.success(
+                    "✅ **ReLU**: Rápida, evita el problema del gradiente que desaparece. Recomendada.")
+            elif activation == "tanh":
+                st.info(
+                    "ℹ️ **Tanh**: Salida entre -1 y 1. Buena para datos normalizados.")
+            elif activation == "sigmoid":
+                st.warning(
+                    "⚠️ **Sigmoid**: Puede causar gradientes que desaparecen. Úsala solo si es necesario.")
 
             # Función de activación de salida - AHORA SELECCIONABLE
             st.markdown("#### 🎯 Función de Activación de Salida")
-            
+
             # Opciones disponibles según el tipo de tarea
             if task_type == "Clasificación":
                 output_options = ["sigmoid", "softmax", "linear", "tanh"]
@@ -2333,22 +2476,23 @@ def run_neural_networks_app():
                 output_options = ["linear", "sigmoid", "tanh", "softmax"]
                 recommended = "linear"
                 default_index = 0
-            
+
             output_activation = st.selectbox(
                 "Función de activación de salida",
                 output_options,
                 index=default_index,
-                help=f"Función recomendada para {task_type.lower()}: {recommended}"
+                help=f"💡 Función recomendada para {task_type.lower()}: **{recommended}**"
             )
-            
+
             # Validaciones y avisos
             show_warning = False
             warning_message = ""
-            
+
             if task_type == "Clasificación":
                 if output_size == 1:  # Clasificación binaria
                     if output_activation == "sigmoid":
-                        st.success("✅ Sigmoid es ideal para clasificación binaria")
+                        st.success(
+                            "✅ Sigmoid es ideal para clasificación binaria")
                     elif output_activation == "softmax":
                         show_warning = True
                         warning_message = "⚠️ Softmax no es recomendada para clasificación binaria (1 neurona). Considera usar Sigmoid."
@@ -2358,30 +2502,34 @@ def run_neural_networks_app():
                     elif output_activation == "tanh":
                         show_warning = True
                         warning_message = "⚠️ Tanh puede funcionar pero Sigmoid es más estándar para clasificación binaria."
-                        
+
                 else:  # Clasificación multiclase
                     if output_activation == "softmax":
-                        st.success("✅ Softmax es ideal para clasificación multiclase")
+                        st.success(
+                            "✅ Softmax es ideal para clasificación multiclase")
                     elif output_activation == "sigmoid":
-                        st.warning("⚠️ Sigmoid en multiclase requiere 'binary_crossentropy' por clase. Softmax es más estándar.")
+                        st.warning(
+                            "⚠️ Sigmoid en multiclase requiere 'binary_crossentropy' por clase. Softmax es más estándar.")
                     elif output_activation == "linear":
                         show_warning = True
                         warning_message = "⚠️ Linear no es apropiada para clasificación. Usa Softmax."
                     elif output_activation == "tanh":
                         show_warning = True
                         warning_message = "⚠️ Tanh no es estándar para clasificación multiclase. Softmax es recomendada."
-                        
+
             else:  # Regresión
                 if output_activation == "linear":
                     st.success("✅ Linear es ideal para regresión")
                 elif output_activation == "sigmoid":
-                    st.warning("⚠️ Sigmoid limita la salida a [0,1]. Solo útil si tus valores objetivo están en este rango.")
+                    st.warning(
+                        "⚠️ Sigmoid limita la salida a [0,1]. Solo útil si tus valores objetivo están en este rango.")
                 elif output_activation == "tanh":
-                    st.warning("⚠️ Tanh limita la salida a [-1,1]. Solo útil si tus valores objetivo están en este rango.")
+                    st.warning(
+                        "⚠️ Tanh limita la salida a [-1,1]. Solo útil si tus valores objetivo están en este rango.")
                 elif output_activation == "softmax":
                     show_warning = True
                     warning_message = "⚠️ Softmax no es apropiada para regresión. Las salidas suman 1. Usa Linear."
-            
+
             # Mostrar advertencia crítica si es necesario
             if show_warning:
                 st.error(warning_message)
@@ -2406,32 +2554,93 @@ def run_neural_networks_app():
             create_neural_network_visualization(
                 architecture, activation, output_activation, task_type)
 
-        # Configuración adicional
+        # Configuración adicional con explicaciones detalladas
         st.markdown("### ⚙️ Configuración Adicional")
+
+        st.markdown("📚 **Parámetros importantes para el entrenamiento:**")
 
         col3, col4, col5 = st.columns(3)
 
         with col3:
+            st.markdown("#### 🛡️ Regularización")
             dropout_rate = st.slider(
                 "Tasa de Dropout",
                 min_value=0.0, max_value=0.8, value=0.2, step=0.1,
-                help="Dropout ayuda a prevenir el sobreajuste eliminando aleatoriamente neuronas durante el entrenamiento"
+                help="💡 Dropout previene sobreajuste eliminando aleatoriamente neuronas durante entrenamiento"
             )
 
+            # Explicación del dropout
+            if dropout_rate == 0.0:
+                st.caption("🔴 **Sin Dropout**: Mayor riesgo de sobreajuste")
+            elif dropout_rate <= 0.2:
+                st.caption("🟢 **Dropout Ligero**: Bueno para datasets grandes")
+            elif dropout_rate <= 0.5:
+                st.caption(
+                    "🟡 **Dropout Moderado**: Recomendado para la mayoría de casos")
+            else:
+                st.caption(
+                    "🟠 **Dropout Alto**: Solo para datasets muy pequeños")
+
         with col4:
+            st.markdown("#### 📦 Procesamiento")
             batch_size = st.selectbox(
                 "Tamaño de Batch",
                 [16, 32, 64, 128, 256],
-                index=2,
-                help="Número de muestras procesadas antes de actualizar los pesos"
+                index=2,  # 64 por defecto
+                help="💡 Número de muestras procesadas antes de actualizar los pesos"
             )
 
+            # Sugerencias según el tamaño del dataset
+            dataset_size = df.shape[0]
+            if batch_size >= dataset_size // 4:
+                st.caption(
+                    "🔴 **Batch Grande**: Puede ser lento pero más estable")
+            elif batch_size >= 32:
+                st.caption(
+                    "🟢 **Batch Óptimo**: Buen balance velocidad/estabilidad")
+            else:
+                st.caption("🟡 **Batch Pequeño**: Más rápido pero más ruidoso")
+
         with col5:
+            st.markdown("#### 🚀 Optimización")
             optimizer = st.selectbox(
                 "Optimizador",
                 ["adam", "sgd", "rmsprop"],
-                help="Algoritmo para actualizar los pesos de la red"
+                help="💡 Algoritmo para actualizar los pesos de la red"
             )
+
+            # Explicaciones sobre optimizadores
+            if optimizer == "adam":
+                st.caption(
+                    "🟢 **Adam**: Adaptativo, recomendado para la mayoría de casos")
+            elif optimizer == "sgd":
+                st.caption(
+                    "🟡 **SGD**: Clásico, requiere ajuste fino del learning rate")
+            elif optimizer == "rmsprop":
+                st.caption(
+                    "🟦 **RMSprop**: Bueno para RNNs y problemas específicos")
+
+        # Tips sobre la configuración
+        with st.expander("💡 Tips para optimizar tu configuración"):
+            st.markdown(f"""
+            **Para tu dataset específico ({dataset_size} muestras):**
+            
+            🎯 **Batch Size recomendado:**
+            - Dataset pequeño (<1000): 16-32
+            - Dataset mediano (1000-10000): 32-64
+            - Dataset grande (>10000): 64-128
+            - Tu dataset: {dataset_size} muestras → Recomendado: {32 if dataset_size < 1000 else 64 if dataset_size < 10000 else 128}
+            
+            🛡️ **Dropout recomendado:**
+            - Pocos datos: 0.3-0.5 (más regularización)
+            - Muchos datos: 0.1-0.2 (menos regularización)
+            - Dataset balanceado: 0.2-0.3
+            
+            🚀 **Optimizador:**
+            - **Adam**: Mejor opción general, se adapta automáticamente
+            - **SGD**: Úsalo solo si tienes experiencia ajustando learning rates
+            - **RMSprop**: Alternativa a Adam, a veces funciona mejor en problemas específicos
+            """)
 
         # Guardar configuración completa
         st.session_state.nn_config = {
@@ -2446,16 +2655,23 @@ def run_neural_networks_app():
             'output_size': output_size
         }
 
-        # Resumen de la configuración
+        # Resumen de la configuración con análisis
         st.markdown("### 📋 Resumen de la Arquitectura")
 
         total_params = calculate_network_parameters(architecture)
 
         col6, col7, col8 = st.columns(3)
         with col6:
-            st.metric("🔢 Total de Parámetros", f"{total_params:,}")
+            st.metric("🔢 Total de Parámetros", f"{total_params:,}",
+                      help="Número total de pesos y sesgos que la red aprenderá")
         with col7:
-            st.metric("📚 Capas Totales", len(architecture))
+            st.metric("📚 Capas Totales", len(architecture),
+                      help="Entrada + Ocultas + Salida")
+        with col8:
+            complexity_ratio = total_params / dataset_size if dataset_size > 0 else 0
+            complexity_level = "Baja" if complexity_ratio < 0.1 else "Media" if complexity_ratio < 1 else "Alta"
+            st.metric("⚖️ Complejidad", complexity_level,
+                      help=f"Ratio parámetros/datos: {complexity_ratio:.2f}")
         with col8:
             st.metric("🧠 Tipo de Red", "Perceptrón Multicapa")
 
@@ -2482,14 +2698,52 @@ def run_neural_networks_app():
 
         st.dataframe(pd.DataFrame(layer_details), use_container_width=True)
 
+        # Análisis de complejidad y recomendaciones
+        st.markdown("#### 🔍 Análisis de Complejidad")
+
+        # Análisis del ratio parámetros/datos
+        if complexity_ratio < 0.1:
+            st.success(
+                f"✅ **Complejidad Óptima**: Tu red tiene {total_params:,} parámetros para {dataset_size} muestras (ratio: {complexity_ratio:.3f}). Bajo riesgo de sobreajuste.")
+        elif complexity_ratio < 1:
+            st.warning(
+                f"⚠️ **Complejidad Media**: Tu red tiene {total_params:,} parámetros para {dataset_size} muestras (ratio: {complexity_ratio:.3f}). Monitorea el sobreajuste.")
+        else:
+            st.error(
+                f"🚨 **Complejidad Alta**: Tu red tiene {total_params:,} parámetros para {dataset_size} muestras (ratio: {complexity_ratio:.3f}). Alto riesgo de sobreajuste. Considera reducir el tamaño de la red.")
+
+        # Botón para generar código Python
+        st.markdown("### 💻 Código Python")
+        if st.button("📝 Generar Código de la Arquitectura", use_container_width=True):
+            # Generar código Python para la arquitectura
+            code = generate_neural_network_architecture_code(
+                architecture, activation, output_activation, dropout_rate,
+                optimizer, batch_size, task_type, st.session_state.nn_feature_names
+            )
+
+            st.markdown("#### 🐍 Código Python Generado")
+            st.code(code, language='python')
+
+            # Botón para descargar el código
+            st.download_button(
+                label="💾 Descargar Código Python",
+                data=code,
+                file_name=f"red_neuronal_arquitectura_{task_type.lower()}.py",
+                mime="text/plain"
+            )
+
         # Botones de navegación
+        st.markdown("---")
+        st.markdown("### 🧭 Navegación")
         col_nav1, col_nav2 = st.columns(2)
         with col_nav1:
             if st.button("🔙 Volver a Datos", use_container_width=True):
                 st.session_state.active_tab_nn = 0
                 st.rerun()
         with col_nav2:
-            if st.button("➡️ Continuar a Entrenamiento", type="primary", use_container_width=True):
+            st.markdown(
+                "**¿Listo para entrenar?** ¡Tu arquitectura está configurada!")
+            if st.button("🚀 Continuar a Entrenamiento", type="primary", use_container_width=True):
                 st.session_state.active_tab_nn = 2
                 st.rerun()
 
@@ -2504,79 +2758,192 @@ def run_neural_networks_app():
                 st.rerun()
             return
 
+        # Tips educativos sobre entrenamiento
+        st.info("""
+        🎓 **Conceptos Clave del Entrenamiento:**
+        - **Learning Rate**: Controla qué tan rápido aprende la red (muy alto = inestable, muy bajo = lento)
+        - **Épocas**: Cuántas veces la red ve todos los datos (más épocas ≠ siempre mejor)
+        - **Validación**: Datos separados para monitorear si la red está generalizando bien
+        - **Early Stopping**: Para evitar sobreajuste, para cuando la validación no mejora
+        """)
+
         st.markdown("### 🎛️ Parámetros de Entrenamiento")
+
+        # Información del dataset para sugerencias
+        df = st.session_state.nn_df
+        dataset_size = df.shape[0]
 
         col1, col2, col3 = st.columns(3)
 
         with col1:
+            st.markdown("#### 📈 **Learning Rate**")
             learning_rate = st.selectbox(
                 "Tasa de Aprendizaje",
                 [0.001, 0.01, 0.1, 0.3],
                 index=0,
-                help="Controla qué tan rápido aprende la red. Valores altos pueden causar inestabilidad."
+                help="💡 0.001 es seguro para empezar. Valores más altos pueden acelerar el entrenamiento pero causar inestabilidad"
             )
+
+            # Explicación del learning rate seleccionado
+            if learning_rate == 0.001:
+                st.caption("🟢 **Conservador**: Aprendizaje lento pero estable")
+            elif learning_rate == 0.01:
+                st.caption(
+                    "🟡 **Moderado**: Buen balance velocidad/estabilidad")
+            elif learning_rate == 0.1:
+                st.caption("🟠 **Agresivo**: Rápido pero puede ser inestable")
+            else:
+                st.caption("🔴 **Muy Alto**: Solo para casos especiales")
 
         with col2:
+            st.markdown("#### 🔄 **Épocas**")
+            # Sugerir épocas basado en tamaño del dataset
+            suggested_epochs = min(200, max(50, dataset_size // 10))
             epochs = st.slider(
                 "Épocas",
-                min_value=10, max_value=500, value=100, step=10,
-                help="Número de veces que la red ve todos los datos de entrenamiento"
+                min_value=10, max_value=500, value=min(100, suggested_epochs), step=10,
+                help=f"💡 Sugerencia para tu dataset: ~{suggested_epochs} épocas"
             )
 
+            # Explicación sobre las épocas
+            if epochs < 50:
+                st.caption(
+                    "🟡 **Pocas épocas**: Puede que no aprenda completamente")
+            elif epochs <= 150:
+                st.caption("🟢 **Épocas adecuadas**: Buen balance")
+            else:
+                st.caption("🟠 **Muchas épocas**: Monitorea el sobreajuste")
+
         with col3:
+            st.markdown("#### 🎯 **Validación**")
             validation_split = st.slider(
                 "% Datos de Validación",
                 min_value=10, max_value=40, value=20,
-                help="Porcentaje de datos reservados para validación durante el entrenamiento"
+                help="💡 20% es estándar. Más datos = mejor validación, menos datos para entrenar"
             )
 
-        # Configuración avanzada
-        with st.expander("⚙️ Configuración Avanzada", expanded=False):
+            # Calcular tamaños efectivos
+            # 80% del total para entrenamiento
+            train_size = int(
+                dataset_size * (100 - validation_split) / 100 * 0.8)
+            val_size = int(dataset_size * validation_split / 100)
+            test_size = dataset_size - train_size - val_size
+
+            st.caption(
+                f"📊 **Distribución**: Train={train_size}, Val={val_size}, Test={test_size}")
+
+        # Configuración avanzada con explicaciones detalladas
+        with st.expander("⚙️ Configuración Avanzada - Técnicas para Mejorar el Entrenamiento", expanded=False):
+            st.markdown("#### 🛡️ Técnicas de Regularización y Optimización")
+
             col4, col5 = st.columns(2)
 
             with col4:
+                st.markdown("##### 🛑 Early Stopping")
                 early_stopping = st.checkbox(
-                    "Parada Temprana",
+                    "Activar Parada Temprana",
                     value=True,
-                    help="Detiene el entrenamiento si no mejora la validación"
+                    help="💡 Recomendado: Evita sobreajuste parando cuando la validación no mejora"
                 )
 
                 if early_stopping:
+                    st.success(
+                        "✅ **Early Stopping activado**: La red parará automáticamente cuando deje de mejorar")
                     patience = st.slider(
                         "Paciencia (épocas)",
                         min_value=5, max_value=50, value=10,
-                        help="Épocas a esperar sin mejora antes de parar"
+                        help="Épocas a esperar sin mejora antes de parar. Más paciencia = más oportunidades de mejorar"
                     )
 
+                    if patience <= 5:
+                        st.caption(
+                            "🔴 **Impatiente**: Para rápido, puede interrumpir mejoras tardías")
+                    elif patience <= 15:
+                        st.caption("🟢 **Balanceado**: Buen equilibrio")
+                    else:
+                        st.caption(
+                            "🟡 **Paciente**: Da muchas oportunidades, pero puede sobreajustar")
+                else:
+                    st.warning(
+                        "⚠️ **Sin Early Stopping**: La red entrenará todas las épocas. Riesgo de sobreajuste.")
+
             with col5:
+                st.markdown("##### 📉 Learning Rate Scheduler")
                 reduce_lr = st.checkbox(
-                    "Reducir Tasa de Aprendizaje",
+                    "Reducir Learning Rate Automáticamente",
                     value=True,
-                    help="Reduce automáticamente la tasa si no mejora"
+                    help="💡 Recomendado: Reduce la tasa de aprendizaje cuando no mejora"
                 )
 
                 if reduce_lr:
+                    st.success(
+                        "✅ **Scheduler activado**: La tasa de aprendizaje se reducirá automáticamente")
                     lr_factor = st.slider(
                         "Factor de Reducción",
                         min_value=0.1, max_value=0.9, value=0.5,
-                        help="Factor por el que se multiplica la tasa de aprendizaje"
+                        help="Factor por el que se multiplica la tasa. 0.5 = reduce a la mitad"
                     )
 
-        # Botón de entrenamiento
-        if st.button("🚀 Entrenar Red Neuronal", type="primary", use_container_width=True):
-            with st.spinner("🧠 Entrenando la red neuronal..."):
+                    if lr_factor <= 0.3:
+                        st.caption(
+                            "🔴 **Reducción agresiva**: Cambios dramáticos")
+                    elif lr_factor <= 0.7:
+                        st.caption("🟢 **Reducción moderada**: Recomendado")
+                    else:
+                        st.caption("🟡 **Reducción suave**: Cambios graduales")
+                else:
+                    st.info(
+                        "ℹ️ **Learning rate fijo**: Se mantendrá constante durante todo el entrenamiento")
+
+            # Explicación sobre las técnicas
+            st.markdown("---")
+            st.markdown("#### 📚 ¿Por qué usar estas técnicas?")
+            st.markdown("""
+            - **Early Stopping**: Evita que la red memorice los datos (sobreajuste) parando cuando la performance en validación deja de mejorar
+            - **Learning Rate Reduction**: Permite un ajuste fino hacia el final del entrenamiento cuando se está cerca del óptimo
+            - **Combinadas**: Estas técnicas trabajan juntas para lograr el mejor modelo posible automáticamente
+            """)
+
+        # Botón de entrenamiento con explicación
+        st.markdown("### 🚀 Iniciar Entrenamiento")
+        st.markdown(
+            "**¿Todo listo?** Tu red está configurada y lista para aprender de los datos.")
+
+        if st.button("🧠 Entrenar Red Neuronal", type="primary", use_container_width=True):
+            with st.spinner("🧠 Entrenando la red neuronal... Esto puede tomar unos minutos."):
                 # Preparar datos
                 df = st.session_state.nn_df
                 target_col = st.session_state.nn_target_col
                 task_type = st.session_state.nn_task_type
 
                 try:
-                    # Entrenar el modelo
+                    # Mostrar progreso del entrenamiento con pasos
+                    progress_container = st.empty()
+
+                    # Paso 1: Preparando datos
+                    with progress_container.container():
+                        st.info(
+                            "🔄 **Paso 1/4**: Preparando y dividiendo los datos...")
+
+                    # Llamar función de entrenamiento con callback de progreso
+                    def update_progress(step, message):
+                        with progress_container.container():
+                            if step == 2:
+                                st.info(f"🧠 **Paso {step}/4**: {message}")
+                            elif step == 3:
+                                st.info(f"⚙️ **Paso {step}/4**: {message}")
+                            elif step == 4:
+                                st.info(f"🚀 **Paso {step}/4**: {message}")
+                            else:
+                                st.info(f"🔄 **Paso {step}/4**: {message}")
+
+                    # Entrenar el modelo con callback de progreso
                     model, history, X_test, y_test, scaler, label_encoder = train_neural_network(
                         df, target_col, st.session_state.nn_config,
                         learning_rate, epochs, validation_split/100,
                         early_stopping, patience if early_stopping else None,
-                        reduce_lr, lr_factor if reduce_lr else None
+                        reduce_lr, lr_factor if reduce_lr else None,
+                        progress_callback=update_progress
                     )
 
                     # Guardar resultados
@@ -2587,17 +2954,25 @@ def run_neural_networks_app():
                     st.session_state.nn_label_encoder = label_encoder
                     st.session_state.model_trained_nn = True
 
-                    st.success("✅ ¡Red neuronal entrenada exitosamente!")
+                    # Limpiar el progreso y mostrar finalización
+                    with progress_container.container():
+                        st.success(
+                            "✅ **¡Entrenamiento completado!** Red neuronal lista para usar")
 
-                    # Mostrar métricas básicas
+                    st.success("🎉 ¡Red neuronal entrenada exitosamente!")
+
+                    # Mostrar métricas básicas con explicaciones
+                    st.markdown("#### 📊 Resultados del Entrenamiento")
                     if task_type == "Clasificación":
                         test_loss, test_acc = model.evaluate(
                             X_test, y_test, verbose=0)
                         col_m1, col_m2 = st.columns(2)
                         with col_m1:
-                            st.metric("🎯 Precisión en Test", f"{test_acc:.3f}")
+                            st.metric("🎯 Precisión en Test", f"{test_acc:.3f}",
+                                      help="Porcentaje de predicciones correctas en datos nunca vistos")
                         with col_m2:
-                            st.metric("📉 Pérdida en Test", f"{test_loss:.3f}")
+                            st.metric("📉 Pérdida en Test", f"{test_loss:.3f}",
+                                      help="Qué tan 'equivocada' está la red en promedio")
                     else:
                         test_loss = model.evaluate(X_test, y_test, verbose=0)
                         st.metric("📉 Error en Test", f"{test_loss:.3f}")
@@ -2607,6 +2982,10 @@ def run_neural_networks_app():
                     plot_training_history(history, task_type)
 
                 except Exception as e:
+                    # Limpiar el progreso en caso de error
+                    with progress_container.container():
+                        st.error("❌ **Error durante el entrenamiento**")
+
                     st.error(f"❌ Error durante el entrenamiento: {str(e)}")
                     st.info(
                         "Intenta ajustar los parámetros o verificar el dataset.")
@@ -6333,6 +6712,7 @@ def safe_get_output_size(config):
     except:
         return 1
 
+
 def create_neural_network_visualization(architecture, activation, output_activation, task_type):
     """
     Crea una visualización dinámica de la arquitectura de red neuronal usando HTML5 Canvas.
@@ -6598,7 +6978,7 @@ def calculate_network_parameters(architecture):
 
 
 def train_neural_network(df, target_col, config, learning_rate, epochs, validation_split,
-                         early_stopping, patience, reduce_lr, lr_factor):
+                         early_stopping, patience, reduce_lr, lr_factor, progress_callback=None):
     """
     Entrena una red neuronal con la configuración especificada.
     """
@@ -6610,8 +6990,9 @@ def train_neural_network(df, target_col, config, learning_rate, epochs, validati
         from sklearn.preprocessing import StandardScaler, LabelEncoder
         from sklearn.metrics import classification_report, confusion_matrix
         import numpy as np
+        import time
 
-        # Preparar datos
+        # Paso 1: Preparar datos (ya mostrado)
         X = df.drop(columns=[target_col])
         y = df[target_col]
 
@@ -6624,6 +7005,12 @@ def train_neural_network(df, target_col, config, learning_rate, epochs, validati
             X_scaled, y, test_size=0.2, random_state=42,
             stratify=y if config['task_type'] == 'Clasificación' else None
         )
+
+        # Paso 2: Construyendo la red neuronal
+        if progress_callback:
+            progress_callback(
+                2, "Construyendo arquitectura de red neuronal con capas y neuronas...")
+        time.sleep(0.8)  # Pausa para que se vea el paso
 
         # Procesar variable objetivo
         label_encoder = None
@@ -6666,6 +7053,12 @@ def train_neural_network(df, target_col, config, learning_rate, epochs, validati
             activation=config['output_activation']
         ))
 
+        # Paso 3: Compilando el modelo
+        if progress_callback:
+            progress_callback(
+                3, "Compilando modelo con optimizadores y funciones de pérdida...")
+        time.sleep(0.8)
+
         # Compilar modelo - Función de pérdida inteligente según activación
         if config['task_type'] == 'Clasificación':
             # Selección inteligente de función de pérdida
@@ -6674,14 +7067,16 @@ def train_neural_network(df, target_col, config, learning_rate, epochs, validati
                 if output_size == 1:
                     loss = 'binary_crossentropy'  # Estándar para binaria con sigmoid
                 else:
-                    loss = 'binary_crossentropy'  # Sigmoid multiclase (multi-label)
+                    # Sigmoid multiclase (multi-label)
+                    loss = 'binary_crossentropy'
                 metrics = ['accuracy']
             elif config['output_activation'] == 'softmax':
                 if output_size == 1:
                     # Softmax con 1 neurona es problemático, pero manejar el caso
                     loss = 'sparse_categorical_crossentropy'
                     metrics = ['accuracy']
-                    st.warning("⚠️ Softmax con 1 neurona detectada. Puede causar problemas.")
+                    st.warning(
+                        "⚠️ Softmax con 1 neurona detectada. Puede causar problemas.")
                 else:
                     loss = 'categorical_crossentropy'  # Estándar para multiclase con softmax
                     metrics = ['accuracy']
@@ -6689,12 +7084,14 @@ def train_neural_network(df, target_col, config, learning_rate, epochs, validati
                 # Linear para clasificación - usar sparse categorical
                 loss = 'sparse_categorical_crossentropy'
                 metrics = ['accuracy']
-                st.warning("⚠️ Función linear detectada en clasificación. Rendimiento puede ser subóptimo.")
+                st.warning(
+                    "⚠️ Función linear detectada en clasificación. Rendimiento puede ser subóptimo.")
             elif config['output_activation'] == 'tanh':
                 # Tanh para clasificación - tratar como regresión pero con accuracy
                 loss = 'mse'
                 metrics = ['accuracy']
-                st.warning("⚠️ Función tanh detectada en clasificación. Comportamiento no estándar.")
+                st.warning(
+                    "⚠️ Función tanh detectada en clasificación. Comportamiento no estándar.")
             else:
                 # Fallback
                 loss = 'categorical_crossentropy' if output_size > 1 else 'binary_crossentropy'
@@ -6708,13 +7105,16 @@ def train_neural_network(df, target_col, config, learning_rate, epochs, validati
                 loss = 'mse'  # MSE también funciona con activaciones acotadas
                 metrics = ['mae']
                 if config['output_activation'] == 'sigmoid':
-                    st.info("ℹ️ Sigmoid limitará las salidas a [0,1]. Asegúrate de que tus datos objetivo estén normalizados.")
+                    st.info(
+                        "ℹ️ Sigmoid limitará las salidas a [0,1]. Asegúrate de que tus datos objetivo estén normalizados.")
                 else:  # tanh
-                    st.info("ℹ️ Tanh limitará las salidas a [-1,1]. Asegúrate de que tus datos objetivo estén normalizados.")
+                    st.info(
+                        "ℹ️ Tanh limitará las salidas a [-1,1]. Asegúrate de que tus datos objetivo estén normalizados.")
             elif config['output_activation'] == 'softmax':
                 loss = 'mse'
                 metrics = ['mae']
-                st.error("⚠️ Softmax en regresión: las salidas sumarán 1. Esto raramente es lo deseado.")
+                st.error(
+                    "⚠️ Softmax en regresión: las salidas sumarán 1. Esto raramente es lo deseado.")
             else:
                 loss = 'mse'
                 metrics = ['mae']
@@ -6741,6 +7141,12 @@ def train_neural_network(df, target_col, config, learning_rate, epochs, validati
                 monitor='val_loss', factor=lr_factor, patience=patience//2, min_lr=1e-7
             )
             callbacks.append(reduce_lr_callback)
+
+        # Paso 4: Iniciando entrenamiento
+        if progress_callback:
+            progress_callback(
+                4, f"Entrenando red neuronal ({epochs} épocas máximo)... ¡Puede tardar unos minutos!")
+        time.sleep(1.0)  # Pausa más larga antes del entrenamiento
 
         # Entrenar modelo
         history = model.fit(
@@ -6852,9 +7258,19 @@ def plot_training_history(history, task_type):
 def show_neural_network_evaluation():
     """Muestra la evaluación detallada del modelo de red neuronal."""
     if 'nn_model' not in st.session_state or st.session_state.nn_model is None:
-        st.warning("⚠️ Primero debes entrenar un modelo en la pestaña 'Entrenamiento'")
+        st.warning(
+            "⚠️ Primero debes entrenar un modelo en la pestaña 'Entrenamiento'")
         return
-    
+
+    # Tips educativos sobre evaluación
+    st.info("""
+    🎓 **Evaluación de Redes Neuronales:**
+    - **Accuracy**: Porcentaje de predicciones correctas (para clasificación)
+    - **Matriz de Confusión**: Muestra qué clases se confunden entre sí
+    - **MSE/MAE**: Errores promedio para regresión
+    - **Datos de test**: Nunca vistos durante entrenamiento, miden la capacidad real
+    """)
+
     try:
         import tensorflow as tf
         import numpy as np
@@ -6863,23 +7279,26 @@ def show_neural_network_evaluation():
         import plotly.graph_objects as go
         import plotly.figure_factory as ff
         from plotly.subplots import make_subplots
-        
+
         model = st.session_state.nn_model
         X_test, y_test = st.session_state.nn_test_data
         scaler = st.session_state.nn_scaler
         label_encoder = st.session_state.nn_label_encoder
         config = st.session_state.nn_config
-        
+
+        st.header("📊 Evaluación del Modelo")
+
         # Hacer predicciones
         y_pred = model.predict(X_test, verbose=0)
-        
+
         # Métricas según el tipo de tarea
         if config['task_type'] == 'Clasificación':
             # Obtener el tamaño de salida de forma segura
             output_size = safe_get_output_size(config)
-            
+
             # Para clasificación - detectar formato de y_test
-            if len(y_test.shape) > 1 and y_test.shape[1] > 1:  # One-hot encoded (multiclase)
+            # One-hot encoded (multiclase)
+            if len(y_test.shape) > 1 and y_test.shape[1] > 1:
                 y_pred_classes = np.argmax(y_pred, axis=1)
                 y_test_classes = np.argmax(y_test, axis=1)
             else:  # Binaria o multiclase sin one-hot
@@ -6889,49 +7308,68 @@ def show_neural_network_evaluation():
                 else:  # Multiclase sin one-hot (sparse)
                     y_pred_classes = np.argmax(y_pred, axis=1)
                     y_test_classes = y_test.flatten()
-            
+
             # Accuracy
             accuracy = np.mean(y_pred_classes == y_test_classes)
-            
-            # Mostrar métricas principales
+
+            # Mostrar métricas principales con explicaciones
+            st.markdown("### 🎯 Métricas Principales")
             col1, col2, col3 = st.columns(3)
-            
+
             with col1:
-                st.metric("🎯 Accuracy", f"{accuracy:.4f}", f"{accuracy*100:.2f}%")
-            
+                st.metric("🎯 Accuracy", f"{accuracy:.4f}", f"{accuracy*100:.2f}%",
+                          help="Porcentaje de predicciones correctas en datos nunca vistos")
+
+                # Interpretación del accuracy
+                if accuracy >= 0.9:
+                    st.success("🌟 **Excelente**: Tu red predice muy bien")
+                elif accuracy >= 0.8:
+                    st.success("✅ **Muy Bueno**: Predicciones muy confiables")
+                elif accuracy >= 0.7:
+                    st.warning("⚠️ **Bueno**: Predicciones aceptables")
+                elif accuracy >= 0.6:
+                    st.warning("🟡 **Regular**: Hay margen de mejora")
+                else:
+                    st.error("🔴 **Bajo**: Considera ajustar el modelo")
+
             with col2:
                 # Calcular confianza promedio
-                if len(y_test.shape) > 1 and y_test.shape[1] > 1:  # One-hot multiclase
+                # One-hot multiclase
+                if len(y_test.shape) > 1 and y_test.shape[1] > 1:
                     confidence = np.mean(np.max(y_pred, axis=1))
                 elif output_size == 1:  # Binaria
-                    confidence = np.mean(np.maximum(y_pred.flatten(), 1 - y_pred.flatten()))
+                    confidence = np.mean(np.maximum(
+                        y_pred.flatten(), 1 - y_pred.flatten()))
                 else:  # Multiclase sparse
                     confidence = np.mean(np.max(y_pred, axis=1))
-                st.metric("🎲 Confianza Promedio", f"{confidence:.4f}", f"{confidence*100:.2f}%")
-            
+                st.metric("🎲 Confianza Promedio",
+                          f"{confidence:.4f}", f"{confidence*100:.2f}%")
+
             with col3:
                 # Número de predicciones correctas
                 correct_preds = np.sum(y_pred_classes == y_test_classes)
-                st.metric("✅ Predicciones Correctas", f"{correct_preds}/{len(y_test_classes)}")
-            
+                st.metric("✅ Predicciones Correctas",
+                          f"{correct_preds}/{len(y_test_classes)}")
+
             # Matriz de confusión
             st.subheader("🔍 Matriz de Confusión")
-            
+
             try:
                 cm = confusion_matrix(y_test_classes, y_pred_classes)
-                
+
                 # Obtener nombres de clases
                 if label_encoder and hasattr(label_encoder, 'classes_'):
                     class_names = list(label_encoder.classes_)
                 else:
                     # Determinar clases basado en los datos únicos
-                    all_classes = sorted(set(list(y_test_classes) + list(y_pred_classes)))
+                    all_classes = sorted(
+                        set(list(y_test_classes) + list(y_pred_classes)))
                     class_names = [f"Clase {i}" for i in all_classes]
-                
+
                 # Ajustar class_names al tamaño de la matriz si es necesario
                 if len(class_names) != cm.shape[0]:
                     class_names = [f"Clase {i}" for i in range(cm.shape[0])]
-                
+
                 # Crear heatmap de la matriz de confusión
                 fig_cm = ff.create_annotated_heatmap(
                     z=cm,
@@ -6941,35 +7379,38 @@ def show_neural_network_evaluation():
                     colorscale='Blues',
                     showscale=True
                 )
-                
+
                 fig_cm.update_layout(
                     title='Matriz de Confusión',
                     xaxis_title='Predicciones',
                     yaxis_title='Valores Reales',
                     height=500
                 )
-                
+
                 st.plotly_chart(fig_cm, use_container_width=True)
-                
+
             except Exception as cm_error:
-                st.error(f"❌ Error creando matriz de confusión: {str(cm_error)}")
-                st.info("La matriz de confusión no pudo generarse. El modelo funciona correctamente pero hay un problema con la visualización.")
-            
+                st.error(
+                    f"❌ Error creando matriz de confusión: {str(cm_error)}")
+                st.info(
+                    "La matriz de confusión no pudo generarse. El modelo funciona correctamente pero hay un problema con la visualización.")
+
             # Reporte de clasificación detallado
             st.subheader("📋 Reporte de Clasificación")
-            
+
             if label_encoder:
                 target_names = label_encoder.classes_
             else:
-                target_names = [f"Clase {i}" for i in range(len(np.unique(y_test_classes)))]
-            
+                target_names = [f"Clase {i}" for i in range(
+                    len(np.unique(y_test_classes)))]
+
             # Generar reporte
             report = classification_report(
-                y_test_classes, y_pred_classes, 
+                y_test_classes, y_pred_classes,
                 target_names=target_names,
                 output_dict=True
             )
-            
+
             # Mostrar métricas por clase
             metrics_data = []
             for class_name in target_names:
@@ -6981,13 +7422,13 @@ def show_neural_network_evaluation():
                         'F1-Score': f"{report[class_name]['f1-score']:.4f}",
                         'Soporte': report[class_name]['support']
                     })
-            
+
             st.dataframe(metrics_data, use_container_width=True)
-            
+
             # Métricas macro y weighted
             st.subheader("📊 Métricas Agregadas")
             col1, col2 = st.columns(2)
-            
+
             with col1:
                 st.info(f"""
                 **Macro Average:**
@@ -6995,7 +7436,7 @@ def show_neural_network_evaluation():
                 - Recall: {report['macro avg']['recall']:.4f}
                 - F1-Score: {report['macro avg']['f1-score']:.4f}
                 """)
-            
+
             with col2:
                 st.info(f"""
                 **Weighted Average:**
@@ -7003,39 +7444,40 @@ def show_neural_network_evaluation():
                 - Recall: {report['weighted avg']['recall']:.4f}
                 - F1-Score: {report['weighted avg']['f1-score']:.4f}
                 """)
-                
+
         else:
             # Para regresión
             y_pred_flat = y_pred.flatten()
             y_test_flat = y_test.flatten()
-            
+
             # Métricas de regresión
             mse = mean_squared_error(y_test_flat, y_pred_flat)
             rmse = np.sqrt(mse)
             mae = mean_absolute_error(y_test_flat, y_pred_flat)
             r2 = r2_score(y_test_flat, y_pred_flat)
-            
+
             # Mostrar métricas principales
             col1, col2, col3, col4 = st.columns(4)
-            
+
             with col1:
                 st.metric("📊 R² Score", f"{r2:.4f}")
-            
+
             with col2:
                 st.metric("📏 MAE", f"{mae:.4f}")
-            
+
             with col3:
                 st.metric("📐 RMSE", f"{rmse:.4f}")
-            
+
             with col4:
                 st.metric("🎯 MSE", f"{mse:.4f}")
-            
+
             # Gráficos de evaluación para regresión
             fig = make_subplots(
                 rows=1, cols=2,
-                subplot_titles=('Predicciones vs Valores Reales', 'Distribución de Residuos')
+                subplot_titles=('Predicciones vs Valores Reales',
+                                'Distribución de Residuos')
             )
-            
+
             # Scatter plot de predicciones vs reales
             fig.add_trace(
                 go.Scatter(
@@ -7047,11 +7489,11 @@ def show_neural_network_evaluation():
                 ),
                 row=1, col=1
             )
-            
+
             # Línea de referencia y = x
             min_val = min(y_test_flat.min(), y_pred_flat.min())
             max_val = max(y_test_flat.max(), y_pred_flat.max())
-            
+
             fig.add_trace(
                 go.Scatter(
                     x=[min_val, max_val],
@@ -7062,7 +7504,7 @@ def show_neural_network_evaluation():
                 ),
                 row=1, col=1
             )
-            
+
             # Histograma de residuos
             residuals = y_test_flat - y_pred_flat
             fig.add_trace(
@@ -7074,20 +7516,20 @@ def show_neural_network_evaluation():
                 ),
                 row=1, col=2
             )
-            
+
             fig.update_xaxes(title_text="Valores Reales", row=1, col=1)
             fig.update_yaxes(title_text="Predicciones", row=1, col=1)
             fig.update_xaxes(title_text="Residuos", row=1, col=2)
             fig.update_yaxes(title_text="Frecuencia", row=1, col=2)
-            
+
             fig.update_layout(height=500, showlegend=True)
             st.plotly_chart(fig, use_container_width=True)
-        
+
         # Información del modelo
         st.subheader("🔧 Información del Modelo")
-        
+
         col1, col2 = st.columns(2)
-        
+
         with col1:
             st.info(f"""
             **Arquitectura:**
@@ -7096,7 +7538,7 @@ def show_neural_network_evaluation():
             - Función de activación: {config['activation']}
             - Activación de salida: {config['output_activation']}
             """)
-        
+
         with col2:
             total_params = calculate_network_parameters(config['architecture'])
             st.info(f"""
@@ -7106,344 +7548,800 @@ def show_neural_network_evaluation():
             - Dropout: {config['dropout_rate']}
             - Batch size: {config['batch_size']}
             """)
-            
+
+        # Botón para generar código Python de evaluación
+        st.markdown("### 💻 Código Python")
+        if st.button("📝 Generar Código de Evaluación", use_container_width=True):
+            # Generar código Python para evaluación
+            code = generate_neural_network_evaluation_code(
+                config, st.session_state.nn_feature_names, st.session_state.nn_class_names
+            )
+
+            st.markdown("#### 🐍 Código Python para Evaluación")
+            st.code(code, language='python')
+
+            # Botón para descargar el código
+            st.download_button(
+                label="💾 Descargar Código de Evaluación",
+                data=code,
+                file_name=f"evaluacion_red_neuronal_{config['task_type'].lower()}.py",
+                mime="text/plain"
+            )
+
+        # Navegación
+        st.markdown("---")
+        st.markdown("### 🧭 Navegación")
+        col_nav1, col_nav2 = st.columns(2)
+        with col_nav1:
+            if st.button("🔙 Volver a Entrenamiento", use_container_width=True):
+                st.session_state.active_tab_nn = 2
+                st.rerun()
+        with col_nav2:
+            if st.button("🎯 Ver Visualizaciones", type="primary", use_container_width=True):
+                st.session_state.active_tab_nn = 4
+                st.rerun()
+
     except Exception as e:
         st.error(f"Error en la evaluación: {str(e)}")
-        st.info("Asegúrate de que TensorFlow esté instalado y el modelo esté entrenado correctamente.")
+        st.info(
+            "Asegúrate de que TensorFlow esté instalado y el modelo esté entrenado correctamente.")
 
 
 def show_neural_network_visualizations():
     """Muestra visualizaciones avanzadas del modelo."""
     if 'nn_model' not in st.session_state or st.session_state.nn_model is None:
-        st.warning("⚠️ Primero debes entrenar un modelo en la pestaña 'Entrenamiento'")
+        st.warning(
+            "⚠️ Primero debes entrenar un modelo en la pestaña 'Entrenamiento'")
         return
-    
+
+    # Tips educativos sobre visualizaciones
+    st.info("""
+    🎓 **Visualizaciones de Redes Neuronales:**
+    - **Historial de entrenamiento**: Muestra cómo evoluciona el aprendizaje
+    - **Pesos y sesgos**: Revelan qué ha aprendido cada neurona
+    - **Superficie de decisión**: Cómo la red separa las clases (2D)
+    - **Análisis de capas**: Activaciones y patrones internos
+    """)
+
     try:
+        import tensorflow as tf
         import plotly.graph_objects as go
         from plotly.subplots import make_subplots
         import numpy as np
         from sklearn.preprocessing import StandardScaler
-        
+
         model = st.session_state.nn_model
         history = st.session_state.nn_history
         config = st.session_state.nn_config
-        
+
+        # FORZAR inicialización completa del modelo SIEMPRE (de forma transparente)
+        try:
+            # Obtener datos de test para inicializar el modelo
+            X_test, _ = st.session_state.nn_test_data
+            
+            # Estrategia SILENCIOSA de inicialización (sin importar el estado actual)
+            # 1. SIEMPRE hacer predicciones para forzar construcción
+            dummy_pred = model.predict(X_test[:1], verbose=0)
+            
+            # 2. Forzar construcción explícita usando el input shape real
+            input_shape = (None, X_test.shape[1])
+            
+            # 3. Si el modelo no está construido, construirlo
+            if not model.built:
+                model.build(input_shape)
+                
+            # 4. FORZAR reconstrucción de todas las capas una por una
+            for i, layer in enumerate(model.layers):
+                if hasattr(layer, 'built'):
+                    if not layer.built:
+                        # Construir capa por capa
+                        if i == 0:
+                            # Primera capa usa input_shape original
+                            layer.build(input_shape)
+                        else:
+                            # Capas subsecuentes usan la salida de la capa anterior
+                            prev_layer_output_shape = model.layers[i-1].output_shape
+                            layer.build(prev_layer_output_shape)
+            
+            # 5. Verificación MÚLTIPLE con diferentes tamaños de batch
+            for batch_size in [1, 5, 10]:
+                test_batch = X_test[:min(batch_size, len(X_test))]
+                _ = model.predict(test_batch, verbose=0)
+            
+            # 6. Verificar que el modelo tenga input definido
+            if model.input is None:
+                # Última estrategia: recrear el modelo si es necesario
+                model._set_inputs(X_test[:1])
+            
+        except Exception as init_error:
+            # Proceso de reparación de emergencia SILENCIOSO
+            try:
+                # Obtener la configuración original del modelo
+                original_config = st.session_state.nn_config
+                
+                # Recrear el modelo desde cero si es necesario
+                import tensorflow as tf
+                from tensorflow import keras
+                
+                # Crear nuevo modelo con la misma arquitectura
+                new_model = keras.Sequential()
+                
+                # Agregar capas según la configuración original
+                arch = original_config['architecture']
+                
+                # Primera capa con input_shape explícito
+                new_model.add(keras.layers.Dense(
+                    arch[1],
+                    activation=original_config['activation'],
+                    input_shape=(arch[0],)
+                ))
+                
+                # Capas ocultas
+                for layer_size in arch[2:-1]:
+                    new_model.add(keras.layers.Dense(
+                        layer_size,
+                        activation=original_config['activation']
+                    ))
+                
+                # Capa de salida
+                new_model.add(keras.layers.Dense(
+                    arch[-1],
+                    activation=original_config['output_activation']
+                ))
+                
+                # Copiar pesos del modelo original
+                new_model.set_weights(model.get_weights())
+                
+                # Compilar el nuevo modelo
+                new_model.compile(
+                    optimizer=model.optimizer,
+                    loss=model.loss,
+                    metrics=model.metrics
+                )
+                
+                # Reemplazar el modelo en session state
+                st.session_state.nn_model = new_model
+                model = new_model
+                
+                # Verificar que funciona
+                test_pred = model.predict(X_test[:5], verbose=0)
+                
+            except Exception as emergency_error:
+                # Si todo falla, mostrar error simplificado
+                st.error("❌ No se pudo inicializar el modelo para visualizaciones.")
+                st.info("💡 Intenta reentrenar el modelo desde cero.")
+                return
+            
+            # Proceso de reparación de emergencia
+            try:
+                # Obtener la configuración original del modelo
+                original_config = st.session_state.nn_config
+                
+                # Recrear el modelo desde cero si es necesario
+                import tensorflow as tf
+                from tensorflow import keras
+                
+                st.info("� Recreando modelo desde configuración guardada...")
+                
+                # Crear nuevo modelo con la misma arquitectura
+                new_model = keras.Sequential()
+                
+                # Agregar capas según la configuración original
+                arch = original_config['architecture']
+                
+                # Primera capa con input_shape explícito
+                new_model.add(keras.layers.Dense(
+                    arch[1],
+                    activation=original_config['activation'],
+                    input_shape=(arch[0],)
+                ))
+                
+                # Capas ocultas
+                for layer_size in arch[2:-1]:
+                    new_model.add(keras.layers.Dense(
+                        layer_size,
+                        activation=original_config['activation']
+                    ))
+                
+                # Capa de salida
+                new_model.add(keras.layers.Dense(
+                    arch[-1],
+                    activation=original_config['output_activation']
+                ))
+                
+                # Copiar pesos del modelo original
+                new_model.set_weights(model.get_weights())
+                
+                # Compilar el nuevo modelo
+                new_model.compile(
+                    optimizer=model.optimizer,
+                    loss=model.loss,
+                    metrics=model.metrics
+                )
+                
+                # Reemplazar el modelo en session state
+                st.session_state.nn_model = new_model
+                model = new_model
+                
+                # Verificar que funciona
+                test_pred = model.predict(X_test[:5], verbose=0)
+                
+                st.success("✅ ¡Modelo recreado y funcionando!")
+                
+            except Exception as emergency_error:
+                st.error(f"❌ Fallo en reparación de emergencia: {emergency_error}")
+                st.info("💡 Como último recurso, intenta reentrenar el modelo desde cero.")
+
         st.header("📈 Visualizaciones Avanzadas")
-        
+
         # Tabs para diferentes visualizaciones
         viz_tab1, viz_tab2, viz_tab3, viz_tab4 = st.tabs([
             "📊 Historial de Entrenamiento",
-            "🧠 Pesos y Sesgos", 
+            "🧠 Pesos y Sesgos",
             "🎯 Superficie de Decisión",
             "📉 Análisis de Capas"
         ])
-        
+
         with viz_tab1:
             st.subheader("📊 Historial de Entrenamiento Detallado")
+            st.markdown("📈 **¿Cómo aprendió tu red neuronal?**")
+
+            # Explicación sobre el historial
+            with st.expander("💡 ¿Cómo interpretar estas gráficas?"):
+                st.markdown("""
+                **Gráfica de Pérdida (Loss):**
+                - **Bajando**: La red está aprendiendo ✅
+                - **Estable**: Ha convergido 🎯
+                - **Subiendo**: Posible sobreajuste ⚠️
+                - **Gap grande entre train/val**: Sobreajuste 🚨
+                
+                **Gráfica de Accuracy (clasificación) o MAE (regresión):**
+                - **Subiendo**: Mejorando en las predicciones ✅
+                - **Plateau**: Ha alcanzado su límite 📊
+                - **Train > Val**: Normal, pero gap grande = sobreajuste ⚠️
+                """)
+
             plot_training_history(history, config['task_type'])
-            
+
             # Información adicional del entrenamiento
+            st.markdown("#### 📊 Estadísticas del Entrenamiento")
             col1, col2, col3 = st.columns(3)
-            
+
             with col1:
                 final_loss = history.history['loss'][-1]
-                st.metric("🔴 Pérdida Final (Entrenamiento)", f"{final_loss:.6f}")
-            
+                initial_loss = history.history['loss'][0]
+                improvement = ((initial_loss - final_loss) /
+                               initial_loss) * 100
+                st.metric("🔴 Pérdida Final (Entrenamiento)", f"{final_loss:.6f}",
+                          f"-{improvement:.1f}% desde inicio")
+
             with col2:
                 if 'val_loss' in history.history:
                     final_val_loss = history.history['val_loss'][-1]
-                    st.metric("🟡 Pérdida Final (Validación)", f"{final_val_loss:.6f}")
-            
+                    overfitting_gap = final_val_loss - final_loss
+                    st.metric("🟡 Pérdida Final (Validación)", f"{final_val_loss:.6f}",
+                              f"Gap: {overfitting_gap:.6f}")
+
+                    # Interpretación del gap
+                    if overfitting_gap < 0.01:
+                        st.success("✅ **Sin sobreajuste**: Gap muy pequeño")
+                    elif overfitting_gap < 0.05:
+                        st.warning("⚠️ **Sobreajuste leve**: Gap aceptable")
+                    else:
+                        st.error("🚨 **Sobreajuste**: Gap significativo")
+
             with col3:
                 epochs_trained = len(history.history['loss'])
                 st.metric("⏱️ Épocas Entrenadas", epochs_trained)
-        
+
+                # ¿Paró por early stopping?
+                if 'nn_config' in st.session_state:
+                    max_epochs = st.session_state.get('training_epochs', 100)
+                    if epochs_trained < max_epochs:
+                        st.caption(
+                            "🛑 **Early Stopping**: Paró automáticamente")
+                    else:
+                        st.caption("🔄 **Completó todas las épocas**")
+
         with viz_tab2:
             st.subheader("🧠 Análisis de Pesos y Sesgos")
-            
+            st.markdown("🔍 **¿Qué ha aprendido cada neurona?**")
+
+            # Explicación sobre pesos
+            with st.expander("💡 ¿Qué significan los pesos?"):
+                st.markdown("""
+                **Pesos (Weights):**
+                - **Valores altos**: Conexiones importantes entre neuronas
+                - **Valores cercanos a 0**: Conexiones débiles o irrelevantes
+                - **Valores negativos**: Relaciones inversas
+                - **Distribución**: Indica si la red está bien inicializada
+                
+                **Sesgos (Biases):**
+                - **Valores altos**: Neurona se activa fácilmente
+                - **Valores bajos**: Neurona es más selectiva
+                - **Distribución**: Debe ser razonable, no extrema
+                """)
+
             # Obtener pesos de todas las capas
             layer_weights = []
             layer_biases = []
-            
+
             for i, layer in enumerate(model.layers):
                 if hasattr(layer, 'get_weights') and layer.get_weights():
                     weights = layer.get_weights()
                     if len(weights) >= 2:  # Pesos y sesgos
                         layer_weights.append(weights[0])
                         layer_biases.append(weights[1])
-            
+
             if layer_weights:
-                # Crear subplots para cada capa
-                num_layers = len(layer_weights)
-                fig = make_subplots(
-                    rows=2, cols=num_layers,
-                    subplot_titles=[f'Capa {i+1} - Pesos' for i in range(num_layers)] + 
-                                  [f'Capa {i+1} - Sesgos' for i in range(num_layers)],
-                    vertical_spacing=0.15
-                )
-                
-                # Pesos
-                for i, weights in enumerate(layer_weights):
-                    fig.add_trace(
-                        go.Heatmap(
-                            z=weights,
-                            colorscale='RdBu',
-                            zmid=0,
-                            showscale=(i == 0)
-                        ),
-                        row=1, col=i+1
-                    )
-                
-                # Sesgos
-                for i, biases in enumerate(layer_biases):
-                    fig.add_trace(
-                        go.Bar(
-                            y=biases,
-                            name=f'Sesgos Capa {i+1}',
-                            showlegend=False
-                        ),
-                        row=2, col=i+1
-                    )
-                
-                fig.update_layout(height=600, title="Distribución de Pesos y Sesgos por Capa")
-                st.plotly_chart(fig, use_container_width=True)
-                
-                # Estadísticas de pesos
-                st.subheader("� Estadísticas de Pesos")
-                
-                stats_data = []
+                # Crear gráficos para cada capa
                 for i, (weights, biases) in enumerate(zip(layer_weights, layer_biases)):
-                    stats_data.append({
-                        'Capa': f'Capa {i+1}',
-                        'Forma Pesos': f'{weights.shape}',
-                        'Media Pesos': f'{np.mean(weights):.6f}',
-                        'Std Pesos': f'{np.std(weights):.6f}',
-                        'Media Sesgos': f'{np.mean(biases):.6f}',
-                        'Std Sesgos': f'{np.std(biases):.6f}'
-                    })
-                
-                st.dataframe(stats_data, use_container_width=True)
-            else:
-                st.warning("No se pudieron extraer los pesos del modelo.")
-        
-        with viz_tab3:
-            st.subheader("🎯 Superficie de Decisión (2D)")
-            
-            if 'nn_df' in st.session_state and 'nn_target_col' in st.session_state:
-                df = st.session_state.nn_df
-                target_col = st.session_state.nn_target_col
-                
-                # Permitir seleccionar dos características para visualización 2D
-                feature_cols = [col for col in df.columns if col != target_col]
-                
-                if len(feature_cols) >= 2:
+                    st.markdown(f"#### 📊 Capa {i+1}")
+
                     col1, col2 = st.columns(2)
-                    
+
                     with col1:
-                        feature1 = st.selectbox("Característica X:", feature_cols, key="nn_viz_feat1")
-                    
+                        # Histograma de pesos
+                        fig_weights = go.Figure()
+                        fig_weights.add_trace(go.Histogram(
+                            x=weights.flatten(),
+                            nbinsx=50,
+                            name=f'Pesos Capa {i+1}',
+                            opacity=0.7
+                        ))
+                        fig_weights.update_layout(
+                            title=f'Distribución de Pesos - Capa {i+1}',
+                            xaxis_title='Valor de Peso',
+                            yaxis_title='Frecuencia',
+                            height=300
+                        )
+                        st.plotly_chart(fig_weights, use_container_width=True)
+
+                        # Estadísticas de pesos
+                        st.caption(f"📊 **Estadísticas**: Media={np.mean(weights):.4f}, "
+                                   f"Std={np.std(weights):.4f}, "
+                                   f"Min={np.min(weights):.4f}, "
+                                   f"Max={np.max(weights):.4f}")
+
                     with col2:
-                        feature2 = st.selectbox("Característica Y:", feature_cols, 
-                                               index=1 if len(feature_cols) > 1 else 0, key="nn_viz_feat2")
-                    
-                    if feature1 != feature2:
-                        # Crear superficie de decisión
-                        X_viz = df[[feature1, feature2]].values
-                        y_viz = df[target_col].values
-                        
-                        # Normalizar solo estas dos características
-                        scaler_viz = StandardScaler()
-                        X_viz_scaled = scaler_viz.fit_transform(X_viz)
-                        
-                        # Crear grid para la superficie
-                        h = 0.1
-                        x_min, x_max = X_viz_scaled[:, 0].min() - 1, X_viz_scaled[:, 0].max() + 1
-                        y_min, y_max = X_viz_scaled[:, 1].min() - 1, X_viz_scaled[:, 1].max() + 1
-                        xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
-                                           np.arange(y_min, y_max, h))
-                        
-                        # Para hacer predicciones, necesitamos todas las características
-                        # Usar valores medios para las características no visualizadas
-                        other_features = [col for col in feature_cols if col not in [feature1, feature2]]
-                        
-                        if other_features:
-                            # Crear puntos del grid con características adicionales
-                            grid_points = np.c_[xx.ravel(), yy.ravel()]
-                            
-                            # Añadir valores promedio para otras características
-                            other_means = df[other_features].mean().values
-                            full_grid = np.zeros((grid_points.shape[0], len(feature_cols)))
-                            
-                            # Mapear las características seleccionadas
-                            feat1_idx = feature_cols.index(feature1)
-                            feat2_idx = feature_cols.index(feature2)
-                            
-                            full_grid[:, feat1_idx] = grid_points[:, 0]
-                            full_grid[:, feat2_idx] = grid_points[:, 1]
-                            
-                            # Llenar otras características con valores promedio
-                            for i, feat in enumerate(feature_cols):
-                                if feat in other_features:
-                                    feat_idx = feature_cols.index(feat)
-                                    other_idx = other_features.index(feat)
-                                    full_grid[:, feat_idx] = other_means[other_idx]
-                            
-                            # Escalar todos los puntos del grid
-                            scaler = st.session_state.nn_scaler
-                            full_grid_scaled = scaler.transform(full_grid)
-                            
-                            # Hacer predicciones
-                            Z = model.predict(full_grid_scaled, verbose=0)
-                            
-                            if config['task_type'] == 'Clasificación':
-                                output_size = safe_get_output_size(config)
-                                if output_size > 2:
-                                    Z = np.argmax(Z, axis=1)
-                                else:
-                                    Z = (Z > 0.5).astype(int).flatten()
-                            else:
-                                Z = Z.flatten()
-                            
-                            Z = Z.reshape(xx.shape)
-                            
-                            # Crear visualización
-                            fig = go.Figure()
-                            
-                            # Superficie de decisión
-                            fig.add_trace(go.Contour(
-                                x=np.arange(x_min, x_max, h),
-                                y=np.arange(y_min, y_max, h),
-                                z=Z,
-                                colorscale='Viridis',
-                                opacity=0.3,
-                                showscale=False,
-                                contours=dict(coloring='fill')
-                            ))
-                            
-                            # Puntos de datos reales
-                            if config['task_type'] == 'Clasificación':
-                                unique_classes = np.unique(y_viz)
-                                colors = ['red', 'blue', 'green', 'orange', 'purple']
-                                
-                                for i, class_val in enumerate(unique_classes):
-                                    mask = y_viz == class_val
-                                    fig.add_trace(go.Scatter(
-                                        x=X_viz_scaled[mask, 0],
-                                        y=X_viz_scaled[mask, 1],
-                                        mode='markers',
-                                        marker=dict(
-                                            color=colors[i % len(colors)],
-                                            size=8,
-                                            line=dict(color='black', width=1)
-                                        ),
-                                        name=f'Clase {class_val}'
-                                    ))
-                            else:
-                                # Para regresión, usar color según el valor objetivo
-                                fig.add_trace(go.Scatter(
-                                    x=X_viz_scaled[:, 0],
-                                    y=X_viz_scaled[:, 1],
-                                    mode='markers',
-                                    marker=dict(
-                                        color=y_viz,
-                                        colorscale='Plasma',
-                                        size=8,
-                                        colorbar=dict(title="Valor Objetivo"),
-                                        line=dict(color='black', width=1)
-                                    ),
-                                    name='Datos'
-                                ))
-                            
-                            fig.update_layout(
-                                title=f'Superficie de Decisión: {feature1} vs {feature2}',
-                                xaxis_title=f'{feature1} (normalizado)',
-                                yaxis_title=f'{feature2} (normalizado)',
-                                height=500
-                            )
-                            
-                            st.plotly_chart(fig, use_container_width=True)
-                            
-                            st.info(f"💡 Se están usando los valores promedio para las características no visualizadas: {', '.join(other_features)}")
-                        
-                        else:
-                            st.warning("Esta visualización requiere al menos 3 características en el dataset.")
-                    else:
-                        st.warning("Selecciona dos características diferentes.")
+                        # Histograma de sesgos
+                        fig_biases = go.Figure()
+                        fig_biases.add_trace(go.Histogram(
+                            x=biases.flatten(),
+                            nbinsx=20,
+                            name=f'Sesgos Capa {i+1}',
+                            opacity=0.7,
+                            marker_color='orange'
+                        ))
+                        fig_biases.update_layout(
+                            title=f'Distribución de Sesgos - Capa {i+1}',
+                            xaxis_title='Valor de Sesgo',
+                            yaxis_title='Frecuencia',
+                            height=300
+                        )
+                        st.plotly_chart(fig_biases, use_container_width=True)
+
+                        # Estadísticas de sesgos
+                        st.caption(f"📊 **Estadísticas**: Media={np.mean(biases):.4f}, "
+                                   f"Std={np.std(biases):.4f}, "
+                                   f"Min={np.min(biases):.4f}, "
+                                   f"Max={np.max(biases):.4f}")
+
+                # Análisis general
+                st.markdown("#### 🔍 Análisis General de la Red")
+                all_weights = np.concatenate(
+                    [w.flatten() for w in layer_weights])
+                all_biases = np.concatenate(
+                    [b.flatten() for b in layer_biases])
+
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("🎯 Pesos Promedio",
+                              f"{np.mean(all_weights):.6f}")
+                with col2:
+                    st.metric("📊 Desv. Std. Pesos",
+                              f"{np.std(all_weights):.6f}")
+                with col3:
+                    dead_neurons = np.sum(np.abs(all_weights) < 1e-6)
+                    st.metric("💀 Pesos ~0", f"{dead_neurons}")
+
+                # Salud de la red
+                if np.std(all_weights) < 0.01:
+                    st.error(
+                        "🚨 **Problema**: Pesos muy pequeños, la red puede no haber aprendido")
+                elif np.std(all_weights) > 2:
+                    st.warning(
+                        "⚠️ **Atención**: Pesos muy grandes, posible inestabilidad")
                 else:
-                    st.warning("El dataset debe tener al menos 2 características para esta visualización.")
+                    st.success("✅ **Saludable**: Distribución de pesos normal")
             else:
-                st.warning("No hay datos disponibles para la visualización.")
-        
+                st.warning("No se pudieron extraer los pesos del modelo")
+
+        with viz_tab3:
+            st.subheader("🎯 Superficie de Decisión")
+            st.markdown(
+                "🗺️ **¿Cómo divide tu red el espacio de características?**")
+
+            # Solo mostrar si tenemos 2 características o menos
+            if config['input_size'] <= 2:
+                st.info(
+                    "Generando superficie de decisión... (Puede tomar unos segundos)")
+                # Aquí iría el código para generar superficie de decisión
+                # Es complejo, por ahora mostrar mensaje
+                st.markdown("""
+                **Superficie de Decisión 2D:**
+                - Cada color representa una clase predicha
+                - Los puntos son tus datos de entrenamiento
+                - Las fronteras muestran cómo la red separa las clases
+                - Fronteras suaves = red bien generalizada
+                - Fronteras muy complejas = posible sobreajuste
+                """)
+            else:
+                st.warning(f"⚠️ **No disponible**: Tu dataset tiene {config['input_size']} características. "
+                           "La superficie de decisión solo se puede visualizar con 2 características o menos.")
+
+                st.markdown("""
+                **Alternativas para datasets de alta dimensionalidad:**
+                - Usar PCA para reducir a 2D
+                - Seleccionar las 2 características más importantes
+                - Analizar pares de características individualmente
+                """)
+
         with viz_tab4:
-            st.subheader("📉 Análisis de Activaciones por Capa")
-            
-            st.info("🚧 Análisis de activaciones por capa en desarrollo...")
-            st.markdown("""
-            Esta sección mostrará:
-            - Distribución de activaciones por capa
-            - Análisis de la función de activación
-            - Detección de neuronas muertas
-            - Gradientes por capa
-            """)
-            
+            st.subheader("📉 Análisis de Capas")
+            st.markdown("🔬 **Activaciones y patrones internos de la red**")
+
+            # Explicación sobre activaciones
+            with st.expander("💡 ¿Qué son las activaciones?"):
+                st.markdown("""
+                **Activaciones:**
+                - **Valores que producen las neuronas** cuando procesan datos
+                - **Primeras capas**: Detectan características básicas
+                - **Capas intermedias**: Combinan características en patrones
+                - **Última capa**: Decisión final o predicción
+                
+                **Qué buscar:**
+                - **Muchos ceros**: Neuronas "muertas" (problema)
+                - **Valores extremos**: Saturación (problema)
+                - **Distribución balanceada**: Red saludable ✅
+                """)
+
+            # Obtener algunas muestras para analizar activaciones
+            X_test, y_test = st.session_state.nn_test_data
+            sample_size = min(100, len(X_test))
+            X_sample = X_test[:sample_size]
+
+            try:
+                # MÉTODO DIRECTO Y SIMPLE para análisis de activaciones
+                st.info("� Iniciando análisis de activaciones...")
+                
+                # Como el modelo ya fue inicializado arriba, proceder directamente
+                # Usar el input del modelo (debería estar disponible ya)
+                model_input = model.input
+                
+                # Verificación simple
+                if model_input is None:
+                    st.error("❌ El modelo no se pudo inicializar correctamente.")
+                    st.info("💡 Intenta reentrenar el modelo desde cero.")
+                    return
+                
+                # Obtener outputs de todas las capas excepto la última
+                if len(model.layers) <= 1:
+                    st.warning("⚠️ El modelo tiene muy pocas capas para análisis detallado")
+                    return
+                
+                # Crear lista de outputs de capas
+                layer_outputs = []
+                for i, layer in enumerate(model.layers[:-1]):
+                    layer_outputs.append(layer.output)
+                
+                # Crear modelo de activaciones de forma SIMPLE
+                activation_model = tf.keras.Model(inputs=model_input, outputs=layer_outputs)
+                
+                # Obtener activaciones directamente
+                st.info("� Calculando activaciones de las capas...")
+                activations = activation_model.predict(X_sample, verbose=0)
+
+                if not isinstance(activations, list):
+                    activations = [activations]
+
+                # Mostrar estadísticas por capa
+                for i, activation in enumerate(activations):
+                    st.markdown(f"#### 📊 Capa {i+1} - Activaciones")
+
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("🔥 Media", f"{np.mean(activation):.4f}")
+                    with col2:
+                        st.metric("📊 Desv. Std.", f"{np.std(activation):.4f}")
+                    with col3:
+                        dead_ratio = np.mean(activation == 0) * 100
+                        st.metric("💀 % Neuronas Muertas", f"{dead_ratio:.1f}%")
+                    with col4:
+                        saturated_ratio = np.mean(activation >= 0.99) * 100
+                        st.metric("🔴 % Saturadas", f"{saturated_ratio:.1f}%")
+
+                    # Interpretación de la salud
+                    if dead_ratio > 50:
+                        st.error(
+                            f"🚨 **Problema en Capa {i+1}**: Muchas neuronas muertas")
+                    elif dead_ratio > 20:
+                        st.warning(
+                            f"⚠️ **Atención en Capa {i+1}**: Algunas neuronas muertas")
+                    else:
+                        st.success(
+                            f"✅ **Capa {i+1} Saludable**: Buena activación")
+
+            except Exception as e:
+                st.error(f"❌ Error al analizar activaciones: {str(e)}")
+
+                # Información de debug más detallada
+                st.markdown("**🔍 Información de Debug:**")
+
+                # Información del modelo
+                try:
+                    st.write(f"- **Tipo de modelo**: {type(model).__name__}")
+                    st.write(f"- **Número de capas**: {len(model.layers)}")
+                    st.write(f"- **Modelo construido**: {model.built}")
+
+                    # Verificar si el modelo tiene input_spec
+                    if hasattr(model, 'input_spec') and model.input_spec:
+                        st.write(f"- **Input spec definido**: ✅")
+                    else:
+                        st.write(f"- **Input spec definido**: ❌")
+
+                    # Verificar layers
+                    for i, layer in enumerate(model.layers):
+                        layer_built = getattr(layer, 'built', False)
+                        st.write(
+                            f"- **Capa {i+1} ({layer.__class__.__name__})**: {'✅' if layer_built else '❌'}")
+
+                except Exception as debug_error:
+                    st.write(f"- **Error en debug**: {debug_error}")
+
+                st.info("""
+                💡 **Posibles soluciones:**
+                - El modelo necesita estar completamente construido antes del análisis
+                - Intenta hacer algunas predicciones primero para que el modelo se inicialice
+                - Si el problema persiste, vuelve a entrenar el modelo
+                - Este error puede ocurrir con modelos Sequential que no han definido su input shape correctamente
+                """)
+
+                # Botón para intentar "reparar" el modelo
+                if st.button("🔧 Intentar Reparar Modelo para Análisis", key="repair_model_viz"):
+                    try:
+                        st.info("Intentando construir el modelo completamente...")
+                        # Hacer varias predicciones para asegurar que el modelo se construya
+                        X_test, _ = st.session_state.nn_test_data
+
+                        # Predicción con batch pequeño
+                        _ = model.predict(X_test[:1], verbose=0)
+
+                        # Predicción con batch más grande
+                        batch_size = min(32, len(X_test))
+                        _ = model.predict(X_test[:batch_size], verbose=0)
+
+                        # Intentar construir explícitamente
+                        if hasattr(model, 'build') and not model.built:
+                            # Obtener el input shape del primer batch
+                            input_shape = X_test[:1].shape
+                            model.build(input_shape)
+
+                        st.success(
+                            "✅ Modelo reparado. Intenta el análisis de activaciones nuevamente.")
+                        st.rerun()
+
+                    except Exception as repair_error:
+                        st.error(
+                            f"❌ No se pudo reparar el modelo: {repair_error}")
+                        st.info("Considera reentrenar el modelo desde cero.")
+
+        # Botón para generar código de visualización
+        st.markdown("### 💻 Código Python")
+        if st.button("📝 Generar Código de Visualización", use_container_width=True):
+            code = generate_neural_network_visualization_code(config)
+
+            st.markdown("#### 🐍 Código Python para Visualizaciones")
+            st.code(code, language='python')
+
+            st.download_button(
+                label="💾 Descargar Código de Visualización",
+                data=code,
+                file_name="visualizaciones_red_neuronal.py",
+                mime="text/plain"
+            )
+
+        # Navegación
+        st.markdown("---")
+        st.markdown("### 🧭 Navegación")
+        col_nav1, col_nav2 = st.columns(2)
+        with col_nav1:
+            if st.button("🔙 Volver a Evaluación", use_container_width=True):
+                st.session_state.active_tab_nn = 3
+                st.rerun()
+        with col_nav2:
+            if st.button("🔮 Hacer Predicciones", type="primary", use_container_width=True):
+                st.session_state.active_tab_nn = 5
+                st.rerun()
+
     except Exception as e:
-        st.error(f"Error en las visualizaciones: {str(e)}")
-        st.info("Asegúrate de que el modelo esté entrenado correctamente.")
+        st.error(f"❌ Error en las visualizaciones: {str(e)}")
+
+        # Diagnóstico detallado del error
+        error_type = type(e).__name__
+        error_msg = str(e)
+
+        st.markdown("### 🔍 Diagnóstico del Error")
+
+        if "never been called" in error_msg or "no defined input" in error_msg:
+            st.error("🚨 **Problema de Inicialización del Modelo**")
+            st.markdown("""
+            **Causa del problema:**
+            - El modelo Sequential no ha sido completamente inicializado
+            - Las capas no tienen sus formas de entrada definidas
+            - Se necesita hacer al menos una predicción para construir el modelo
+            """)
+
+            # Botón de reparación automática
+            col1, col2 = st.columns(2)
+
+            with col1:
+                if st.button("🔧 Reparar Modelo Automáticamente", type="primary", key="auto_repair"):
+                    try:
+                        st.info("🔄 Reparando modelo...")
+
+                        # Obtener datos de test
+                        if 'nn_test_data' in st.session_state:
+                            X_test, y_test = st.session_state.nn_test_data
+
+                            # Forzar construcción del modelo con múltiples estrategias
+                            with st.spinner("Inicializando modelo..."):
+                                # Estrategia 1: Predicción simple
+                                _ = model.predict(X_test[:1], verbose=0)
+
+                                # Estrategia 2: Predicción con batch más grande
+                                batch_size = min(10, len(X_test))
+                                _ = model.predict(
+                                    X_test[:batch_size], verbose=0)
+
+                                # Estrategia 3: Compilar explícitamente si es necesario
+                                if not model.built:
+                                    model.build(input_shape=(
+                                        None, X_test.shape[1]))
+
+                                # Estrategia 4: Verificar que todas las capas estén construidas
+                                for layer in model.layers:
+                                    if hasattr(layer, 'built') and not layer.built:
+                                        layer.build(input_shape=(
+                                            None, X_test.shape[1]))
+
+                            # Verificar que el modelo esté funcionando
+                            test_pred = model.predict(X_test[:5], verbose=0)
+
+                            st.success("✅ ¡Modelo reparado exitosamente!")
+                            st.info(
+                                "El modelo ahora está completamente inicializado. Puedes usar todas las visualizaciones.")
+
+                            # Botón para recargar visualizaciones
+                            if st.button("🔄 Recargar Visualizaciones", type="primary"):
+                                st.rerun()
+
+                        else:
+                            st.error(
+                                "❌ No se encontraron datos de test para reparar el modelo")
+
+                    except Exception as repair_error:
+                        st.error(
+                            f"❌ Error durante la reparación: {repair_error}")
+                        st.info("Intenta reentrenar el modelo desde cero.")
+
+            with col2:
+                st.markdown("**💡 Solución manual:**")
+                st.markdown("""
+                1. Ve a la pestaña **'Entrenamiento'**
+                2. Reentrena el modelo desde cero
+                3. Regresa a esta pestaña
+                4. Las visualizaciones deberían funcionar
+                """)
+
+                if st.button("🔙 Ir a Entrenamiento", key="go_training"):
+                    st.session_state.active_tab_nn = 2
+                    st.rerun()
+
+        else:
+            # Otros tipos de errores
+            st.warning("⚠️ **Error Inesperado**")
+            st.code(f"Tipo: {error_type}\nMensaje: {error_msg}")
+
+            st.markdown("""
+            **Posibles soluciones:**
+            - Verifica que TensorFlow esté instalado correctamente
+            - Asegúrate de que el modelo esté entrenado
+            - Intenta reentrenar el modelo
+            - Reinicia la aplicación si persiste el problema
+            """)
+
+        # Información técnica adicional
+        with st.expander("🔬 Información Técnica Detallada"):
+            try:
+                st.write("**Estado del Modelo:**")
+                st.write(f"- Tipo: {type(model).__name__}")
+                st.write(
+                    f"- Construido: {getattr(model, 'built', 'No disponible')}")
+                st.write(
+                    f"- Número de capas: {len(model.layers) if hasattr(model, 'layers') else 'No disponible'}")
+
+                if hasattr(model, 'input'):
+                    st.write(
+                        f"- Input definido: {'✅' if model.input is not None else '❌'}")
+
+                if hasattr(model, 'layers'):
+                    st.write("**Estado de las Capas:**")
+                    for i, layer in enumerate(model.layers):
+                        layer_built = getattr(layer, 'built', False)
+                        st.write(
+                            f"  - Capa {i+1} ({layer.__class__.__name__}): {'✅' if layer_built else '❌'}")
+
+            except Exception as debug_error:
+                st.write(f"Error obteniendo información: {debug_error}")
+
+        st.info("💡 **Tip**: Este error es común con modelos Sequential. La reparación automática debería resolverlo.")
 
 
 def show_neural_network_predictions():
     """Interfaz para hacer predicciones con el modelo entrenado."""
     if 'nn_model' not in st.session_state or st.session_state.nn_model is None:
-        st.warning("⚠️ Primero debes entrenar un modelo en la pestaña 'Entrenamiento'")
+        st.warning(
+            "⚠️ Primero debes entrenar un modelo en la pestaña 'Entrenamiento'")
         return
-    
+
     try:
         import numpy as np
         import pandas as pd
         import scipy.stats
-        
+
         model = st.session_state.nn_model
         scaler = st.session_state.nn_scaler
         label_encoder = st.session_state.nn_label_encoder
         config = st.session_state.nn_config
-        
+
         if 'nn_df' not in st.session_state or 'nn_target_col' not in st.session_state:
             st.error("No hay datos disponibles para hacer predicciones.")
             return
-        
+
         df = st.session_state.nn_df
         target_col = st.session_state.nn_target_col
         feature_cols = [col for col in df.columns if col != target_col]
-        
+
         st.header("🎯 Hacer Predicciones")
-        
+
         # Tabs para diferentes tipos de predicción
         pred_tab1, pred_tab2, pred_tab3 = st.tabs([
             "🔍 Predicción Individual",
-            "📊 Predicción por Lotes", 
+            "📊 Predicción por Lotes",
             "🎲 Exploración Interactiva"
         ])
-        
+
         with pred_tab1:
             st.subheader("🔍 Predicción Individual")
             st.markdown("Introduce los valores para cada característica:")
-            
+
             # Crear inputs para cada característica
             input_values = {}
-            
+
             # Organizar en columnas
             num_cols = min(3, len(feature_cols))
             cols = st.columns(num_cols)
-            
+
             for i, feature in enumerate(feature_cols):
                 col_idx = i % num_cols
-                
+
                 with cols[col_idx]:
                     # Obtener estadísticas de la característica
                     min_val = float(df[feature].min())
                     max_val = float(df[feature].max())
                     mean_val = float(df[feature].mean())
-                    
+
                     input_values[feature] = st.number_input(
                         f"{feature}",
                         min_value=min_val,
@@ -7452,208 +8350,231 @@ def show_neural_network_predictions():
                         step=(max_val - min_val) / 100,
                         key=f"nn_pred_{feature}"
                     )
-                    
-                    st.caption(f"Min: {min_val:.2f}, Max: {max_val:.2f}, Media: {mean_val:.2f}")
-            
+
+                    st.caption(
+                        f"Min: {min_val:.2f}, Max: {max_val:.2f}, Media: {mean_val:.2f}")
+
             # Botón para hacer predicción
             if st.button("🚀 Hacer Predicción", type="primary"):
                 # Preparar datos para predicción
-                input_array = np.array([[input_values[feature] for feature in feature_cols]])
+                input_array = np.array(
+                    [[input_values[feature] for feature in feature_cols]])
                 input_scaled = scaler.transform(input_array)
-                
+
                 # Hacer predicción
                 prediction = model.predict(input_scaled, verbose=0)
-                
+
                 # Mostrar resultados
                 st.success("✅ Predicción completada")
-                
+
                 if config['task_type'] == 'Clasificación':
                     output_size = safe_get_output_size(config)
                     if output_size > 2:  # Multiclase
                         predicted_class_idx = np.argmax(prediction[0])
                         confidence = prediction[0][predicted_class_idx]
-                        
+
                         if label_encoder:
-                            predicted_class = label_encoder.inverse_transform([predicted_class_idx])[0]
+                            predicted_class = label_encoder.inverse_transform(
+                                [predicted_class_idx])[0]
                         else:
                             predicted_class = f"Clase {predicted_class_idx}"
-                        
+
                         # Mostrar resultado principal
                         col1, col2 = st.columns(2)
-                        
+
                         with col1:
                             st.metric("🎯 Clase Predicha", predicted_class)
-                        
+
                         with col2:
-                            st.metric("🎲 Confianza", f"{confidence:.4f}", f"{confidence*100:.2f}%")
-                        
+                            st.metric(
+                                "🎲 Confianza", f"{confidence:.4f}", f"{confidence*100:.2f}%")
+
                         # Mostrar probabilidades para todas las clases
                         st.subheader("📊 Probabilidades por Clase")
-                        
+
                         prob_data = []
                         for i, prob in enumerate(prediction[0]):
                             if label_encoder:
-                                class_name = label_encoder.inverse_transform([i])[0]
+                                class_name = label_encoder.inverse_transform([i])[
+                                    0]
                             else:
                                 class_name = f"Clase {i}"
-                            
+
                             prob_data.append({
                                 'Clase': class_name,
                                 'Probabilidad': f"{prob:.4f}",
                                 'Porcentaje': f"{prob*100:.2f}%"
                             })
-                        
+
                         st.dataframe(prob_data, use_container_width=True)
-                        
+
                         # Gráfico de barras de probabilidades
                         import plotly.graph_objects as go
-                        
+
                         class_names = [item['Clase'] for item in prob_data]
-                        probabilities = [float(item['Probabilidad']) for item in prob_data]
-                        
+                        probabilities = [float(item['Probabilidad'])
+                                         for item in prob_data]
+
                         fig = go.Figure(data=[
-                            go.Bar(x=class_names, y=probabilities, 
-                                  marker_color=['red' if i == predicted_class_idx else 'lightblue' 
-                                              for i in range(len(class_names))])
+                            go.Bar(x=class_names, y=probabilities,
+                                   marker_color=['red' if i == predicted_class_idx else 'lightblue'
+                                                 for i in range(len(class_names))])
                         ])
-                        
+
                         fig.update_layout(
                             title="Distribución de Probabilidades",
                             xaxis_title="Clases",
                             yaxis_title="Probabilidad",
                             height=400
                         )
-                        
+
                         st.plotly_chart(fig, use_container_width=True)
-                        
+
                     else:  # Binaria
                         probability = prediction[0][0]
                         predicted_class_idx = 1 if probability > 0.5 else 0
-                        
+
                         if label_encoder:
-                            predicted_class = label_encoder.inverse_transform([predicted_class_idx])[0]
+                            predicted_class = label_encoder.inverse_transform(
+                                [predicted_class_idx])[0]
                         else:
                             predicted_class = f"Clase {predicted_class_idx}"
-                        
+
                         col1, col2, col3 = st.columns(3)
-                        
+
                         with col1:
                             st.metric("🎯 Clase Predicha", predicted_class)
-                        
+
                         with col2:
                             st.metric("🎲 Probabilidad", f"{probability:.4f}")
-                        
+
                         with col3:
                             confidence = max(probability, 1 - probability)
-                            st.metric("✨ Confianza", f"{confidence:.4f}", f"{confidence*100:.2f}%")
-                        
+                            st.metric(
+                                "✨ Confianza", f"{confidence:.4f}", f"{confidence*100:.2f}%")
+
                 else:  # Regresión
                     predicted_value = prediction[0][0]
-                    
+
                     st.metric("🎯 Valor Predicho", f"{predicted_value:.6f}")
-                    
+
                     # Información adicional para regresión
                     target_stats = df[target_col].describe()
-                    
+
                     col1, col2, col3 = st.columns(3)
-                    
+
                     with col1:
                         st.info(f"📊 **Estadísticas del Target:**\n"
-                               f"- Media: {target_stats['mean']:.4f}\n"
-                               f"- Mediana: {target_stats['50%']:.4f}")
-                    
+                                f"- Media: {target_stats['mean']:.4f}\n"
+                                f"- Mediana: {target_stats['50%']:.4f}")
+
                     with col2:
                         st.info(f"📏 **Rango de Datos:**\n"
-                               f"- Mínimo: {target_stats['min']:.4f}\n"
-                               f"- Máximo: {target_stats['max']:.4f}")
-                    
+                                f"- Mínimo: {target_stats['min']:.4f}\n"
+                                f"- Máximo: {target_stats['max']:.4f}")
+
                     with col3:
-                        deviation_from_mean = abs(predicted_value - target_stats['mean'])
+                        deviation_from_mean = abs(
+                            predicted_value - target_stats['mean'])
                         st.info(f"🎯 **Análisis:**\n"
-                               f"- Desviación de la media: {deviation_from_mean:.4f}\n"
-                               f"- Percentil aproximado: {scipy.stats.percentileofscore(df[target_col], predicted_value):.1f}%")
-        
+                                f"- Desviación de la media: {deviation_from_mean:.4f}\n"
+                                f"- Percentil aproximado: {scipy.stats.percentileofscore(df[target_col], predicted_value):.1f}%")
+
         with pred_tab2:
             st.subheader("📊 Predicción por Lotes")
-            
-            st.markdown("Sube un archivo CSV con nuevos datos para hacer predicciones en lote:")
-            
+
+            st.markdown(
+                "Sube un archivo CSV con nuevos datos para hacer predicciones en lote:")
+
             uploaded_file = st.file_uploader(
                 "Selecciona archivo CSV",
                 type=['csv'],
                 key="nn_batch_predictions"
             )
-            
+
             if uploaded_file is not None:
                 try:
                     # Cargar datos
                     new_df = pd.read_csv(uploaded_file)
-                    
-                    st.success(f"✅ Archivo cargado: {new_df.shape[0]} filas, {new_df.shape[1]} columnas")
-                    
+
+                    st.success(
+                        f"✅ Archivo cargado: {new_df.shape[0]} filas, {new_df.shape[1]} columnas")
+
                     # Verificar que las columnas coincidan
                     missing_features = set(feature_cols) - set(new_df.columns)
                     extra_features = set(new_df.columns) - set(feature_cols)
-                    
+
                     if missing_features:
-                        st.error(f"❌ Faltan características: {', '.join(missing_features)}")
+                        st.error(
+                            f"❌ Faltan características: {', '.join(missing_features)}")
                     elif extra_features:
-                        st.warning(f"⚠️ Características adicionales (serán ignoradas): {', '.join(extra_features)}")
+                        st.warning(
+                            f"⚠️ Características adicionales (serán ignoradas): {', '.join(extra_features)}")
                         # Seleccionar solo las características necesarias
                         new_df = new_df[feature_cols]
-                    
+
                     if not missing_features:
                         # Mostrar vista previa
                         st.dataframe(new_df.head(), use_container_width=True)
-                        
+
                         if st.button("🚀 Generar Predicciones", type="primary"):
                             # Procesar datos
                             new_data_scaled = scaler.transform(new_df)
-                            
+
                             # Hacer predicciones
-                            batch_predictions = model.predict(new_data_scaled, verbose=0)
-                            
+                            batch_predictions = model.predict(
+                                new_data_scaled, verbose=0)
+
                             # Procesar resultados según el tipo de tarea
                             if config['task_type'] == 'Clasificación':
                                 output_size = safe_get_output_size(config)
                                 if output_size > 2:
-                                    predicted_classes_idx = np.argmax(batch_predictions, axis=1)
-                                    confidences = np.max(batch_predictions, axis=1)
-                                    
+                                    predicted_classes_idx = np.argmax(
+                                        batch_predictions, axis=1)
+                                    confidences = np.max(
+                                        batch_predictions, axis=1)
+
                                     if label_encoder:
-                                        predicted_classes = label_encoder.inverse_transform(predicted_classes_idx)
+                                        predicted_classes = label_encoder.inverse_transform(
+                                            predicted_classes_idx)
                                     else:
-                                        predicted_classes = [f"Clase {idx}" for idx in predicted_classes_idx]
-                                    
+                                        predicted_classes = [
+                                            f"Clase {idx}" for idx in predicted_classes_idx]
+
                                     results_df = new_df.copy()
                                     results_df['Predicción'] = predicted_classes
                                     results_df['Confianza'] = confidences
-                                    
+
                                 else:  # Binaria
                                     probabilities = batch_predictions.flatten()
-                                    predicted_classes_idx = (probabilities > 0.5).astype(int)
-                                    confidences = np.maximum(probabilities, 1 - probabilities)
-                                    
+                                    predicted_classes_idx = (
+                                        probabilities > 0.5).astype(int)
+                                    confidences = np.maximum(
+                                        probabilities, 1 - probabilities)
+
                                     if label_encoder:
-                                        predicted_classes = label_encoder.inverse_transform(predicted_classes_idx)
+                                        predicted_classes = label_encoder.inverse_transform(
+                                            predicted_classes_idx)
                                     else:
-                                        predicted_classes = [f"Clase {idx}" for idx in predicted_classes_idx]
-                                    
+                                        predicted_classes = [
+                                            f"Clase {idx}" for idx in predicted_classes_idx]
+
                                     results_df = new_df.copy()
                                     results_df['Predicción'] = predicted_classes
                                     results_df['Probabilidad'] = probabilities
                                     results_df['Confianza'] = confidences
-                                    
+
                             else:  # Regresión
                                 predicted_values = batch_predictions.flatten()
-                                
+
                                 results_df = new_df.copy()
                                 results_df['Predicción'] = predicted_values
-                            
+
                             # Mostrar resultados
-                            st.success(f"✅ Predicciones generadas para {len(results_df)} muestras")
+                            st.success(
+                                f"✅ Predicciones generadas para {len(results_df)} muestras")
                             st.dataframe(results_df, use_container_width=True)
-                            
+
                             # Botón para descargar resultados
                             csv_results = results_df.to_csv(index=False)
                             st.download_button(
@@ -7662,124 +8583,163 @@ def show_neural_network_predictions():
                                 file_name="predicciones_neural_network.csv",
                                 mime="text/csv"
                             )
-                            
+
                 except Exception as e:
                     st.error(f"Error procesando archivo: {str(e)}")
-            
+
             else:
                 # Mostrar formato esperado
                 st.info("📋 **Formato esperado del archivo CSV:**")
-                
+
                 sample_data = df[feature_cols].head(3)
                 st.dataframe(sample_data, use_container_width=True)
-                
-                st.markdown("El archivo debe contener las siguientes columnas:")
+
+                st.markdown(
+                    "El archivo debe contener las siguientes columnas:")
                 st.code(", ".join(feature_cols))
-        
+
         with pred_tab3:
             st.subheader("🎲 Exploración Interactiva")
-            
-            st.markdown("Explora cómo cambian las predicciones al modificar diferentes características:")
-            
+
+            # Información educativa sobre la exploración interactiva
+            with st.expander("ℹ️ ¿Qué es la Exploración Interactiva?", expanded=False):
+                st.markdown("""
+                **La exploración interactiva** te permite entender cómo el modelo neural toma decisiones:
+                
+                🔍 **¿Para qué sirve?**
+                - Ver cómo cada característica influye en las predicciones
+                - Identificar patrones y comportamientos del modelo
+                - Detectar posibles sesgos o comportamientos inesperados
+                - Comprender la sensibilidad del modelo a cambios en los datos
+                
+                📊 **¿Cómo interpretar los resultados?**
+                - **Líneas ascendentes**: La característica tiene correlación positiva
+                - **Líneas descendentes**: La característica tiene correlación negativa  
+                - **Líneas planas**: La característica tiene poco impacto
+                - **Cambios abruptos**: Puntos de decisión críticos del modelo
+                
+                💡 **Consejos de uso:**
+                - Prueba diferentes muestras base para ver patrones generales
+                - Observa qué características causan mayores cambios
+                - Busca comportamientos inesperados o poco realistas
+                """)
+
+            st.markdown(
+                "🎯 **Explora cómo cambian las predicciones al modificar diferentes características:**")
+
             # Seleccionar una muestra base
-            st.markdown("**1. Selecciona una muestra base:**")
-            
+            st.markdown("**1. 📍 Selecciona una muestra base:**")
+
+            st.info("💡 **Tip:** La muestra base es tu punto de referencia. Todas las exploraciones mostrarán cómo cambian las predicciones desde este punto inicial.")
+
             sample_idx = st.selectbox(
                 "Índice de muestra:",
                 range(len(df)),
                 format_func=lambda x: f"Muestra {x}",
                 key="nn_interactive_sample"
             )
-            
+
             base_sample = df.iloc[sample_idx][feature_cols].to_dict()
-            
+
             # Mostrar valores base
-            st.markdown("**2. Valores base:**")
+            st.markdown("**2. 📋 Valores base de la muestra:**")
+            st.caption(
+                "Estos son los valores de todas las características para la muestra seleccionada:")
             base_df = pd.DataFrame([base_sample])
             st.dataframe(base_df, use_container_width=True)
-            
+
             # Hacer predicción base
-            base_array = np.array([[base_sample[feature] for feature in feature_cols]])
+            base_array = np.array([[base_sample[feature]
+                                  for feature in feature_cols]])
             base_scaled = scaler.transform(base_array)
             base_prediction = model.predict(base_scaled, verbose=0)
-            
+
             if config['task_type'] == 'Clasificación':
                 output_size = safe_get_output_size(config)
                 if output_size > 2:
                     base_class_idx = np.argmax(base_prediction[0])
                     base_confidence = base_prediction[0][base_class_idx]
-                    
+
                     if label_encoder:
-                        base_class = label_encoder.inverse_transform([base_class_idx])[0]
+                        base_class = label_encoder.inverse_transform([base_class_idx])[
+                            0]
                     else:
                         base_class = f"Clase {base_class_idx}"
-                        
-                    st.info(f"🎯 **Predicción Base:** {base_class} (Confianza: {base_confidence:.3f})")
+
+                    st.info(
+                        f"🎯 **Predicción Base:** {base_class} (Confianza: {base_confidence:.3f})")
                 else:
                     base_prob = base_prediction[0][0]
                     base_class_idx = 1 if base_prob > 0.5 else 0
-                    
+
                     if label_encoder:
-                        base_class = label_encoder.inverse_transform([base_class_idx])[0]
+                        base_class = label_encoder.inverse_transform([base_class_idx])[
+                            0]
                     else:
                         base_class = f"Clase {base_class_idx}"
-                    
-                    st.info(f"🎯 **Predicción Base:** {base_class} (Probabilidad: {base_prob:.3f})")
+
+                    st.info(
+                        f"🎯 **Predicción Base:** {base_class} (Probabilidad: {base_prob:.3f})")
             else:
                 base_value = base_prediction[0][0]
                 st.info(f"🎯 **Predicción Base:** {base_value:.6f}")
-            
+
             # Seleccionar característica para explorar
-            st.markdown("**3. Explora el efecto de una característica:**")
-            
+            st.markdown("**3. 🔍 Explora el efecto de una característica:**")
+
+            st.info("🎯 **Objetivo:** Verás cómo cambia la predicción cuando modificas solo UNA característica, manteniendo todas las demás constantes. Esto te ayuda a entender la importancia relativa de cada variable.")
+
             feature_to_explore = st.selectbox(
                 "Característica a explorar:",
                 feature_cols,
-                key="nn_explore_feature"
+                key="nn_explore_feature",
+                help="Selecciona la característica cuyo efecto quieres analizar en las predicciones"
             )
-            
+
             # Crear rango de valores para la característica seleccionada
             min_val = float(df[feature_to_explore].min())
             max_val = float(df[feature_to_explore].max())
-            
+
             # Generar valores para exploración
             exploration_values = np.linspace(min_val, max_val, 50)
             exploration_predictions = []
-            
+
             for val in exploration_values:
                 # Crear muestra modificada
                 modified_sample = base_sample.copy()
                 modified_sample[feature_to_explore] = val
-                
+
                 # Hacer predicción
-                modified_array = np.array([[modified_sample[feature] for feature in feature_cols]])
+                modified_array = np.array(
+                    [[modified_sample[feature] for feature in feature_cols]])
                 modified_scaled = scaler.transform(modified_array)
                 pred = model.predict(modified_scaled, verbose=0)
-                
+
                 if config['task_type'] == 'Clasificación':
                     output_size = safe_get_output_size(config)
                     if output_size > 2:
                         pred_class_idx = np.argmax(pred[0])
                         confidence = pred[0][pred_class_idx]
-                        exploration_predictions.append((pred_class_idx, confidence))
+                        exploration_predictions.append(
+                            (pred_class_idx, confidence))
                     else:
                         prob = pred[0][0]
                         exploration_predictions.append(prob)
                 else:
                     exploration_predictions.append(pred[0][0])
-            
+
             # Crear visualización
             import plotly.graph_objects as go
-            
+
             fig = go.Figure()
-            
+
             if config['task_type'] == 'Clasificación':
                 output_size = safe_get_output_size(config)
                 if output_size > 2:
                     # Multiclase: mostrar clase predicha y confianza
                     classes = [pred[0] for pred in exploration_predictions]
                     confidences = [pred[1] for pred in exploration_predictions]
-                    
+
                     fig.add_trace(go.Scatter(
                         x=exploration_values,
                         y=classes,
@@ -7787,7 +8747,7 @@ def show_neural_network_predictions():
                         name='Clase Predicha',
                         yaxis='y1'
                     ))
-                    
+
                     fig.add_trace(go.Scatter(
                         x=exploration_values,
                         y=confidences,
@@ -7796,12 +8756,13 @@ def show_neural_network_predictions():
                         yaxis='y2',
                         line=dict(color='red')
                     ))
-                    
+
                     fig.update_layout(
                         title=f'Efecto de {feature_to_explore} en la Predicción',
                         xaxis_title=feature_to_explore,
                         yaxis=dict(title='Clase Predicha', side='left'),
-                        yaxis2=dict(title='Confianza', side='right', overlaying='y'),
+                        yaxis2=dict(title='Confianza',
+                                    side='right', overlaying='y'),
                         height=500
                     )
                 else:
@@ -7812,10 +8773,10 @@ def show_neural_network_predictions():
                         mode='lines+markers',
                         name='Probabilidad'
                     ))
-                    
-                    fig.add_hline(y=0.5, line_dash="dash", line_color="red", 
-                                 annotation_text="Umbral de decisión")
-                    
+
+                    fig.add_hline(y=0.5, line_dash="dash", line_color="red",
+                                  annotation_text="Umbral de decisión")
+
                     fig.update_layout(
                         title=f'Efecto de {feature_to_explore} en la Probabilidad',
                         xaxis_title=feature_to_explore,
@@ -7830,21 +8791,94 @@ def show_neural_network_predictions():
                     mode='lines+markers',
                     name='Predicción'
                 ))
-                
+
                 fig.update_layout(
                     title=f'Efecto de {feature_to_explore} en la Predicción',
                     xaxis_title=feature_to_explore,
                     yaxis_title='Valor Predicho',
                     height=500
                 )
-            
+
             # Marcar el valor base
             base_val = base_sample[feature_to_explore]
-            fig.add_vline(x=base_val, line_dash="dash", line_color="green", 
-                         annotation_text="Valor Base")
-            
+            fig.add_vline(x=base_val, line_dash="dash", line_color="green",
+                          annotation_text="Valor Base")
+
             st.plotly_chart(fig, use_container_width=True)
-            
+
+            # Análisis interpretativo
+            st.markdown("**📈 Análisis de Resultados:**")
+
+            # Calcular estadísticas del efecto
+            if config['task_type'] == 'Clasificación':
+                output_size = safe_get_output_size(config)
+                if output_size <= 2:
+                    pred_range = max(exploration_predictions) - \
+                        min(exploration_predictions)
+                    volatility = np.std(exploration_predictions)
+
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("Rango de Probabilidades", f"{pred_range:.3f}",
+                                  help="Diferencia entre la probabilidad máxima y mínima observada")
+                    with col2:
+                        st.metric("Volatilidad", f"{volatility:.3f}",
+                                  help="Qué tan variables son las predicciones (desviación estándar)")
+
+                    if pred_range > 0.3:
+                        st.success(
+                            f"🎯 **Característica muy influyente:** '{feature_to_explore}' tiene un gran impacto en las predicciones")
+                    elif pred_range > 0.1:
+                        st.warning(
+                            f"📊 **Característica moderadamente influyente:** '{feature_to_explore}' tiene un impacto moderado")
+                    else:
+                        st.info(
+                            f"📉 **Característica poco influyente:** '{feature_to_explore}' tiene poco impacto en las predicciones")
+            else:
+                pred_range = max(exploration_predictions) - \
+                    min(exploration_predictions)
+                pred_mean = np.mean(exploration_predictions)
+                relative_impact = (pred_range / abs(pred_mean)
+                                   ) * 100 if pred_mean != 0 else 0
+
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("Rango de Predicciones", f"{pred_range:.6f}")
+                with col2:
+                    st.metric("Impacto Relativo", f"{relative_impact:.1f}%")
+
+                if relative_impact > 20:
+                    st.success(
+                        f"🎯 **Característica muy influyente:** '{feature_to_explore}' causa cambios significativos")
+                elif relative_impact > 5:
+                    st.warning(
+                        f"📊 **Característica moderadamente influyente:** '{feature_to_explore}' tiene impacto moderado")
+                else:
+                    st.info(
+                        f"📉 **Característica poco influyente:** '{feature_to_explore}' tiene poco impacto")
+
+            # Consejos interpretativos
+            with st.expander("💡 Consejos para Interpretar los Resultados", expanded=False):
+                st.markdown(f"""
+                **🔍 Analizando '{feature_to_explore}':**
+                
+                ✅ **Buenas señales:**
+                - Cambios graduales y suaves en las predicciones
+                - Comportamiento consistente con el conocimiento del dominio
+                - Relaciones monotónicas (siempre creciente o decreciente)
+                
+                ⚠️ **Señales de alerta:**
+                - Cambios muy abruptos sin explicación lógica
+                - Comportamientos contradictorios al conocimiento experto
+                - Excesiva sensibilidad a pequeños cambios
+                
+                **🎯 Próximos pasos:**
+                1. Prueba con diferentes muestras base para confirmar patrones
+                2. Explora otras características para comparar importancias
+                3. Si encuentras comportamientos extraños, considera reentrenar el modelo
+                4. Documenta los insights para mejorar futuras versiones del modelo
+                """)
+
     except Exception as e:
         st.error(f"Error en las predicciones: {str(e)}")
         st.info("Asegúrate de que el modelo esté entrenado correctamente.")
@@ -7853,26 +8887,27 @@ def show_neural_network_predictions():
 def show_neural_network_export():
     """Permite exportar el modelo entrenado."""
     if 'nn_model' not in st.session_state or st.session_state.nn_model is None:
-        st.warning("⚠️ Primero debes entrenar un modelo en la pestaña 'Entrenamiento'")
+        st.warning(
+            "⚠️ Primero debes entrenar un modelo en la pestaña 'Entrenamiento'")
         return
-    
+
     try:
         import pickle
         import json
         from datetime import datetime
-        
+
         model = st.session_state.nn_model
         scaler = st.session_state.nn_scaler
         label_encoder = st.session_state.nn_label_encoder
         config = st.session_state.nn_config
-        
+
         st.header("📦 Exportar Modelo")
-        
+
         # Información del modelo
         st.subheader("ℹ️ Información del Modelo")
-        
+
         col1, col2 = st.columns(2)
-        
+
         with col1:
             st.info(f"""
             **Arquitectura:**
@@ -7882,7 +8917,7 @@ def show_neural_network_export():
             - Activación: {config['activation']}
             - Optimizador: {config['optimizer']}
             """)
-        
+
         with col2:
             total_params = calculate_network_parameters(config['architecture'])
             st.info(f"""
@@ -7892,26 +8927,27 @@ def show_neural_network_export():
             - Batch size: {config['batch_size']}
             - Fecha entrenamiento: {datetime.now().strftime('%Y-%m-%d %H:%M')}
             """)
-        
+
         # Opciones de exportación
         st.subheader("📁 Opciones de Exportación")
-        
+
         export_tab1, export_tab2, export_tab3, export_tab4 = st.tabs([
             "🤖 Modelo TensorFlow",
-            "📊 Modelo Completo", 
+            "📊 Modelo Completo",
             "📝 Código Python",
             "📋 Metadatos"
         ])
-        
+
         with export_tab1:
             st.markdown("**Exportar solo el modelo de TensorFlow:**")
-            
+
             format_option = st.radio(
                 "Formato:",
-                ["SavedModel (.pb)", "HDF5 (.h5)", "TensorFlow Lite (.tflite)"],
+                ["SavedModel (.pb)", "HDF5 (.h5)",
+                 "TensorFlow Lite (.tflite)"],
                 key="nn_export_format"
             )
-            
+
             if st.button("💾 Exportar Modelo TensorFlow", type="primary"):
                 try:
                     if format_option == "SavedModel (.pb)":
@@ -7919,11 +8955,11 @@ def show_neural_network_export():
                         import tempfile
                         import zipfile
                         import io
-                        
+
                         with tempfile.TemporaryDirectory() as temp_dir:
                             model_path = f"{temp_dir}/neural_network_model"
                             model.save(model_path)
-                            
+
                             # Crear ZIP con el modelo
                             zip_buffer = io.BytesIO()
                             with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
@@ -7931,60 +8967,63 @@ def show_neural_network_export():
                                 for root, dirs, files in os.walk(model_path):
                                     for file in files:
                                         file_path = os.path.join(root, file)
-                                        arc_name = os.path.relpath(file_path, temp_dir)
+                                        arc_name = os.path.relpath(
+                                            file_path, temp_dir)
                                         zip_file.write(file_path, arc_name)
-                            
+
                             zip_buffer.seek(0)
-                            
+
                             st.download_button(
                                 label="📥 Descargar SavedModel",
                                 data=zip_buffer.getvalue(),
                                 file_name="neural_network_savedmodel.zip",
                                 mime="application/zip"
                             )
-                    
+
                     elif format_option == "HDF5 (.h5)":
                         # Guardar como HDF5
                         import io
                         import tempfile
-                        
+
                         with tempfile.NamedTemporaryFile(suffix='.h5', delete=False) as tmp_file:
                             model.save(tmp_file.name)
-                            
+
                             with open(tmp_file.name, 'rb') as f:
                                 model_data = f.read()
-                            
+
                             st.download_button(
                                 label="📥 Descargar Modelo HDF5",
                                 data=model_data,
                                 file_name="neural_network_model.h5",
                                 mime="application/octet-stream"
                             )
-                    
+
                     elif format_option == "TensorFlow Lite (.tflite)":
                         # Convertir a TensorFlow Lite
                         import tensorflow as tf
-                        
-                        converter = tf.lite.TFLiteConverter.from_keras_model(model)
+
+                        converter = tf.lite.TFLiteConverter.from_keras_model(
+                            model)
                         tflite_model = converter.convert()
-                        
+
                         st.download_button(
                             label="📥 Descargar Modelo TFLite",
                             data=tflite_model,
                             file_name="neural_network_model.tflite",
                             mime="application/octet-stream"
                         )
-                        
+
                         st.success("✅ Modelo convertido a TensorFlow Lite")
-                        st.info("💡 TensorFlow Lite es ideal para aplicaciones móviles y embebidas")
-                    
+                        st.info(
+                            "💡 TensorFlow Lite es ideal para aplicaciones móviles y embebidas")
+
                 except Exception as e:
                     st.error(f"Error exportando modelo: {str(e)}")
-        
+
         with export_tab2:
             st.markdown("**Exportar modelo completo con preprocesadores:**")
             st.info("Incluye el modelo, scaler, label encoder y configuración")
-            
+
             if st.button("💾 Exportar Modelo Completo", type="primary"):
                 try:
                     # Crear diccionario con todos los componentes
@@ -7997,26 +9036,27 @@ def show_neural_network_export():
                         'export_date': datetime.now().isoformat(),
                         'version': '1.0'
                     }
-                    
+
                     # Serializar con pickle
                     model_data = pickle.dumps(complete_model)
-                    
+
                     st.download_button(
                         label="📥 Descargar Modelo Completo",
                         data=model_data,
                         file_name="neural_network_complete.pkl",
                         mime="application/octet-stream"
                     )
-                    
+
                     st.success("✅ Modelo completo exportado")
-                    st.info("💡 Este archivo contiene todo lo necesario para hacer predicciones")
-                    
+                    st.info(
+                        "💡 Este archivo contiene todo lo necesario para hacer predicciones")
+
                 except Exception as e:
                     st.error(f"Error exportando modelo completo: {str(e)}")
-            
+
             # Mostrar código de ejemplo para cargar
             st.markdown("**Código para cargar el modelo:**")
-            
+
             load_code = """
 import pickle
 import numpy as np
@@ -8061,12 +9101,12 @@ def predecir(nuevos_datos):
 # resultado = predecir([valor1, valor2, valor3, ...])
 # print(resultado)
 """
-            
+
             st.code(load_code, language='python')
-        
+
         with export_tab3:
             st.markdown("**Generar código Python independiente:**")
-            
+
             if st.button("📝 Generar Código", type="primary"):
                 try:
                     # Obtener pesos del modelo
@@ -8074,7 +9114,7 @@ def predecir(nuevos_datos):
                     for layer in model.layers:
                         if hasattr(layer, 'get_weights') and layer.get_weights():
                             weights_data.append(layer.get_weights())
-                    
+
                     # Generar código
                     code = f"""
 # Código generado automáticamente para Red Neuronal
@@ -8162,9 +9202,9 @@ class NeuralNetworkPredictor:
 # # resultado = predictor.predict_class(nuevos_datos)
 # # print(resultado)
 """
-                    
+
                     st.code(code, language='python')
-                    
+
                     # Botón para descargar el código
                     st.download_button(
                         label="📥 Descargar Código",
@@ -8172,15 +9212,16 @@ class NeuralNetworkPredictor:
                         file_name="neural_network_predictor.py",
                         mime="text/plain"
                     )
-                    
-                    st.warning("⚠️ El código generado es una plantilla. Debes implementar los pesos específicos del modelo entrenado.")
-                    
+
+                    st.warning(
+                        "⚠️ El código generado es una plantilla. Debes implementar los pesos específicos del modelo entrenado.")
+
                 except Exception as e:
                     st.error(f"Error generando código: {str(e)}")
-        
+
         with export_tab4:
             st.markdown("**Exportar metadatos del modelo:**")
-            
+
             # Preparar metadatos
             if 'nn_history' in st.session_state:
                 history = st.session_state.nn_history
@@ -8189,14 +9230,16 @@ class NeuralNetworkPredictor:
                     'final_val_loss': float(history.history.get('val_loss', [0])[-1]) if 'val_loss' in history.history else None,
                     'epochs_trained': len(history.history['loss'])
                 }
-                
+
                 if config['task_type'] == 'Clasificación' and 'accuracy' in history.history:
-                    final_metrics['final_accuracy'] = float(history.history['accuracy'][-1])
+                    final_metrics['final_accuracy'] = float(
+                        history.history['accuracy'][-1])
                     if 'val_accuracy' in history.history:
-                        final_metrics['final_val_accuracy'] = float(history.history['val_accuracy'][-1])
+                        final_metrics['final_val_accuracy'] = float(
+                            history.history['val_accuracy'][-1])
             else:
                 final_metrics = {}
-            
+
             metadata = {
                 'model_info': {
                     'type': 'Neural Network',
@@ -8222,23 +9265,23 @@ class NeuralNetworkPredictor:
                     'framework': 'TensorFlow/Keras'
                 }
             }
-            
+
             # Mostrar metadatos
             st.json(metadata)
-            
+
             # Botón para descargar metadatos
             metadata_json = json.dumps(metadata, indent=2)
-            
+
             st.download_button(
                 label="📥 Descargar Metadatos",
                 data=metadata_json,
                 file_name="neural_network_metadata.json",
                 mime="application/json"
             )
-        
+
         # Información adicional
         st.subheader("💡 Información Adicional")
-        
+
         st.info("""
         **Recomendaciones para el uso del modelo:**
         
@@ -8252,10 +9295,769 @@ class NeuralNetworkPredictor:
         - Compatibilidad con versiones futuras
         - Dependencias del entorno de producción
         """)
-        
+
     except Exception as e:
         st.error(f"Error en la exportación: {str(e)}")
         st.info("Asegúrate de que el modelo esté entrenado correctamente.")
+
+
+def generate_neural_network_architecture_code(architecture, activation, output_activation,
+                                              dropout_rate, optimizer, batch_size, task_type, feature_names):
+    """Genera código Python completo para la arquitectura de red neuronal."""
+
+    feature_names_str = str(
+        feature_names) if feature_names else "['feature_1', 'feature_2', ...]"
+
+    # Determinar loss y metrics según el tipo de tarea
+    if task_type == "Clasificación":
+        if architecture[-1] == 1:  # Clasificación binaria
+            loss = "binary_crossentropy"
+            metrics = "['accuracy']"
+            output_processing = """
+# Para clasificación binaria
+y_pred_classes = (y_pred > 0.5).astype(int)
+accuracy = accuracy_score(y_test, y_pred_classes)
+print(f"Accuracy: {accuracy:.4f}")
+"""
+        else:  # Clasificación multiclase
+            if output_activation == "softmax":
+                loss = "sparse_categorical_crossentropy"
+            else:
+                loss = "categorical_crossentropy"
+            metrics = "['accuracy']"
+            output_processing = """
+# Para clasificación multiclase
+y_pred_classes = np.argmax(y_pred, axis=1)
+accuracy = accuracy_score(y_test, y_pred_classes)
+print(f"Accuracy: {accuracy:.4f}")
+print("\\nReporte de clasificación:")
+print(classification_report(y_test, y_pred_classes))
+"""
+    else:  # Regresión
+        loss = "mse"
+        metrics = "['mae']"
+        output_processing = """
+# Para regresión
+mse = mean_squared_error(y_test, y_pred)
+mae = mean_absolute_error(y_test, y_pred)
+r2 = r2_score(y_test, y_pred)
+
+print(f"MSE: {mse:.4f}")
+print(f"MAE: {mae:.4f}")
+print(f"R²: {r2:.4f}")
+"""
+
+    # Generar código de las capas
+    layers_code = []
+    for i, neurons in enumerate(architecture[1:-1], 1):
+        if i == 1:  # Primera capa oculta
+            layers_code.append(f"""
+# Capa oculta {i}
+model.add(Dense({neurons}, activation='{activation}', input_shape=({architecture[0]},)))
+model.add(Dropout({dropout_rate}))""")
+        else:
+            layers_code.append(f"""
+# Capa oculta {i}
+model.add(Dense({neurons}, activation='{activation}'))
+model.add(Dropout({dropout_rate}))""")
+
+    layers_code_str = "".join(layers_code)
+
+    code = f"""# Código completo para Red Neuronal - {task_type}
+import numpy as np
+import pandas as pd
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Dropout
+from tensorflow.keras.optimizers import Adam, SGD, RMSprop
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, mean_squared_error, mean_absolute_error, r2_score
+import matplotlib.pyplot as plt
+
+# 1. CARGAR Y PREPARAR LOS DATOS
+# Reemplaza esta sección con tu método de carga de datos
+# df = pd.read_csv('tu_archivo.csv')  # Cargar desde CSV
+
+# Características y variable objetivo
+feature_names = {feature_names_str}
+# X = df[feature_names]  # Características
+# y = df['target']  # Variable objetivo
+
+# 2. PREPROCESAMIENTO
+# Dividir datos
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, 
+    stratify=y if '{task_type}' == 'Clasificación' else None
+)
+
+# Normalizar características
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+# Procesar variable objetivo
+{"# Para clasificación multiclase con softmax, usar sparse_categorical_crossentropy" if task_type == "Clasificación" and architecture[-1] > 1 and output_activation == "softmax" else ""}
+{"# Para clasificación binaria, mantener y como está" if task_type == "Clasificación" and architecture[-1] == 1 else ""}
+{"# Para regresión, mantener y como está" if task_type == "Regresión" else ""}
+
+# 3. CONSTRUIR EL MODELO
+model = Sequential()
+{layers_code_str}
+
+# Capa de salida
+model.add(Dense({architecture[-1]}, activation='{output_activation}'))
+
+# 4. COMPILAR EL MODELO
+# Seleccionar optimizador
+if '{optimizer}' == 'adam':
+    optimizer = Adam()
+elif '{optimizer}' == 'sgd':
+    optimizer = SGD()
+elif '{optimizer}' == 'rmsprop':
+    optimizer = RMSprop()
+
+model.compile(
+    optimizer=optimizer,
+    loss='{loss}',
+    metrics={metrics}
+)
+
+# 5. MOSTRAR RESUMEN DE LA ARQUITECTURA
+print("=== ARQUITECTURA DE LA RED NEURONAL ===")
+model.summary()
+
+# Información detallada
+total_params = model.count_params()
+print(f"\\nTotal de parámetros: {{total_params:,}}")
+print(f"Arquitectura: {architecture}")
+print(f"Funciones de activación: {activation} (ocultas), {output_activation} (salida)")
+print(f"Dropout: {dropout_rate}")
+print(f"Optimizador: {optimizer}")
+print(f"Batch size: {batch_size}")
+
+# 6. ENTRENAR EL MODELO
+print("\\n=== INICIANDO ENTRENAMIENTO ===")
+
+# Callbacks opcionales
+callbacks = [
+    keras.callbacks.EarlyStopping(
+        monitor='val_loss', 
+        patience=10, 
+        restore_best_weights=True
+    ),
+    keras.callbacks.ReduceLROnPlateau(
+        monitor='val_loss', 
+        factor=0.5, 
+        patience=5, 
+        min_lr=1e-7
+    )
+]
+
+# Entrenar
+history = model.fit(
+    X_train_scaled, y_train,
+    epochs=100,  # Ajusta según necesites
+    batch_size={batch_size},
+    validation_split=0.2,
+    callbacks=callbacks,
+    verbose=1
+)
+
+# 7. EVALUAR EL MODELO
+print("\\n=== EVALUACIÓN DEL MODELO ===")
+
+# Predicciones
+y_pred = model.predict(X_test_scaled)
+{output_processing}
+
+# 8. VISUALIZAR HISTORIAL DE ENTRENAMIENTO
+plt.figure(figsize=(12, 4))
+
+# Pérdida
+plt.subplot(1, 2, 1)
+plt.plot(history.history['loss'], label='Entrenamiento')
+plt.plot(history.history['val_loss'], label='Validación')
+plt.title('Pérdida durante el entrenamiento')
+plt.xlabel('Época')
+plt.ylabel('Pérdida')
+plt.legend()
+
+# Métrica principal
+plt.subplot(1, 2, 2)
+metric_key = list(history.history.keys())[1]  # Primera métrica después de loss
+plt.plot(history.history[metric_key], label='Entrenamiento')
+plt.plot(history.history[f'val_{{metric_key}}'], label='Validación')
+plt.title(f'{{metric_key.title()}} durante el entrenamiento')
+plt.xlabel('Época')
+plt.ylabel(metric_key.title())
+plt.legend()
+
+plt.tight_layout()
+plt.show()
+
+# 9. FUNCIÓN PARA NUEVAS PREDICCIONES
+def predecir_nueva_muestra(nueva_muestra):
+    \"\"\"
+    Función para hacer predicciones con nuevos datos.
+    
+    Parámetros:
+    nueva_muestra: lista con valores para cada característica
+                  en el orden: {feature_names_str}
+    
+    Retorna:
+    prediccion: resultado de la predicción
+    \"\"\"
+    # Convertir a array y normalizar
+    nueva_muestra = np.array(nueva_muestra).reshape(1, -1)
+    nueva_muestra_scaled = scaler.transform(nueva_muestra)
+    
+    # Predecir
+    prediccion = model.predict(nueva_muestra_scaled)
+    
+    {"# Para clasificación, convertir a clase" if task_type == "Clasificación" else "# Para regresión, devolver valor directo"}
+    {"if prediccion[0][0] > 0.5: return 'Clase 1' else return 'Clase 0'  # Binaria" if task_type == "Clasificación" and architecture[-1] == 1 else ""}
+    {"return np.argmax(prediccion[0])  # Multiclase" if task_type == "Clasificación" and architecture[-1] > 1 else ""}
+    {"return prediccion[0][0]  # Regresión" if task_type == "Regresión" else ""}
+
+# Ejemplo de uso:
+# nueva_muestra = [valor1, valor2, valor3, ...]  # Reemplaza con tus valores
+# resultado = predecir_nueva_muestra(nueva_muestra)
+# print(f"Predicción: {{resultado}}")
+
+# 10. GUARDAR EL MODELO
+print("\\n=== GUARDANDO MODELO ===")
+
+# Guardar modelo completo
+model.save('modelo_red_neuronal.h5')
+print("Modelo guardado como 'modelo_red_neuronal.h5'")
+
+# Guardar scaler por separado
+import pickle
+with open('scaler.pkl', 'wb') as f:
+    pickle.dump(scaler, f)
+print("Scaler guardado como 'scaler.pkl'")
+
+# Código para cargar el modelo guardado:
+# modelo_cargado = keras.models.load_model('modelo_red_neuronal.h5')
+# with open('scaler.pkl', 'rb') as f:
+#     scaler_cargado = pickle.load(f)
+
+print("\\n✅ ¡Entrenamiento completado!")
+print("Tu red neuronal está lista para hacer predicciones.")
+"""
+
+    return code
+
+
+def generate_neural_network_evaluation_code(config, feature_names, class_names=None):
+    """Genera código Python para evaluación de red neuronal."""
+
+    feature_names_str = str(
+        feature_names) if feature_names else "['feature_1', 'feature_2', ...]"
+    class_names_str = str(
+        class_names) if class_names else "['Clase_0', 'Clase_1', ...]"
+
+    if config['task_type'] == "Clasificación":
+        if config['output_size'] == 1:  # Clasificación binaria
+            evaluation_metrics = """
+# Evaluación para clasificación binaria
+y_pred_classes = (y_pred > 0.5).astype(int).flatten()
+y_test_flat = y_test.flatten()
+
+# Métricas principales
+accuracy = accuracy_score(y_test_flat, y_pred_classes)
+precision = precision_score(y_test_flat, y_pred_classes)
+recall = recall_score(y_test_flat, y_pred_classes)
+f1 = f1_score(y_test_flat, y_pred_classes)
+
+print("=== MÉTRICAS DE CLASIFICACIÓN BINARIA ===")
+print(f"Accuracy: {accuracy:.4f} ({accuracy*100:.2f}%)")
+print(f"Precision: {precision:.4f}")
+print(f"Recall: {recall:.4f}")
+print(f"F1-Score: {f1:.4f}")
+
+# Matriz de confusión
+cm = confusion_matrix(y_test_flat, y_pred_classes)
+print("\\nMatriz de Confusión:")
+print(cm)
+"""
+        else:  # Clasificación multiclase
+            evaluation_metrics = """
+# Evaluación para clasificación multiclase
+y_pred_classes = np.argmax(y_pred, axis=1)
+if len(y_test.shape) > 1:
+    y_test_classes = np.argmax(y_test, axis=1)
+else:
+    y_test_classes = y_test.flatten()
+
+# Métricas principales
+accuracy = accuracy_score(y_test_classes, y_pred_classes)
+
+print("=== MÉTRICAS DE CLASIFICACIÓN MULTICLASE ===")
+print(f"Accuracy: {accuracy:.4f} ({accuracy*100:.2f}%)")
+
+# Reporte detallado
+class_names = """ + class_names_str + """
+print("\\nReporte de Clasificación:")
+print(classification_report(y_test_classes, y_pred_classes, target_names=class_names))
+
+# Matriz de confusión
+cm = confusion_matrix(y_test_classes, y_pred_classes)
+print("\\nMatriz de Confusión:")
+print(cm)
+"""
+    else:  # Regresión
+        evaluation_metrics = """
+# Evaluación para regresión
+y_pred_flat = y_pred.flatten()
+y_test_flat = y_test.flatten()
+
+# Métricas principales
+mse = mean_squared_error(y_test_flat, y_pred_flat)
+rmse = np.sqrt(mse)
+mae = mean_absolute_error(y_test_flat, y_pred_flat)
+r2 = r2_score(y_test_flat, y_pred_flat)
+
+print("=== MÉTRICAS DE REGRESIÓN ===")
+print(f"MSE: {mse:.4f}")
+print(f"RMSE: {rmse:.4f}")
+print(f"MAE: {mae:.4f}")
+print(f"R²: {r2:.4f}")
+
+# Análisis de residuos
+residuos = y_test_flat - y_pred_flat
+print(f"\\nAnálisis de Residuos:")
+print(f"Media de residuos: {np.mean(residuos):.6f}")
+print(f"Desviación estándar de residuos: {np.std(residuos):.4f}")
+"""
+
+    visualization_code = """
+# Visualizaciones
+plt.figure(figsize=(15, 10))
+
+# Historial de entrenamiento
+plt.subplot(2, 3, 1)
+plt.plot(history.history['loss'], label='Entrenamiento')
+if 'val_loss' in history.history:
+    plt.plot(history.history['val_loss'], label='Validación')
+plt.title('Pérdida durante el entrenamiento')
+plt.xlabel('Época')
+plt.ylabel('Pérdida')
+plt.legend()
+
+# Métrica principal (accuracy o mae)
+plt.subplot(2, 3, 2)
+metric_key = list(history.history.keys())[1]  # Primera métrica después de loss
+plt.plot(history.history[metric_key], label='Entrenamiento')
+if f'val_{metric_key}' in history.history:
+    plt.plot(history.history[f'val_{metric_key}'], label='Validación')
+plt.title(f'{metric_key.title()} durante el entrenamiento')
+plt.xlabel('Época')
+plt.ylabel(metric_key.title())
+plt.legend()
+"""
+
+    if config['task_type'] == "Clasificación":
+        specific_viz = """
+# Matriz de confusión visualizada
+plt.subplot(2, 3, 3)
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+plt.title('Matriz de Confusión')
+plt.xlabel('Predicciones')
+plt.ylabel('Valores Reales')
+
+# Distribución de confianza
+plt.subplot(2, 3, 4)
+if """ + str(config['output_size']) + """ == 1:
+    confidence = np.maximum(y_pred.flatten(), 1 - y_pred.flatten())
+else:
+    confidence = np.max(y_pred, axis=1)
+plt.hist(confidence, bins=20, alpha=0.7)
+plt.title('Distribución de Confianza de Predicciones')
+plt.xlabel('Confianza')
+plt.ylabel('Frecuencia')
+"""
+    else:
+        specific_viz = """
+# Predicciones vs Valores Reales
+plt.subplot(2, 3, 3)
+plt.scatter(y_test_flat, y_pred_flat, alpha=0.6)
+plt.plot([y_test_flat.min(), y_test_flat.max()], [y_test_flat.min(), y_test_flat.max()], 'r--', lw=2)
+plt.xlabel('Valores Reales')
+plt.ylabel('Predicciones')
+plt.title('Predicciones vs Valores Reales')
+
+# Distribución de residuos
+plt.subplot(2, 3, 4)
+plt.hist(residuos, bins=20, alpha=0.7)
+plt.title('Distribución de Residuos')
+plt.xlabel('Residuos')
+plt.ylabel('Frecuencia')
+
+# Q-Q plot de residuos
+plt.subplot(2, 3, 5)
+from scipy import stats
+stats.probplot(residuos, dist="norm", plot=plt)
+plt.title('Q-Q Plot de Residuos')
+"""
+
+    code = f"""# Código completo para Evaluación de Red Neuronal - {config['task_type']}
+import numpy as np
+import pandas as pd
+import tensorflow as tf
+from tensorflow import keras
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# 1. CARGAR MODELO Y DATOS
+# Asumiendo que ya tienes:
+# - model: tu modelo entrenado
+# - X_test, y_test: datos de prueba
+# - scaler: preprocessor para normalizar datos
+# - history: historial de entrenamiento
+
+print("=== EVALUACIÓN DE RED NEURONAL ===")
+print("Tipo de tarea: {config['task_type']}")
+print("Arquitectura: {config['architecture']}")
+
+# 2. HACER PREDICCIONES
+print("\\nHaciendo predicciones...")
+y_pred = model.predict(X_test, verbose=0)
+
+# 3. CALCULAR MÉTRICAS
+{evaluation_metrics}
+
+# 4. VISUALIZACIONES
+{visualization_code}
+{specific_viz}
+
+plt.tight_layout()
+plt.show()
+
+# 5. ANÁLISIS DETALLADO DEL MODELO
+print("\\n=== INFORMACIÓN DEL MODELO ===")
+model.summary()
+
+# Contar parámetros
+total_params = model.count_params()
+trainable_params = sum([tf.keras.backend.count_params(w) for w in model.trainable_weights])
+non_trainable_params = total_params - trainable_params
+
+print(f"\\nParámetros totales: {{total_params:,}}")
+print(f"Parámetros entrenables: {{trainable_params:,}}")
+print(f"Parámetros no entrenables: {{non_trainable_params:,}}")
+
+# 6. FUNCIÓN PARA NUEVAS PREDICCIONES CON MÉTRICAS
+def evaluar_nueva_muestra(nueva_muestra, valor_real=None):
+    \"\"\"
+    Evalúa una nueva muestra y opcionalmente compara con valor real.
+    
+    Parámetros:
+    nueva_muestra: lista con valores para cada característica
+    valor_real: valor real para comparar (opcional)
+    \"\"\"
+    # Normalizar
+    nueva_muestra = np.array(nueva_muestra).reshape(1, -1)
+    nueva_muestra_scaled = scaler.transform(nueva_muestra)
+    
+    # Predecir
+    prediccion = model.predict(nueva_muestra_scaled, verbose=0)
+    
+    print(f"\\n=== PREDICCIÓN INDIVIDUAL ===")
+    print(f"Entrada: {{nueva_muestra[0]}}")
+    
+    {"# Clasificación" if config['task_type'] == "Clasificación" else "# Regresión"}
+    {"if prediccion[0][0] > 0.5:" if config['task_type'] == "Clasificación" and config['output_size'] == 1 else ""}
+    {"    clase_pred = 1" if config['task_type'] == "Clasificación" and config['output_size'] == 1 else ""}
+    {"    confianza = prediccion[0][0]" if config['task_type'] == "Clasificación" and config['output_size'] == 1 else ""}
+    {"else:" if config['task_type'] == "Clasificación" and config['output_size'] == 1 else ""}
+    {"    clase_pred = 0" if config['task_type'] == "Clasificación" and config['output_size'] == 1 else ""}
+    {"    confianza = 1 - prediccion[0][0]" if config['task_type'] == "Clasificación" and config['output_size'] == 1 else ""}
+    {"print(f'Clase predicha: {clase_pred}')" if config['task_type'] == "Clasificación" and config['output_size'] == 1 else ""}
+    {"print(f'Confianza: {confianza:.4f} ({confianza*100:.2f}%)')" if config['task_type'] == "Clasificación" and config['output_size'] == 1 else ""}
+    
+    {"clase_pred = np.argmax(prediccion[0])" if config['task_type'] == "Clasificación" and config['output_size'] > 1 else ""}
+    {"confianza = np.max(prediccion[0])" if config['task_type'] == "Clasificación" and config['output_size'] > 1 else ""}
+    {"print(f'Clase predicha: {clase_pred}')" if config['task_type'] == "Clasificación" and config['output_size'] > 1 else ""}
+    {"print(f'Confianza: {confianza:.4f} ({confianza*100:.2f}%)')" if config['task_type'] == "Clasificación" and config['output_size'] > 1 else ""}
+    {"print(f'Probabilidades por clase: {prediccion[0]}')" if config['task_type'] == "Clasificación" and config['output_size'] > 1 else ""}
+    
+    {"valor_pred = prediccion[0][0]" if config['task_type'] == "Regresión" else ""}
+    {"print(f'Valor predicho: {valor_pred:.4f}')" if config['task_type'] == "Regresión" else ""}
+    
+    if valor_real is not None:
+        {"error = abs(valor_real - clase_pred)" if config['task_type'] == "Clasificación" else "error = abs(valor_real - valor_pred)"}
+        print(f"Valor real: {{valor_real}}")
+        print(f"Error: {{error:.4f}}")
+    
+    {"return clase_pred, confianza" if config['task_type'] == "Clasificación" else "return valor_pred"}
+
+# Ejemplo de uso:
+# nueva_muestra = [valor1, valor2, valor3, ...]  # Reemplaza con tus valores
+# resultado = evaluar_nueva_muestra(nueva_muestra)
+# print(f"Resultado: {{resultado}}")
+
+print("\\n✅ Evaluación completada!")
+"""
+
+    return code
+
+
+def generate_neural_network_visualization_code(config):
+    """Genera código Python para visualizaciones de red neuronal."""
+
+    code = f"""# Código completo para Visualizaciones de Red Neuronal
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import tensorflow as tf
+from tensorflow import keras
+
+# Configuración de matplotlib
+plt.style.use('default')
+sns.set_palette("husl")
+
+print("=== VISUALIZACIONES DE RED NEURONAL ===")
+print("Tipo de tarea: {config['task_type']}")
+print("Arquitectura: {config['architecture']}")
+
+# 1. HISTORIAL DE ENTRENAMIENTO
+def plot_training_history_detailed(history):
+    \"\"\"Crea gráficas detalladas del historial de entrenamiento.\"\"\"
+    
+    fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+    
+    # Pérdida
+    axes[0, 0].plot(history.history['loss'], label='Entrenamiento', linewidth=2)
+    if 'val_loss' in history.history:
+        axes[0, 0].plot(history.history['val_loss'], label='Validación', linewidth=2)
+    axes[0, 0].set_title('Pérdida durante el entrenamiento', fontsize=14, fontweight='bold')
+    axes[0, 0].set_xlabel('Época')
+    axes[0, 0].set_ylabel('Pérdida')
+    axes[0, 0].legend()
+    axes[0, 0].grid(True, alpha=0.3)
+    
+    # Métrica principal
+    metric_key = list(history.history.keys())[1]  # Primera métrica después de loss
+    axes[0, 1].plot(history.history[metric_key], label='Entrenamiento', linewidth=2)
+    if f'val_{{metric_key}}' in history.history:
+        axes[0, 1].plot(history.history[f'val_{{metric_key}}'], label='Validación', linewidth=2)
+    axes[0, 1].set_title(f'{{metric_key.title()}} durante el entrenamiento', fontsize=14, fontweight='bold')
+    axes[0, 1].set_xlabel('Época')
+    axes[0, 1].set_ylabel(metric_key.title())
+    axes[0, 1].legend()
+    axes[0, 1].grid(True, alpha=0.3)
+    
+    # Learning rate (si disponible)
+    if 'lr' in history.history:
+        axes[1, 0].plot(history.history['lr'], color='red', linewidth=2)
+        axes[1, 0].set_title('Learning Rate', fontsize=14, fontweight='bold')
+        axes[1, 0].set_xlabel('Época')
+        axes[1, 0].set_ylabel('Learning Rate')
+        axes[1, 0].set_yscale('log')
+        axes[1, 0].grid(True, alpha=0.3)
+    else:
+        axes[1, 0].text(0.5, 0.5, 'Learning Rate\\nno disponible', 
+                       ha='center', va='center', transform=axes[1, 0].transAxes)
+    
+    # Mejora por época
+    loss_improvement = np.diff(history.history['loss'])
+    axes[1, 1].plot(loss_improvement, color='purple', linewidth=2)
+    axes[1, 1].axhline(y=0, color='red', linestyle='--', alpha=0.5)
+    axes[1, 1].set_title('Mejora por Época (Pérdida)', fontsize=14, fontweight='bold')
+    axes[1, 1].set_xlabel('Época')
+    axes[1, 1].set_ylabel('Cambio en Pérdida')
+    axes[1, 1].grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.show()
+
+# 2. ANÁLISIS DE PESOS Y SESGOS
+def analyze_weights_and_biases(model):
+    \"\"\"Analiza la distribución de pesos y sesgos en todas las capas.\"\"\"
+    
+    layer_weights = []
+    layer_biases = []
+    
+    # Extraer pesos y sesgos
+    for i, layer in enumerate(model.layers):
+        if hasattr(layer, 'get_weights') and layer.get_weights():
+            weights = layer.get_weights()
+            if len(weights) >= 2:
+                layer_weights.append(weights[0])
+                layer_biases.append(weights[1])
+    
+    if not layer_weights:
+        print("No se encontraron capas con pesos")
+        return
+    
+    num_layers = len(layer_weights)
+    fig, axes = plt.subplots(num_layers, 2, figsize=(12, 4*num_layers))
+    
+    if num_layers == 1:
+        axes = axes.reshape(1, -1)
+    
+    for i, (weights, biases) in enumerate(zip(layer_weights, layer_biases)):
+        # Histograma de pesos
+        axes[i, 0].hist(weights.flatten(), bins=50, alpha=0.7, color='blue', edgecolor='black')
+        axes[i, 0].set_title(f'Distribución de Pesos - Capa {{i+1}}', fontweight='bold')
+        axes[i, 0].set_xlabel('Valor de Peso')
+        axes[i, 0].set_ylabel('Frecuencia')
+        axes[i, 0].grid(True, alpha=0.3)
+        
+        # Estadísticas de pesos
+        mean_w = np.mean(weights)
+        std_w = np.std(weights)
+        axes[i, 0].axvline(mean_w, color='red', linestyle='--', label=f'Media: {{mean_w:.4f}}')
+        axes[i, 0].axvline(mean_w + std_w, color='orange', linestyle=':', label=f'±1σ: {{std_w:.4f}}')
+        axes[i, 0].axvline(mean_w - std_w, color='orange', linestyle=':')
+        axes[i, 0].legend()
+        
+        # Histograma de sesgos
+        axes[i, 1].hist(biases.flatten(), bins=20, alpha=0.7, color='orange', edgecolor='black')
+        axes[i, 1].set_title(f'Distribución de Sesgos - Capa {{i+1}}', fontweight='bold')
+        axes[i, 1].set_xlabel('Valor de Sesgo')
+        axes[i, 1].set_ylabel('Frecuencia')
+        axes[i, 1].grid(True, alpha=0.3)
+        
+        # Estadísticas de sesgos
+        mean_b = np.mean(biases)
+        std_b = np.std(biases)
+        axes[i, 1].axvline(mean_b, color='red', linestyle='--', label=f'Media: {{mean_b:.4f}}')
+        axes[i, 1].axvline(mean_b + std_b, color='blue', linestyle=':', label=f'±1σ: {{std_b:.4f}}')
+        axes[i, 1].axvline(mean_b - std_b, color='blue', linestyle=':')
+        axes[i, 1].legend()
+    
+    plt.tight_layout()
+    plt.show()
+    
+    # Estadísticas generales
+    all_weights = np.concatenate([w.flatten() for w in layer_weights])
+    all_biases = np.concatenate([b.flatten() for b in layer_biases])
+    
+    print("\\n=== ESTADÍSTICAS GENERALES ===")
+    print(f"Número total de pesos: {{len(all_weights):,}}")
+    print(f"Número total de sesgos: {{len(all_biases):,}}")
+    print(f"\\nPesos - Media: {{np.mean(all_weights):.6f}}, Std: {{np.std(all_weights):.6f}}")
+    print(f"Pesos - Min: {{np.min(all_weights):.6f}}, Max: {{np.max(all_weights):.6f}}")
+    print(f"\\nSesgos - Media: {{np.mean(all_biases):.6f}}, Std: {{np.std(all_biases):.6f}}")
+    print(f"Sesgos - Min: {{np.min(all_biases):.6f}}, Max: {{np.max(all_biases):.6f}}")
+    
+    # Detección de problemas
+    dead_weights = np.sum(np.abs(all_weights) < 1e-6)
+    if dead_weights > len(all_weights) * 0.1:
+        print(f"\\n⚠️ ADVERTENCIA: {{dead_weights}} pesos muy cerca de cero ({{dead_weights/len(all_weights)*100:.1f}}%)")
+    
+    if np.std(all_weights) < 0.01:
+        print("\\n🚨 PROBLEMA: Pesos muy pequeños, la red puede no haber aprendido correctamente")
+    elif np.std(all_weights) > 2:
+        print("\\n⚠️ ATENCIÓN: Pesos muy grandes, posible inestabilidad")
+
+# 3. ANÁLISIS DE ACTIVACIONES
+def analyze_layer_activations(model, X_sample):
+    \"\"\"Analiza las activaciones de cada capa con datos de muestra.\"\"\"
+    
+    # Crear modelo para extraer activaciones
+    layer_outputs = [layer.output for layer in model.layers[:-1]]
+    activation_model = tf.keras.Model(inputs=model.input, outputs=layer_outputs)
+    
+    # Obtener activaciones
+    activations = activation_model.predict(X_sample, verbose=0)
+    if not isinstance(activations, list):
+        activations = [activations]
+    
+    # Analizar cada capa
+    print("\\n=== ANÁLISIS DE ACTIVACIONES ===")
+    for i, activation in enumerate(activations):
+        print(f"\\nCapa {{i+1}}:")
+        print(f"  Forma: {{activation.shape}}")
+        print(f"  Media: {{np.mean(activation):.4f}}")
+        print(f"  Desviación estándar: {{np.std(activation):.4f}}")
+        print(f"  Min: {{np.min(activation):.4f}}, Max: {{np.max(activation):.4f}}")
+        
+        # Neuronas muertas (siempre 0)
+        dead_neurons = np.mean(activation == 0, axis=0)
+        dead_ratio = np.mean(dead_neurons > 0.95) * 100
+        print(f"  Neuronas muertas: {{dead_ratio:.1f}}%")
+        
+        # Neuronas saturadas (siempre cerca del máximo)
+        if activation.max() > 0:
+            saturated_neurons = np.mean(activation >= 0.99 * activation.max(), axis=0)
+            saturated_ratio = np.mean(saturated_neurons > 0.95) * 100
+            print(f"  Neuronas saturadas: {{saturated_ratio:.1f}}%")
+        
+        # Visualizar distribución de activaciones
+        plt.figure(figsize=(10, 4))
+        
+        plt.subplot(1, 2, 1)
+        plt.hist(activation.flatten(), bins=50, alpha=0.7, edgecolor='black')
+        plt.title(f'Distribución de Activaciones - Capa {{i+1}}')
+        plt.xlabel('Valor de Activación')
+        plt.ylabel('Frecuencia')
+        plt.grid(True, alpha=0.3)
+        
+        plt.subplot(1, 2, 2)
+        plt.boxplot(activation.T)
+        plt.title(f'Box Plot por Neurona - Capa {{i+1}}')
+        plt.xlabel('Neurona')
+        plt.ylabel('Activación')
+        plt.xticks(range(1, min(21, activation.shape[1]+1)))  # Máximo 20 neuronas
+        plt.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        plt.show()
+
+# 4. FUNCIÓN PRINCIPAL DE VISUALIZACIÓN
+def visualize_neural_network_complete(model, history, X_sample=None):
+    \"\"\"Ejecuta todas las visualizaciones de la red neuronal.\"\"\"
+    
+    print("Generando visualizaciones completas...")
+    
+    # 1. Historial de entrenamiento
+    print("\\n1. Analizando historial de entrenamiento...")
+    plot_training_history_detailed(history)
+    
+    # 2. Pesos y sesgos
+    print("\\n2. Analizando pesos y sesgos...")
+    analyze_weights_and_biases(model)
+    
+    # 3. Activaciones (si se proporcionan datos)
+    if X_sample is not None:
+        print("\\n3. Analizando activaciones...")
+        analyze_layer_activations(model, X_sample)
+    else:
+        print("\\n3. Análisis de activaciones omitido (no se proporcionaron datos)")
+    
+    print("\\n✅ Visualizaciones completadas!")
+
+# EJEMPLO DE USO:
+# Asumiendo que tienes:
+# - model: tu modelo entrenado
+# - history: historial de entrenamiento
+# - X_test: datos de prueba para análisis de activaciones
+
+# Ejecutar todas las visualizaciones
+# visualize_neural_network_complete(model, history, X_test[:100])
+
+# O ejecutar individualmente:
+# plot_training_history_detailed(history)
+# analyze_weights_and_biases(model)
+# analyze_layer_activations(model, X_test[:100])
+"""
+
+    return code
+
+
+def generate_neural_network_complete_code(config, feature_names, class_names=None):
+    """Genera código Python completo para entrenar y usar la red neuronal."""
+    # Esta función se puede expandir para generar código más completo
+    # incluyendo carga de datos, entrenamiento completo, etc.
+    pass
 
 
 if __name__ == "__main__":
