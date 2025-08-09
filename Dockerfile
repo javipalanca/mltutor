@@ -4,7 +4,9 @@ WORKDIR /app
 
 # Copia los archivos necesarios
 COPY requirements.txt .
-COPY app_streamlit_v2.py .
+COPY app.py .
+COPY ui.py .
+COPY tree_visualizer.py .
 
 # Instala las dependencias
 RUN pip install --no-cache-dir -r requirements.txt
@@ -18,4 +20,4 @@ ENV STREAMLIT_SERVER_HEADLESS=true
 ENV STREAMLIT_SERVER_ENABLE_CORS=false
 
 # Comando para ejecutar la aplicación
-CMD ["streamlit", "run", "app_streamlit_v2.py", "--server.port=8501", "--server.address=0.0.0.0"]
+CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]

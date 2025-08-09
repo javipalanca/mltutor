@@ -779,6 +779,15 @@ def main():
     # Configuración de la página
     setup_page()
 
+    st.markdown(
+        """
+        <style>
+            .stDeployButton {display:none;}
+        </style>
+    """,
+        unsafe_allow_html=True,
+    )
+
     # Inicializar estado de la sesión
     init_session_state()
 
@@ -7029,14 +7038,16 @@ def train_neural_network(df, target_col, config, learning_rate, epochs, validati
             y_train_encoded = y_train.values
             y_test_encoded = y_test.values
 
-        # Construir modelo
+        # Construir modelo con Input layer (mejores prácticas)
         model = keras.Sequential()
 
-        # Capa de entrada
+        # Capa de entrada explícita (elimina warnings)
+        model.add(keras.layers.Input(shape=(config['input_size'],)))
+
+        # Primera capa densa (sin input_shape)
         model.add(keras.layers.Dense(
             config['architecture'][1],
-            activation=config['activation'],
-            input_shape=(config['input_size'],)
+            activation=config['activation']
         ))
         model.add(keras.layers.Dropout(config['dropout_rate']))
 
@@ -7156,6 +7167,53 @@ def train_neural_network(df, target_col, config, learning_rate, epochs, validati
             callbacks=callbacks,
             verbose=0
         )
+
+        # PASO 5: INICIALIZACIÓN COMPLETA DEL MODELO PARA VISUALIZACIONES
+        if progress_callback:
+            progress_callback(5, "Preparando modelo para visualizaciones...")
+
+        # Forzar construcción completa del modelo
+        try:
+            # Asegurar que el modelo esté completamente construido
+            sample_data = X_test[:1].astype(np.float32)
+            _ = model.predict(sample_data, verbose=0)
+
+            # Verificar que model.input esté definido
+            if model.input is None:
+                # Forzar definición de input si es necesario
+                model.build(input_shape=(None, config['input_size']))
+                _ = model(sample_data)
+
+            # Crear modelo de activaciones para análisis de capas
+            if len(model.layers) > 2:  # Al menos Input + Hidden + Output
+                intermediate_layers = []
+                for i, layer in enumerate(model.layers):
+                    # Excluir la primera capa (Input) y la última (Output)
+                    if i > 0 and i < len(model.layers) - 1:
+                        if hasattr(layer, 'output') and layer.output is not None:
+                            intermediate_layers.append(layer.output)
+
+                if intermediate_layers:
+                    import tensorflow as tf
+                    activation_model = tf.keras.Model(
+                        inputs=model.input,
+                        outputs=intermediate_layers
+                    )
+                    # Verificar que funcione
+                    _ = activation_model.predict(sample_data, verbose=0)
+
+                    # Marcar que el modelo de activaciones está listo
+                    model._activation_model_ready = activation_model
+
+            # Marcar el modelo como completamente inicializado
+            model._fully_initialized = True
+
+        except Exception as init_error:
+            # Si falla la inicialización, al menos el modelo base funciona
+            if progress_callback:
+                progress_callback(
+                    5, f"Advertencia en inicialización: {str(init_error)}")
+            model._fully_initialized = False
 
         return model, history, X_test, y_test_encoded, scaler, label_encoder
 
@@ -7600,6 +7658,8 @@ def show_neural_network_visualizations():
     - **Pesos y sesgos**: Revelan qué ha aprendido cada neurona
     - **Superficie de decisión**: Cómo la red separa las clases (2D)
     - **Análisis de capas**: Activaciones y patrones internos
+    
+    🔧 **Reparación Automática**: Esta función incluye inicialización automática del modelo para prevenir errores comunes.
     """)
 
     try:
@@ -7614,167 +7674,334 @@ def show_neural_network_visualizations():
         history = st.session_state.nn_history
         config = st.session_state.nn_config
 
-        # FORZAR inicialización completa del modelo SIEMPRE (de forma transparente)
+        # SOLUCIÓN DEFINITIVA PARA EL ERROR DE TENSORFLOW
+        st.info("🔄 Inicializando modelo para visualizaciones...")
+
+        # Obtener datos de test
+        X_test, _ = st.session_state.nn_test_data
+
+        # ESTRATEGIA DEFINITIVA: FORZAR CONSTRUCCIÓN COMPLETA
         try:
-            # Obtener datos de test para inicializar el modelo
-            X_test, _ = st.session_state.nn_test_data
-            
-            # Estrategia SILENCIOSA de inicialización (sin importar el estado actual)
-            # 1. SIEMPRE hacer predicciones para forzar construcción
-            dummy_pred = model.predict(X_test[:1], verbose=0)
-            
-            # 2. Forzar construcción explícita usando el input shape real
-            input_shape = (None, X_test.shape[1])
-            
-            # 3. Si el modelo no está construido, construirlo
-            if not model.built:
-                model.build(input_shape)
-                
-            # 4. FORZAR reconstrucción de todas las capas una por una
-            for i, layer in enumerate(model.layers):
-                if hasattr(layer, 'built'):
-                    if not layer.built:
-                        # Construir capa por capa
-                        if i == 0:
-                            # Primera capa usa input_shape original
-                            layer.build(input_shape)
+            # Preparar datos de muestra
+            sample_data = X_test[:1].astype(np.float32)
+
+            # PASO 1: Forzar la construcción del modelo de forma agresiva
+            st.info("🏗️ Forzando construcción del modelo...")
+
+            # DIAGNÓSTICO INICIAL
+            st.info(
+                f"Estado inicial: built={getattr(model, 'built', False)}, input={'definido' if hasattr(model, 'input') and model.input is not None else 'None'}")
+
+            # ESTRATEGIA ESPECÍFICA PARA EL PROBLEMA DETECTADO
+            # Cuando model.built=True pero model.input=None
+            construction_success = False
+
+            for attempt in range(3):
+                try:
+                    st.info(f"Intento {attempt + 1}/3 de construcción...")
+
+                    # ESTRATEGIA 1: Forzar predicción simple
+                    _ = model.predict(sample_data, verbose=0)
+
+                    # ESTRATEGIA 2: Si input sigue siendo None, forzar build con input_shape
+                    if not hasattr(model, 'input') or model.input is None:
+                        st.info("🔧 Aplicando fix específico para input=None...")
+                        # Reconstruir completamente el modelo
+                        model.build(input_shape=(None, X_test.shape[1]))
+
+                        # Forzar que el modelo "vea" datos reales
+                        _ = model(sample_data)  # Llamada directa
+
+                    # ESTRATEGIA 3: Si aún no funciona, usar _set_inputs (método interno)
+                    if not hasattr(model, 'input') or model.input is None:
+                        st.info("🔧 Aplicando fix avanzado...")
+                        # Método interno de TensorFlow para forzar input
+                        try:
+                            model._set_inputs(sample_data)
+                        except:
+                            # Si falla, intentar con fit en modo dummy usando la función de pérdida CORRECTA
+                            try:
+                                # Determinar la función de pérdida correcta según la arquitectura
+                                output_size = model.layers[-1].units if hasattr(
+                                    model.layers[-1], 'units') else 1
+
+                                if output_size == 1:
+                                    # Clasificación binaria o regresión
+                                    if hasattr(model.layers[-1], 'activation') and 'sigmoid' in str(model.layers[-1].activation):
+                                        loss_func = 'binary_crossentropy'
+                                    else:
+                                        loss_func = 'mse'  # Regresión
+                                else:
+                                    # Clasificación multiclase
+                                    loss_func = 'sparse_categorical_crossentropy'
+
+                                st.info(
+                                    f"🔧 Usando {loss_func} para reparación...")
+                                model.compile(optimizer='adam', loss=loss_func)
+
+                                # Crear dummy target con el tamaño correcto
+                                if loss_func == 'sparse_categorical_crossentropy':
+                                    dummy_target = np.zeros(
+                                        (1,), dtype=np.int32)  # Clase 0
+                                elif loss_func == 'binary_crossentropy':
+                                    dummy_target = np.zeros(
+                                        (1, 1), dtype=np.float32)  # Probabilidad 0
+                                else:  # MSE
+                                    dummy_target = np.zeros(
+                                        (1, output_size), dtype=np.float32)
+
+                                model.fit(sample_data, dummy_target,
+                                          epochs=1, verbose=0)
+                            except Exception as fit_error:
+                                st.warning(
+                                    f"Fix avanzado falló: {str(fit_error)}")
+                                pass
+
+                    # VERIFICACIÓN CRÍTICA
+                    if hasattr(model, 'input') and model.input is not None:
+                        st.success(
+                            f"✅ Construcción exitosa en intento {attempt + 1}")
+                        construction_success = True
+                        break
+                    else:
+                        st.warning(
+                            f"⚠️ Intento {attempt + 1} falló: input sigue siendo None")
+
+                except Exception as build_error:
+                    st.warning(
+                        f"⚠️ Intento {attempt + 1} falló: {str(build_error)}")
+                    if attempt == 2:  # Último intento
+                        # Último recurso: recrear el modelo completamente
+                        st.info("🔥 ÚLTIMO RECURSO: Intentando recrear modelo...")
+                        try:
+                            # Obtener pesos del modelo actual
+                            weights = model.get_weights()
+
+                            # Recrear arquitectura desde config
+                            config = st.session_state.nn_config
+
+                            import tensorflow as tf
+                            new_model = tf.keras.Sequential()
+                            new_model.add(tf.keras.layers.Input(
+                                shape=(config['input_size'],)))
+
+                            # Recrear capas densas (excluyendo Input y Dropout)
+                            layer_idx = 0
+                            for i, layer in enumerate(model.layers):
+                                if hasattr(layer, 'units'):  # Es una capa Dense
+                                    if layer_idx == 0:  # Primera capa densa
+                                        new_model.add(tf.keras.layers.Dense(
+                                            layer.units,
+                                            activation=layer.activation.__name__
+                                        ))
+                                    else:  # Capas siguientes
+                                        new_model.add(tf.keras.layers.Dense(
+                                            layer.units,
+                                            activation=layer.activation.__name__
+                                        ))
+                                    layer_idx += 1
+                                elif hasattr(layer, 'rate'):  # Es Dropout
+                                    new_model.add(
+                                        tf.keras.layers.Dropout(layer.rate))
+
+                            # Compilar nuevo modelo con la configuración CORRECTA
+                            if config['task_type'] == 'Clasificación':
+                                if config.get('output_size', 1) == 1:
+                                    loss_func = 'binary_crossentropy'
+                                else:
+                                    loss_func = 'sparse_categorical_crossentropy'
+                            else:
+                                loss_func = 'mse'
+
+                            new_model.compile(optimizer='adam', loss=loss_func)
+
+                            # Forzar construcción
+                            _ = new_model.predict(sample_data, verbose=0)
+
+                            # Copiar pesos si es posible
+                            try:
+                                new_model.set_weights(weights)
+                                st.info("✅ Pesos copiados exitosamente")
+                            except:
+                                st.warning(
+                                    "⚠️ No se pudieron copiar los pesos")
+
+                            # Reemplazar modelo en session_state
+                            st.session_state.nn_model = new_model
+                            model = new_model
+
+                            if model.input is not None:
+                                st.success("🎉 Modelo recreado exitosamente!")
+                                construction_success = True
+                                break
+
+                        except Exception as recreate_error:
+                            st.error(
+                                f"❌ Recreación falló: {str(recreate_error)}")
+
+                            # ÚLTIMO ÚLTIMO RECURSO: Modelo completamente nuevo SIN copiar pesos
+                            st.info(
+                                "🚨 ÚLTIMO RECURSO EXTREMO: Modelo completamente nuevo...")
+                            try:
+                                config = st.session_state.nn_config
+
+                                # Crear modelo minimalista garantizado que SIEMPRE funciona
+                                minimal_model = tf.keras.Sequential([
+                                    tf.keras.layers.Input(
+                                        shape=(config['input_size'],)),
+                                    tf.keras.layers.Dense(
+                                        32, activation='relu'),
+                                    tf.keras.layers.Dense(
+                                        config['output_size'], activation=config['output_activation'])
+                                ])
+
+                                # Compilar con configuración correcta
+                                if config['task_type'] == 'Clasificación':
+                                    loss_func = 'sparse_categorical_crossentropy' if config[
+                                        'output_size'] > 1 else 'binary_crossentropy'
+                                else:
+                                    loss_func = 'mse'
+
+                                minimal_model.compile(
+                                    optimizer='adam', loss=loss_func, metrics=['accuracy'])
+
+                                # Forzar construcción INMEDIATA
+                                dummy_input = np.zeros(
+                                    (1, config['input_size']), dtype=np.float32)
+                                _ = minimal_model.predict(
+                                    dummy_input, verbose=0)
+
+                                # VERIFICAR que funcione
+                                if minimal_model.input is not None:
+                                    st.warning(
+                                        "⚠️ Modelo minimal creado (PERDISTE los pesos entrenados)")
+                                    st.info(
+                                        "💡 Este modelo te permitirá ver las visualizaciones, pero necesitarás reentrenar")
+                                    st.session_state.nn_model = minimal_model
+                                    model = minimal_model
+                                    construction_success = True
+                                    break
+                                else:
+                                    st.error(
+                                        "🚨 IMPOSIBLE: Incluso el modelo minimal falló")
+
+                            except Exception as minimal_error:
+                                st.error(
+                                    f"❌ Modelo minimal falló: {str(minimal_error)}")
+                                st.error(
+                                    "🚨 ERROR CRÍTICO: TensorFlow no funciona correctamente en este entorno")
+                                pass
+
+            if not construction_success:
+                raise Exception(
+                    "Fallo total en construcción después de todos los intentos")
+
+            # PASO 2: Verificación EXHAUSTIVA que el modelo funcione
+            # No solo verificar model.input, sino que REALMENTE funcione
+            test_prediction = model.predict(sample_data, verbose=0)
+
+            # Verificar que las capas están construidas
+            layers_built = all(getattr(layer, 'built', True)
+                               for layer in model.layers)
+
+            if model.input is not None and layers_built and test_prediction is not None:
+                st.success("✅ Modelo completamente construido y funcional")
+
+                # PASO 3: Crear modelo de activaciones CON VERIFICACIÓN ROBUSTA
+                if len(model.layers) > 2:  # Al menos Input + Hidden + Output
+                    try:
+                        # Identificar capas válidas para activaciones (excluir Input y Output)
+                        intermediate_layers = []
+                        for i, layer in enumerate(model.layers):
+                            # Excluir la primera capa (Input) y la última (Output)
+                            if i > 0 and i < len(model.layers) - 1:
+                                if hasattr(layer, 'output') and layer.output is not None:
+                                    intermediate_layers.append(layer.output)
+
+                        if intermediate_layers:
+                            # Crear modelo de activaciones
+                            activation_model = tf.keras.Model(
+                                inputs=model.input,
+                                outputs=intermediate_layers
+                            )
+
+                            # VERIFICAR que el modelo de activaciones funcione
+                            test_activations = activation_model.predict(
+                                sample_data, verbose=0)
+
+                            # Guardar solo si funciona
+                            st.session_state.activation_model = activation_model
+                            st.success(
+                                f"✅ Modelo de activaciones creado ({len(intermediate_layers)} capas)")
                         else:
-                            # Capas subsecuentes usan la salida de la capa anterior
-                            prev_layer_output_shape = model.layers[i-1].output_shape
-                            layer.build(prev_layer_output_shape)
-            
-            # 5. Verificación MÚLTIPLE con diferentes tamaños de batch
-            for batch_size in [1, 5, 10]:
-                test_batch = X_test[:min(batch_size, len(X_test))]
-                _ = model.predict(test_batch, verbose=0)
-            
-            # 6. Verificar que el modelo tenga input definido
-            if model.input is None:
-                # Última estrategia: recrear el modelo si es necesario
-                model._set_inputs(X_test[:1])
-            
-        except Exception as init_error:
-            # Proceso de reparación de emergencia SILENCIOSO
-            try:
-                # Obtener la configuración original del modelo
-                original_config = st.session_state.nn_config
-                
-                # Recrear el modelo desde cero si es necesario
-                import tensorflow as tf
-                from tensorflow import keras
-                
-                # Crear nuevo modelo con la misma arquitectura
-                new_model = keras.Sequential()
-                
-                # Agregar capas según la configuración original
-                arch = original_config['architecture']
-                
-                # Primera capa con input_shape explícito
-                new_model.add(keras.layers.Dense(
-                    arch[1],
-                    activation=original_config['activation'],
-                    input_shape=(arch[0],)
-                ))
-                
-                # Capas ocultas
-                for layer_size in arch[2:-1]:
-                    new_model.add(keras.layers.Dense(
-                        layer_size,
-                        activation=original_config['activation']
-                    ))
-                
-                # Capa de salida
-                new_model.add(keras.layers.Dense(
-                    arch[-1],
-                    activation=original_config['output_activation']
-                ))
-                
-                # Copiar pesos del modelo original
-                new_model.set_weights(model.get_weights())
-                
-                # Compilar el nuevo modelo
-                new_model.compile(
-                    optimizer=model.optimizer,
-                    loss=model.loss,
-                    metrics=model.metrics
-                )
-                
-                # Reemplazar el modelo en session state
-                st.session_state.nn_model = new_model
-                model = new_model
-                
-                # Verificar que funciona
-                test_pred = model.predict(X_test[:5], verbose=0)
-                
-            except Exception as emergency_error:
-                # Si todo falla, mostrar error simplificado
-                st.error("❌ No se pudo inicializar el modelo para visualizaciones.")
-                st.info("💡 Intenta reentrenar el modelo desde cero.")
-                return
-            
-            # Proceso de reparación de emergencia
-            try:
-                # Obtener la configuración original del modelo
-                original_config = st.session_state.nn_config
-                
-                # Recrear el modelo desde cero si es necesario
-                import tensorflow as tf
-                from tensorflow import keras
-                
-                st.info("� Recreando modelo desde configuración guardada...")
-                
-                # Crear nuevo modelo con la misma arquitectura
-                new_model = keras.Sequential()
-                
-                # Agregar capas según la configuración original
-                arch = original_config['architecture']
-                
-                # Primera capa con input_shape explícito
-                new_model.add(keras.layers.Dense(
-                    arch[1],
-                    activation=original_config['activation'],
-                    input_shape=(arch[0],)
-                ))
-                
-                # Capas ocultas
-                for layer_size in arch[2:-1]:
-                    new_model.add(keras.layers.Dense(
-                        layer_size,
-                        activation=original_config['activation']
-                    ))
-                
-                # Capa de salida
-                new_model.add(keras.layers.Dense(
-                    arch[-1],
-                    activation=original_config['output_activation']
-                ))
-                
-                # Copiar pesos del modelo original
-                new_model.set_weights(model.get_weights())
-                
-                # Compilar el nuevo modelo
-                new_model.compile(
-                    optimizer=model.optimizer,
-                    loss=model.loss,
-                    metrics=model.metrics
-                )
-                
-                # Reemplazar el modelo en session state
-                st.session_state.nn_model = new_model
-                model = new_model
-                
-                # Verificar que funciona
-                test_pred = model.predict(X_test[:5], verbose=0)
-                
-                st.success("✅ ¡Modelo recreado y funcionando!")
-                
-            except Exception as emergency_error:
-                st.error(f"❌ Fallo en reparación de emergencia: {emergency_error}")
-                st.info("💡 Como último recurso, intenta reentrenar el modelo desde cero.")
+                            st.warning(
+                                "⚠️ No hay capas intermedias válidas para análisis")
+                            st.session_state.activation_model = None
+                    except Exception as activation_error:
+                        st.warning("⚠️ Error creando modelo de activaciones")
+                        st.caption(f"Detalle: {str(activation_error)}")
+                        st.session_state.activation_model = None
+                else:
+                    st.info("ℹ️ Red muy simple, análisis de capas limitado")
+                    st.session_state.activation_model = None
 
-        st.header("📈 Visualizaciones Avanzadas")
+            else:
+                # Si llegamos aquí, hay un problema fundamental
+                error_details = []
+                if model.input is None:
+                    error_details.append("model.input es None")
+                if not layers_built:
+                    error_details.append("capas no construidas")
+                if test_prediction is None:
+                    error_details.append("predicción falló")
 
-        # Tabs para diferentes visualizaciones
+                raise Exception(
+                    f"Modelo no funcional: {', '.join(error_details)}")
+
+        except Exception as error:
+            st.error("❌ FALLO CRÍTICO: El modelo no se puede inicializar")
+            st.markdown("### 🚨 Diagnóstico del Error")
+            st.code(f"Error: {str(error)}")
+
+            # Diagnóstico técnico detallado
+            st.markdown("### 🔬 Estado Técnico del Modelo")
+            try:
+                st.write(f"- **Tipo de modelo**: {type(model).__name__}")
+                st.write(
+                    f"- **Modelo construido**: {getattr(model, 'built', 'Desconocido')}")
+                st.write(
+                    f"- **Input definido**: {model.input is not None if hasattr(model, 'input') else 'No disponible'}")
+                st.write(
+                    f"- **Número de capas**: {len(model.layers) if hasattr(model, 'layers') else 'Desconocido'}")
+
+                if hasattr(model, 'layers'):
+                    st.write("- **Estado de capas**:")
+                    for i, layer in enumerate(model.layers):
+                        built_status = getattr(layer, 'built', 'Desconocido')
+                        st.write(
+                            f"  - Capa {i+1} ({layer.__class__.__name__}): {built_status}")
+
+            except Exception as diag_error:
+                st.write(f"Error en diagnóstico: {diag_error}")
+
+            st.markdown("### 💡 Solución Obligatoria")
+            st.error(
+                "**El modelo está corrupto o mal construido. DEBES reentrenarlo desde cero.**")
+            st.markdown("""
+            **Pasos para solucionarlo:**
+            1. Ve a la pestaña **'Entrenamiento'**
+            2. Reentrena el modelo completamente
+            3. NO uses modelos guardados previamente
+            4. Regresa a esta pestaña después del entrenamiento
+            """)
+
+            if st.button("🔙 Ir a Reentrenar Modelo", type="primary", use_container_width=True):
+                st.session_state.active_tab_nn = 2
+                st.rerun()
+
+            return
+
+        # CREAR PESTAÑAS DE VISUALIZACIÓN UNA VEZ QUE EL MODELO ESTÁ REPARADO
         viz_tab1, viz_tab2, viz_tab3, viz_tab4 = st.tabs([
             "📊 Historial de Entrenamiento",
             "🧠 Pesos y Sesgos",
@@ -7966,17 +8193,19 @@ def show_neural_network_visualizations():
             if config.get('task_type', 'Clasificación') == 'Clasificación':
                 # Si hay más de 2 características, permitir seleccionar 2
                 if config['input_size'] > 2:
-                    st.info("💡 Tu dataset tiene más de 2 características. Selecciona 2 para visualizar la superficie de decisión.")
-                    
+                    st.info(
+                        "💡 Tu dataset tiene más de 2 características. Selecciona 2 para visualizar la superficie de decisión.")
+
                     # Obtener nombres de características
                     if 'nn_feature_names' in st.session_state:
                         feature_names = st.session_state.nn_feature_names
                     else:
-                        feature_names = [f'Característica {i+1}' for i in range(config['input_size'])]
-                    
+                        feature_names = [
+                            f'Característica {i+1}' for i in range(config['input_size'])]
+
                     st.markdown("### Selección de Características")
                     col1, col2 = st.columns(2)
-                    
+
                     with col1:
                         feature1 = st.selectbox(
                             "Primera característica:",
@@ -7984,7 +8213,7 @@ def show_neural_network_visualizations():
                             index=0,
                             key="viz_feature1_nn"
                         )
-                    
+
                     with col2:
                         feature2 = st.selectbox(
                             "Segunda característica:",
@@ -7992,59 +8221,66 @@ def show_neural_network_visualizations():
                             index=min(1, len(feature_names) - 1),
                             key="viz_feature2_nn"
                         )
-                    
+
                     if feature1 != feature2:
                         # Obtener datos de test para la visualización
                         X_test, y_test = st.session_state.nn_test_data
-                        
+
                         # Obtener índices de las características seleccionadas
-                        feature_idx = [feature_names.index(feature1), feature_names.index(feature2)]
-                        
+                        feature_idx = [feature_names.index(
+                            feature1), feature_names.index(feature2)]
+
                         # Extraer las características seleccionadas
                         X_2d = X_test[:, feature_idx]
-                        
+
                         # Generar superficie de decisión
                         try:
                             st.info("🎨 Generando superficie de decisión...")
-                            
+
                             # Crear malla de puntos para la superficie
                             h = 0.02  # tamaño del paso en la malla
-                            x_min, x_max = X_2d[:, 0].min() - 0.5, X_2d[:, 0].max() + 0.5
-                            y_min, y_max = X_2d[:, 1].min() - 0.5, X_2d[:, 1].max() + 0.5
+                            x_min, x_max = X_2d[:, 0].min(
+                            ) - 0.5, X_2d[:, 0].max() + 0.5
+                            y_min, y_max = X_2d[:, 1].min(
+                            ) - 0.5, X_2d[:, 1].max() + 0.5
                             xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
-                                               np.arange(y_min, y_max, h))
-                            
+                                                 np.arange(y_min, y_max, h))
+
                             # Para hacer predicciones en la malla, necesitamos crear puntos completos
                             # con valores promedio para las características no seleccionadas
                             X_full_test = X_test.copy()
                             mesh_points = []
-                            
+
                             for i in range(xx.ravel().shape[0]):
-                                point = np.mean(X_full_test, axis=0)  # Usar valores promedio
-                                point[feature_idx[0]] = xx.ravel()[i]  # Primera característica seleccionada
-                                point[feature_idx[1]] = yy.ravel()[i]  # Segunda característica seleccionada
+                                # Usar valores promedio
+                                point = np.mean(X_full_test, axis=0)
+                                # Primera característica seleccionada
+                                point[feature_idx[0]] = xx.ravel()[i]
+                                # Segunda característica seleccionada
+                                point[feature_idx[1]] = yy.ravel()[i]
                                 mesh_points.append(point)
-                            
+
                             mesh_points = np.array(mesh_points)
-                            
+
                             # Hacer predicciones en la malla
                             Z = model.predict(mesh_points, verbose=0)
-                            
+
                             # Si es clasificación multiclase, tomar la clase con mayor probabilidad
                             if len(Z.shape) > 1 and Z.shape[1] > 1:
                                 Z = np.argmax(Z, axis=1)
                             else:
                                 # Para clasificación binaria
                                 Z = (Z > 0.5).astype(int).ravel()
-                            
+
                             Z = Z.reshape(xx.shape)
-                            
+
                             # Crear la visualización
                             fig, ax = plt.subplots(figsize=(10, 8))
-                            
+
                             # Dibujar la superficie de decisión
-                            contourf = ax.contourf(xx, yy, Z, levels=50, alpha=0.8, cmap='RdYlBu')
-                            
+                            contourf = ax.contourf(
+                                xx, yy, Z, levels=50, alpha=0.8, cmap='RdYlBu')
+
                             # Añadir los puntos de datos reales
                             if 'nn_class_names' in st.session_state and st.session_state.nn_class_names:
                                 class_names = st.session_state.nn_class_names
@@ -8053,39 +8289,45 @@ def show_neural_network_visualizations():
                                     y_plot = np.argmax(y_test, axis=1)
                                 else:
                                     y_plot = y_test
-                                
+
                                 # Crear scatter plot por clase
                                 unique_classes = np.unique(y_plot)
-                                colors = plt.cm.Set1(np.linspace(0, 1, len(unique_classes)))
-                                
+                                colors = plt.cm.Set1(
+                                    np.linspace(0, 1, len(unique_classes)))
+
                                 for i, class_idx in enumerate(unique_classes):
                                     mask = y_plot == class_idx
-                                    class_name = class_names[class_idx] if class_idx < len(class_names) else f'Clase {class_idx}'
-                                    ax.scatter(X_2d[mask, 0], X_2d[mask, 1], 
-                                             c=[colors[i]], label=class_name, 
-                                             edgecolors='black', s=50, alpha=0.9)
+                                    class_name = class_names[class_idx] if class_idx < len(
+                                        class_names) else f'Clase {class_idx}'
+                                    ax.scatter(X_2d[mask, 0], X_2d[mask, 1],
+                                               c=[colors[i]], label=class_name,
+                                               edgecolors='black', s=50, alpha=0.9)
                             else:
-                                ax.scatter(X_2d[:, 0], X_2d[:, 1], c=y_test, 
-                                         cmap='RdYlBu', edgecolors='black', s=50, alpha=0.9)
-                            
+                                ax.scatter(X_2d[:, 0], X_2d[:, 1], c=y_test,
+                                           cmap='RdYlBu', edgecolors='black', s=50, alpha=0.9)
+
                             # Configurar etiquetas y título
                             ax.set_xlabel(feature1, fontsize=12)
                             ax.set_ylabel(feature2, fontsize=12)
-                            ax.set_title(f'Superficie de Decisión de Red Neuronal\n{feature1} vs {feature2}', fontsize=14)
+                            ax.set_title(
+                                f'Superficie de Decisión de Red Neuronal\n{feature1} vs {feature2}', fontsize=14)
                             ax.grid(True, alpha=0.3)
-                            
+
                             # Añadir leyenda si hay nombres de clase
                             if 'nn_class_names' in st.session_state and st.session_state.nn_class_names:
-                                ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-                            
+                                ax.legend(bbox_to_anchor=(
+                                    1.05, 1), loc='upper left')
+
                             # Añadir colorbar para la superficie
-                            plt.colorbar(contourf, ax=ax, label='Predicción de Clase')
-                            
+                            plt.colorbar(contourf, ax=ax,
+                                         label='Predicción de Clase')
+
                             plt.tight_layout()
                             st.pyplot(fig)
-                            
+
                             # Información adicional
-                            st.success("✅ Superficie de decisión generada exitosamente")
+                            st.success(
+                                "✅ Superficie de decisión generada exitosamente")
                             st.info(f"""
                             🔍 **Información de la visualización:**
                             - **Características mostradas:** {feature1} vs {feature2}
@@ -8094,7 +8336,7 @@ def show_neural_network_visualizations():
                             - **Puntos:** Datos reales de prueba
                             - **Fronteras:** Límites donde la red cambia de decisión
                             """)
-                            
+
                             # Interpretación de la superficie
                             with st.expander("💡 ¿Cómo interpretar la superficie de decisión?"):
                                 st.markdown("""
@@ -8113,14 +8355,17 @@ def show_neural_network_visualizations():
                                 - Fronteras muy simples pueden indicar subajuste
                                 - Lo ideal son fronteras que capturen el patrón sin ser excesivamente complejas
                                 """)
-                        
+
                         except Exception as e:
-                            st.error(f"❌ Error al generar la superficie de decisión: {str(e)}")
-                            st.info("💡 Intenta con diferentes características o verifica que el modelo esté correctamente entrenado.")
-                    
+                            st.error(
+                                f"❌ Error al generar la superficie de decisión: {str(e)}")
+                            st.info(
+                                "💡 Intenta con diferentes características o verifica que el modelo esté correctamente entrenado.")
+
                     else:
-                        st.warning("⚠️ Por favor selecciona dos características diferentes.")
-                
+                        st.warning(
+                            "⚠️ Por favor selecciona dos características diferentes.")
+
                 else:
                     # Dataset con 2 o menos características - mostrar directamente
                     st.info("🎨 Generando superficie de decisión...")
@@ -8132,10 +8377,11 @@ def show_neural_network_visualizations():
                     - Fronteras suaves = red bien generalizada
                     - Fronteras muy complejas = posible sobreajuste
                     """)
-                    
+
                     # Aquí se podría implementar la visualización directa para datasets 2D
-                    st.info("💡 Implementación completa para datasets 2D próximamente.")
-            
+                    st.info(
+                        "💡 Implementación completa para datasets 2D próximamente.")
+
             else:
                 # Para tareas de regresión
                 st.info("🏔️ **Superficie de Predicción para Regresión**")
@@ -8143,13 +8389,16 @@ def show_neural_network_visualizations():
                 Para tareas de regresión, se puede visualizar una superficie de predicción que muestra 
                 cómo varían las predicciones numéricas en el espacio de características.
                 """)
-                
+
                 if config['input_size'] > 2:
-                    st.markdown("💡 Selecciona 2 características para visualizar la superficie de predicción.")
+                    st.markdown(
+                        "💡 Selecciona 2 características para visualizar la superficie de predicción.")
                     # Aquí se podría implementar similar lógica para regresión
-                    st.info("🚧 Implementación de superficie de predicción para regresión próximamente.")
+                    st.info(
+                        "🚧 Implementación de superficie de predicción para regresión próximamente.")
                 else:
-                    st.info("🚧 Implementación de superficie de predicción próximamente.")
+                    st.info(
+                        "🚧 Implementación de superficie de predicción próximamente.")
 
         with viz_tab4:
             st.subheader("📉 Análisis de Capas")
@@ -8170,44 +8419,81 @@ def show_neural_network_visualizations():
                 - **Distribución balanceada**: Red saludable ✅
                 """)
 
-            # Obtener algunas muestras para analizar activaciones
-            X_test, y_test = st.session_state.nn_test_data
-            sample_size = min(100, len(X_test))
-            X_sample = X_test[:sample_size]
-
+            # USAR EL MODELO DE ACTIVACIONES PRE-CREADO EN LA INICIALIZACIÓN
             try:
-                # MÉTODO DIRECTO Y SIMPLE para análisis de activaciones
-                st.info("� Iniciando análisis de activaciones...")
-                
-                # Como el modelo ya fue inicializado arriba, proceder directamente
-                # Usar el input del modelo (debería estar disponible ya)
-                model_input = model.input
-                
-                # Verificación simple
-                if model_input is None:
-                    st.error("❌ El modelo no se pudo inicializar correctamente.")
-                    st.info("💡 Intenta reentrenar el modelo desde cero.")
-                    return
-                
-                # Obtener outputs de todas las capas excepto la última
+                # Obtener datos de test
+                X_test, y_test = st.session_state.nn_test_data
+                sample_size = min(100, len(X_test))
+                X_sample = X_test[:sample_size]
+
+                # Verificar que el modelo tiene suficientes capas
                 if len(model.layers) <= 1:
-                    st.warning("⚠️ El modelo tiene muy pocas capas para análisis detallado")
+                    st.warning(
+                        "⚠️ El modelo tiene muy pocas capas para análisis detallado")
                     return
-                
-                # Crear lista de outputs de capas
-                layer_outputs = []
-                for i, layer in enumerate(model.layers[:-1]):
-                    layer_outputs.append(layer.output)
-                
-                # Crear modelo de activaciones de forma SIMPLE
-                activation_model = tf.keras.Model(inputs=model_input, outputs=layer_outputs)
-                
-                # Obtener activaciones directamente
-                st.info("� Calculando activaciones de las capas...")
+
+                # VERIFICAR SI HAY MODELO DE ACTIVACIONES PRE-CREADO
+                activation_model = None
+
+                # Método 1: Modelo creado durante el entrenamiento
+                if hasattr(model, '_activation_model_ready'):
+                    activation_model = model._activation_model_ready
+                    st.success(
+                        "✅ Usando modelo de activaciones preparado durante el entrenamiento")
+
+                # Método 2: Modelo guardado en session_state
+                elif 'activation_model' in st.session_state and st.session_state.activation_model is not None:
+                    activation_model = st.session_state.activation_model
+                    st.success(
+                        "✅ Usando modelo de activaciones de session_state")
+
+                # Método 3: Crear on-demand si no existe
+                else:
+                    st.info("🔧 Creando modelo de activaciones...")
+                    try:
+                        import tensorflow as tf
+                        intermediate_layers = []
+                        for i, layer in enumerate(model.layers):
+                            # Excluir la primera capa (Input) y la última (Output)
+                            if i > 0 and i < len(model.layers) - 1:
+                                if hasattr(layer, 'output') and layer.output is not None:
+                                    intermediate_layers.append(layer.output)
+
+                        if intermediate_layers:
+                            activation_model = tf.keras.Model(
+                                inputs=model.input,
+                                outputs=intermediate_layers
+                            )
+                            # Verificar que funcione
+                            _ = activation_model.predict(
+                                X_sample[:1], verbose=0)
+                            st.session_state.activation_model = activation_model
+                            st.success(
+                                "✅ Modelo de activaciones creado exitosamente")
+                        else:
+                            st.warning(
+                                "⚠️ No hay capas intermedias válidas para análisis")
+                            return
+                    except Exception as create_error:
+                        st.error(
+                            f"❌ Error creando modelo de activaciones: {str(create_error)}")
+                        st.info(
+                            "💡 El modelo necesita ser reentrenado para análisis de capas")
+                        return
+
+                # Si llegamos aquí, tenemos un modelo de activaciones válido
+                if activation_model is None:
+                    st.error("❌ No se pudo obtener modelo de activaciones")
+                    return
+
+                # Obtener activaciones usando el modelo pre-creado
                 activations = activation_model.predict(X_sample, verbose=0)
 
                 if not isinstance(activations, list):
                     activations = [activations]
+
+                st.success(
+                    f"✅ Análisis de {len(activations)} capas completado exitosamente")
 
                 # Mostrar estadísticas por capa
                 for i, activation in enumerate(activations):
@@ -8237,74 +8523,33 @@ def show_neural_network_visualizations():
                             f"✅ **Capa {i+1} Saludable**: Buena activación")
 
             except Exception as e:
-                st.error(f"❌ Error al analizar activaciones: {str(e)}")
+                error_msg = str(e)
+                if "never been called" in error_msg or "no defined input" in error_msg:
+                    st.error(
+                        "🚨 **Error de Inicialización del Modelo Sequential**")
+                    st.markdown("""
+                    **¿Qué significa este error?**
+                    - El modelo Sequential de TensorFlow no ha sido completamente inicializado
+                    - Las capas no conocen el tamaño de sus entradas
+                    - Se necesita hacer al menos una predicción para construir el modelo
+                    
+                    **Solución Automática:**
+                    La función incluye reparación automática que debería resolver esto.
+                    Si persiste, usa el botón de 'Reparar Modelo' en la sección de errores abajo.
+                    """)
+                    st.info(
+                        "💡 **Tip:** Este error es común con modelos Sequential recién cargados y tiene solución automática.")
+                else:
+                    st.error(f"❌ Error inesperado en el análisis: {str(e)}")
+                    st.info(
+                        "🔧 Esto puede indicar un problema con la arquitectura del modelo.")
 
-                # Información de debug más detallada
-                st.markdown("**🔍 Información de Debug:**")
-
-                # Información del modelo
-                try:
-                    st.write(f"- **Tipo de modelo**: {type(model).__name__}")
-                    st.write(f"- **Número de capas**: {len(model.layers)}")
-                    st.write(f"- **Modelo construido**: {model.built}")
-
-                    # Verificar si el modelo tiene input_spec
-                    if hasattr(model, 'input_spec') and model.input_spec:
-                        st.write(f"- **Input spec definido**: ✅")
-                    else:
-                        st.write(f"- **Input spec definido**: ❌")
-
-                    # Verificar layers
-                    for i, layer in enumerate(model.layers):
-                        layer_built = getattr(layer, 'built', False)
-                        st.write(
-                            f"- **Capa {i+1} ({layer.__class__.__name__})**: {'✅' if layer_built else '❌'}")
-
-                except Exception as debug_error:
-                    st.write(f"- **Error en debug**: {debug_error}")
-
-                st.info("""
-                💡 **Posibles soluciones:**
-                - El modelo necesita estar completamente construido antes del análisis
-                - Intenta hacer algunas predicciones primero para que el modelo se inicialice
-                - Si el problema persiste, vuelve a entrenar el modelo
-                - Este error puede ocurrir con modelos Sequential que no han definido su input shape correctamente
-                """)
-
-                # Botón para intentar "reparar" el modelo
-                if st.button("🔧 Intentar Reparar Modelo para Análisis", key="repair_model_viz"):
-                    try:
-                        st.info("Intentando construir el modelo completamente...")
-                        # Hacer varias predicciones para asegurar que el modelo se construya
-                        X_test, _ = st.session_state.nn_test_data
-
-                        # Predicción con batch pequeño
-                        _ = model.predict(X_test[:1], verbose=0)
-
-                        # Predicción con batch más grande
-                        batch_size = min(32, len(X_test))
-                        _ = model.predict(X_test[:batch_size], verbose=0)
-
-                        # Intentar construir explícitamente
-                        if hasattr(model, 'build') and not model.built:
-                            # Obtener el input shape del primer batch
-                            input_shape = X_test[:1].shape
-                            model.build(input_shape)
-
-                        st.success(
-                            "✅ Modelo reparado. Intenta el análisis de activaciones nuevamente.")
-                        st.rerun()
-
-                    except Exception as repair_error:
-                        st.error(
-                            f"❌ No se pudo reparar el modelo: {repair_error}")
-                        st.info("Considera reentrenar el modelo desde cero.")
+                st.markdown(f"**Error técnico:** {error_msg}")
 
         # Botón para generar código de visualización
         st.markdown("### 💻 Código Python")
         if st.button("📝 Generar Código de Visualización", use_container_width=True):
             code = generate_neural_network_visualization_code(config)
-
             st.markdown("#### 🐍 Código Python para Visualizaciones")
             st.code(code, language='python')
 
@@ -8352,39 +8597,72 @@ def show_neural_network_visualizations():
             with col1:
                 if st.button("🔧 Reparar Modelo Automáticamente", type="primary", key="auto_repair"):
                     try:
-                        st.info("🔄 Reparando modelo...")
+                        st.info("🔄 Iniciando reparación exhaustiva del modelo...")
 
                         # Obtener datos de test
                         if 'nn_test_data' in st.session_state:
                             X_test, y_test = st.session_state.nn_test_data
 
-                            # Forzar construcción del modelo con múltiples estrategias
-                            with st.spinner("Inicializando modelo..."):
+                            # Forzar construcción del modelo con múltiples estrategias MEJORADAS
+                            with st.spinner("Aplicando estrategias de reparación..."):
+                                progress_bar = st.progress(0)
+
                                 # Estrategia 1: Predicción simple
+                                progress_bar.progress(20)
                                 _ = model.predict(X_test[:1], verbose=0)
 
-                                # Estrategia 2: Predicción con batch más grande
+                                # Estrategia 2: Llamada directa al modelo
+                                progress_bar.progress(40)
+                                _ = model(X_test[:1])
+
+                                # Estrategia 3: Predicción con batch más grande
+                                progress_bar.progress(60)
                                 batch_size = min(10, len(X_test))
                                 _ = model.predict(
                                     X_test[:batch_size], verbose=0)
 
-                                # Estrategia 3: Compilar explícitamente si es necesario
+                                # Estrategia 4: Compilar explícitamente si es necesario
+                                progress_bar.progress(80)
                                 if not model.built:
                                     model.build(input_shape=(
                                         None, X_test.shape[1]))
 
-                                # Estrategia 4: Verificar que todas las capas estén construidas
-                                for layer in model.layers:
+                                # Estrategia 5: Verificar input tensor
+                                if model.input is None:
+                                    model._set_inputs(X_test[:1])
+
+                                # Estrategia 6: Forzar todas las capas
+                                for i, layer in enumerate(model.layers):
                                     if hasattr(layer, 'built') and not layer.built:
-                                        layer.build(input_shape=(
-                                            None, X_test.shape[1]))
+                                        if i == 0:
+                                            layer.build(input_shape=(
+                                                None, X_test.shape[1]))
+                                        else:
+                                            prev_output = model.layers[i -
+                                                                       1].output_shape
+                                            layer.build(prev_output)
 
-                            # Verificar que el modelo esté funcionando
+                                progress_bar.progress(100)
+
+                            # Verificación EXHAUSTIVA que el modelo esté funcionando
+                            st.info("✅ Verificando reparación...")
+
+                            # Test múltiples operaciones
                             test_pred = model.predict(X_test[:5], verbose=0)
+                            _ = model.get_weights()
 
-                            st.success("✅ ¡Modelo reparado exitosamente!")
+                            # Test crítico: modelo de activaciones
+                            if len(model.layers) > 1:
+                                layer_outputs = [
+                                    layer.output for layer in model.layers[:-1]]
+                                test_activation_model = tf.keras.Model(
+                                    inputs=model.input, outputs=layer_outputs)
+                                _ = test_activation_model.predict(
+                                    X_test[:1], verbose=0)
+
+                            st.success("🎉 ¡Modelo reparado exitosamente!")
                             st.info(
-                                "El modelo ahora está completamente inicializado. Puedes usar todas las visualizaciones.")
+                                "✅ El modelo está completamente inicializado y listo para todas las visualizaciones.")
 
                             # Botón para recargar visualizaciones
                             if st.button("🔄 Recargar Visualizaciones", type="primary"):
@@ -8397,7 +8675,20 @@ def show_neural_network_visualizations():
                     except Exception as repair_error:
                         st.error(
                             f"❌ Error durante la reparación: {repair_error}")
-                        st.info("Intenta reentrenar el modelo desde cero.")
+
+                        # Diagnóstico específico del error
+                        if "never been called" in str(repair_error):
+                            st.warning(
+                                "🔧 **Error persistente de inicialización**")
+                            st.markdown("""
+                            **Estrategias adicionales:**
+                            1. Reinicia la aplicación completamente
+                            2. Reentrena el modelo desde cero  
+                            3. Verifica que TensorFlow esté actualizado
+                            4. Prueba con un dataset más pequeño
+                            """)
+                        else:
+                            st.info("💡 Intenta reentrenar el modelo desde cero.")
 
             with col2:
                 st.markdown("**💡 Solución manual:**")
