@@ -310,7 +310,7 @@ def train_linear_model(X, y, model_type="Linear", max_iter=1000, test_size=0.3, 
         return train_logistic_regression(X, y, max_iter, test_size, random_state)
 
 
-def train_knn_classifier(X, y, n_neighbors=5, weights='uniform', metric='minkowski', test_size=0.3, random_state=42):
+def train_knn_classifier(X, y, n_neighbors=5, weights='uniform', metric='minkowski'):
     """
     Crea y entrena un modelo de K-Nearest Neighbors para clasificación.
 
@@ -326,19 +326,12 @@ def train_knn_classifier(X, y, n_neighbors=5, weights='uniform', metric='minkows
         Función de peso ('uniform', 'distance')
     metric : str, default='minkowski'
         Métrica de distancia ('minkowski', 'euclidean', 'manhattan')
-    test_size : float, default=0.3
-        Proporción de datos para prueba
-    random_state : int, default=42
-        Semilla para reproducibilidad
 
     Returns:
     --------
     dict
         Diccionario con el modelo entrenado, datos de entrenamiento/prueba y métricas
     """
-    # Dividir los datos en conjuntos de entrenamiento y prueba
-    X_train, X_test, y_train, y_test = preprocess_data(
-        X, y, test_size=test_size, random_state=random_state)
 
     # Crear y entrenar el modelo
     model = KNeighborsClassifier(
@@ -346,26 +339,12 @@ def train_knn_classifier(X, y, n_neighbors=5, weights='uniform', metric='minkows
         weights=weights,
         metric=metric
     )
-    model.fit(X_train, y_train)
+    model.fit(X, y)
 
-    # Realizar predicciones
-    y_pred = model.predict(X_test)
-
-    # Evaluar el modelo
-    evaluation = evaluate_classification_model(y_test, y_pred, list(set(y)))
-
-    # Devolver resultados
-    return {
-        "model": model,
-        "X_train": X_train,
-        "X_test": X_test,
-        "y_train": y_train,
-        "y_test": y_test,
-        "evaluation": evaluation
-    }
+    return model
 
 
-def train_knn_regressor(X, y, n_neighbors=5, weights='uniform', metric='minkowski', test_size=0.3, random_state=42):
+def train_knn_regressor(X, y, n_neighbors=5, weights='uniform', metric='minkowski'):
     """
     Crea y entrena un modelo de K-Nearest Neighbors para regresión.
 
@@ -381,19 +360,12 @@ def train_knn_regressor(X, y, n_neighbors=5, weights='uniform', metric='minkowsk
         Función de peso ('uniform', 'distance')
     metric : str, default='minkowski'
         Métrica de distancia ('minkowski', 'euclidean', 'manhattan')
-    test_size : float, default=0.3
-        Proporción de datos para prueba
-    random_state : int, default=42
-        Semilla para reproducibilidad
 
     Returns:
     --------
     dict
         Diccionario con el modelo entrenado, datos de entrenamiento/prueba y métricas
     """
-    # Dividir los datos en conjuntos de entrenamiento y prueba
-    X_train, X_test, y_train, y_test = preprocess_data(
-        X, y, test_size=test_size, random_state=random_state)
 
     # Crear y entrenar el modelo
     model = KNeighborsRegressor(
@@ -401,26 +373,13 @@ def train_knn_regressor(X, y, n_neighbors=5, weights='uniform', metric='minkowsk
         weights=weights,
         metric=metric
     )
-    model.fit(X_train, y_train)
-
-    # Realizar predicciones
-    y_pred = model.predict(X_test)
-
-    # Evaluar el modelo
-    evaluation = evaluate_regression_model(y_test, y_pred)
+    model.fit(X, y)
 
     # Devolver resultados
-    return {
-        "model": model,
-        "X_train": X_train,
-        "X_test": X_test,
-        "y_train": y_train,
-        "y_test": y_test,
-        "evaluation": evaluation
-    }
+    return model
 
 
-def train_knn_model(X, y, task_type="Clasificación", n_neighbors=5, weights='uniform', metric='minkowski', test_size=0.3, random_state=42):
+def train_knn_model(X, y, task_type="Clasificación", n_neighbors=5, weights='uniform', metric='minkowski'):
     """
     Crea y entrena un modelo de K-Nearest Neighbors para clasificación o regresión.
 
@@ -438,11 +397,6 @@ def train_knn_model(X, y, task_type="Clasificación", n_neighbors=5, weights='un
         Función de peso ('uniform', 'distance')
     metric : str, default='minkowski'
         Métrica de distancia ('minkowski', 'euclidean', 'manhattan')
-    test_size : float, default=0.3
-        Proporción de datos para prueba
-    random_state : int, default=42
-        Semilla para reproducibilidad
-
     Returns:
     --------
     dict
@@ -450,7 +404,7 @@ def train_knn_model(X, y, task_type="Clasificación", n_neighbors=5, weights='un
     """
     if task_type == "Clasificación":
         return train_knn_classifier(
-            X, y, n_neighbors, weights, metric, test_size, random_state)
+            X, y, n_neighbors, weights, metric)
     else:
         return train_knn_regressor(
-            X, y, n_neighbors, weights, metric, test_size, random_state)
+            X, y, n_neighbors, weights, metric)

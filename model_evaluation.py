@@ -16,6 +16,13 @@ from sklearn.metrics import (
 )
 
 from utils import get_image_download_link, show_code_with_download
+from algorithms.code_examples import (
+    CONFUSION_MATRIX_CODE,
+    PRECISION_CODE,
+    PRED_VS_REAL_CODE,
+    ERROR_DISTRIBUTION_CODE,
+    DECISION_PATH_CODE,
+)
 
 
 def evaluate_classification_model(y_test, y_pred, class_names):
@@ -89,7 +96,7 @@ def evaluate_regression_model(y_test, y_pred):
     }
 
 
-def show_detailed_evaluation(y_test, y_pred, class_names, tree_type):
+def show_detailed_evaluation(y_test, y_pred, class_names, model_type):
     """
     Muestra una evaluación detallada del modelo con gráficos y explicaciones.
 
@@ -101,10 +108,10 @@ def show_detailed_evaluation(y_test, y_pred, class_names, tree_type):
         Valores predichos
     class_names : list
         Nombres de las clases
-    tree_type : str
-        Tipo de árbol ('Clasificación' o 'Regresión')
+    model_type : str
+        Tipo de modelo ('Clasificación' o 'Regresión')
     """
-    if tree_type == "Clasificación":
+    if model_type == "Clasificación":
         # Calcular métricas
         report = classification_report(
             y_test, y_pred, target_names=class_names, output_dict=True)
@@ -113,20 +120,37 @@ def show_detailed_evaluation(y_test, y_pred, class_names, tree_type):
         # Métricas globales
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric("Exactitud (Accuracy)", f"{report['accuracy']:.4f}",
+            acc_value = report['accuracy']
+            st.metric("Exactitud (Accuracy)", f"{acc_value:.4f}",
                       help="Proporción total de predicciones correctas")
+            # Indicador de calidad
+            if acc_value >= 0.9:
+                st.success("Excelente", icon="🌟")
+            elif acc_value >= 0.8:
+                st.info("Muy bueno", icon="👍")
+            elif acc_value >= 0.7:
+                st.warning("Bueno", icon="⚠️")
+            else:
+                st.warning("Necesita mejora", icon="❌")
         with col2:
             st.metric("Precisión media", f"{report['weighted avg']['precision']:.4f}",
                       help="Media ponderada de la precisión de cada clase")
         with col3:
-            st.metric("Exhaustividad media", f"{report['weighted avg']['recall']:.4f}",
+            st.metric("Exhaustividad media (Recall)", f"{report['weighted avg']['recall']:.4f}",
                       help="Media ponderada de la exhaustividad de cada clase")
         with col4:
             st.metric("F1-Score medio", f"{report['weighted avg']['f1-score']:.4f}",
                       help="Media armónica de precisión y exhaustividad")
+            f1_score = report['weighted avg']['f1-score']
+            if f1_score >= 0.8:
+                st.success("🌟 Excelente balance")
+            elif f1_score >= 0.7:
+                st.info("👍 Buen balance")
+            else:
+                st.warning("⚠️ Balance mejorable")
 
         # Métricas por clase
-        st.markdown("### Métricas por clase")
+        st.markdown("### ⚖️ Análisis de Balance de Clases")
 
         # Excluir filas avg y accuracy del dataframe
         report_by_class = report_df.drop(
@@ -152,29 +176,7 @@ def show_detailed_evaluation(y_test, y_pred, class_names, tree_type):
                 fig_cm, "matriz_confusion", "📥 Descargar matriz de confusión"), unsafe_allow_html=True)
 
             # Mostrar código para generar la matriz de confusión
-            code_cm = """
-import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.metrics import confusion_matrix
-
-# Calcular la matriz de confusión
-cm = confusion_matrix(y_test, y_pred)
-
-# Crear el gráfico
-fig, ax = plt.subplots(figsize=(8, 6))
-sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax,
-            xticklabels=class_names, yticklabels=class_names)
-ax.set_xlabel('Predicción')
-ax.set_ylabel('Real')
-ax.set_title('Matriz de Confusión')
-
-# Para mostrar en Streamlit
-# st.pyplot(fig)
-
-# Para uso normal en Python/Jupyter
-# plt.tight_layout()
-# plt.show()
-"""
+            code_cm = CONFUSION_MATRIX_CODE
             show_code_with_download(
                 code_cm, "Código para generar la matriz de confusión", "matriz_confusion.py")
 
@@ -188,10 +190,39 @@ ax.set_title('Matriz de Confusión')
 
             with st.expander("📊 Explicación de métricas"):
                 st.markdown("""
-                - **Precisión**: De todas las muestras que se predijeron como clase X, ¿qué porcentaje eran realmente X?
-                - **Exhaustividad (Recall)**: De todas las muestras que realmente son clase X, ¿qué porcentaje se predijo correctamente?
-                - **F1-Score**: Media armónica de precisión y exhaustividad. Útil cuando las clases están desbalanceadas.
-                - **Support**: Número de muestras de cada clase en el conjunto de prueba.
+                 **Accuracy (Exactitud):**
+                    - Porcentaje de predicciones correctas del total
+                    - Rango: 0 a 1 (0% a 100%)
+                    - **Interpretación:** Valores más altos = mejor modelo
+                    - **Cuidado:** Puede ser engañosa con clases desbalanceadas
+                    
+                    **Precision (Precisión):**
+                    - De todas las predicciones positivas, cuántas fueron correctas
+                    - Fórmula: VP / (VP + FP)
+                    - Importante cuando los falsos positivos son costosos
+                    - **Interpretación:** Valores más altos = mejor modelo
+                    
+                    **Recall (Sensibilidad o Exhaustividad):**
+                    - De todos los casos positivos reales, cuántos detectó el modelo
+                    - Fórmula: VP / (VP + FN)
+                    - Importante cuando los falsos negativos son costosos
+                    - **Interpretación:** Valores más altos = mejor modelo
+                    
+                    **F1-Score:**
+                    - Media armónica entre precisión y recall
+                    - Fórmula: 2 × (Precisión × Recall) / (Precisión + Recall)
+                    - Útil cuando necesitas balance entre precisión y recall
+                    - **Interpretación:** Valores más altos = mejor balance
+                    
+                    **Curva ROC:**
+                    - Muestra el rendimiento en diferentes umbrales de decisión
+                    - AUC (Área bajo la curva): 0.5 = aleatorio, 1.0 = perfecto
+                    
+                    **Curva Precision-Recall:**
+                    - Especialmente útil para clases desbalanceadas
+                    - Muestra el trade-off entre precisión y recall
+                    
+                    **VP = Verdaderos Positivos, FP = Falsos Positivos, FN = Falsos Negativos**
                 """)
 
         # Visualización avanzada - Predicciones correctas e incorrectas
@@ -239,35 +270,7 @@ ax.set_title('Matriz de Confusión')
             fig_prec, "precision_por_clase", "📥 Descargar gráfico de precisión"), unsafe_allow_html=True)
 
         # Mostrar código para generar el gráfico de precisión por clase
-        code_prec = """
-import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.metrics import classification_report
-import pandas as pd
-
-# Obtener el reporte de clasificación
-report = classification_report(y_test, y_pred, target_names=class_names, output_dict=True)
-
-# Extraer precisión por clase
-prec_by_class = {
-    class_name: report[class_name]['precision'] for class_name in class_names
-}
-
-# Crear el gráfico
-fig, ax = plt.subplots(figsize=(10, 5))
-sns.barplot(x=list(prec_by_class.keys()), y=list(prec_by_class.values()), ax=ax)
-ax.set_ylim(0, 1)
-ax.set_title('Precisión por clase')
-ax.set_ylabel('Precisión')
-ax.set_xlabel('Clase')
-
-# Para mostrar en Streamlit
-# st.pyplot(fig)
-
-# Para uso normal en Python/Jupyter
-# plt.tight_layout()
-# plt.show()
-"""
+        code_prec = PRECISION_CODE
         show_code_with_download(
             code_prec, "Código para generar el gráfico de precisión", "precision_por_clase.py")
     else:
@@ -311,27 +314,7 @@ ax.set_xlabel('Clase')
             fig, "predicciones_vs_reales", "📥 Descargar gráfico"), unsafe_allow_html=True)
 
         # Mostrar el código para generar el gráfico de predicciones vs valores reales
-        code_pred = """
-import matplotlib.pyplot as plt
-import numpy as np
-
-# Crear el gráfico
-fig, ax = plt.subplots(figsize=(8, 6))
-scatter = ax.scatter(y_test, y_pred, alpha=0.5,
-                    c=np.abs(y_test - y_pred), cmap='viridis')
-ax.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--')
-ax.set_xlabel('Valores reales')
-ax.set_ylabel('Predicciones')
-ax.set_title('Predicciones vs Valores reales')
-plt.colorbar(scatter, ax=ax, label='Error absoluto')
-
-# Para mostrar en Streamlit
-# st.pyplot(fig)
-
-# Para uso normal en Python/Jupyter
-# plt.tight_layout()
-# plt.show()
-"""
+        code_pred = PRED_VS_REAL_CODE
         show_code_with_download(
             code_pred, "Código para generar este gráfico", "predicciones_vs_reales.py")
 
@@ -352,38 +335,89 @@ plt.colorbar(scatter, ax=ax, label='Error absoluto')
             fig_err, "distribucion_errores", "📥 Descargar gráfico"), unsafe_allow_html=True)
 
         # Mostrar el código para generar el gráfico de distribución de errores
-        code_err = """
-import matplotlib.pyplot as plt
-import seaborn as sns
-import numpy as np
-
-# Calcular los errores
-errors = y_test - y_pred
-
-# Crear el gráfico
-fig, ax = plt.subplots(figsize=(8, 6))
-sns.histplot(errors, kde=True, ax=ax)
-ax.axvline(x=0, color='r', linestyle='--')
-ax.set_title('Distribución de errores')
-ax.set_xlabel('Error (Real - Predicción)')
-
-# Para mostrar en Streamlit
-# st.pyplot(fig)
-
-# Para uso normal en Python/Jupyter
-# plt.tight_layout()
-# plt.show()
-"""
+        code_err = ERROR_DISTRIBUTION_CODE
         show_code_with_download(
             code_err, "Código para generar este gráfico", "distribucion_errores.py")
 
         with st.expander("📊 Explicación de métricas de regresión"):
             st.markdown("""
-            - **MSE (Error Cuadrático Medio)**: Promedio de los errores al cuadrado. Penaliza más los errores grandes.
-            - **RMSE (Raíz del Error Cuadrático Medio)**: Raíz cuadrada del MSE. Está en las mismas unidades que la variable objetivo.
-            - **MAE (Error Absoluto Medio)**: Promedio de los valores absolutos de los errores. Menos sensible a valores atípicos que MSE.
-            - **R² Score**: Indica qué proporción de la varianza en la variable dependiente es predecible. 1 es predicción perfecta, 0 significa que el modelo no es mejor que predecir la media.
+            **R² Score (Coeficiente de Determinación):**
+            - Mide qué tan bien el modelo explica la variabilidad de los datos
+            - Indica qué proporción de la varianza en la variable dependiente es predecible. 1 es predicción perfecta, 0 significa que el modelo no es mejor que predecir la media.
+            - Rango: 0 a 1 (valores negativos indican un modelo muy malo)
+            - **Interpretación:**
+                - R² = 1.0: El modelo explica perfectamente toda la variabilidad
+                - R² = 0.8: El modelo explica el 80% de la variabilidad (muy bueno)
+                - R² = 0.5: El modelo explica el 50% de la variabilidad (moderado)
+                - R² = 0.0: El modelo no explica nada de la variabilidad
+            
+            **MAE (Error Absoluto Medio):**
+            - Promedio de las diferencias absolutas entre valores reales y predichos
+            - Se expresa en las mismas unidades que la variable objetivo
+            - **Interpretación:** Valores más bajos = mejor modelo
+            
+            **RMSE (Raíz del Error Cuadrático Medio):**
+            - Similar al MAE pero penaliza más los errores grandes
+            - Se expresa en las mismas unidades que la variable objetivo
+            - **Interpretación:** Valores más bajos = mejor modelo
             """)
+
+    # Mostrar interpretación contextual
+    st.markdown("### 🔍 Interpretación de Resultados")
+
+    if model_type != "Clasificación":
+        # Métricas para regresión
+        mse = mean_squared_error(y_test, y_pred)
+        rmse_value = np.sqrt(mse)
+        mae_value = mean_absolute_error(y_test, y_pred)
+        r2_value = r2_score(y_test, y_pred)
+
+        interpretation = f"""
+        **Resumen del Modelo:**
+        - Tu modelo de regresión lineal explica **{r2_value*100:.1f}%** de la variabilidad en los datos
+        - En promedio, las predicciones se desvían **{mae_value:.2f} unidades** del valor real (MAE)
+        - La raíz del error cuadrático medio es **{rmse_value:.2f} unidades** (RMSE)
+        """
+
+        if rmse_value > mae_value * 1.5:
+            interpretation += "\n- ⚠️ El RMSE es significativamente mayor que el MAE, lo que indica la presencia de algunos errores grandes"
+
+        st.info(interpretation)
+
+    else:
+        acc_value = report["accuracy"]
+        prec_value = report['weighted avg']["precision"]
+        rec_value = report['weighted avg']["recall"]
+        f1_value = report['weighted avg']['f1-score']
+
+        interpretation = "**Resumen del Modelo:**\n"
+        interpretation += f"- Tu modelo clasifica correctamente **{acc_value*100:.1f}%** de los casos\n"
+        interpretation += f"- De las predicciones positivas, **{prec_value*100:.1f}%** son correctas (Precisión)\n"
+        interpretation += f"- Detecta **{rec_value*100:.1f}%** de todos los casos positivos reales (Recall)\n"
+
+        if f1_value > 0:
+            interpretation += f"- El F1-Score (balance entre precisión y recall) es **{f1_value:.3f}**\n\n"
+
+        # Análisis de balance entre precisión y recall
+        if abs(prec_value - rec_value) > 0.1:
+            if prec_value > rec_value:
+                interpretation += "- ⚖️ **Balance:** El modelo es más preciso pero menos sensible (más conservador)\n"
+                interpretation += "- 💡 **Sugerencia:** Si es importante detectar todos los casos positivos, considera ajustar el umbral de decisión\n\n"
+            else:
+                interpretation += "- ⚖️ **Balance:** El modelo es más sensible pero menos preciso (más liberal)\n"
+                interpretation += "- 💡 **Sugerencia:** Si es importante evitar falsos positivos, considera ajustar el umbral de decisión\n\n"
+        else:
+            interpretation += "- ⚖️ **Balance:** Buen equilibrio entre precisión y recall\n\n"
+
+        # Análisis específico del accuracy
+        if acc_value < 0.6:
+            interpretation += "🔍 **Recomendaciones para mejorar:**\n"
+            interpretation += "- Revisar la calidad y cantidad de datos de entrenamiento\n"
+            interpretation += "- Considerar ingeniería de características adicionales\n"
+            interpretation += "- Probar diferentes algoritmos de clasificación\n"
+            interpretation += "- Verificar si hay desbalance de clases\n"
+
+        st.info(interpretation)
 
 
 def show_prediction_path(tree_model, X_new, feature_names, class_names=None):
@@ -448,66 +482,7 @@ def show_prediction_path(tree_model, X_new, feature_names, class_names=None):
         st.markdown("\n".join(path_explanation))
 
         # Mostrar el código que genera este camino de decisión
-        code_path = """
-import numpy as np
-
-def mostrar_camino_decision(tree_model, X_nuevo, feature_names, class_names=None):
-    \"\"\"
-    Muestra el camino de decisión para un ejemplo específico.
-    
-    Parameters:
-    -----------
-    tree_model : DecisionTreeClassifier o DecisionTreeRegressor
-        Modelo de árbol de decisión entrenado
-    X_nuevo : array
-        Ejemplo para predecir (debe ser un solo ejemplo)
-    feature_names : list
-        Nombres de las características
-    class_names : list, optional
-        Nombres de las clases (solo para clasificación)
-    \"\"\"
-    # Asegurar que X_nuevo sea un array numpy 2D con una sola fila
-    X_nuevo = np.asarray(X_nuevo).reshape(1, -1)
-    
-    # Obtener información del árbol
-    feature_idx = tree_model.tree_.feature
-    threshold = tree_model.tree_.threshold
-    
-    # Construir el camino de decisión
-    node_indicator = tree_model.decision_path(X_nuevo)
-    leaf_id = tree_model.apply(X_nuevo)
-    
-    # Obtener los nodos en el camino
-    node_index = node_indicator.indices[node_indicator.indptr[0]:node_indicator.indptr[1]]
-    
-    # Mostrar el camino paso a paso
-    print("Camino de decisión:")
-    for node_id in node_index:
-        # Detener si es un nodo hoja
-        if leaf_id[0] == node_id:
-            continue
-            
-        # Obtener la característica y el umbral de la decisión
-        feature_id = feature_idx[node_id]
-        feature_name = feature_names[feature_id]
-        threshold_value = threshold[node_id]
-        
-        # Comprobar si la muestra va por la izquierda o derecha
-        if X_nuevo[0, feature_id] <= threshold_value:
-            print(f"- {feature_name} = {X_nuevo[0, feature_id]:.4f} ≤ {threshold_value:.4f}")
-        else:
-            print(f"- {feature_name} = {X_nuevo[0, feature_id]:.4f} > {threshold_value:.4f}")
-    
-    # Mostrar la predicción final
-    prediccion = tree_model.predict(X_nuevo)[0]
-    if hasattr(tree_model, 'classes_') and class_names:
-        print(f"Predicción final: {class_names[prediccion]}")
-    else:
-        print(f"Predicción final: {prediccion:.4f}")
-
-# Ejemplo de uso:
-# mostrar_camino_decision(tree_model, X_nuevo, feature_names, class_names)
-"""
+        code_path = DECISION_PATH_CODE
         show_code_with_download(
             code_path, "Código para generar el camino de decisión", "camino_decision.py")
     except Exception as e:
