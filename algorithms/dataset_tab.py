@@ -279,121 +279,284 @@ def run_explore_dataset_tab():
         with col2:
             st.pyplot(fig, use_container_width=True)
 
-        # Análisis de correlación
-        st.markdown("### Matriz de Correlación")
+        # Análisis avanzado con selector de visualización
+        st.markdown("### 📊 Análisis Avanzado de Datos")
 
-        # Matriz de correlación
-        corr = X_df.corr()
+        # Inicializar el estado del análisis si no existe
+        if 'active_analysis' not in st.session_state:
+            st.session_state.active_analysis = None
 
-        # Generar máscara para el triángulo superior
-        mask = np.triu(np.ones_like(corr, dtype=bool))
-
-        # Generar mapa de calor
-        fig_corr, ax = plt.subplots(figsize=(10, 8))
-        sns.heatmap(corr, mask=mask, annot=True, fmt=".2f", cmap="coolwarm",
-                    square=True, linewidths=.5, cbar_kws={"shrink": .8}, ax=ax)
-        ax.set_title("Matriz de Correlación de Características")
-
-        # Mostrar la figura con tamaño reducido pero expandible
-        col1, col2, col3 = st.columns([1, 3, 1])
-        with col2:
-            st.pyplot(fig_corr, use_container_width=True)
-
-        # Matriz de dispersión (Scatterplot Matrix)
-        st.markdown("### Matriz de Dispersión (Pairplot)")
-
-        # Opciones de visualización
-        st.markdown("#### Opciones de visualización")
+        # Selector de tipo de análisis con botones
+        st.markdown("#### Elige el tipo de análisis que quieres realizar:")
         col1, col2 = st.columns(2)
 
         with col1:
-            # Seleccionar tipo de gráfico para la diagonal
-            diag_kind = st.radio(
-                "Tipo de gráfico en la diagonal:",
-                ["Histograma", "KDE (Estimación de Densidad)"],
-                index=1,
-                horizontal=True
+            correlation_clicked = st.button(
+                "🔗 Matriz de Correlación",
+                use_container_width=True,
+                help="Analiza las relaciones lineales entre características",
+                type="primary" if st.session_state.active_analysis == "correlation" else "secondary"
             )
-            diag_kind = "hist" if diag_kind == "Histograma" else "kde"
+            if correlation_clicked:
+                st.session_state.active_analysis = "correlation"
+                st.rerun()
 
         with col2:
-            # Seleccionar número máximo de características
-            max_features_selected = st.slider(
-                "Número máximo de características:",
-                min_value=2,
-                max_value=min(6, len(X_df.columns)),
-                value=min(4, len(X_df.columns)),
-                help="Un número mayor de características puede hacer que el gráfico sea más difícil de interpretar."
+            pairplot_clicked = st.button(
+                "📈 Matriz de Dispersión (Pairplot)",
+                use_container_width=True,
+                help="Visualiza relaciones entre todas las parejas de características",
+                type="primary" if st.session_state.active_analysis == "pairplot" else "secondary"
             )
+            if pairplot_clicked:
+                st.session_state.active_analysis = "pairplot"
+                st.rerun()
 
-        # Permitir al usuario seleccionar las características específicas
-        st.markdown("#### Selecciona las características para visualizar")
+        # Mostrar el análisis seleccionado
+        if st.session_state.active_analysis == "correlation":
+            st.markdown("#### Matriz de Correlación")
+            st.info("💡 **Correlación**: Mide la relación lineal entre características. Valores cercanos a 1 o -1 indican correlación fuerte.")
 
-        # Limitar a max_features_selected
-        # Usar nombres amigables si están disponibles, sino usar originales
-        if column_mapping:
-            available_features = list(
-                column_mapping.values())  # Nombres amigables
-            display_to_original = {
-                v: k for k, v in column_mapping.items()}  # Mapeo inverso
-        else:
-            available_features = X_df.columns.tolist()
-            display_to_original = {}
+            # Matriz de correlación
+            corr = X_df.corr()
 
-        # Usar multiselect para seleccionar características
-        selected_features = st.multiselect(
-            "Características a incluir en la matriz de dispersión:",
-            available_features,
-            default=available_features[:max_features_selected],
-            max_selections=max_features_selected,
-            help=f"Selecciona hasta {max_features_selected} características para incluir en la visualización."
-        )
+            # Generar máscara para el triángulo superior
+            mask = np.triu(np.ones_like(corr, dtype=bool))
 
-        # Si no se seleccionó ninguna característica, usar las primeras por defecto
-        if not selected_features:
-            selected_features = available_features[:max_features_selected]
-            st.info(
-                f"No se seleccionaron características. Usando las primeras {max_features_selected} por defecto.")
-
-        # Convertir nombres amigables a nombres originales si es necesario
-        if column_mapping:
-            original_features = [display_to_original[feat]
-                                 for feat in selected_features]
-        else:
-            original_features = selected_features
-
-        # Crear el dataframe para la visualización
-        plot_df = X_df[original_features].copy()
-        # Renombrar a nombres amigables para visualización
-        if column_mapping:
-            plot_df = plot_df.rename(columns=column_mapping)
-        # Añadir la variable objetivo para colorear
-        plot_df['target'] = y_df
-
-        # Generar el pairplot
-        with st.spinner("Generando matriz de dispersión..."):
-            pair_plot = sns.pairplot(
-                plot_df,
-                hue='target',
-                diag_kind=diag_kind,
-                plot_kws={'alpha': 0.6, 's': 30, 'edgecolor': 'k'},
-                diag_kws={'alpha': 0.5},
-                height=2.0  # Reducir altura para que sea más compacto
-            )
-            pair_plot.fig.suptitle(
-                "Matriz de Dispersión de Características", y=1.02, fontsize=14)
+            # Generar mapa de calor
+            fig_corr, ax = plt.subplots(figsize=(10, 8))
+            sns.heatmap(corr, mask=mask, annot=True, fmt=".2f", cmap="coolwarm",
+                        square=True, linewidths=.5, cbar_kws={"shrink": .8}, ax=ax)
+            ax.set_title("Matriz de Correlación de Características")
 
             # Mostrar la figura con tamaño reducido pero expandible
             col1, col2, col3 = st.columns([1, 3, 1])
             with col2:
-                st.pyplot(pair_plot.fig, use_container_width=True)
+                st.pyplot(fig_corr, use_container_width=True)
 
             # Enlace para descargar
             st.markdown(
                 get_image_download_link(
-                    pair_plot.fig, "matriz_dispersion", "📥 Descargar matriz de dispersión"),
+                    fig_corr, "matriz_correlacion", "📥 Descargar matriz de correlación"),
                 unsafe_allow_html=True
             )
+
+        elif st.session_state.active_analysis == "pairplot":
+            st.markdown("#### Matriz de Dispersión (Pairplot)")
+            st.info("💡 **Pairplot**: Muestra las relaciones entre todas las parejas de características. Útil para detectar patrones y separabilidad entre clases.")
+
+            # Opciones de visualización
+            st.markdown("##### Opciones de visualización")
+            col1, col2 = st.columns(2)
+
+            with col1:
+                # Seleccionar tipo de gráfico para la diagonal
+                diag_kind = st.radio(
+                    "Tipo de gráfico en la diagonal:",
+                    ["Histograma", "KDE (Estimación de Densidad)"],
+                    index=1,
+                    horizontal=True
+                )
+                diag_kind = "hist" if diag_kind == "Histograma" else "kde"
+
+            with col2:
+                # Seleccionar número máximo de características
+                max_features_selected = st.slider(
+                    "Número máximo de características:",
+                    min_value=2,
+                    max_value=min(6, len(X_df.columns)),
+                    value=min(4, len(X_df.columns)),
+                    help="Un número mayor de características puede hacer que el gráfico sea más difícil de interpretar."
+                )
+
+            # Permitir al usuario seleccionar las características específicas
+            st.markdown("##### Selecciona las características para visualizar")
+
+            # Limitar a max_features_selected
+            # Usar nombres amigables si están disponibles, sino usar originales
+            if column_mapping:
+                available_features = list(
+                    column_mapping.values())  # Nombres amigables
+                display_to_original = {
+                    v: k for k, v in column_mapping.items()}  # Mapeo inverso
+            else:
+                available_features = X_df.columns.tolist()
+                display_to_original = {}
+
+            # Usar multiselect para seleccionar características
+            selected_features = st.multiselect(
+                "Características a incluir en la matriz de dispersión:",
+                available_features,
+                default=available_features[:max_features_selected],
+                max_selections=max_features_selected,
+                help=f"Selecciona hasta {max_features_selected} características para incluir en la visualización."
+            )
+
+            # Si no se seleccionó ninguna característica, usar las primeras por defecto
+            if not selected_features:
+                selected_features = available_features[:max_features_selected]
+                st.info(
+                    f"No se seleccionaron características. Usando las primeras {max_features_selected} por defecto.")
+
+            # Convertir nombres amigables a nombres originales si es necesario
+            if column_mapping:
+                original_features = [display_to_original[feat]
+                                     for feat in selected_features]
+            else:
+                original_features = selected_features
+
+            # Opciones de optimización en expandible
+            with st.expander("⚡ Opciones de rendimiento", expanded=False):
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    # Opción de muestreo para datasets grandes
+                    if len(X_df) > 2000:
+                        enable_sampling = st.checkbox(
+                            "🚀 Muestreo rápido (recomendado)",
+                            value=True,  # Activado por defecto
+                            help=f"Usa una muestra de {min(600, len(X_df))} puntos para acelerar la visualización"
+                        )
+                        if enable_sampling:
+                            sample_size = st.slider(
+                                "Tamaño de muestra:",
+                                min_value=200,
+                                max_value=min(2000, len(X_df)),
+                                value=min(800, len(X_df)),
+                                step=100,
+                                help="Menos puntos = visualización más rápida"
+                            )
+                        else:
+                            # Incluso sin checkbox, limitar automáticamente datasets muy grandes
+                            sample_size = min(2000, len(X_df))
+                            if len(X_df) > 1000:
+                                st.warning(
+                                    f"⚠️ Dataset grande ({len(X_df)} puntos). Se limitará automáticamente a {sample_size} para evitar timeouts.")
+                                enable_sampling = True
+                    else:
+                        enable_sampling = False
+                        sample_size = len(X_df)
+                        st.info(
+                            f"📊 Dataset pequeño ({len(X_df)} puntos): No requiere optimización")
+
+                with col2:
+                    # Opciones de calidad visual
+                    high_quality = st.checkbox(
+                        "🎨 Alta calidad visual",
+                        value=False,
+                        help="Mejores gráficos pero más lento (NO recomendado para datasets grandes)"
+                    )
+
+                    # Información adicional
+                    st.markdown("**💡 Consejos:**")
+                    st.markdown("- Menos características = más rápido")
+                    st.markdown("- Muestreo mantiene las proporciones")
+                    st.markdown("- Alta calidad solo para visualización final")
+
+            # Validaciones de seguridad antes del botón
+            total_plots = len(selected_features) ** 2
+
+            # Advertencia para configuraciones que pueden ser lentas
+            if len(selected_features) > 4 and not enable_sampling and len(X_df) > 2000:
+                st.warning(
+                    f"⚠️ **Advertencia**: {len(selected_features)} características × {len(X_df)} puntos puede ser muy lento. Se recomienda activar muestreo.")
+            elif len(selected_features) > 5:
+                st.warning(
+                    f"⚠️ **Muchas características**: {total_plots} gráficos pueden ser difíciles de interpretar.")
+
+            # Botón para generar el pairplot
+            if st.button("🚀 Generar Matriz de Dispersión", type="primary"):
+                # Crear el dataframe para la visualización
+                plot_df = X_df[original_features].copy()
+                # Renombrar a nombres amigables para visualización
+                if column_mapping:
+                    plot_df = plot_df.rename(columns=column_mapping)
+                # Añadir la variable objetivo para colorear
+                plot_df['target'] = y_df
+
+                # Aplicar límites de seguridad automáticos
+                original_size = len(plot_df)
+                max_safe_points = 2000  # Límite de seguridad absoluto
+
+                # Aplicar muestreo si está habilitado O si es necesario por seguridad
+                if enable_sampling and len(plot_df) > sample_size:
+                    # Muestreo estratificado para mantener proporción de clases
+                    if task_type == "Clasificación":
+                        plot_df = plot_df.groupby('target', group_keys=False).apply(
+                            lambda x: x.sample(min(len(x), sample_size // len(plot_df['target'].unique())),
+                                               random_state=42)
+                        ).reset_index(drop=True)
+                    else:
+                        # Para regresión, muestreo aleatorio simple
+                        plot_df = plot_df.sample(
+                            n=sample_size, random_state=42).reset_index(drop=True)
+                elif len(plot_df) > max_safe_points:
+                    # Límite de seguridad automático
+                    st.warning(
+                        f"⚠️ Aplicando límite de seguridad: {max_safe_points} puntos máximo para evitar timeouts")
+                    if task_type == "Clasificación":
+                        plot_df = plot_df.groupby('target', group_keys=False).apply(
+                            lambda x: x.sample(min(len(x), max_safe_points // len(plot_df['target'].unique())),
+                                               random_state=42)
+                        ).reset_index(drop=True)
+                    else:
+                        plot_df = plot_df.sample(
+                            n=max_safe_points, random_state=42).reset_index(drop=True)
+
+                if len(plot_df) < original_size:
+                    st.info(
+                        f"📊 Usando {len(plot_df)} puntos de {original_size} totales para optimizar velocidad")
+
+                # Configurar parámetros optimizados
+                if high_quality:
+                    plot_kws = {'alpha': 0.7, 's': 40,
+                                'edgecolor': 'white', 'linewidth': 0.5}
+                    diag_kws = {'alpha': 0.8}
+                    height = 2.5
+                else:
+                    # Configuración optimizada para velocidad
+                    # Sin bordes, rasterizado
+                    plot_kws = {'alpha': 0.6, 's': 20, 'rasterized': True}
+                    diag_kws = {'alpha': 0.6}
+                    height = 2.0
+
+                # Generar el pairplot con optimizaciones
+                with st.spinner(f"Generando matriz de dispersión... ({len(plot_df)} puntos, {len(selected_features)} características)"):
+                    # Configurar matplotlib para mejor rendimiento
+                    # Evitar warnings
+                    plt.rcParams['figure.max_open_warning'] = 0
+
+                    pair_plot = sns.pairplot(
+                        plot_df,
+                        hue='target',
+                        diag_kind=diag_kind,
+                        plot_kws=plot_kws,
+                        diag_kws=diag_kws,
+                        height=height,
+                        aspect=1.0  # Aspect ratio fijo para mejor rendimiento
+                    )
+
+                    # Configurar título con información de optimización
+                    title = "Matriz de Dispersión de Características"
+                    if enable_sampling and len(X_df) > sample_size:
+                        title += f" (Muestra: {len(plot_df)}/{len(X_df)} puntos)"
+
+                    pair_plot.fig.suptitle(title, y=1.02, fontsize=14)
+
+                    # Mostrar la figura con tamaño reducido pero expandible
+                    col1, col2, col3 = st.columns([1, 3, 1])
+                    with col2:
+                        st.pyplot(pair_plot.fig, use_container_width=True)
+
+                    # Enlace para descargar
+                    st.markdown(
+                        get_image_download_link(
+                            pair_plot.fig, "matriz_dispersion", "📥 Descargar matriz de dispersión"),
+                        unsafe_allow_html=True
+                    )
+            else:
+                st.info(
+                    "👆 Haz clic en el botón para generar la matriz de dispersión con las características seleccionadas.")
 
         # Generar código para este análisis
         code = SCATTERPLOT_MATRIX
