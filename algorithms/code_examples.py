@@ -1514,30 +1514,64 @@ def generate_neural_network_complete_code(config, feature_names, class_names=Non
     pass
 
 
-def generate_decision_boundary_code(fig_width, fig_height, feature_names_boundary,class_names):
-    code = f"""
+def generate_decision_boundary_code(fig_width, fig_height, feature_names_boundary, class_names):
+    return f"""
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.tree import DecisionTreeClassifier
-from decision_boundary import plot_decision_boundary
+from sklearn.inspection import DecisionBoundaryDisplay
 
 # Datos de entrenamiento (solo las primeras 2 características)
 X_2d = X_train[:, [0, 1]]  # Usar las características seleccionadas
 y_train = y_train
 
+
+# Entrenar el modelo simplificado
+model_2d.fit(X_2d, y_train)
+
 # Crear figura
 fig, ax = plt.subplots(figsize=({fig_width}, {fig_height}))
 
-# Visualizar frontera de decisión
-plot_decision_boundary(
-    tree_model,
+# Visualizar frontera de decisión usando sklearn
+disp = DecisionBoundaryDisplay.from_estimator(
+    model_2d,
     X_2d,
-    y_train,
+    response_method="predict",
+    alpha=0.6,
     ax=ax,
-    feature_names={feature_names_boundary},
-    class_names={class_names}
+    grid_resolution=200
 )
 
+# Añadir puntos de datos sobre la frontera
+scatter = ax.scatter(
+    X_2d[:, 0], 
+    X_2d[:, 1], 
+    c=y_train, 
+    edgecolors='black', 
+    s=60,
+    alpha=0.8
+)
+
+# Configurar etiquetas de los ejes
+feature_names = {feature_names_boundary}
+if len(feature_names) >= 2:
+    ax.set_xlabel(feature_names[0])
+    ax.set_ylabel(feature_names[1])
+else:
+    ax.set_xlabel("Característica 1")
+    ax.set_ylabel("Característica 2")
+
+# Añadir leyenda de clases
+class_names = {class_names}
+if class_names:
+    legend_labels = class_names
+else:
+    legend_labels = [f"Clase {{i}}" for i in range(len(np.unique(y_train)))]
+
+# Crear leyenda para las clases
+handles, _ = scatter.legend_elements()
+ax.legend(handles, legend_labels, title="Clases", loc="best")
+
+ax.set_title("Frontera de Decisión")
 plt.tight_layout()
 plt.show()
 

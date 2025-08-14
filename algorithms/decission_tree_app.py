@@ -1,16 +1,312 @@
+import base64
+
 import streamlit as st
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+from sklearn.inspection import DecisionBoundaryDisplay
+from sklearn.tree import DecisionTreeClassifier
 
 from dataset_manager import load_data, preprocess_data
 from model_training import train_decision_tree
 from model_evaluation import evaluate_classification_model, evaluate_regression_model, show_detailed_evaluation
 from utils import create_info_box, get_image_download_link, show_code_with_download
 from algorithms.dataset_tab import run_dataset_tab, run_select_dataset
+from algorithms.code_examples import DECISION_BOUNDARY_CODE, VIZ_TREE_CODE, TEXT_TREE_CODE, generate_decision_boundary_code
+from tree_visualizer import get_tree_text
 from decision_boundary import plot_decision_boundary
-from algorithms.code_examples import DECISION_BOUNDARY_CODE, VIZ_TREE_CODE, TEXT_TREE_CODE
+
+
+def display_feature_importance(model, feature_names):
+    """
+    Muestra la importancia de las características usando solo librerías de terceros.
+    """
+    # Obtener importancias del modelo
+    importances = model.feature_importances_
+
+    # Crear DataFrame para ordenar
+    import pandas as pd
+    feature_importance_df = pd.DataFrame({
+        'feature': feature_names,
+        'importance': importances
+    }).sort_values('importance', ascending=True)
+
+    # Crear visualización
+    fig, ax = plt.subplots(figsize=(10, 8))
+
+    # Barplot horizontal
+    bars = ax.barh(
+        feature_importance_df['feature'], feature_importance_df['importance'])
+
+    # Colorear barras
+    colors = plt.cm.viridis(np.linspace(0, 1, len(bars)))
+    for bar, color in zip(bars, colors):
+        bar.set_color(color)
+
+    ax.set_xlabel('Importancia')
+    ax.set_title('Importancia de Características')
+    ax.grid(True, alpha=0.3)
+
+    # Añadir valores en las barras
+    for i, (feature, importance) in enumerate(zip(feature_importance_df['feature'], feature_importance_df['importance'])):
+        ax.text(importance + 0.001, i, f'{importance:.3f}', va='center')
+
+    plt.tight_layout()
+    st.pyplot(fig, use_container_width=True)
+
+    # Mostrar tabla con los valores
+    st.markdown("### Valores de Importancia")
+    importance_table = feature_importance_df.sort_values(
+        'importance', ascending=False)
+    importance_table['importance'] = importance_table['importance'].round(4)
+    st.dataframe(importance_table, use_container_width=True)
+
+
+def create_prediction_interface(model, feature_names, class_names, task_type, X_train=None, dataset_name='Dataset'):
+    """
+    Crea una interfaz para hacer predicciones con nuevos datos usando solo librerías de terceros.
+    """
+    st.markdown("### Hacer Predicción")
+
+    # Crear inputs para cada característica
+    inputs = {}
+
+    # Usar rangos dinámicos si se proporcionan datos de entrenamiento
+    if X_train is not None:
+        if hasattr(X_train, 'iloc'):
+            # DataFrame
+            mins = X_train.min()
+            maxs = X_train.max()
+            means = X_train.mean()
+        else:
+            # NumPy array
+            mins = np.min(X_train, axis=0)
+            maxs = np.max(X_train, axis=0)
+            means = np.mean(X_train, axis=0)
+    else:
+        mins = [0.0] * len(feature_names)
+        maxs = [100.0] * len(feature_names)
+        means = [50.0] * len(feature_names)
+
+    # Crear sliders o inputs numéricos
+    cols = st.columns(2)
+    for i, feature in enumerate(feature_names):
+        with cols[i % 2]:
+            if X_train is not None:
+                min_val = float(mins[i] if hasattr(
+                    mins, '__getitem__') else mins.iloc[i])
+                max_val = float(maxs[i] if hasattr(
+                    maxs, '__getitem__') else maxs.iloc[i])
+                mean_val = float(means[i] if hasattr(
+                    means, '__getitem__') else means.iloc[i])
+
+                inputs[feature] = st.slider(
+                    f"{feature}:",
+                    min_value=min_val,
+                    max_value=max_val,
+                    value=mean_val,
+                    step=(max_val - min_val) / 100
+                )
+            else:
+                inputs[feature] = st.number_input(f"{feature}:", value=0.0)
+
+    # Botón para hacer predicción
+    if st.button("Hacer Predicción", type="primary"):
+        # Preparar datos de entrada
+        input_values = [inputs[feature] for feature in feature_names]
+        input_array = np.array(input_values).reshape(1, -1)
+
+        try:
+            # Hacer predicción
+            prediction = model.predict(input_array)[0]
+
+            if task_type == "Clasificación":
+                # Obtener probabilidades si están disponibles
+                if hasattr(model, 'predict_proba'):
+                    probabilities = model.predict_proba(input_array)[0]
+
+                st.success(
+                    f"**Predicción:** {class_names[prediction] if class_names else f'Clase {prediction}'}")
+
+                if hasattr(model, 'predict_proba'):
+                    st.markdown("### Probabilidades por Clase")
+                    prob_df = pd.DataFrame({
+                        'Clase': class_names if class_names else [f'Clase {i}' for i in range(len(probabilities))],
+                        'Probabilidad': probabilities
+                    })
+                    prob_df['Probabilidad (%)'] = (
+                        prob_df['Probabilidad'] * 100).round(2)
+                    st.dataframe(prob_df, use_container_width=True)
+
+                    # Gráfico de barras de probabilidades
+                    fig, ax = plt.subplots(figsize=(8, 4))
+                    bars = ax.bar(prob_df['Clase'], prob_df['Probabilidad'])
+                    ax.set_ylabel('Probabilidad')
+                    ax.set_title('Probabilidades de Predicción')
+                    ax.set_ylim(0, 1)
+
+                    # Colorear la barra de la predicción
+                    bars[prediction].set_color('red')
+                    for i, bar in enumerate(bars):
+                        if i != prediction:
+                            bar.set_color('lightblue')
+
+                    plt.xticks(rotation=45)
+                    plt.tight_layout()
+                    st.pyplot(fig, use_container_width=True)
+            else:
+                st.success(f"**Predicción:** {prediction:.4f}")
+
+        except Exception as e:
+            st.error(f"Error al hacer la predicción: {str(e)}")
+
+
+def display_model_export_options(model, feature_names, class_names, task_type, max_depth, min_samples_split, criterion):
+    """
+    Muestra opciones para exportar el modelo usando solo librerías de terceros.
+    """
+    st.markdown("### Opciones de Exportación")
+
+    # Información del modelo
+    st.markdown("#### Información del Modelo")
+    model_info = {
+        "Tipo de Tarea": task_type,
+        "Criterio": criterion,
+        "Profundidad Máxima": max_depth,
+        "Muestras Mínimas para División": min_samples_split,
+        "Número de Características": len(feature_names),
+        "Número de Hojas": model.get_n_leaves(),
+        "Profundidad del Árbol": model.get_depth()
+    }
+
+    info_df = pd.DataFrame(list(model_info.items()),
+                           columns=['Parámetro', 'Valor'])
+    st.dataframe(info_df, use_container_width=True)
+
+    # Opciones de exportación
+    st.markdown("#### Formatos de Exportación")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        # Exportar como pickle
+        if st.button("📦 Exportar como Pickle", use_container_width=True):
+            import pickle
+            import io
+
+            # Crear objeto para serializar
+            model_data = {
+                'model': model,
+                'feature_names': feature_names,
+                'class_names': class_names,
+                'task_type': task_type,
+                'model_info': model_info
+            }
+
+            # Serializar
+            buffer = io.BytesIO()
+            pickle.dump(model_data, buffer)
+            buffer.seek(0)
+
+            st.download_button(
+                label="Descargar Modelo (.pkl)",
+                data=buffer.getvalue(),
+                file_name=f"decision_tree_model.pkl",
+                mime="application/octet-stream"
+            )
+
+    with col2:
+        # Exportar reglas como texto
+        if st.button("📝 Exportar Reglas como Texto", use_container_width=True):
+            from sklearn.tree import export_text
+
+            tree_rules = export_text(
+                model,
+                feature_names=feature_names
+            )
+
+            st.download_button(
+                label="Descargar Reglas (.txt)",
+                data=tree_rules,
+                file_name="decision_tree_rules.txt",
+                mime="text/plain"
+            )
+
+    # Código Python para usar el modelo
+    st.markdown("#### Código Python para Usar el Modelo")
+
+    python_code = f"""
+# Código para usar el modelo de árbol de decisión
+import pickle
+import numpy as np
+
+# Cargar el modelo
+with open('decision_tree_model.pkl', 'rb') as f:
+    model_data = pickle.load(f)
+
+model = model_data['model']
+feature_names = model_data['feature_names']
+class_names = model_data['class_names']
+task_type = model_data['task_type']
+
+# Función para hacer predicciones
+def predecir(valores_caracteristicas):
+    \"\"\"
+    Hace una predicción con el modelo de árbol de decisión.
+    
+    Args:
+        valores_caracteristicas (list): Lista con valores para cada característica
+                                      en el orden: {feature_names}
+    
+    Returns:
+        Predicción del modelo
+    \"\"\"
+    # Convertir a array numpy
+    X = np.array(valores_caracteristicas).reshape(1, -1)
+    
+    # Hacer predicción
+    prediction = model.predict(X)[0]
+    
+    if task_type == "Clasificación":
+        if class_names:
+            return class_names[prediction]
+        else:
+            return f"Clase {{prediction}}"
+    else:
+        return prediction
+
+# Ejemplo de uso:
+# resultado = predecir([valor1, valor2, valor3, ...])
+# print(f"Predicción: {{resultado}}")
+
+# Para obtener probabilidades (solo clasificación):
+if task_type == "Clasificación" and hasattr(model, 'predict_proba'):
+    def predecir_con_probabilidades(valores_caracteristicas):
+        X = np.array(valores_caracteristicas).reshape(1, -1)
+        prediction = model.predict(X)[0]
+        probabilities = model.predict_proba(X)[0]
+        
+        resultado = {{
+            'prediccion': class_names[prediction] if class_names else f"Clase {{prediction}}",
+            'probabilidades': {{
+                (class_names[i] if class_names else f"Clase {{i}}"): prob 
+                for i, prob in enumerate(probabilities)
+            }}
+        }}
+        
+        return resultado
+"""
+
+    st.code(python_code, language='python')
+
+    # Botón para descargar el código
+    st.download_button(
+        label="📥 Descargar Código Python",
+        data=python_code,
+        file_name="usar_modelo.py",
+        mime="text/plain"
+    )
 
 
 def run_decision_trees_app():
@@ -426,122 +722,48 @@ def run_decision_trees_app():
                     code_text, "Código para obtener el texto del árbol", "texto_arbol.py")
 
             elif viz_type == "Frontera":
-                # Visualización de frontera de decisión
-                st.markdown("### Visualización de Frontera de Decisión")
+                # Verificar que es un modelo de clasificación y que está entrenado
+                if not st.session_state.get('is_trained', False):
+                    st.warning(
+                        "Primero debes entrenar un modelo en la pestaña '🏋️ Entrenamiento'.")
+                elif st.session_state.get('tree_type', 'Clasificación') == "Clasificación":
 
-                st.info("""
-                **Cómo interpretar esta visualización:**
-                - Las áreas coloreadas muestran las regiones de decisión para cada clase
-                - Los puntos representan las muestras de entrenamiento
-                - Las líneas entre colores son las fronteras de decisión
-                - Solo se muestran las primeras dos características para crear la visualización 2D
-                """)
-
-                # Selección de características para la visualización
-                if len(st.session_state.feature_names) > 2:
-                    cols = st.columns(2)
-                    with cols[0]:
-                        feature1 = st.selectbox(
-                            "Primera característica:",
-                            st.session_state.feature_names,
-                            index=0,
-                            key="feature1_boundary_viz"
-                        )
-                    with cols[1]:
-                        feature2 = st.selectbox(
-                            "Segunda característica:",
-                            st.session_state.feature_names,
-                            index=1,
-                            key="feature2_boundary_viz"
+                    # Crear un nuevo modelo entrenado solo con las 2 características seleccionadas
+                    # para que sea compatible con DecisionBoundaryDisplay
+                    try:
+                        model_2d = DecisionTreeClassifier(
+                            max_depth=getattr(
+                                st.session_state.tree_model, 'max_depth', None),
+                            min_samples_split=getattr(
+                                st.session_state.tree_model, 'min_samples_split', 2),
+                            criterion=getattr(
+                                st.session_state.tree_model, 'criterion', 'gini'),
+                            random_state=42
                         )
 
-                    # Obtener índices de las características seleccionadas
-                    feature_names_list = list(st.session_state.feature_names)
-                    f1_idx = feature_names_list.index(feature1)
-                    f2_idx = feature_names_list.index(feature2)
-
-                    # Crear array con solo las dos características seleccionadas
-                    # Verificar si X_train es DataFrame o numpy array
-                    if hasattr(st.session_state.X_train, 'iloc'):
-                        # Es un DataFrame, usar iloc para indexación posicional
-                        X_boundary = st.session_state.X_train.iloc[:, [
-                            f1_idx, f2_idx]].values
-                    else:
-                        # Es un numpy array, usar indexación normal
-                        X_boundary = st.session_state.X_train[:, [
-                            f1_idx, f2_idx]]
-                    feature_names_boundary = [feature1, feature2]
-                else:
-                    # Si solo hay dos características, usarlas directamente
-                    if hasattr(st.session_state.X_train, 'values'):
-                        # Es un DataFrame, convertir a numpy array
-                        X_boundary = st.session_state.X_train.values
-                    else:
-                        # Es un numpy array
-                        X_boundary = st.session_state.X_train
-                    feature_names_boundary = st.session_state.feature_names
-
-                # Crear figura y dibujar frontera de decisión
-                try:
-                    fig, ax = plt.subplots(figsize=(fig_width, fig_height))
-                    plot_decision_boundary(
-                        st.session_state.tree_model,
-                        X_boundary,
-                        st.session_state.y_train,
-                        ax=ax,
-                        feature_names=feature_names_boundary,
-                        class_names=st.session_state.class_names,
-                        show_code=False
-                    )
-
-                    # Mostrar la figura
-                    col1, col2, col3 = st.columns([1, 4, 1])
-                    with col2:
-                        st.pyplot(fig, use_container_width=True)
-
-                    # Enlace para descargar
-                    st.markdown(
-                        get_image_download_link(
-                            fig, "frontera_decision", "📥 Descargar visualización de frontera"),
-                        unsafe_allow_html=True
-                    )
-
-                    # Explicación adicional
-                    st.markdown("""
-                    **Nota:** Esta visualización muestra cómo el árbol de decisión divide el espacio de características
-                    en regiones de decisión. Cada color representa una clase diferente. 
-                    
-                    Para crear esta visualización 2D, se entrena un nuevo árbol utilizando solo las dos características 
-                    seleccionadas, por lo que puede diferir ligeramente del modelo completo que utiliza todas las características.
-                    """)
-
-                    # Advertencia sobre dimensionalidad
-                    if len(st.session_state.feature_names) > 2:
-                        st.warning("""
-                        ⚠️ Esta visualización solo muestra 2 características seleccionadas. El modelo real utiliza todas 
-                        las características para hacer predicciones. Las fronteras pueden variar si se seleccionan 
-                        diferentes pares de características.
+                        plot_decision_boundary(
+                            model_2d,
+                            st.session_state.X_train,
+                            st.session_state.y_train,
+                            st.session_state.feature_names,
+                            st.session_state.class_names,
+                            fig_width,
+                            fig_height
+                        )
+                    except Exception as e:
+                        st.error(
+                            f"Error al mostrar la visualización de frontera de decisión: {str(e)}")
+                        st.info("""
+                        La frontera de decisión requiere:
+                        - Un modelo de clasificación entrenado
+                        - Exactamente 2 características para visualizar
+                        - Datos de entrenamiento válidos
                         """)
-
-                    # Mostrar código para generar esta visualización
-                    class_names = st.session_state.class_names if st.session_state.class_names else None
-                    code_boundary = generate_decision_boundary_code(fig_width, fig_height,
-                                                                    feature_names_boundary, class_names)
-
-                    show_code_with_download(
-                        code_boundary, "Código para generar la frontera de decisión", "frontera_decision.py")
-
-                except Exception as e:
-                    st.error(
-                        f"Error al mostrar la visualización de frontera de decisión: {str(e)}")
-                    st.info("""
-                    La frontera de decisión requiere:
-                    - Un modelo de clasificación entrenado
-                    - Exactamente 2 características para visualizar
-                    - Datos de entrenamiento válidos
-                    """)
-                    st.exception(
-                        e)  # Mostrar detalles del error para debugging
+                        st.exception(
+                            e)  # Mostrar detalles del error para debugging
+                else:
+                    st.warning(
+                        "La visualización de frontera de decisión solo está disponible para modelos de clasificación.")
 
     ###########################################
     # Pestaña de Características              #
