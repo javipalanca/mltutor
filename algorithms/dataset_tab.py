@@ -405,67 +405,39 @@ def run_explore_dataset_tab():
             else:
                 original_features = selected_features
 
-            # Opciones de optimización en expandible
-            with st.expander("⚡ Opciones de rendimiento", expanded=False):
-                col1, col2 = st.columns(2)
+            if len(X_df) > 2000:
+                enable_sampling = True
+                high_quality = True
+                sample_size = 2000
+            else:
+                enable_sampling = False
+                high_quality = False
+                sample_size = len(X_df)
 
-                with col1:
-                    # Opción de muestreo para datasets grandes
-                    if len(X_df) > 2000:
-                        enable_sampling = st.checkbox(
-                            "🚀 Muestreo rápido (recomendado)",
-                            value=True,  # Activado por defecto
-                            help=f"Usa una muestra de {min(600, len(X_df))} puntos para acelerar la visualización"
-                        )
-                        if enable_sampling:
-                            sample_size = st.slider(
-                                "Tamaño de muestra:",
-                                min_value=200,
-                                max_value=min(2000, len(X_df)),
-                                value=min(800, len(X_df)),
-                                step=100,
-                                help="Menos puntos = visualización más rápida"
-                            )
-                        else:
-                            # Incluso sin checkbox, limitar automáticamente datasets muy grandes
-                            sample_size = min(2000, len(X_df))
-                            if len(X_df) > 1000:
-                                st.warning(
-                                    f"⚠️ Dataset grande ({len(X_df)} puntos). Se limitará automáticamente a {sample_size} para evitar timeouts.")
-                                enable_sampling = True
-                    else:
-                        enable_sampling = False
-                        sample_size = len(X_df)
-                        st.info(
-                            f"📊 Dataset pequeño ({len(X_df)} puntos): No requiere optimización")
-
-                with col2:
-                    # Opciones de calidad visual
-                    high_quality = st.checkbox(
-                        "🎨 Alta calidad visual",
-                        value=False,
-                        help="Mejores gráficos pero más lento (NO recomendado para datasets grandes)"
-                    )
-
-                    # Información adicional
-                    st.markdown("**💡 Consejos:**")
-                    st.markdown("- Menos características = más rápido")
-                    st.markdown("- Muestreo mantiene las proporciones")
-                    st.markdown("- Alta calidad solo para visualización final")
-
-            # Validaciones de seguridad antes del botón
+            # Validaciones de seguridad y advertencias
             total_plots = len(selected_features) ** 2
+            estimated_time = total_plots * \
+                len(X_df) / 50000  # Estimación aproximada
 
-            # Advertencia para configuraciones que pueden ser lentas
-            if len(selected_features) > 4 and not enable_sampling and len(X_df) > 2000:
+            # Mostrar advertencias basadas en el tamaño
+            if total_plots > 25:
                 st.warning(
-                    f"⚠️ **Advertencia**: {len(selected_features)} características × {len(X_df)} puntos puede ser muy lento. Se recomienda activar muestreo.")
-            elif len(selected_features) > 5:
-                st.warning(
-                    f"⚠️ **Muchas características**: {total_plots} gráficos pueden ser difíciles de interpretar.")
+                    f"⚠️ **Cuidado**: {len(selected_features)} características = {total_plots} gráficos. Puede ser muy lento.")
+            elif total_plots > 16:
+                st.info(
+                    f"ℹ️ **Nota**: {len(selected_features)} características = {total_plots} gráficos. Tiempo estimado: ~{estimated_time:.1f}s")
 
-            # Botón para generar el pairplot
-            if st.button("🚀 Generar Matriz de Dispersión", type="primary"):
+
+            # Botones de control
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                generate_clicked = st.button(
+                    "🚀 Generar Matriz de Dispersión", type="primary")
+            with col2:
+                if st.button("🛑 Reiniciar", help="Usa esto si la generación se queda colgada"):
+                    st.rerun()
+
+            if generate_clicked:
                 # Crear el dataframe para la visualización
                 plot_df = X_df[original_features].copy()
                 # Renombrar a nombres amigables para visualización
@@ -520,43 +492,113 @@ def run_explore_dataset_tab():
                     diag_kws = {'alpha': 0.6}
                     height = 2.0
 
-                # Generar el pairplot con optimizaciones
-                with st.spinner(f"Generando matriz de dispersión... ({len(plot_df)} puntos, {len(selected_features)} características)"):
-                    # Configurar matplotlib para mejor rendimiento
-                    # Evitar warnings
-                    plt.rcParams['figure.max_open_warning'] = 0
+                # Generar el pairplot con optimizaciones y control de tiempo
+                progress_container = st.container()
+                with progress_container:
+                    # Crear un placeholder para el progreso
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
+                    cancel_button_placeholder = st.empty()
 
-                    pair_plot = sns.pairplot(
-                        plot_df,
-                        hue='target',
-                        diag_kind=diag_kind,
-                        plot_kws=plot_kws,
-                        diag_kws=diag_kws,
-                        height=height,
-                        aspect=1.0  # Aspect ratio fijo para mejor rendimiento
-                    )
+                    # Botón de cancelación (simulado)
+                    status_text.info("🔄 Iniciando generación de la matriz...")
+                    progress_bar.progress(10)
 
-                    # Configurar título con información de optimización
-                    title = "Matriz de Dispersión de Características"
-                    if enable_sampling and len(X_df) > sample_size:
-                        title += f" (Muestra: {len(plot_df)}/{len(X_df)} puntos)"
+                    try:
+                        # Verificar tamaño antes de proceder
+                        estimated_time = len(
+                            selected_features) ** 2 * len(plot_df) / 10000
+                        if estimated_time > 30:  # Si se estima más de 30 segundos
+                            st.warning(
+                                f"⚠️ **Advertencia**: La generación puede tardar ~{estimated_time:.1f} segundos")
+                            st.info(
+                                "💡 **Sugerencia**: Reduce el número de características o el tamaño de muestra")
 
-                    pair_plot.fig.suptitle(title, y=1.02, fontsize=14)
+                        status_text.info(
+                            f"🔄 Generando matriz... ({len(plot_df)} puntos, {len(selected_features)} características)")
+                        progress_bar.progress(20)
 
-                    # Mostrar la figura con tamaño reducido pero expandible
-                    col1, col2, col3 = st.columns([1, 3, 1])
-                    with col2:
+                        # Configurar matplotlib para mejor rendimiento
+                        plt.rcParams['figure.max_open_warning'] = 0
+                        progress_bar.progress(30)
+
+                        # Generar el pairplot con timeout simulado
+                        import time
+                        start_time = time.time()
+
+                        status_text.info("🎨 Creando gráficos...")
+                        progress_bar.progress(50)
+
+                        pair_plot = sns.pairplot(
+                            plot_df,
+                            hue='target',
+                            diag_kind=diag_kind,
+                            plot_kws=plot_kws,
+                            diag_kws=diag_kws,
+                            height=height,
+                            aspect=1.0  # Aspect ratio fijo para mejor rendimiento
+                        )
+
+                        progress_bar.progress(80)
+                        status_text.info("🎨 Finalizando visualización...")
+
+                        # Verificar si ha tardado demasiado
+                        elapsed_time = time.time() - start_time
+                        if elapsed_time > 60:  # Más de 1 minuto
+                            st.warning(
+                                f"⏱️ La generación tardó {elapsed_time:.1f} segundos. Considera reducir el tamaño.")
+
+                        # Configurar título con información de optimización
+                        title = "Matriz de Dispersión de Características"
+                        if enable_sampling and len(X_df) > sample_size:
+                            title += f" (Muestra: {len(plot_df)}/{len(X_df)} puntos)"
+
+                        pair_plot.fig.suptitle(title, y=1.02, fontsize=14)
+                        progress_bar.progress(90)
+
+                        status_text.success(
+                            f"✅ Matriz generada exitosamente en {elapsed_time:.1f}s")
+                        progress_bar.progress(100)
+
+                        # Limpiar indicadores de progreso después de un momento
+                        time.sleep(1)
+                        progress_bar.empty()
+                        status_text.empty()
+
                         st.pyplot(pair_plot.fig, use_container_width=True)
 
-                    # Enlace para descargar
-                    st.markdown(
-                        get_image_download_link(
-                            pair_plot.fig, "matriz_dispersion", "📥 Descargar matriz de dispersión"),
-                        unsafe_allow_html=True
-                    )
+                        # Enlace para descargar
+                        st.markdown(
+                            get_image_download_link(
+                                pair_plot.fig, "matriz_dispersion", "📥 Descargar matriz de dispersión"),
+                            unsafe_allow_html=True
+                        )
+
+                    except Exception as e:
+                        progress_bar.empty()
+                        status_text.empty()
+                        st.error(f"❌ Error generando la matriz: {str(e)}")
+                        st.info(
+                            "💡 Intenta reducir el número de características o el tamaño de muestra")
             else:
                 st.info(
                     "👆 Haz clic en el botón para generar la matriz de dispersión con las características seleccionadas.")
+
+                # Consejos para evitar cuelgues
+                with st.expander("💡 Consejos para evitar que se cuelgue la generación"):
+                    st.markdown("""
+                    **Si la generación tarda mucho o se cuelga:**
+                    
+                    1. 🎯 **Reduce características**: Usa máximo 4-5 características
+                    2. 🛑 **Usa el botón 'Reiniciar'**: Si se queda colgado más de 2 minutos
+                    3. 🔄 **Recarga la página**: Como último recurso (Ctrl+F5)
+                    
+                    **Tiempos aproximados:**
+                    - 3 características, 500 puntos: ~5 segundos
+                    - 4 características, 1000 puntos: ~15 segundos  
+                    - 5 características, 2000 puntos: ~45 segundos
+                    - 6+ características: Puede tardar varios minutos
+                    """)
 
         # Generar código para este análisis
         code = SCATTERPLOT_MATRIX
