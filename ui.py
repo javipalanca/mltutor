@@ -28,7 +28,7 @@ def setup_page():
     """
     # Configuración de la página
     st.set_page_config(
-        page_title="MLTutor",
+        page_title="🎓 MLTutor",
         layout="wide",
         initial_sidebar_state="expanded"
     )
@@ -101,12 +101,28 @@ def setup_page():
             opacity: 1;
         }
         .footer {
+            margin-top: 5rem;
+            margin-bottom: 0;
             text-align: center;
-            margin-top: 2rem;
-            padding-top: 1rem;
-            border-top: 1px solid #e0e0e0;
-            color: #666;
-            font-size: 0.8rem;
+            padding: 0.4rem 1rem;
+            font-size: 0.65rem;
+            color: #999;
+            background-color: #fafafa;
+            border-top: 1px solid #f0f0f0;
+            line-height: 1.2;
+            width: fit-content;
+            margin-left: auto;
+            margin-right: auto;
+            position: relative;
+            bottom: 0;
+        }
+        .footer p {
+            margin: 0;
+            display: inline;
+        }
+        .footer p:not(:last-child)::after {
+            content: " • ";
+            color: #ccc;
         }
         .stTabs [data-baseweb="tab-list"] {
             gap: 2px;
@@ -128,7 +144,8 @@ def setup_page():
     """, unsafe_allow_html=True)
 
     # Título de la aplicación
-    st.markdown("<h1 class='main-header'>MLTutor</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-header'>🎓 MLTutor</h1>",
+                unsafe_allow_html=True)
     st.markdown("<p class='sub-header'>Plataforma de aprendizaje de Machine Learning</p>",
                 unsafe_allow_html=True)
 
@@ -204,7 +221,7 @@ def show_welcome_page():
     """
     Muestra la página de bienvenida para los usuarios que visitan por primera vez.
     """
-    st.header("🌟 Bienvenido a MLTutor")
+    st.header("🌟 Bienvenido a 🎓 MLTutor")
     st.markdown("### Una plataforma interactiva para aprender Machine Learning")
 
     # Introducción a ML
@@ -213,7 +230,7 @@ def show_welcome_page():
         <h3 style="color: #0288D1;">¿Qué es el Machine Learning?</h3>
         <p>El Machine Learning es una rama de la inteligencia artificial que permite a los sistemas aprender patrones a partir 
         de datos y tomar decisiones sin ser explícitamente programados para ello.</p>
-        <p>Con MLTutor podrás:</p>
+        <p>Con 🎓 MLTutor podrás:</p>
         <ul>
             <li>Aprender conceptos fundamentales de Machine Learning</li>
             <li>Experimentar con algoritmos en tiempo real</li>
@@ -246,7 +263,6 @@ def show_welcome_page():
         <div style="background-color: #FFF3E0; padding: 15px; border-radius: 10px; height: 200px; border-left: 5px solid #FF9800;">
             <h3 style="color: #E65100;">📊 Regresión</h3>
             <p>Modelos lineales para regresión y clasificación logística.</p>
-            <p><strong>Estado:</strong> <span style="color: #4CAF50;">Disponible</span></p>
         </div>
         """, unsafe_allow_html=True)
         if st.button("✨ Explorar Regresión", use_container_width=True):
@@ -258,22 +274,22 @@ def show_welcome_page():
         <div style="background-color: #E0F7FA; padding: 15px; border-radius: 10px; height: 200px; border-left: 5px solid #00BCD4;">
             <h3 style="color: #006064;">🔍 K-Nearest Neighbors</h3>
             <p>Algoritmo basado en la similitud entre ejemplos.</p>
-            <p><strong>Estado:</strong> <span style="color: #9E9E9E;">Próximamente</span></p>
         </div>
         """, unsafe_allow_html=True)
-        st.button("🔜 Próximamente", key="knn_button",
-                  use_container_width=True, disabled=True)
+        if st.button("✨ Explorar KNN", use_container_width=True):
+            st.session_state.navigation = "🔍 K-Nearest Neighbors"
+            st.rerun()
 
     with col4:
         st.markdown("""
         <div style="background-color: #F3E5F5; padding: 15px; border-radius: 10px; height: 200px; border-left: 5px solid #9C27B0;">
             <h3 style="color: #4A148C;">🧠 Redes Neuronales</h3>
             <p>Modelos inspirados en el cerebro humano.</p>
-            <p><strong>Estado:</strong> <span style="color: #9E9E9E;">Próximamente</span></p>
         </div>
         """, unsafe_allow_html=True)
-        st.button("🔜 Próximamente", key="nn_button",
-                  use_container_width=True, disabled=True)
+        if st.button("✨ Explorar Redes Neuronales", use_container_width=True):
+            st.session_state.navigation = "🧠 Redes Neuronales"
+            st.rerun()
 
     # Sección: Cómo usar MLTutor
     st.markdown("## 📝 Cómo usar MLTutor")
@@ -288,14 +304,26 @@ def show_welcome_page():
             <li><strong>Entrena el modelo</strong> y observa cómo funciona internamente.</li>
             <li><strong>Analiza los resultados</strong> y realiza predicciones con nuevos datos.</li>
         </ol>
-        <p><i>Nota: Actualmente, solo los Árboles de Decisión están completamente implementados. Estamos trabajando para agregar más algoritmos pronto.</i></p>
     </div>
     """, unsafe_allow_html=True)
 
     # Imagen ilustrativa en la parte inferior
-    st.image("https://scikit-learn.org/stable/_images/sphx_glr_plot_classifier_comparison_001.png",
-             caption="Comparación visual de diferentes algoritmos de Machine Learning",
-             use_container_width=True)
+    # st.image("https://scikit-learn.org/stable/_images/sphx_glr_plot_classifier_comparison_001.png",
+    #         caption="Comparación visual de diferentes algoritmos de Machine Learning",
+    #         use_container_width=True)
+
+
+def show_footer():
+    """
+    Muestra el pie de página con información de contacto y enlaces útiles.
+    """
+    st.markdown("""
+    <div class="footer">
+        <p>Desarrollado por Javi Palanca</p>
+        <p>Departament de Sistemes Informàtics i Computació</p>
+        <p>Universitat Politècnica de València</p>
+    </div>
+    """, unsafe_allow_html=True)
 
 
 def show_sidebar_config():

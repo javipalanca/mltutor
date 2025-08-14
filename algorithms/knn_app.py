@@ -185,7 +185,7 @@ def run_knn_app():
             if st.button("🚀 Entrenar Modelo KNN", key="train_knn_button", type="primary"):
                 with st.spinner("Entrenando modelo..."):
                     try:
-                        Xtrain, ytrain, Xtest, ytest = preprocess_data(
+                        Xtrain, Xtest, ytrain, ytest = preprocess_data(
                             X=st.session_state.knn_X,
                             y=st.session_state.knn_y,
                             test_size=test_size
@@ -221,9 +221,9 @@ def run_knn_app():
     ###########################################
     elif tab == 2:
         st.header("📈 Evaluación del Modelo KNN")
-        if st.session_state.knn_trained and st.session_state.knn_metrics is not None:
+        if st.session_state.knn_trained:  # and st.session_state.knn_metrics is not None:
             # Obtener las predicciones del modelo
-            if hasattr(st.session_state, 'knn_X') and hasattr(st.session_state, 'knn_y'):
+            if hasattr(st.session_state, 'knn_Xtest') and hasattr(st.session_state, 'knn_ytest'):
 
                 # Obtener las predicciones
                 y_pred = st.session_state.knn_model.predict(

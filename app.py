@@ -7,7 +7,7 @@ from tree_visualizer import (
     create_tree_visualization, get_tree_text
 )
 from ui import (
-    setup_page, init_session_state, show_welcome_page,
+    setup_page, init_session_state, show_welcome_page, show_footer,
     display_feature_importance, display_model_export_options, create_prediction_interface
 )
 from sklearn.model_selection import train_test_split
@@ -118,6 +118,7 @@ def main():
     # Página de inicio
     if st.session_state.navigation == "🏠 Inicio":
         show_welcome_page()
+        show_footer()
         return
 
     # Páginas de algoritmos
@@ -142,6 +143,8 @@ def main():
         elif "Redes Neuronales" in st.session_state.navigation:
             st.image("https://scikit-learn.org/stable/_images/sphx_glr_plot_mlp_001.png",
                      caption="Ilustración de Redes Neuronales")
+
+    show_footer()
 
 
 def run_csv_loader_app():

@@ -150,7 +150,7 @@ def show_detailed_evaluation(y_test, y_pred, class_names, model_type):
                 st.warning("⚠️ Balance mejorable")
 
         # Métricas por clase
-        st.markdown("### ⚖️ Análisis de Balance de Clases")
+        st.markdown("### ⚖️ Matriz de Confusión")
 
         # Excluir filas avg y accuracy del dataframe
         report_by_class = report_df.drop(
@@ -372,12 +372,10 @@ def show_detailed_evaluation(y_test, y_pred, class_names, model_type):
         mae_value = mean_absolute_error(y_test, y_pred)
         r2_value = r2_score(y_test, y_pred)
 
-        interpretation = f"""
-        **Resumen del Modelo:**
-        - Tu modelo de regresión lineal explica **{r2_value*100:.1f}%** de la variabilidad en los datos
-        - En promedio, las predicciones se desvían **{mae_value:.2f} unidades** del valor real (MAE)
-        - La raíz del error cuadrático medio es **{rmse_value:.2f} unidades** (RMSE)
-        """
+        interpretation = "**Resumen del Modelo:**\n"
+        interpretation += f"- Tu modelo de regresión lineal explica **{r2_value*100:.1f}%** de la variabilidad en los datos\n"
+        interpretation += f"- En promedio, las predicciones se desvían **{mae_value:.2f} unidades** del valor real (MAE)\n"
+        interpretation += f"- La raíz del error cuadrático medio es **{rmse_value:.2f} unidades** (RMSE)\n"
 
         if rmse_value > mae_value * 1.5:
             interpretation += "\n- ⚠️ El RMSE es significativamente mayor que el MAE, lo que indica la presencia de algunos errores grandes"

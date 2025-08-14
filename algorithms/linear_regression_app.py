@@ -5,10 +5,11 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 
-from dataset_manager import load_data
+from dataset_manager import load_data, preprocess_data
 from algorithms.dataset_tab import run_dataset_tab
 from utils import create_info_box, get_image_download_link, show_code_with_download
 from model_training import train_linear_model
+from model_evaluation import show_detailed_evaluation
 
 
 def run_linear_regression_app():
@@ -221,34 +222,29 @@ def run_linear_regression_app():
             if dataset_loaded and X is not None and y is not None:
                 with st.spinner("Entrenando modelo..."):
                     try:
+                        Xtrain, Xtest, ytrain, ytest = preprocess_data(
+                            X, y, test_size)
                         # Entrenar el modelo
+                        model_type = st.session_state.get(
+                            'model_type_lr', 'Linear')
                         if model_type == "Logistic":
-                            result = train_linear_model(
-                                X, y,
+                            model = train_linear_model(
+                                Xtrain, ytrain,
                                 model_type=model_type,
-                                max_iter=max_iter,
-                                test_size=test_size,
-                                random_state=42
+                                max_iter=max_iter
                             )
                         else:
-                            result = train_linear_model(
-                                X, y,
-                                model_type=model_type,
-                                test_size=test_size,
-                                random_state=42
+                            model = train_linear_model(
+                                Xtrain, ytrain,
+                                model_type=model_type
                             )
-
-                        # Extraer el modelo y métricas del resultado
-                        model = result["model"]
-                        metrics = result["test_results"]
 
                         # Guardar en session state
                         st.session_state.model_lr = model
-                        st.session_state.metrics_lr = metrics
-                        st.session_state.X_train_lr = result["X_train"]
-                        st.session_state.X_test_lr = result["X_test"]
-                        st.session_state.y_train_lr = result["y_train"]
-                        st.session_state.y_test_lr = result["y_test"]
+                        st.session_state.X_train_lr = Xtrain
+                        st.session_state.X_test_lr = Xtest
+                        st.session_state.y_train_lr = ytrain
+                        st.session_state.y_test_lr = ytest
                         st.session_state.feature_names_lr = feature_names
                         st.session_state.class_names_lr = class_names
                         st.session_state.task_type_lr = task_type
@@ -267,12 +263,13 @@ def run_linear_regression_app():
     elif st.session_state.active_tab_lr == 2:
         st.header("Evaluación del Modelo")
 
-        if not st.session_state.get('is_trained', False):
+        if not st.session_state.get('model_trained_lr', False):
             st.warning(
                 "Primero debes entrenar un modelo en la pestaña '🏋️ Entrenamiento'.")
         else:
             y_test = st.session_state.get('y_test_lr')
             model_type = st.session_state.get('model_type_lr', 'Linear')
+            model_type = "Regresión" if model_type == "Linear" else "Clasificación"
             class_names = st.session_state.class_names_lr
 
             # Obtener predicciones del modelo

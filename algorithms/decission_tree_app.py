@@ -247,20 +247,18 @@ def run_decision_trees_app():
                     # Cargar y preprocesar datos
                     X, y, feature_names, class_names, dataset_info, task_type = load_data(
                         st.session_state.selected_dataset)
+
                     X_train, X_test, y_train, y_test = preprocess_data(
                         X, y, test_size=test_size)
 
                     # Entrenar el modelo
-                    model_results = train_decision_tree(
+                    tree_model = train_decision_tree(
                         X_train, y_train,
                         criterion=criterion,
                         max_depth=max_depth,
                         min_samples_split=min_samples_split,
                         tree_type=tree_type
                     )
-
-                    # Extraer el modelo del diccionario de resultados
-                    tree_model = model_results["model"]
 
                     # Guardar en el estado de la sesión
                     st.session_state.tree_model = tree_model
@@ -272,20 +270,6 @@ def run_decision_trees_app():
                     st.session_state.class_names = class_names
                     st.session_state.dataset_info = dataset_info
                     st.session_state.is_trained = True
-
-                    # Evaluar el modelo
-                    if tree_type == "Clasificación":
-                        # Obtener predicciones del modelo
-                        y_pred = tree_model.predict(X_test)
-                        st.session_state.test_results = evaluate_classification_model(
-                            y_test, y_pred, class_names
-                        )
-                    else:
-                        # Obtener predicciones del modelo
-                        y_pred = tree_model.predict(X_test)
-                        st.session_state.test_results = evaluate_regression_model(
-                            y_test, y_pred
-                        )
 
                     st.success(
                         "¡Modelo entrenado con éxito! Ahora puedes explorar las otras pestañas.")
