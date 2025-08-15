@@ -157,12 +157,6 @@ def plot_decision_boundary(model_2d, X_train, y_train,
             El modelo real utiliza todas las características y puede tener diferentes decisiones.
             """)
 
-        st.info("""
-        💡 **Nota técnica:** Para visualizar la frontera de decisión con solo 2 características, 
-        se entrena automáticamente un nuevo árbol de decisión usando únicamente las características 
-        seleccionadas. Esto es necesario para compatibilidad con DecisionBoundaryDisplay de sklearn.
-        """)
-
         # Mostrar código para generar esta visualización
         code_boundary = generate_decision_boundary_code(
             feature_names_boundary, class_names

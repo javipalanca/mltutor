@@ -4,6 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+from sklearn.linear_model import LogisticRegression
 
 from dataset.dataset_manager import load_data, preprocess_data
 from dataset.dataset_tab import run_dataset_tab
@@ -12,6 +13,7 @@ from algorithms.model_training import train_linear_model
 from algorithms.model_evaluation import show_detailed_evaluation
 from viz.roc import plot_roc_curve, plot_threshold_analysis
 from viz.residual import plot_predictions, plot_residuals
+from viz.decision_boundary import plot_decision_boundary
 from ui import create_button_panel
 
 
@@ -251,6 +253,7 @@ def run_linear_regression_app():
                         st.session_state.y_test_lr = ytest
                         st.session_state.feature_names_lr = feature_names
                         st.session_state.class_names_lr = class_names
+                        st.session_state.max_iter = max_iter
                         st.session_state.task_type_lr = task_type
                         st.session_state.model_trained_lr = True
 
@@ -318,6 +321,7 @@ def run_linear_regression_app():
 
                 viz_options = [
                     ("📉 Curva ROC", "ROC", "viz_roc"),
+                    ("🌈 Frontera", "Frontera", "viz_boundary"),
                     ("📊 Distribución de Probabilidades", "Probs", "viz_prob")
                 ]
 
@@ -331,6 +335,40 @@ def run_linear_regression_app():
                     # Curva ROC
                     plot_roc_curve(y_test, y_pred_proba,
                                    class_names=class_names)
+
+                elif viz_type == "Frontera":
+                    # Frontera de decisión
+                    # Verificar que es un modelo de clasificación y que está entrenado
+                    if not st.session_state.get('is_trained', False):
+                        st.warning(
+                            "Primero debes entrenar un modelo en la pestaña '🏋️ Entrenamiento'.")
+                    else:
+
+                        # Crear un nuevo modelo entrenado solo con las 2 características seleccionadas
+                        # para que sea compatible con DecisionBoundaryDisplay
+                        try:
+                            model_2d = LogisticRegression(
+                                max_iter=st.session_state.max_iter, random_state=42)
+
+                            plot_decision_boundary(
+                                model_2d,
+                                st.session_state.X_train_lr,
+                                st.session_state.y_train_lr,
+                                st.session_state.feature_names_lr,
+                                st.session_state.class_names_lr
+                            )
+                        except Exception as e:
+                            st.error(
+                                f"Error al mostrar la visualización de frontera de decisión: {str(e)}")
+                            st.info("""
+                            La frontera de decisión requiere:
+                            - Un modelo de clasificación entrenado
+                            - Exactamente 2 características para visualizar
+                            - Datos de entrenamiento válidos
+                            """)
+                            st.exception(
+                                e)  # Mostrar detalles del error para debugging
+
                 elif viz_type == "Probs":
                     # Análisis de probabilidades de predicción
                     st.markdown("### 📊 Distribución de Probabilidades")
