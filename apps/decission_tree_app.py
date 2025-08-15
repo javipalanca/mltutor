@@ -1,4 +1,6 @@
 import base64
+import pickle
+import io
 
 import streamlit as st
 import numpy as np
@@ -6,7 +8,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.inspection import DecisionBoundaryDisplay
-from sklearn.tree import DecisionTreeClassifier
+from sklearn.tree import DecisionTreeClassifier, plot_tree, export_text
 
 from dataset.dataset_manager import load_data, preprocess_data
 from algorithms.model_training import train_decision_tree
@@ -16,6 +18,8 @@ from dataset.dataset_tab import run_dataset_tab, run_select_dataset
 from algorithms.code_examples import DECISION_BOUNDARY_CODE, VIZ_TREE_CODE, TEXT_TREE_CODE, generate_decision_boundary_code
 from viz.tree_visualizer import get_tree_text
 from viz.decision_boundary import plot_decision_boundary
+from viz.roc import plot_roc_curve
+from ui import create_button_panel
 
 
 def display_feature_importance(model, feature_names):
@@ -26,7 +30,6 @@ def display_feature_importance(model, feature_names):
     importances = model.feature_importances_
 
     # Crear DataFrame para ordenar
-    import pandas as pd
     feature_importance_df = pd.DataFrame({
         'feature': feature_names,
         'importance': importances
@@ -192,9 +195,6 @@ def display_model_export_options(model, feature_names, class_names, task_type, m
     with col1:
         # Exportar como pickle
         if st.button("📦 Exportar como Pickle", use_container_width=True):
-            import pickle
-            import io
-
             # Crear objeto para serializar
             model_data = {
                 'model': model,
@@ -219,8 +219,6 @@ def display_model_export_options(model, feature_names, class_names, task_type, m
     with col2:
         # Exportar reglas como texto
         if st.button("📝 Exportar Reglas como Texto", use_container_width=True):
-            from sklearn.tree import export_text
-
             tree_rules = export_text(
                 model,
                 feature_names=feature_names
@@ -637,36 +635,20 @@ def run_decision_trees_app():
             if show_roc:
                 viz_options.append(("📉 Curva ROC", "ROC", "viz_roc"))
 
-            # Crear columnas dinámicamente según el número de opciones
-            num_options = len(viz_options)
-            viz_cols = st.columns(num_options)
-
-            # Crear botones dinámicamente
-            for i, (label, viz_type, key) in enumerate(viz_options):
-                with viz_cols[i]:
-                    if st.button(label,
-                                 key=key,
-                                 type="primary" if st.session_state.viz_type == viz_type else "secondary",
-                                 use_container_width=True):
-                        st.session_state.viz_type = viz_type
-                        st.rerun()
-
-            viz_type = st.session_state.viz_type
-
-            # Opciones de tamaño para la visualización
-            col1, col2 = st.columns(2)
-
-            with col1:
-                fig_width = st.slider("Ancho de figura:", 8, 20, 14)
-
-            with col2:
-                fig_height = st.slider("Alto de figura:", 6, 15, 10)
+            viz_type = create_button_panel(viz_options)
 
             # Mostrar la visualización según el tipo seleccionado
             if viz_type == "Árbol":
+                # Opciones de tamaño para la visualización
+                col1, col2 = st.columns(2)
+                with col1:
+                    fig_width = st.slider("Ancho de figura:", 8, 20, 14)
+
+                with col2:
+                    fig_height = st.slider("Alto de figura:", 6, 15, 10)
+
                 # Visualización estándar de scikit-learn
                 fig, ax = plt.subplots(figsize=(fig_width, fig_height))
-                from sklearn.tree import plot_tree
 
                 plot_tree(
                     st.session_state.tree_model,
@@ -744,9 +726,7 @@ def run_decision_trees_app():
                             st.session_state.X_train,
                             st.session_state.y_train,
                             st.session_state.feature_names,
-                            st.session_state.class_names,
-                            fig_width,
-                            fig_height
+                            st.session_state.class_names
                         )
                     except Exception as e:
                         st.error(
@@ -773,9 +753,6 @@ def run_decision_trees_app():
                         # Obtener probabilidades de predicción
                         y_pred_proba = st.session_state.tree_model.predict_proba(
                             st.session_state.X_test)
-
-                        # Importar la función de ROC
-                        from viz.roc import plot_roc_curve
 
                         # Mostrar curvas ROC
                         plot_roc_curve(

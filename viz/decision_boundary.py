@@ -11,7 +11,7 @@ from algorithms.code_examples import generate_decision_boundary_code
 
 
 def plot_decision_boundary(model_2d, X_train, y_train,
-                           feature_names, class_names, fig_width, fig_height):
+                           feature_names, class_names):
     """
     Ejecuta la visualización de frontera de decisión para el modelo entrenado usando solo librerías de terceros.
 
@@ -27,10 +27,6 @@ def plot_decision_boundary(model_2d, X_train, y_train,
         Nombres de las características
     class_names : list
         Nombres de las clases
-    fig_width : int
-        Ancho de la figura
-    fig_height : int
-        Alto de la figura
     """
 
     # Verificar que hay al menos 2 características
@@ -90,7 +86,7 @@ def plot_decision_boundary(model_2d, X_train, y_train,
 
     # Crear figura y dibujar frontera de decisión usando sklearn
     try:
-        fig, ax = plt.subplots(figsize=(fig_width, fig_height))
+        fig, ax = plt.subplots(figsize=(14, 10))
 
         # Usar DecisionBoundaryDisplay de sklearn con el modelo simplificado
         disp = DecisionBoundaryDisplay.from_estimator(
@@ -169,7 +165,7 @@ def plot_decision_boundary(model_2d, X_train, y_train,
 
         # Mostrar código para generar esta visualización
         code_boundary = generate_decision_boundary_code(
-            fig_width, fig_height, feature_names_boundary, class_names
+            feature_names_boundary, class_names
         )
 
         show_code_with_download(

@@ -1514,7 +1514,7 @@ def generate_neural_network_complete_code(config, feature_names, class_names=Non
     pass
 
 
-def generate_decision_boundary_code(fig_width, fig_height, feature_names_boundary, class_names):
+def generate_decision_boundary_code(feature_names_boundary, class_names):
     return f"""
 import numpy as np
 import matplotlib.pyplot as plt
@@ -1529,7 +1529,7 @@ y_train = y_train
 model_2d.fit(X_2d, y_train)
 
 # Crear figura
-fig, ax = plt.subplots(figsize=({fig_width}, {fig_height}))
+fig, ax = plt.subplots(figsize=(14, 10))
 
 # Visualizar frontera de decisión usando sklearn
 disp = DecisionBoundaryDisplay.from_estimator(
