@@ -41,6 +41,8 @@ def main():
         """
         <style>
             .stDeployButton {display:none;}
+            .stAppDeployButton {display:none;}
+            .stMainMenu {display:none;}
         </style>
     """,
         unsafe_allow_html=True,
