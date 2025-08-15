@@ -617,41 +617,38 @@ def run_decision_trees_app():
 
             # Usar botones para seleccionar el tipo de visualización
             if "viz_type" not in st.session_state:
-                st.session_state.viz_type = "Estándar"
+                st.session_state.viz_type = "Árbol"
 
-            # Determinar si mostrar la opción de frontera de decisión
+            # Determinar qué opciones están disponibles
             show_boundary = (st.session_state.get('tree_type', 'Clasificación') == "Clasificación"
                              and len(st.session_state.get('feature_names', [])) >= 2)
+            show_roc = st.session_state.get(
+                'tree_type', 'Clasificación') == "Clasificación"
+
+            # Crear lista de opciones de visualización
+            viz_options = [
+                ("🌲 Árbol", "Árbol", "viz_tree"),
+                ("📝 Texto", "Texto", "viz_text")
+            ]
 
             if show_boundary:
-                viz_col1, viz_col2, viz_col3 = st.columns(3)
-            else:
-                viz_col1, viz_col2 = st.columns(2)
-                viz_col3 = None
+                viz_options.append(("🌈 Frontera", "Frontera", "viz_boundary"))
 
-            with viz_col1:
-                if st.button("📊 Estándar",
-                             key="viz_standard",
-                             type="primary" if st.session_state.viz_type == "Estándar" else "secondary",
-                             use_container_width=True):
-                    st.session_state.viz_type = "Estándar"
-                    st.rerun()
+            if show_roc:
+                viz_options.append(("📉 Curva ROC", "ROC", "viz_roc"))
 
-            with viz_col2:
-                if st.button("📝 Texto",
-                             key="viz_text",
-                             type="primary" if st.session_state.viz_type == "Texto" else "secondary",
-                             use_container_width=True):
-                    st.session_state.viz_type = "Texto"
-                    st.rerun()
+            # Crear columnas dinámicamente según el número de opciones
+            num_options = len(viz_options)
+            viz_cols = st.columns(num_options)
 
-            if show_boundary and viz_col3:
-                with viz_col3:
-                    if st.button("🌈 Frontera",
-                                 key="viz_boundary",
-                                 type="primary" if st.session_state.viz_type == "Frontera" else "secondary",
+            # Crear botones dinámicamente
+            for i, (label, viz_type, key) in enumerate(viz_options):
+                with viz_cols[i]:
+                    if st.button(label,
+                                 key=key,
+                                 type="primary" if st.session_state.viz_type == viz_type else "secondary",
                                  use_container_width=True):
-                        st.session_state.viz_type = "Frontera"
+                        st.session_state.viz_type = viz_type
                         st.rerun()
 
             viz_type = st.session_state.viz_type
@@ -666,7 +663,7 @@ def run_decision_trees_app():
                 fig_height = st.slider("Alto de figura:", 6, 15, 10)
 
             # Mostrar la visualización según el tipo seleccionado
-            if viz_type == "Estándar":
+            if viz_type == "Árbol":
                 # Visualización estándar de scikit-learn
                 fig, ax = plt.subplots(figsize=(fig_width, fig_height))
                 from sklearn.tree import plot_tree
@@ -765,6 +762,41 @@ def run_decision_trees_app():
                 else:
                     st.warning(
                         "La visualización de frontera de decisión solo está disponible para modelos de clasificación.")
+
+            elif viz_type == "ROC":
+                # Verificar que es un modelo de clasificación y que está entrenado
+                if not st.session_state.get('is_trained', False):
+                    st.warning(
+                        "Primero debes entrenar un modelo en la pestaña '🏋️ Entrenamiento'.")
+                elif st.session_state.get('tree_type', 'Clasificación') == "Clasificación":
+                    try:
+                        # Obtener probabilidades de predicción
+                        y_pred_proba = st.session_state.tree_model.predict_proba(
+                            st.session_state.X_test)
+
+                        # Importar la función de ROC
+                        from viz.roc import plot_roc_curve
+
+                        # Mostrar curvas ROC
+                        plot_roc_curve(
+                            st.session_state.y_test,
+                            y_pred_proba,
+                            average="macro",
+                            class_names=st.session_state.class_names
+                        )
+
+                    except Exception as e:
+                        st.error(f"Error al mostrar las curvas ROC: {str(e)}")
+                        st.info("""
+                        Las curvas ROC requieren:
+                        - Un modelo de clasificación entrenado
+                        - Datos de prueba válidos
+                        - Modelo con método predict_proba
+                        """)
+                        st.exception(e)
+                else:
+                    st.warning(
+                        "Las curvas ROC solo están disponibles para modelos de clasificación.")
 
     ###########################################
     # Pestaña de Características              #
