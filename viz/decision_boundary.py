@@ -289,12 +289,11 @@ def plot_decision_surface(model_2d, feature_names, X, y):
 
             # Verificar el tamaño de la malla antes de continuar
             mesh_size = xx.shape[0] * xx.shape[1]
-            st.info(
-                f"Malla creada: {xx.shape[0]} x {xx.shape[1]} = {mesh_size:,} puntos")
+            msg = f"- Malla creada: {xx.shape[0]} x {xx.shape[1]} = {mesh_size:,} puntos"
 
             if mesh_size > 50000:  # Límite de seguridad
-                st.warning(
-                    f"⚠️ La malla es muy grande ({mesh_size:,} puntos). Reduciendo resolución...")
+
+                msg += f"\n - ⚠️ La malla es muy grande ({mesh_size:,} puntos). Reduciendo resolución..."
                 # Reducir a máximo 200x200
                 max_dim = 200
                 x_points = np.linspace(
@@ -303,8 +302,9 @@ def plot_decision_surface(model_2d, feature_names, X, y):
                     y_min, y_max, min(max_dim, len(y_points)))
                 xx, yy = np.meshgrid(x_points, y_points)
                 mesh_size = xx.shape[0] * xx.shape[1]
-                st.info(
-                    f"Nueva resolución: {xx.shape[0]} x {xx.shape[1]} = {mesh_size:,} puntos")
+
+                msg += f"\n - Nueva resolución: {xx.shape[0]} x {xx.shape[1]} = {mesh_size:,} puntos"
+            st.info(msg)
 
             # Predecir en la malla con manejo de memoria
             try:
