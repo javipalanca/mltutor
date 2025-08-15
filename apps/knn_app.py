@@ -1,15 +1,24 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import plotly.graph_objects as go
+import plotly.express as px
+from plotly.subplots import make_subplots
+
+from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 
 from dataset.dataset_manager import create_dataset_selector, load_data, preprocess_data
 from algorithms.model_training import train_knn_model
 from algorithms.model_evaluation import evaluate_classification_model, evaluate_regression_model, show_detailed_evaluation
-from ui import create_prediction_interface
+from ui import create_prediction_interface, create_button_panel
 from dataset.dataset_tab import run_dataset_tab
 from utils import create_info_box, get_image_download_link, show_code_with_download
+from viz.roc import plot_roc_curve
+from viz.decision_boundary import plot_decision_surface, plot_decision_boundary
+from viz.residual import plot_predictions, plot_residuals
 
 
 def run_knn_app():
@@ -258,241 +267,80 @@ def run_knn_app():
 
             # Selector de tipo de visualización
             viz_options = []
-
-            # Siempre disponible: Distribución de predicciones
-            viz_options.append("📊 Distribución de Predicciones")
-
-            # Si hay al menos 2 características: Frontera de decisión/superficie
-            if X.shape[1] >= 2:
-                if task_type == "Clasificación":
-                    viz_options.append("🎯 Frontera de Decisión")
-                    viz_options.append("🎮 Visualización Interactiva")
-                else:
-                    viz_options.append("🏔️ Superficie de Predicción")
-
-            # Si es clasificación: Matriz de distancias
             if task_type == "Clasificación":
-                viz_options.append("📏 Análisis de Distancias")
+                viz_options.extend([
+                    ("📊 Distribución de Predicciones",
+                     "Predicciones", "viz_predictions"),
+                    ("📉 Curva ROC", "ROC", "viz_roc"),
+                    ("🌈 Frontera de Decisión", "Frontera", "viz_boundary"),
+                    ("🎮 Visualización Interactiva",
+                     "Interactiva", "viz_interactive"),
+                    ("📏 Análisis de Distancias", "Distancias", "viz_distances")
+                ])
+            else:
+                viz_options.append(
+                    ("📊 Distribución de Probabilidades", "Probs", "viz_prob"))
+                viz_options.append(
+                    ("🏔️ Superficie de Predicción", "Superficie", "viz_surface"))
 
-            viz_type = st.selectbox("Tipo de visualización:", viz_options)
+            viz_type = create_button_panel(viz_options)
 
-            if viz_type == "📊 Distribución de Predicciones":
-                # Recrear el split para obtener predicciones
-                from sklearn.model_selection import train_test_split
-                X_train, X_test, y_train, y_test = train_test_split(
-                    X, y, test_size=0.3, random_state=42
-                )
+            if viz_type == "ROC":
+                model = st.session_state.knn_model
+                X_test = st.session_state.knn_Xtest
+                y_test = st.session_state.knn_ytest
+                # Obtener probabilidades de predicción
+                y_pred_proba = model.predict_proba(X_test)
+                plot_roc_curve(y_test, y_pred_proba)
+
+            elif viz_type == "Probs":
+                model = st.session_state.knn_model
+                X_test = st.session_state.knn_Xtest
+                y_test = st.session_state.knn_ytest
                 y_pred = model.predict(X_test)
 
-                if task_type == "Clasificación":
-                    # Mostrar distribución de clases predichas vs reales
-                    import pandas as pd
+                # Crear visualizaciones con mejor tamaño
+                st.markdown("### 📊 Gráfico de Predicciones vs Valores Reales")
+                plot_predictions(y_test, y_pred)
 
-                    col1, col2 = st.columns(2)
+                # Gráfico de residuos
+                st.markdown("### 📈 Análisis de Residuos")
+                plot_residuals(y_test, y_pred)
 
-                    with col1:
-                        st.markdown("#### Distribución Real")
-                        fig1, ax1 = plt.subplots(figsize=(6, 4))
-                        real_counts = pd.Series(
-                            y_test).value_counts().sort_index()
-                        ax1.bar(range(len(real_counts)),
-                                real_counts.values, alpha=0.7, color='skyblue')
-                        ax1.set_xlabel('Clase')
-                        ax1.set_ylabel('Frecuencia')
-                        ax1.set_title('Distribución Real')
-                        if st.session_state.knn_class_names:
-                            ax1.set_xticks(range(len(real_counts)))
-                            ax1.set_xticklabels(
-                                [st.session_state.knn_class_names[i] for i in real_counts.index], rotation=45)
-                        st.pyplot(fig1)
-
-                    with col2:
-                        st.markdown("#### Distribución Predicha")
-                        fig2, ax2 = plt.subplots(figsize=(6, 4))
-                        pred_counts = pd.Series(
-                            y_pred).value_counts().sort_index()
-                        ax2.bar(range(len(pred_counts)), pred_counts.values,
-                                alpha=0.7, color='lightcoral')
-                        ax2.set_xlabel('Clase')
-                        ax2.set_ylabel('Frecuencia')
-                        ax2.set_title('Distribución Predicha')
-                        if st.session_state.knn_class_names:
-                            ax2.set_xticks(range(len(pred_counts)))
-                            ax2.set_xticklabels(
-                                [st.session_state.knn_class_names[i] for i in pred_counts.index], rotation=45)
-                        st.pyplot(fig2)
-
-                else:  # Regresión
-                    col1, col2 = st.columns(2)
-
-                    with col1:
-                        st.markdown("#### Valores Reales vs Predichos")
-                        fig1, ax1 = plt.subplots(figsize=(6, 5))
-                        ax1.scatter(y_test, y_pred, alpha=0.6)
-                        ax1.plot([y_test.min(), y_test.max()], [
-                                 y_test.min(), y_test.max()], 'r--', lw=2)
-                        ax1.set_xlabel('Valores Reales')
-                        ax1.set_ylabel('Valores Predichos')
-                        ax1.set_title('Predicciones vs Realidad')
-                        st.pyplot(fig1)
-
-                    with col2:
-                        st.markdown("#### Distribución de Errores")
-                        fig2, ax2 = plt.subplots(figsize=(6, 5))
-                        errors = y_test - y_pred
-                        ax2.hist(errors, bins=20, alpha=0.7,
-                                 color='lightgreen', edgecolor='black')
-                        ax2.axvline(x=0, color='red',
-                                    linestyle='--', linewidth=2)
-                        ax2.set_xlabel('Error (Real - Predicho)')
-                        ax2.set_ylabel('Frecuencia')
-                        ax2.set_title('Distribución de Errores')
-                        st.pyplot(fig2)
-
-            elif viz_type in ["🎯 Frontera de Decisión", "🏔️ Superficie de Predicción"]:
-                st.markdown("### Selección de Características")
-                st.markdown("Selecciona 2 características para visualizar:")
-
-                col1, col2 = st.columns(2)
-
-                with col1:
-                    feature1 = st.selectbox(
-                        "Primera característica:",
-                        feature_names,
-                        index=0,
-                        key="viz_feature1"
-                    )
-
-                with col2:
-                    feature2 = st.selectbox(
-                        "Segunda característica:",
-                        feature_names,
-                        index=min(1, len(feature_names) - 1),
-                        key="viz_feature2"
-                    )
-
-                if feature1 != feature2:
-                    # Obtener índices de las características seleccionadas
-                    feature_idx = [feature_names.index(
-                        feature1), feature_names.index(feature2)]
-
-                    # Extraer las características seleccionadas
-                    if hasattr(X, 'iloc'):  # DataFrame
-                        X_2d = X.iloc[:, feature_idx].values
-                    else:  # numpy array
-                        X_2d = X[:, feature_idx]
-
-                    # Entrenar un modelo KNN con solo estas 2 características
-                    from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
-
-                    if task_type == "Clasificación":
-                        model_2d = KNeighborsClassifier(
-                            n_neighbors=model.n_neighbors,
-                            weights=model.weights,
-                            metric=model.metric
-                        )
-                    else:
-                        model_2d = KNeighborsRegressor(
-                            n_neighbors=model.n_neighbors,
-                            weights=model.weights,
-                            metric=model.metric
-                        )
-
-                    model_2d.fit(X_2d, y)
-
-                    # Crear la visualización
-                    fig, ax = plt.subplots(figsize=(10, 8))
-
-                    # Crear malla de puntos
-                    h = 0.02
-                    x_min, x_max = X_2d[:, 0].min() - 1, X_2d[:, 0].max() + 1
-                    y_min, y_max = X_2d[:, 1].min() - 1, X_2d[:, 1].max() + 1
-                    xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
-                                         np.arange(y_min, y_max, h))
-
-                    # Predecir en la malla
-                    Z = model_2d.predict(np.c_[xx.ravel(), yy.ravel()])
-                    Z = Z.reshape(xx.shape)
-
-                    if task_type == "Clasificación":
-                        # Frontera de decisión para clasificación
-                        n_classes = len(np.unique(y))
-
-                        # Usar diferentes mapas de colores según el número de clases
-                        if n_classes == 2:
-                            contour = ax.contourf(
-                                xx, yy, Z, alpha=0.3, cmap='RdBu', levels=50)
-                            scatter_cmap = 'RdBu'
-                        else:
-                            contour = ax.contourf(
-                                xx, yy, Z, alpha=0.3, cmap='Set3', levels=n_classes)
-                            scatter_cmap = 'Set3'
-
-                        # Scatter plot de los datos
-                        scatter = ax.scatter(X_2d[:, 0], X_2d[:, 1], c=y,
-                                             cmap=scatter_cmap, edgecolor='black', s=50, alpha=0.8)
-
-                        # Leyenda para clasificación
-                        if st.session_state.knn_class_names and n_classes <= 10:
-                            import matplotlib.patches as mpatches
-                            if n_classes == 2:
-                                colors = ['#d7191c', '#2c7bb6']  # RdBu colors
-                            else:
-                                colors = plt.cm.Set3(
-                                    np.linspace(0, 1, n_classes))
-
-                            patches = [mpatches.Patch(color=colors[i],
-                                                      label=st.session_state.knn_class_names[i])
-                                       for i in range(min(len(st.session_state.knn_class_names), n_classes))]
-                            ax.legend(handles=patches,
-                                      loc='best', title='Clases')
-
-                        ax.set_title(
-                            f'Frontera de Decisión KNN (K={model.n_neighbors})')
-
-                    else:
-                        # Superficie de predicción para regresión
-                        contour = ax.contourf(
-                            xx, yy, Z, alpha=0.6, cmap='viridis', levels=20)
-                        scatter = ax.scatter(X_2d[:, 0], X_2d[:, 1], c=y,
-                                             cmap='viridis', edgecolor='black', s=50, alpha=0.8)
-
-                        # Barra de colores
-                        cbar = plt.colorbar(scatter, ax=ax, shrink=0.8)
-                        cbar.set_label('Valor Objetivo')
-
-                        ax.set_title(
-                            f'Superficie de Predicción KNN (K={model.n_neighbors})')
-
-                    ax.set_xlabel(feature1)
-                    ax.set_ylabel(feature2)
-                    ax.grid(True, alpha=0.3)
-
-                    st.pyplot(fig)
-
-                    # Información adicional
-                    st.info(f"""
-                    🔍 **Información de la visualización:**
-                    - **Características:** {feature1} vs {feature2}
-                    - **Número de vecinos (K):** {model.n_neighbors}
-                    - **Tipo de peso:** {model.weights}
-                    - **Métrica de distancia:** {model.metric}
-                    - **Tipo de tarea:** {task_type}
-                    """)
+            elif viz_type == "Frontera":
+                if not st.session_state.get('knn_trained', False):
+                    st.warning(
+                        "Primero debes entrenar un modelo en la pestaña '🏋️ Entrenamiento'.")
 
                 else:
-                    st.warning(
-                        "Por favor selecciona dos características diferentes.")
+                    model = st.session_state.knn_model
+                    model_2d = KNeighborsClassifier(
+                        n_neighbors=model.n_neighbors,
+                        weights=model.weights,
+                        metric=model.metric
+                    )
 
-            elif viz_type == "🎮 Visualización Interactiva":
+                    plot_decision_boundary(
+                        model_2d, X, y, feature_names)
+
+            elif viz_type == "Superficie":
+                if not st.session_state.get('knn_trained', False):
+                    st.warning(
+                        "Primero debes entrenar un modelo en la pestaña '🏋️ Entrenamiento'.")
+
+                else:
+                    model = st.session_state.knn_model
+                    model_2d = KNeighborsRegressor(
+                        n_neighbors=model.n_neighbors,
+                        weights=model.weights,
+                        metric=model.metric
+                    )
+                    plot_decision_surface(model_2d, feature_names, X, y)
+
+            elif viz_type == "Interactiva":
                 st.markdown("### Visualización Interactiva de KNN")
                 st.markdown(
                     "Explora cómo el algoritmo KNN toma decisiones en tiempo real")
-
-                # Importar las funciones necesarias
-                import plotly.graph_objects as go
-                import plotly.express as px
-                from plotly.subplots import make_subplots
 
                 # Selección de características para la visualización
                 col1, col2 = st.columns(2)
@@ -540,7 +388,7 @@ def run_knn_app():
                     st.warning(
                         "Por favor selecciona dos características diferentes.")
 
-            elif viz_type == "📏 Análisis de Distancias":
+            elif viz_type == "Distancias":
                 st.markdown("### Análisis de Distancias entre Clases")
 
                 # Calcular distancias promedio entre clases
@@ -551,6 +399,12 @@ def run_knn_app():
                 X_train, X_test, y_train, y_test = train_test_split(
                     X, y, test_size=0.3, random_state=42
                 )
+
+                # Convertir a numpy arrays para evitar problemas de indexación
+                if hasattr(X_train, 'values'):
+                    X_train = X_train.values
+                if hasattr(y_train, 'values'):
+                    y_train = y_train.values
 
                 classes = np.unique(y_train)
                 n_classes = len(classes)

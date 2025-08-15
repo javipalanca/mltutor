@@ -253,7 +253,8 @@ def run_linear_regression_app():
                         st.session_state.y_test_lr = ytest
                         st.session_state.feature_names_lr = feature_names
                         st.session_state.class_names_lr = class_names
-                        st.session_state.max_iter = max_iter
+                        if st.session_state.get('model_type_lr', 'Linear') == "Logistic":
+                            st.session_state.max_iter = max_iter
                         st.session_state.task_type_lr = task_type
                         st.session_state.model_trained_lr = True
 
@@ -321,7 +322,7 @@ def run_linear_regression_app():
 
                 viz_options = [
                     ("📉 Curva ROC", "ROC", "viz_roc"),
-                    ("🌈 Frontera", "Frontera", "viz_boundary"),
+                    ("🌈 Frontera de Decisión", "Frontera", "viz_boundary"),
                     ("📊 Distribución de Probabilidades", "Probs", "viz_prob")
                 ]
 

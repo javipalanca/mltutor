@@ -622,7 +622,8 @@ def run_decision_trees_app():
 
             # Determinar qué opciones están disponibles
             if st.session_state.get('tree_type', 'Clasificación') == "Clasificación":
-                viz_options.append(("🌈 Frontera", "Frontera", "viz_boundary"))
+                viz_options.append(
+                    ("🌈 Frontera de Decisión", "Frontera", "viz_boundary"))
                 viz_options.append(("📉 Curva ROC", "ROC", "viz_roc"))
             else:
                 viz_options.append(

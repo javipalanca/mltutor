@@ -10,164 +10,280 @@ from utils import get_image_download_link, show_code_with_download
 from algorithms.code_examples import generate_decision_boundary_code
 
 
-def plot_decision_boundary(model_2d, X_train, y_train,
-                           feature_names, class_names):
-    """
-    Ejecuta la visualización de frontera de decisión para el modelo entrenado usando solo librerías de terceros.
+def plot_decision_boundary(model_2d, X, y, feature_names):
+    st.markdown("### Selección de Características")
+    st.markdown("Selecciona 2 características para visualizar:")
 
-    Parameters:
-    -----------
-    model_2d : sklearn model
-        Modelo entrenado
-    X_train : array-like or DataFrame
-        Datos de entrenamiento
-    y_train : array-like
-        Etiquetas de entrenamiento
-    feature_names : list
-        Nombres de las características
-    class_names : list
-        Nombres de las clases
-    """
+    col1, col2 = st.columns(2)
 
-    # Verificar que hay al menos 2 características
-    if len(feature_names) < 2:
-        st.warning(
-            "Se necesitan al menos 2 características para visualizar la frontera de decisión.")
-        return
+    with col1:
+        feature1 = st.selectbox(
+            "Primera característica:",
+            feature_names,
+            index=0,
+            key="viz_feature1"
+        )
 
-    st.markdown("### Visualización de Frontera de Decisión")
+    with col2:
+        feature2 = st.selectbox(
+            "Segunda característica:",
+            feature_names,
+            index=min(1, len(feature_names) - 1),
+            key="viz_feature2"
+        )
 
-    st.info("""
-    **Cómo interpretar esta visualización:**
-    - Las áreas coloreadas muestran las regiones de decisión para cada clase
-    - Los puntos representan las muestras de entrenamiento
-    - Las líneas entre colores son las fronteras de decisión
-    - Solo se muestran las primeras dos características para crear la visualización 2D
-    """)
-
-    # Selección de características para la visualización
-    if len(feature_names) > 2:
-        cols = st.columns(2)
-        with cols[0]:
-            feature1 = st.selectbox(
-                "Primera característica:",
-                feature_names,
-                index=0,
-                key="feature1_boundary_viz"
-            )
-        with cols[1]:
-            feature2 = st.selectbox(
-                "Segunda característica:",
-                feature_names,
-                index=1,
-                key="feature2_boundary_viz"
-            )
-
+    if feature1 != feature2:
         # Obtener índices de las características seleccionadas
-        feature_names_list = list(feature_names)
-        f1_idx = feature_names_list.index(feature1)
-        f2_idx = feature_names_list.index(feature2)
+        feature_idx = [feature_names.index(
+            feature1), feature_names.index(feature2)]
 
-        # Crear array con solo las dos características seleccionadas
-        if hasattr(X_train, 'iloc'):
-            # Es un DataFrame, usar iloc para indexación posicional
-            X_boundary = X_train.iloc[:, [f1_idx, f2_idx]]
-        else:
-            # Es un numpy array, usar indexación normal
-            X_boundary = X_train[:, [f1_idx, f2_idx]]
-        feature_names_boundary = [feature1, feature2]
-    else:
-        # Si solo hay dos características, usarlas directamente
-        X_boundary = X_train
-        feature_names_boundary = feature_names
+        with st.spinner("Generando frontera de decisión..."):
 
-    # Entrenar el modelo simplificado solo con las 2 características
-    model_2d.fit(X_boundary, y_train)
+            try:
+                # Extraer las características seleccionadas
+                if hasattr(X, 'iloc'):  # DataFrame
+                    X_2d = X.iloc[:, feature_idx].values
+                else:  # numpy array
+                    X_2d = X[:, feature_idx]
 
-    # Crear figura y dibujar frontera de decisión usando sklearn
-    try:
-        fig, ax = plt.subplots(figsize=(14, 10))
+                # Entrenar un modelo con solo estas 2 características
+                model_2d.fit(X_2d, y)
 
-        # Usar DecisionBoundaryDisplay de sklearn con el modelo simplificado
-        disp = DecisionBoundaryDisplay.from_estimator(
-            model_2d,
-            X_boundary,
-            response_method="predict",
-            alpha=0.6,
-            ax=ax,
-            grid_resolution=200
+                # Crear la visualización
+                fig, ax = plt.subplots(figsize=(10, 8))
+
+                # Crear malla de puntos con resolución adaptativa
+                # Reducir resolución para KNN para evitar problemas de memoria
+                n_samples = len(X_2d)
+                if hasattr(model_2d, '_estimator_type') and 'KNeighbors' in str(type(model_2d)):
+                    # Para KNN, usar resolución más baja para evitar OOM
+                    if n_samples > 1000:
+                        h = 0.1  # Resolución muy baja para datasets grandes
+                    elif n_samples > 500:
+                        h = 0.05  # Resolución baja para datasets medianos
+                    else:
+                        h = 0.02  # Resolución normal para datasets pequeños
+                else:
+                    h = 0.02  # Resolución normal para otros algoritmos
+
+                x_min, x_max = X_2d[:, 0].min() - 1, X_2d[:, 0].max() + 1
+                y_min, y_max = X_2d[:, 1].min() - 1, X_2d[:, 1].max() + 1
+
+                # Limitar el rango para evitar mallas gigantes
+                x_range = x_max - x_min
+                y_range = y_max - y_min
+                max_range = max(x_range, y_range)
+
+                # Si el rango es muy grande, limitarlo
+                if max_range > 100:
+                    # Máximo 200 puntos por dimensión
+                    h = max(h, max_range / 200)
+
+                xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
+                                     np.arange(y_min, y_max, h))
+
+                # Verificar el tamaño de la malla antes de continuar
+                mesh_size = xx.shape[0] * xx.shape[1]
+                if mesh_size > 50000:  # Límite de seguridad
+                    st.warning(
+                        f"⚠️ La malla es muy grande ({mesh_size:,} puntos). Reduciendo resolución...")
+                    h = h * 2  # Duplicar el paso para reducir puntos
+                    xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
+                                         np.arange(y_min, y_max, h))
+                    mesh_size = xx.shape[0] * xx.shape[1]
+                    st.info(f"Nueva resolución: {mesh_size:,} puntos")
+
+                # Predecir en la malla con manejo de memoria
+                try:
+                    with st.spinner(f"Calculando predicciones en {mesh_size:,} puntos..."):
+                        Z = model_2d.predict(np.c_[xx.ravel(), yy.ravel()])
+                        Z = Z.reshape(xx.shape)
+                except MemoryError:
+                    st.error(
+                        "❌ Error de memoria. El dataset es demasiado grande para KNN con esta resolución.")
+                    st.info(
+                        "💡 Sugerencias: Prueba con un dataset más pequeño o usa un algoritmo menos intensivo como Decision Trees.")
+                    return
+
+                # Frontera de decisión para clasificación
+                #########################################
+                n_classes = len(np.unique(y))
+
+                # Usar diferentes mapas de colores según el número de clases
+                if n_classes == 2:
+                    contour = ax.contourf(
+                        xx, yy, Z, alpha=0.3, cmap='RdBu', levels=50)
+                    scatter_cmap = 'RdBu'
+                else:
+                    contour = ax.contourf(
+                        xx, yy, Z, alpha=0.3, cmap='Set3', levels=n_classes)
+                    scatter_cmap = 'Set3'
+
+                # Scatter plot de los datos
+                scatter = ax.scatter(X_2d[:, 0], X_2d[:, 1], c=y,
+                                     cmap=scatter_cmap, edgecolor='black', s=50, alpha=0.8)
+
+                # Leyenda para clasificación
+                if st.session_state.knn_class_names and n_classes <= 10:
+                    import matplotlib.patches as mpatches
+                    if n_classes == 2:
+                        colors = ['#d7191c', '#2c7bb6']  # RdBu colors
+                    else:
+                        colors = plt.cm.Set3(
+                            np.linspace(0, 1, n_classes))
+
+                    patches = [mpatches.Patch(color=colors[i],
+                                              label=st.session_state.knn_class_names[i])
+                               for i in range(min(len(st.session_state.knn_class_names), n_classes))]
+                    ax.legend(handles=patches,
+                              loc='best', title='Clases')
+
+                ax.set_title(
+                    f'Frontera de Decisión para {feature1} vs {feature2}')
+
+                ax.set_xlabel(feature1)
+                ax.set_ylabel(feature2)
+                ax.grid(True, alpha=0.3)
+
+                st.pyplot(fig)
+
+                # Enlace para descargar
+                st.markdown(
+                    get_image_download_link(
+                        fig, "frontera_decision", "📥 Descargar visualización de frontera"),
+                    unsafe_allow_html=True
+                )
+
+                # Advertencia sobre dimensionalidad
+                if len(feature_names) > 2:
+                    st.warning("""
+                    ⚠️ Esta visualización solo muestra 2 características seleccionadas. Se entrena un nuevo modelo 
+                    simplificado solo con estas 2 características para poder visualizar la frontera de decisión. 
+                    El modelo real utiliza todas las características y puede tener diferentes decisiones.
+                    """)
+
+                # Mostrar código para generar esta visualización
+                code_boundary = generate_decision_boundary_code(
+                    feature_names, st.session_state.knn_class_names
+                )
+
+                show_code_with_download(
+                    code_boundary, "Código para generar la frontera de decisión", "frontera_decision.py"
+                )
+            except Exception as e:
+                st.error(
+                    f"Error al crear la visualización de frontera de decisión: {str(e)}"
+                )
+
+
+def plot_decision_surface(model_2d, feature_names, X, y):
+    st.markdown("### Selección de Características")
+    st.markdown("Selecciona 2 características para visualizar:")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        feature1 = st.selectbox(
+            "Primera característica:",
+            feature_names,
+            index=0,
+            key="viz_feature1"
         )
 
-        # Añadir puntos de datos sobre la frontera
-        scatter = ax.scatter(
-            X_boundary.iloc[:, 0] if hasattr(
-                X_boundary, 'iloc') else X_boundary[:, 0],
-            X_boundary.iloc[:, 1] if hasattr(
-                X_boundary, 'iloc') else X_boundary[:, 1],
-            c=y_train,
-            edgecolors='black',
-            s=60,
-            alpha=0.8
+    with col2:
+        feature2 = st.selectbox(
+            "Segunda característica:",
+            feature_names,
+            index=min(1, len(feature_names) - 1),
+            key="viz_feature2"
         )
 
-        # Configurar etiquetas de los ejes
-        if len(feature_names_boundary) >= 2:
-            ax.set_xlabel(feature_names_boundary[0])
-            ax.set_ylabel(feature_names_boundary[1])
-        else:
-            ax.set_xlabel("Característica 1")
-            ax.set_ylabel("Característica 2")
+    if feature1 != feature2:
+        with st.spinner("Generando superficie de decisión..."):
+            # Obtener índices de las características seleccionadas
+            feature_idx = [feature_names.index(
+                feature1), feature_names.index(feature2)]
 
-        # Añadir leyenda de clases
-        if class_names:
-            legend_labels = class_names
-        else:
-            legend_labels = [f"Clase {i}" for i in range(
-                len(np.unique(y_train)))]
+            # Extraer las características seleccionadas
+            if hasattr(X, 'iloc'):  # DataFrame
+                X_2d = X.iloc[:, feature_idx].values
+            else:  # numpy array
+                X_2d = X[:, feature_idx]
 
-        # Crear leyenda para las clases
-        handles, _ = scatter.legend_elements()
-        ax.legend(handles, legend_labels, title="Clases", loc="best")
+            # Entrenar un modelo con solo estas 2 características
+            model_2d.fit(X_2d, y)
 
-        ax.set_title("Frontera de Decisión")
+            # Crear la visualización
+            fig, ax = plt.subplots(figsize=(10, 8))
 
-        # Mostrar la figura
-        col1, col2, col3 = st.columns([1, 4, 1])
-        with col2:
-            st.pyplot(fig, use_container_width=True)
+            # Crear malla de puntos con resolución adaptativa
+            # Reducir resolución para KNN para evitar problemas de memoria
+            n_samples = len(X_2d)
+            if hasattr(model_2d, '_estimator_type') and 'KNeighbors' in str(type(model_2d)):
+                # Para KNN, usar resolución más baja para evitar OOM
+                if n_samples > 1000:
+                    h = 0.1  # Resolución muy baja para datasets grandes
+                elif n_samples > 500:
+                    h = 0.05  # Resolución baja para datasets medianos
+                else:
+                    h = 0.02  # Resolución normal para datasets pequeños
+            else:
+                h = 0.02  # Resolución normal para otros algoritmos
 
-        # Enlace para descargar
-        st.markdown(
-            get_image_download_link(
-                fig, "frontera_decision", "📥 Descargar visualización de frontera"),
-            unsafe_allow_html=True
-        )
+            x_min, x_max = X_2d[:, 0].min() - 1, X_2d[:, 0].max() + 1
+            y_min, y_max = X_2d[:, 1].min() - 1, X_2d[:, 1].max() + 1
 
-        # Explicación adicional
-        st.markdown("""
-        **Nota:** Esta visualización muestra cómo el árbol de decisión divide el espacio de características
-        en regiones de decisión. Cada color representa una clase diferente.
-        """)
+            # Limitar el rango para evitar mallas gigantes
+            x_range = x_max - x_min
+            y_range = y_max - y_min
+            max_range = max(x_range, y_range)
 
-        # Advertencia sobre dimensionalidad
-        if len(feature_names) > 2:
-            st.warning("""
-            ⚠️ Esta visualización solo muestra 2 características seleccionadas. Se entrena un nuevo modelo 
-            simplificado solo con estas 2 características para poder visualizar la frontera de decisión. 
-            El modelo real utiliza todas las características y puede tener diferentes decisiones.
-            """)
+            # Si el rango es muy grande, limitarlo
+            if max_range > 100:
+                h = max(h, max_range / 200)  # Máximo 200 puntos por dimensión
 
-        # Mostrar código para generar esta visualización
-        code_boundary = generate_decision_boundary_code(
-            feature_names_boundary, class_names
-        )
+            xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
+                                 np.arange(y_min, y_max, h))
 
-        show_code_with_download(
-            code_boundary, "Código para generar la frontera de decisión", "frontera_decision.py"
-        )
+            # Verificar el tamaño de la malla antes de continuar
+            mesh_size = xx.shape[0] * xx.shape[1]
+            if mesh_size > 50000:  # Límite de seguridad
+                st.warning(
+                    f"⚠️ La malla es muy grande ({mesh_size:,} puntos). Reduciendo resolución...")
+                h = h * 2  # Duplicar el paso para reducir puntos
+                xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
+                                     np.arange(y_min, y_max, h))
+                mesh_size = xx.shape[0] * xx.shape[1]
+                st.info(f"Nueva resolución: {mesh_size:,} puntos")
 
-    except Exception as e:
-        st.error(
-            f"Error al crear la visualización de frontera de decisión: {str(e)}")
-        st.error(
-            "Asegúrate de que el modelo sea compatible con DecisionBoundaryDisplay de sklearn.")
+            # Predecir en la malla con manejo de memoria
+            try:
+                with st.spinner(f"Calculando predicciones en {mesh_size:,} puntos..."):
+                    Z = model_2d.predict(np.c_[xx.ravel(), yy.ravel()])
+                    Z = Z.reshape(xx.shape)
+            except MemoryError:
+                st.error(
+                    "❌ Error de memoria. El dataset es demasiado grande para KNN con esta resolución.")
+                st.info(
+                    "💡 Sugerencias: Prueba con un dataset más pequeño o usa un algoritmo menos intensivo como Decision Trees.")
+                return
+
+            # Superficie de predicción para regresión
+            #########################################
+            contour = ax.contourf(
+                xx, yy, Z, alpha=0.6, cmap='viridis', levels=20)
+            scatter = ax.scatter(X_2d[:, 0], X_2d[:, 1], c=y,
+                                 cmap='viridis', edgecolor='black', s=50, alpha=0.8)
+
+            # Barra de colores
+            cbar = plt.colorbar(scatter, ax=ax, shrink=0.8)
+            cbar.set_label('Valor Objetivo')
+
+            ax.set_title(
+                f'Superficie de Predicción para {feature1} vs {feature2}')
+
+            ax.set_xlabel(feature1)
+            ax.set_ylabel(feature2)
+            ax.grid(True, alpha=0.3)
+
+            st.pyplot(fig)
