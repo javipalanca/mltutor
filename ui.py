@@ -1162,6 +1162,9 @@ def create_button_panel(buttons) -> str:
     num_options = len(buttons)
     viz_cols = st.columns(num_options)
 
+    if "viz_type" not in st.session_state or st.session_state.viz_type not in (v[1] for v in buttons):
+        st.session_state.viz_type = buttons[0][1]
+
     # Crear botones dinámicamente
     for i, (label, viz_type, key) in enumerate(buttons):
         with viz_cols[i]:

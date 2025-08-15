@@ -19,6 +19,7 @@ from algorithms.code_examples import DECISION_BOUNDARY_CODE, VIZ_TREE_CODE, TEXT
 from viz.tree_visualizer import get_tree_text
 from viz.decision_boundary import plot_decision_boundary
 from viz.roc import plot_roc_curve
+from viz.residual import plot_predictions, plot_residuals
 from ui import create_button_panel
 
 
@@ -614,26 +615,18 @@ def run_decision_trees_app():
             st.markdown("### Tipo de visualización")
 
             # Usar botones para seleccionar el tipo de visualización
-            if "viz_type" not in st.session_state:
-                st.session_state.viz_type = "Árbol"
-
-            # Determinar qué opciones están disponibles
-            show_boundary = (st.session_state.get('tree_type', 'Clasificación') == "Clasificación"
-                             and len(st.session_state.get('feature_names', [])) >= 2)
-            show_roc = st.session_state.get(
-                'tree_type', 'Clasificación') == "Clasificación"
-
-            # Crear lista de opciones de visualización
             viz_options = [
                 ("🌲 Árbol", "Árbol", "viz_tree"),
                 ("📝 Texto", "Texto", "viz_text")
             ]
 
-            if show_boundary:
+            # Determinar qué opciones están disponibles
+            if st.session_state.get('tree_type', 'Clasificación') == "Clasificación":
                 viz_options.append(("🌈 Frontera", "Frontera", "viz_boundary"))
-
-            if show_roc:
                 viz_options.append(("📉 Curva ROC", "ROC", "viz_roc"))
+            else:
+                viz_options.append(
+                    ("📈 Análisis de Residuos", "Residuos", "viz_residuals"))
 
             viz_type = create_button_panel(viz_options)
 
@@ -774,6 +767,20 @@ def run_decision_trees_app():
                 else:
                     st.warning(
                         "Las curvas ROC solo están disponibles para modelos de clasificación.")
+
+            elif viz_type == "Residuos":
+                model = st.session_state.tree_model
+                X_test = st.session_state.X_test
+                y_test = st.session_state.y_test
+                y_pred = model.predict(X_test)
+
+                # Crear visualizaciones con mejor tamaño
+                st.markdown("### 📊 Gráfico de Predicciones vs Valores Reales")
+                plot_predictions(y_test, y_pred)
+
+                # Gráfico de residuos
+                st.markdown("### 📈 Análisis de Residuos")
+                plot_residuals(y_test, y_pred)
 
     ###########################################
     # Pestaña de Características              #
