@@ -4,7 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from sklearn.linear_model import LogisticRegression
+from sklearn.linear_model import LogisticRegression, LinearRegression
 
 from dataset.dataset_manager import load_data, preprocess_data
 from dataset.dataset_tab import run_dataset_tab
@@ -13,7 +13,7 @@ from algorithms.model_training import train_linear_model
 from algorithms.model_evaluation import show_detailed_evaluation
 from viz.roc import plot_roc_curve, plot_threshold_analysis
 from viz.residual import plot_predictions, plot_residuals
-from viz.decision_boundary import plot_decision_boundary
+from viz.decision_boundary import plot_decision_boundary, plot_decision_surface
 from ui import create_button_panel
 
 
@@ -305,18 +305,32 @@ def run_linear_regression_app():
             X_train = st.session_state.get('X_train_lr')
             y_train = st.session_state.get('y_train_lr')
             model = st.session_state.get('model_lr')
+            feature_names = st.session_state.get('feature_names_lr', [])
 
             if model_type == "Linear" and X_test is not None and y_test is not None and model is not None:
 
-                y_pred = model.predict(X_test)
+                viz_options = [
+                    ("📈 Análisis de Residuos", "Residuos", "viz_residuals"),
+                    ("🌐 Superficie de Predicción", "Superficie", "viz_surface")
+                ]
 
-                # Crear visualizaciones con mejor tamaño
-                st.markdown("### 📊 Gráfico de Predicciones vs Valores Reales")
-                plot_predictions(y_test, y_pred)
+                viz_type = create_button_panel(viz_options)
 
-                # Gráfico de residuos
-                st.markdown("### 📈 Análisis de Residuos")
-                plot_residuals(y_test, y_pred)
+                if viz_type == "Residuos":
+                    y_pred = model.predict(X_test)
+                    # Crear visualizaciones con mejor tamaño
+                    st.markdown(
+                        "### 📊 Gráfico de Predicciones vs Valores Reales")
+                    plot_predictions(y_test, y_pred)
+
+                    # Gráfico de residuos
+                    st.markdown("### 📈 Análisis de Residuos")
+                    plot_residuals(y_test, y_pred)
+                elif viz_type == "Superficie":
+                    model_2d = LinearRegression()
+                    # Superficie de predicción
+                    plot_decision_surface(
+                        model_2d, feature_names, X_train, y_train)
 
             elif model_type == "Logistic" and X_test is not None and y_test is not None and model is not None:
 

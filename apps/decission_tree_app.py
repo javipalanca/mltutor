@@ -8,7 +8,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.inspection import DecisionBoundaryDisplay
-from sklearn.tree import DecisionTreeClassifier, plot_tree, export_text
+from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor, plot_tree, export_text
 
 from dataset.dataset_manager import load_data, preprocess_data
 from algorithms.model_training import train_decision_tree
@@ -17,7 +17,7 @@ from utils import create_info_box, get_image_download_link, show_code_with_downl
 from dataset.dataset_tab import run_dataset_tab, run_select_dataset
 from algorithms.code_examples import DECISION_BOUNDARY_CODE, VIZ_TREE_CODE, TEXT_TREE_CODE, generate_decision_boundary_code
 from viz.tree_visualizer import get_tree_text
-from viz.decision_boundary import plot_decision_boundary
+from viz.decision_boundary import plot_decision_boundary, plot_decision_surface
 from viz.roc import plot_roc_curve
 from viz.residual import plot_predictions, plot_residuals
 from ui import create_button_panel
@@ -628,6 +628,8 @@ def run_decision_trees_app():
             else:
                 viz_options.append(
                     ("📈 Análisis de Residuos", "Residuos", "viz_residuals"))
+                viz_options.append(
+                    ("🌐 Superficie de Decisión", "Superficie", "viz_surface"))
 
             viz_type = create_button_panel(viz_options)
 
@@ -782,6 +784,20 @@ def run_decision_trees_app():
                 # Gráfico de residuos
                 st.markdown("### 📈 Análisis de Residuos")
                 plot_residuals(y_test, y_pred)
+
+            elif viz_type == "Superficie":
+                model_2d = DecisionTreeRegressor(
+                    max_depth=st.session_state.max_depth,
+                    min_samples_split=st.session_state.min_samples_split,
+                    criterion=st.session_state.criterion,
+                    random_state=42
+                )
+                X_train = st.session_state.X_train
+                y_train = st.session_state.y_train
+                feature_names = st.session_state.feature_names
+                # Superficie de predicción
+                plot_decision_surface(
+                    model_2d, feature_names, X_train, y_train)
 
     ###########################################
     # Pestaña de Características              #

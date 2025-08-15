@@ -16,7 +16,7 @@ from algorithms.model_evaluation import evaluate_classification_model, evaluate_
 from ui import create_prediction_interface, create_button_panel
 from dataset.dataset_tab import run_dataset_tab
 from utils import create_info_box, get_image_download_link, show_code_with_download
-from viz.roc import plot_roc_curve
+from viz.roc import plot_roc_curve, plot_threshold_analysis
 from viz.decision_boundary import plot_decision_surface, plot_decision_boundary
 from viz.residual import plot_predictions, plot_residuals
 
@@ -269,8 +269,8 @@ def run_knn_app():
             viz_options = []
             if task_type == "Clasificación":
                 viz_options.extend([
-                    ("📊 Distribución de Predicciones",
-                     "Predicciones", "viz_predictions"),
+                    ("📊 Distribución de Probabilidades",
+                     "Probabilidades", "viz_prob"),
                     ("📉 Curva ROC", "ROC", "viz_roc"),
                     ("🌈 Frontera de Decisión", "Frontera", "viz_boundary"),
                     ("🎮 Visualización Interactiva",
@@ -279,11 +279,21 @@ def run_knn_app():
                 ])
             else:
                 viz_options.append(
-                    ("📊 Distribución de Probabilidades", "Probs", "viz_prob"))
+                    ("📊 Distribución de Predicciones", "Predicciones", "viz_predictions"))
                 viz_options.append(
-                    ("🏔️ Superficie de Predicción", "Superficie", "viz_surface"))
+                    ("🌐 Superficie de Predicción", "Superficie", "viz_surface"))
 
             viz_type = create_button_panel(viz_options)
+
+            if viz_type == "Probabilidades":
+                st.markdown("### 📊 Distribución de Probabilidades")
+                y_test = st.session_state.knn_ytest
+                X_test = st.session_state.knn_Xtest
+                model = st.session_state.knn_model
+                # Obtener probabilidades de predicción
+                y_pred_proba = model.predict_proba(X_test)
+                plot_threshold_analysis(
+                    y_test, y_pred_proba, class_names=class_names)
 
             if viz_type == "ROC":
                 model = st.session_state.knn_model
@@ -293,7 +303,7 @@ def run_knn_app():
                 y_pred_proba = model.predict_proba(X_test)
                 plot_roc_curve(y_test, y_pred_proba)
 
-            elif viz_type == "Probs":
+            elif viz_type == "Predicciones":
                 model = st.session_state.knn_model
                 X_test = st.session_state.knn_Xtest
                 y_test = st.session_state.knn_ytest

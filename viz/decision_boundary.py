@@ -79,25 +79,55 @@ def plot_decision_boundary(model_2d, X, y, feature_names, class_names):
                     # Máximo 200 puntos por dimensión
                     h = max(h, max_range / 200)
 
-                xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
-                                     np.arange(y_min, y_max, h))
+                # Asegurar que el paso no sea demasiado grande
+                min_points = 10  # Mínimo 10 puntos por dimensión
+                h = min(h, x_range / min_points, y_range / min_points)
+
+                # Crear arrays para la malla
+                x_points = np.arange(x_min, x_max, h)
+                y_points = np.arange(y_min, y_max, h)
+
+                # Asegurar que tenemos al menos 2 puntos en cada dimensión
+                if len(x_points) < 2:
+                    x_points = np.linspace(x_min, x_max, 10)
+                if len(y_points) < 2:
+                    y_points = np.linspace(y_min, y_max, 10)
+
+                xx, yy = np.meshgrid(x_points, y_points)
 
                 # Verificar el tamaño de la malla antes de continuar
                 mesh_size = xx.shape[0] * xx.shape[1]
+                st.info(
+                    f"Malla creada: {xx.shape[0]} x {xx.shape[1]} = {mesh_size:,} puntos")
+
                 if mesh_size > 50000:  # Límite de seguridad
                     st.warning(
                         f"⚠️ La malla es muy grande ({mesh_size:,} puntos). Reduciendo resolución...")
-                    h = h * 2  # Duplicar el paso para reducir puntos
-                    xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
-                                         np.arange(y_min, y_max, h))
+                    # Reducir a máximo 200x200
+                    max_dim = 200
+                    x_points = np.linspace(
+                        x_min, x_max, min(max_dim, len(x_points)))
+                    y_points = np.linspace(
+                        y_min, y_max, min(max_dim, len(y_points)))
+                    xx, yy = np.meshgrid(x_points, y_points)
                     mesh_size = xx.shape[0] * xx.shape[1]
-                    st.info(f"Nueva resolución: {mesh_size:,} puntos")
+                    st.info(
+                        f"Nueva resolución: {xx.shape[0]} x {xx.shape[1]} = {mesh_size:,} puntos")
 
                 # Predecir en la malla con manejo de memoria
                 try:
                     with st.spinner(f"Calculando predicciones en {mesh_size:,} puntos..."):
-                        Z = model_2d.predict(np.c_[xx.ravel(), yy.ravel()])
+                        mesh_points = np.c_[xx.ravel(), yy.ravel()]
+                        Z = model_2d.predict(mesh_points)
                         Z = Z.reshape(xx.shape)
+
+                        # Verificar las dimensiones antes de continuar
+                        if Z.shape[0] < 2 or Z.shape[1] < 2:
+                            st.error(
+                                f"❌ Error: La malla resultante es demasiado pequeña: {Z.shape}")
+                            st.info(
+                                "💡 Aumenta el rango de datos o ajusta los parámetros.")
+                            return
                 except MemoryError:
                     st.error(
                         "❌ Error de memoria. El dataset es demasiado grande para esta resolución.")
@@ -241,25 +271,55 @@ def plot_decision_surface(model_2d, feature_names, X, y):
             if max_range > 100:
                 h = max(h, max_range / 200)  # Máximo 200 puntos por dimensión
 
-            xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
-                                 np.arange(y_min, y_max, h))
+            # Asegurar que el paso no sea demasiado grande
+            min_points = 10  # Mínimo 10 puntos por dimensión
+            h = min(h, x_range / min_points, y_range / min_points)
+
+            # Crear arrays para la malla
+            x_points = np.arange(x_min, x_max, h)
+            y_points = np.arange(y_min, y_max, h)
+
+            # Asegurar que tenemos al menos 2 puntos en cada dimensión
+            if len(x_points) < 2:
+                x_points = np.linspace(x_min, x_max, 10)
+            if len(y_points) < 2:
+                y_points = np.linspace(y_min, y_max, 10)
+
+            xx, yy = np.meshgrid(x_points, y_points)
 
             # Verificar el tamaño de la malla antes de continuar
             mesh_size = xx.shape[0] * xx.shape[1]
+            st.info(
+                f"Malla creada: {xx.shape[0]} x {xx.shape[1]} = {mesh_size:,} puntos")
+
             if mesh_size > 50000:  # Límite de seguridad
                 st.warning(
                     f"⚠️ La malla es muy grande ({mesh_size:,} puntos). Reduciendo resolución...")
-                h = h * 2  # Duplicar el paso para reducir puntos
-                xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
-                                     np.arange(y_min, y_max, h))
+                # Reducir a máximo 200x200
+                max_dim = 200
+                x_points = np.linspace(
+                    x_min, x_max, min(max_dim, len(x_points)))
+                y_points = np.linspace(
+                    y_min, y_max, min(max_dim, len(y_points)))
+                xx, yy = np.meshgrid(x_points, y_points)
                 mesh_size = xx.shape[0] * xx.shape[1]
-                st.info(f"Nueva resolución: {mesh_size:,} puntos")
+                st.info(
+                    f"Nueva resolución: {xx.shape[0]} x {xx.shape[1]} = {mesh_size:,} puntos")
 
             # Predecir en la malla con manejo de memoria
             try:
                 with st.spinner(f"Calculando predicciones en {mesh_size:,} puntos..."):
-                    Z = model_2d.predict(np.c_[xx.ravel(), yy.ravel()])
+                    mesh_points = np.c_[xx.ravel(), yy.ravel()]
+                    Z = model_2d.predict(mesh_points)
                     Z = Z.reshape(xx.shape)
+
+                    # Verificar las dimensiones antes de continuar
+                    if Z.shape[0] < 2 or Z.shape[1] < 2:
+                        st.error(
+                            f"❌ Error: La malla resultante es demasiado pequeña: {Z.shape}")
+                        st.info(
+                            "💡 Aumenta el rango de datos o ajusta los parámetros.")
+                        return
             except MemoryError:
                 st.error(
                     "❌ Error de memoria. El dataset es demasiado grande para KNN con esta resolución.")
