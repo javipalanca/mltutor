@@ -321,7 +321,7 @@ def run_knn_app():
                     )
 
                     plot_decision_boundary(
-                        model_2d, X, y, feature_names)
+                        model_2d, X, y, feature_names, st.session_state.knn_class_names)
 
             elif viz_type == "Superficie":
                 if not st.session_state.get('knn_trained', False):

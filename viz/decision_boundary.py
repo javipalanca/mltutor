@@ -10,7 +10,7 @@ from utils import get_image_download_link, show_code_with_download
 from algorithms.code_examples import generate_decision_boundary_code
 
 
-def plot_decision_boundary(model_2d, X, y, feature_names):
+def plot_decision_boundary(model_2d, X, y, feature_names, class_names):
     st.markdown("### Selección de Características")
     st.markdown("Selecciona 2 características para visualizar:")
 
@@ -100,7 +100,7 @@ def plot_decision_boundary(model_2d, X, y, feature_names):
                         Z = Z.reshape(xx.shape)
                 except MemoryError:
                     st.error(
-                        "❌ Error de memoria. El dataset es demasiado grande para KNN con esta resolución.")
+                        "❌ Error de memoria. El dataset es demasiado grande para esta resolución.")
                     st.info(
                         "💡 Sugerencias: Prueba con un dataset más pequeño o usa un algoritmo menos intensivo como Decision Trees.")
                     return
@@ -124,7 +124,7 @@ def plot_decision_boundary(model_2d, X, y, feature_names):
                                      cmap=scatter_cmap, edgecolor='black', s=50, alpha=0.8)
 
                 # Leyenda para clasificación
-                if st.session_state.knn_class_names and n_classes <= 10:
+                if class_names and n_classes <= 10:
                     import matplotlib.patches as mpatches
                     if n_classes == 2:
                         colors = ['#d7191c', '#2c7bb6']  # RdBu colors
@@ -133,8 +133,8 @@ def plot_decision_boundary(model_2d, X, y, feature_names):
                             np.linspace(0, 1, n_classes))
 
                     patches = [mpatches.Patch(color=colors[i],
-                                              label=st.session_state.knn_class_names[i])
-                               for i in range(min(len(st.session_state.knn_class_names), n_classes))]
+                                              label=class_names[i])
+                               for i in range(min(len(class_names), n_classes))]
                     ax.legend(handles=patches,
                               loc='best', title='Clases')
 
@@ -164,8 +164,7 @@ def plot_decision_boundary(model_2d, X, y, feature_names):
 
                 # Mostrar código para generar esta visualización
                 code_boundary = generate_decision_boundary_code(
-                    feature_names, st.session_state.knn_class_names
-                )
+                    feature_names, class_names)
 
                 show_code_with_download(
                     code_boundary, "Código para generar la frontera de decisión", "frontera_decision.py"
