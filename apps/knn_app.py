@@ -4,11 +4,11 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from dataset_manager import create_dataset_selector, load_data, preprocess_data
-from model_training import train_knn_model
-from model_evaluation import evaluate_classification_model, evaluate_regression_model, show_detailed_evaluation
+from dataset.dataset_manager import create_dataset_selector, load_data, preprocess_data
+from algorithms.model_training import train_knn_model
+from algorithms.model_evaluation import evaluate_classification_model, evaluate_regression_model, show_detailed_evaluation
 from ui import create_prediction_interface
-from algorithms.dataset_tab import run_dataset_tab
+from dataset.dataset_tab import run_dataset_tab
 from utils import create_info_box, get_image_download_link, show_code_with_download
 
 

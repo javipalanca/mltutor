@@ -5,13 +5,15 @@ Incluye funciones para cargar conjuntos de datos integrados, cargar archivos CSV
 
 import pandas as pd
 import numpy as np
+import seaborn as sns
 import streamlit as st
 import os
+
 from sklearn.datasets import load_iris, load_wine, load_breast_cancer
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
-import seaborn as sns
-from additional_datasets import load_additional_dataset
+
+from dataset.additional_datasets import load_additional_dataset
 
 
 def load_builtin_dataset(dataset_name):

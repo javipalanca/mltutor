@@ -8,14 +8,14 @@ import seaborn as sns
 from sklearn.inspection import DecisionBoundaryDisplay
 from sklearn.tree import DecisionTreeClassifier
 
-from dataset_manager import load_data, preprocess_data
-from model_training import train_decision_tree
-from model_evaluation import evaluate_classification_model, evaluate_regression_model, show_detailed_evaluation
+from dataset.dataset_manager import load_data, preprocess_data
+from algorithms.model_training import train_decision_tree
+from algorithms.model_evaluation import evaluate_classification_model, evaluate_regression_model, show_detailed_evaluation
 from utils import create_info_box, get_image_download_link, show_code_with_download
-from algorithms.dataset_tab import run_dataset_tab, run_select_dataset
+from dataset.dataset_tab import run_dataset_tab, run_select_dataset
 from algorithms.code_examples import DECISION_BOUNDARY_CODE, VIZ_TREE_CODE, TEXT_TREE_CODE, generate_decision_boundary_code
-from tree_visualizer import get_tree_text
-from decision_boundary import plot_decision_boundary
+from viz.tree_visualizer import get_tree_text
+from viz.decision_boundary import plot_decision_boundary
 
 
 def display_feature_importance(model, feature_names):
@@ -432,6 +432,7 @@ def run_decision_trees_app():
 
                 st.session_state.dataset_option = st.session_state.selected_dataset
                 dataset_loaded = True
+                st.session_state.class_names = class_names
 
                 # Mostrar información del dataset
                 st.markdown("### Información del Dataset")

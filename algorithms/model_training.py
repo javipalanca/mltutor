@@ -7,8 +7,8 @@ from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 import streamlit as st
-from dataset_manager import preprocess_data
-from model_evaluation import evaluate_classification_model, evaluate_regression_model
+from dataset.dataset_manager import preprocess_data
+from algorithms.model_evaluation import evaluate_classification_model, evaluate_regression_model
 
 
 def train_decision_tree_classifier(X, y, max_depth, min_samples_split, criterion):

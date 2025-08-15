@@ -12,12 +12,12 @@ import base64
 from sklearn.tree import plot_tree
 
 from utils import get_image_download_link, generate_model_code, export_model_pickle, export_model_onnx, show_code_with_download
-from model_evaluation import show_detailed_evaluation, show_prediction_path
-from tree_visualization import (
+from algorithms.model_evaluation import show_detailed_evaluation, show_prediction_path
+from viz.tree_visualization import (
     create_static_tree_visualization, get_tree_text,
     render_visualization
 )
-from dataset_metadata import get_dataset_metadata
+from dataset.dataset_metadata import get_dataset_metadata
 
 # Funciones para la configuración de la página
 

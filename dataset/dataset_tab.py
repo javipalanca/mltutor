@@ -4,7 +4,7 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-from dataset_manager import load_data
+from dataset.dataset_manager import load_data
 from utils import create_info_box, get_image_download_link, show_code_with_download
 from algorithms.code_examples import SCATTERPLOT_MATRIX
 
@@ -426,7 +426,6 @@ def run_explore_dataset_tab():
             elif total_plots > 16:
                 st.info(
                     f"ℹ️ **Nota**: {len(selected_features)} características = {total_plots} gráficos. Tiempo estimado: ~{estimated_time:.1f}s")
-
 
             # Botones de control
             col1, col2 = st.columns([3, 1])

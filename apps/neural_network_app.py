@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import plotly.express as px
 
-from dataset_manager import load_data
+from dataset.dataset_manager import load_data
 from utils import create_info_box, get_image_download_link, show_code_with_download
 
 

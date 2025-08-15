@@ -5,11 +5,12 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 
-from dataset_manager import load_data, preprocess_data
-from algorithms.dataset_tab import run_dataset_tab
+from dataset.dataset_manager import load_data, preprocess_data
+from dataset.dataset_tab import run_dataset_tab
 from utils import create_info_box, get_image_download_link, show_code_with_download
-from model_training import train_linear_model
-from model_evaluation import show_detailed_evaluation
+from algorithms.model_training import train_linear_model
+from algorithms.model_evaluation import show_detailed_evaluation
+from viz.roc import plot_roc_curve
 
 
 def run_linear_regression_app():
@@ -132,6 +133,7 @@ def run_linear_regression_app():
                     st.session_state.selected_dataset)
 
                 st.session_state.dataset_option_lr = st.session_state.selected_dataset
+                st.session_state.class_names = class_names
                 dataset_loaded = True
 
                 # Mostrar información del dataset
@@ -299,8 +301,8 @@ def run_linear_regression_app():
             model = st.session_state.get('model_lr')
 
             # Información sobre las visualizaciones
-            with st.expander("ℹ️ ¿Cómo interpretar estas visualizaciones?", expanded=False):
-                if model_type == "Linear":
+            if model_type == "Linear":
+                with st.expander("ℹ️ ¿Cómo interpretar estas visualizaciones?", expanded=False):
                     st.markdown("""
                     **Gráfico de Predicciones vs Valores Reales:**
                     - Cada punto representa una predicción del modelo
@@ -316,21 +318,6 @@ def run_linear_regression_app():
                       - Residuos cerca de cero = buenas predicciones
                       - Patrones en los residuos pueden indicar que el modelo lineal no es adecuado
                       - Distribución aleatoria alrededor de cero es ideal
-                    """)
-                else:
-                    st.markdown("""
-                    **Matriz de Confusión:**
-                    - Muestra predicciones correctas e incorrectas por clase
-                    - **Interpretación:**
-                      - Diagonal principal = predicciones correctas
-                      - Fuera de la diagonal = errores del modelo
-                      - Colores más intensos = mayor cantidad de casos
-                    
-                    **Curva ROC (si es binaria):**
-                    - Muestra el rendimiento del clasificador en diferentes umbrales
-                    - **Interpretación:**
-                      - Línea más cerca de la esquina superior izquierda = mejor modelo
-                      - Área bajo la curva (AUC) cercana a 1 = excelente modelo
                     """)
 
             if model_type == "Linear" and X_test is not None and y_test is not None and model is not None:
@@ -484,224 +471,12 @@ def run_linear_regression_app():
                         "💡 **Sugerencias de mejora:** Considera probar transformaciones de variables, añadir características polinómicas, o usar modelos no lineales.")
 
             elif model_type == "Logistic" and X_test is not None and y_test is not None and model is not None:
-                from sklearn.metrics import confusion_matrix, classification_report, precision_recall_curve
 
+                # Curva ROC
                 y_pred = model.predict(X_test)
                 y_pred_proba = model.predict_proba(X_test)
-
-                # Matriz de Confusión
-                st.markdown("### 📊 Matriz de Confusión")
-
-                cm = confusion_matrix(y_test, y_pred)
-                class_names = st.session_state.get('class_names_lr', [])
-
-                fig, ax = plt.subplots(figsize=(10, 8))
-
-                # Crear mapa de calor
-                try:
-                    import seaborn as sns
-                    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
-                                ax=ax, cbar_kws={'shrink': 0.8},
-                                xticklabels=class_names if class_names else True,
-                                yticklabels=class_names if class_names else True)
-                except ImportError:
-                    # Fallback to matplotlib if seaborn is not available
-                    im = ax.imshow(cm, cmap='Blues', aspect='auto')
-                    # Add text annotations
-                    for i in range(cm.shape[0]):
-                        for j in range(cm.shape[1]):
-                            text = ax.text(j, i, f'{cm[i, j]}',
-                                           ha="center", va="center", color="white" if cm[i, j] > cm.max()/2 else "black")
-                    ax.set_xticks(range(cm.shape[1]))
-                    ax.set_yticks(range(cm.shape[0]))
-                    if class_names:
-                        ax.set_xticklabels(class_names)
-                        ax.set_yticklabels(class_names)
-                ax.set_title('Matriz de Confusión',
-                             fontsize=14, fontweight='bold')
-                ax.set_xlabel('Predicciones', fontsize=12)
-                ax.set_ylabel('Valores Reales', fontsize=12)
-
-                # Mostrar con 80% del ancho
-                col1, col2, col3 = st.columns([0.1, 0.8, 0.1])
-                with col2:
-                    st.pyplot(fig, use_container_width=True)
-
-                # Análisis detallado de la matriz de confusión
-                if len(np.unique(y_test)) == 2:
-                    tn, fp, fn, tp = cm.ravel()
-
-                    # Métricas derivadas de la matriz de confusión
-                    st.markdown("### 🔍 Análisis Detallado de la Matriz")
-                    col1, col2, col3, col4 = st.columns(4)
-
-                    with col1:
-                        st.metric("Verdaderos Positivos", f"{tp}")
-                        st.caption(
-                            "Casos positivos correctamente identificados")
-                    with col2:
-                        st.metric("Falsos Positivos", f"{fp}")
-                        st.caption(
-                            "Casos negativos clasificados como positivos")
-                    with col3:
-                        st.metric("Falsos Negativos", f"{fn}")
-                        st.caption(
-                            "Casos positivos clasificados como negativos")
-                    with col4:
-                        st.metric("Verdaderos Negativos", f"{tn}")
-                        st.caption(
-                            "Casos negativos correctamente identificados")
-
-                    # Interpretación de errores
-                    if fp > fn:
-                        st.warning(
-                            "⚠️ El modelo tiende a clasificar más casos como positivos (más falsos positivos que falsos negativos)")
-                    elif fn > fp:
-                        st.warning(
-                            "⚠️ El modelo tiende a ser más conservador (más falsos negativos que falsos positivos)")
-                    else:
-                        st.success(
-                            "✅ El modelo tiene un balance equilibrado entre falsos positivos y negativos")
-
-                # Curvas ROC y Precision-Recall
-                if len(np.unique(y_test)) == 2:
-                    from sklearn.metrics import roc_curve, auc, average_precision_score
-
-                    # Crear subplots para ROC y Precision-Recall
-                    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
-
-                    # Curva ROC
-                    fpr, tpr, _ = roc_curve(y_test, y_pred_proba[:, 1])
-                    roc_auc = auc(fpr, tpr)
-
-                    ax1.plot(fpr, tpr, color='darkorange', lw=2,
-                             label=f'Curva ROC (AUC = {roc_auc:.3f})')
-                    ax1.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--',
-                             label='Clasificador Aleatorio')
-
-                    ax1.set_xlim([0.0, 1.0])
-                    ax1.set_ylim([0.0, 1.05])
-                    ax1.set_xlabel('Tasa de Falsos Positivos', fontsize=12)
-                    ax1.set_ylabel('Tasa de Verdaderos Positivos', fontsize=12)
-                    ax1.set_title('Curva ROC', fontsize=14, fontweight='bold')
-                    ax1.legend(loc="lower right")
-                    ax1.grid(True, alpha=0.3)
-
-                    # Curva Precision-Recall
-                    precision, recall, _ = precision_recall_curve(
-                        y_test, y_pred_proba[:, 1])
-                    avg_precision = average_precision_score(
-                        y_test, y_pred_proba[:, 1])
-
-                    ax2.plot(recall, precision, color='darkgreen', lw=2,
-                             label=f'Curva P-R (AP = {avg_precision:.3f})')
-                    ax2.axhline(y=np.sum(y_test)/len(y_test), color='navy', lw=2, linestyle='--',
-                                label=f'Baseline ({np.sum(y_test)/len(y_test):.3f})')
-
-                    ax2.set_xlim([0.0, 1.0])
-                    ax2.set_ylim([0.0, 1.05])
-                    ax2.set_xlabel('Recall (Sensibilidad)', fontsize=12)
-                    ax2.set_ylabel('Precision (Precisión)', fontsize=12)
-                    ax2.set_title('Curva Precision-Recall',
-                                  fontsize=14, fontweight='bold')
-                    ax2.legend(loc="lower left")
-                    ax2.grid(True, alpha=0.3)
-
-                    plt.tight_layout()
-
-                    st.markdown("### 📈 Curvas de Rendimiento")
-
-                    # Explicación detallada sobre las curvas de rendimiento
-                    with st.expander("ℹ️ ¿Cómo interpretar las Curvas de Rendimiento?", expanded=False):
-                        st.markdown("""
-                        **Curva ROC (Receiver Operating Characteristic)**
-                        
-                        **¿Qué muestra?**
-                        - **Eje X:** Tasa de Falsos Positivos (FPR) = FP / (FP + TN)
-                        - **Eje Y:** Tasa de Verdaderos Positivos (TPR) = TP / (TP + FN) = Sensibilidad/Recall
-                        - **Línea diagonal:** Rendimiento de un clasificador aleatorio
-                        - **AUC (Área Bajo la Curva):** Métrica resumen del rendimiento
-                        
-                        **Interpretación:**
-                        - **AUC = 1.0:** Clasificador perfecto
-                        - **AUC = 0.9-1.0:** Excelente discriminación
-                        - **AUC = 0.8-0.9:** Buena discriminación  
-                        - **AUC = 0.7-0.8:** Discriminación aceptable
-                        - **AUC = 0.5:** Equivalente a adivinar al azar
-                        - **AUC < 0.5:** Peor que adivinar (pero se puede invertir)
-                        
-                        **¿Cuándo usar ROC?**
-                        - Cuando las clases están relativamente balanceadas
-                        - Para comparar modelos rápidamente
-                        - Cuando te importa el rendimiento general
-                        
-                        ---
-                        
-                        **Curva Precision-Recall (P-R)**
-                        
-                        **¿Qué muestra?**
-                        - **Eje X:** Recall (Sensibilidad) = TP / (TP + FN)
-                        - **Eje Y:** Precision (Precisión) = TP / (TP + FP)
-                        - **Línea horizontal:** Baseline (proporción de casos positivos)
-                        - **AP (Average Precision):** Métrica resumen del rendimiento
-                        
-                        **Interpretación:**
-                        - **AP alto:** Buen balance entre precisión y recall
-                        - **Curva cerca del ángulo superior derecho:** Excelente rendimiento
-                        - **Por encima del baseline:** Mejor que una predicción aleatoria
-                        
-                        **¿Cuándo usar P-R?**
-                        - ✅ **Clases desbalanceadas** (muchos más negativos que positivos)
-                        - ✅ Cuando los **falsos positivos son costosos**
-                        - ✅ Para datasets con **pocos casos positivos**
-                        - ✅ En problemas como **detección de fraude, diagnóstico médico**
-                        
-                        **Comparación ROC vs P-R:**
-                        - **ROC** es más optimista con clases desbalanceadas
-                        - **P-R** es más conservadora y realista
-                        - **P-R** se enfoca más en el rendimiento de la clase minoritaria
-                        - Usar **ambas** para una evaluación completa
-                        """)
-
-                    # Mostrar con 80% del ancho
-                    col1, col2, col3 = st.columns([0.1, 0.8, 0.1])
-                    with col2:
-                        st.pyplot(fig, use_container_width=True)
-
-                    # Interpretación de las curvas
-                    st.markdown("### 📋 Interpretación de las Curvas")
-
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.markdown("**Curva ROC:**")
-                        if roc_auc >= 0.9:
-                            st.success(
-                                f"🎯 Excelente discriminación (AUC = {roc_auc:.3f})")
-                        elif roc_auc >= 0.8:
-                            st.info(
-                                f"👍 Buena discriminación (AUC = {roc_auc:.3f})")
-                        elif roc_auc >= 0.7:
-                            st.warning(
-                                f"⚠️ Discriminación moderada (AUC = {roc_auc:.3f})")
-                        else:
-                            st.error(
-                                f"❌ Discriminación pobre (AUC = {roc_auc:.3f})")
-
-                    with col2:
-                        st.markdown("**Curva Precision-Recall:**")
-                        baseline_precision = np.sum(y_test)/len(y_test)
-                        if avg_precision >= baseline_precision + 0.3:
-                            st.success(
-                                f"🎯 Excelente (AP = {avg_precision:.3f})")
-                        elif avg_precision >= baseline_precision + 0.1:
-                            st.info(
-                                f"👍 Buena mejora sobre baseline (AP = {avg_precision:.3f})")
-                        elif avg_precision >= baseline_precision:
-                            st.warning(
-                                f"⚠️ Mejora marginal (AP = {avg_precision:.3f})")
-                        else:
-                            st.error(
-                                f"❌ Por debajo del baseline (AP = {avg_precision:.3f})")
+                class_names = st.session_state.class_names
+                plot_roc_curve(y_test, y_pred_proba, class_names=class_names)
 
                 # Análisis de probabilidades de predicción
                 st.markdown("### 📊 Distribución de Probabilidades")

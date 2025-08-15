@@ -1,24 +1,3 @@
-from utils import (
-    get_image_download_link, generate_model_code, export_model_pickle, export_model_onnx,
-    create_info_box, format_number, show_code_with_download
-)
-from tree_visualizer import (
-    render_tree_visualization,
-    create_tree_visualization, get_tree_text
-)
-from ui import (
-    setup_page, init_session_state, show_welcome_page, show_footer,
-    display_feature_importance, display_model_export_options, create_prediction_interface
-)
-from sklearn.model_selection import train_test_split
-from decision_boundary import plot_decision_boundary
-from model_evaluation import evaluate_classification_model, evaluate_regression_model, show_detailed_evaluation
-from model_training import train_decision_tree, predict_sample, train_linear_model, train_knn_model
-from dataset_manager import load_data, preprocess_data, create_dataset_selector, load_dataset_from_file
-from algorithms.decission_tree_app import run_decision_trees_app
-from algorithms.linear_regression_app import run_linear_regression_app
-from algorithms.knn_app import run_knn_app
-from algorithms.neural_network_app import run_neural_networks_app
 import streamlit.components.v1 as components
 import plotly.express as px
 import io
@@ -28,6 +7,29 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import streamlit as st
+
+from utils import (
+    get_image_download_link, generate_model_code, export_model_pickle, export_model_onnx,
+    create_info_box, format_number, show_code_with_download
+)
+from viz.tree_visualizer import (
+    render_tree_visualization,
+    create_tree_visualization, get_tree_text
+)
+from ui import (
+    setup_page, init_session_state, show_welcome_page, show_footer,
+    display_feature_importance, display_model_export_options, create_prediction_interface
+)
+from sklearn.model_selection import train_test_split
+
+from viz.decision_boundary import plot_decision_boundary
+from algorithms.model_evaluation import evaluate_classification_model, evaluate_regression_model, show_detailed_evaluation
+from algorithms.model_training import train_decision_tree, predict_sample, train_linear_model, train_knn_model
+from dataset.dataset_manager import load_data, preprocess_data, create_dataset_selector, load_dataset_from_file
+from apps.decission_tree_app import run_decision_trees_app
+from apps.linear_regression_app import run_linear_regression_app
+from apps.knn_app import run_knn_app
+from apps.neural_network_app import run_neural_networks_app
 
 
 def main():
