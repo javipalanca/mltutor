@@ -1155,3 +1155,20 @@ def create_prediction_interface(tree_model, feature_names, class_names, tree_typ
                     
                     El modelo KNN predice basándose en las {tree_model.n_neighbors} muestras más cercanas en el espacio de características.
                     """)
+
+
+def create_button_panel(buttons) -> str:
+    # Crear columnas dinámicamente según el número de opciones
+    num_options = len(buttons)
+    viz_cols = st.columns(num_options)
+
+    # Crear botones dinámicamente
+    for i, (label, viz_type, key) in enumerate(buttons):
+        with viz_cols[i]:
+            if st.button(label,
+                         key=key,
+                         type="primary" if st.session_state.viz_type == viz_type else "secondary",
+                         use_container_width=True):
+                st.session_state.viz_type = viz_type
+                st.rerun()
+    return st.session_state.viz_type

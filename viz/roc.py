@@ -1,9 +1,19 @@
 import streamlit as st
 import matplotlib.pyplot as plt
 import numpy as np
-from sklearn.metrics import roc_curve, auc, average_precision_score, precision_recall_curve
+import pandas as pd
 from sklearn.preprocessing import label_binarize
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import (
+    roc_curve,
+    auc,
+    average_precision_score,
+    precision_recall_curve,
+    roc_auc_score,
+    precision_score,
+    recall_score,
+    f1_score,
+    accuracy_score,
+)
 from itertools import cycle
 
 
@@ -307,8 +317,6 @@ def _display_multiclass_interpretation(roc_auc_scores, ap_scores, averaging_meth
     if any(key.startswith('clase_') for key in roc_auc_scores.keys()):
         st.markdown("#### 📊 Métricas por Clase")
 
-        import pandas as pd
-
         metrics_data = []
         for i, class_name in enumerate(class_names):
             roc_key = f'clase_{i}'
@@ -421,3 +429,304 @@ def _add_detailed_explanation():
         - Menos sensible a desbalance de clases
         - Útil cuando algunas clases son más importantes
         """)
+
+
+def plot_threshold_analysis(y_true, y_pred_proba, class_names):
+    # Verificar que tenemos datos válidos
+    if y_pred_proba is not None and len(y_pred_proba) > 0:
+        unique_classes = np.unique(y_true)
+
+        # Para clasificación binaria
+        if len(unique_classes) == 2:
+            # Explicación detallada sobre distribución de probabilidades
+            with st.expander("ℹ️ ¿Cómo interpretar la Distribución de Probabilidades?", expanded=False):
+                st.markdown("""
+                    **¿Qué muestra este gráfico?**
+                    
+                    Este histograma muestra cómo el modelo asigna probabilidades a cada muestra del conjunto de prueba, 
+                    separado por la clase real a la que pertenece cada muestra.
+                    
+                    **Elementos del gráfico:**
+                    - **Histograma azul:** Distribución de probabilidades para muestras que realmente pertenecen a la clase positiva
+                    - **Histograma rojo:** Distribución de probabilidades para muestras que realmente pertenecen a la clase negativa  
+                    - **Línea roja vertical:** Umbral de decisión (0.5 por defecto)
+                    - **Eje X:** Probabilidad asignada por el modelo (0 = clase negativa, 1 = clase positiva)
+                    - **Eje Y:** Cantidad de muestras
+                    
+                    **Interpretación ideal:**
+                    - ✅ **Buena separación:** Los histogramas no se superponen mucho
+                    - ✅ **Clase negativa:** Concentrada cerca de 0 (izquierda)
+                    - ✅ **Clase positiva:** Concentrada cerca de 1 (derecha)
+                    - ✅ **Pocas muestras cerca del umbral (0.5):** Indica confianza en las predicciones
+                    
+                    **Problemas a identificar:**
+                    - ⚠️ **Mucha superposición:** Indica dificultad para separar las clases
+                    - ⚠️ **Concentración en el centro (0.3-0.7):** El modelo está inseguro
+                    - ⚠️ **Distribución uniforme:** El modelo no está aprendiendo patrones útiles
+                    
+                    **Aplicaciones prácticas:**
+                    - Identificar si el modelo está confiado en sus predicciones
+                    - Evaluar si cambiar el umbral de decisión podría mejorar el rendimiento
+                    - Detectar casos donde el modelo necesita más datos o características
+                    """)
+            fig, ax = plt.subplots(figsize=(12, 6))
+
+            # Obtener probabilidades de la clase positiva
+            prob_class_1 = y_pred_proba[:, 1]
+
+            # Separar por clase real - usar los valores únicos reales
+            mask_class_0 = (y_true == unique_classes[0])
+            mask_class_1 = (y_true == unique_classes[1])
+
+            prob_class_0_real = prob_class_1[mask_class_0]
+            prob_class_1_real = prob_class_1[mask_class_1]
+
+            # Crear histogramas solo si hay datos
+            if len(prob_class_0_real) > 0:
+                ax.hist(prob_class_0_real, bins=20, alpha=0.7,
+                        label=f'Clase {class_names[0] if class_names and len(class_names) > 0 else unique_classes[0]} (Real)',
+                        color='lightcoral', edgecolor='black')
+
+            if len(prob_class_1_real) > 0:
+                ax.hist(prob_class_1_real, bins=20, alpha=0.7,
+                        label=f'Clase {class_names[1] if class_names and len(class_names) > 1 else unique_classes[1]} (Real)',
+                        color='lightblue', edgecolor='black')
+
+            # Línea del umbral de decisión
+            ax.axvline(x=0.5, color='red', linestyle='--',
+                       linewidth=2, label='Umbral de decisión (0.5)')
+
+            # Configurar el gráfico
+            ax.set_xlabel(
+                'Probabilidad de Clase Positiva', fontsize=12)
+            ax.set_ylabel('Frecuencia', fontsize=12)
+            ax.set_title('Distribución de Probabilidades Predichas por Clase Real',
+                         fontsize=14, fontweight='bold')
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+
+            # Asegurar límites apropiados
+            ax.set_xlim(0, 1)
+
+            plt.tight_layout()
+
+            # Mostrar el gráfico
+            col1, col2, col3 = st.columns([0.1, 0.8, 0.1])
+            with col2:
+                st.pyplot(fig, use_container_width=True)
+
+            # Limpiar la figura
+            plt.close(fig)
+
+            # Análisis de separación
+            if len(prob_class_0_real) > 0 and len(prob_class_1_real) > 0:
+                # Contar solapamiento en la zona de incertidumbre (0.3-0.7)
+                overlap_0 = np.sum(
+                    (prob_class_0_real > 0.3) & (prob_class_0_real < 0.7))
+                overlap_1 = np.sum(
+                    (prob_class_1_real > 0.3) & (prob_class_1_real < 0.7))
+                total_overlap = overlap_0 + overlap_1
+
+                overlap_percentage = total_overlap / len(y_true)
+
+                # Métricas adicionales de separación
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Muestras en zona incierta",
+                              f"{total_overlap}/{len(y_true)}")
+                with col2:
+                    st.metric("Porcentaje de incertidumbre",
+                              f"{overlap_percentage:.1%}")
+                with col3:
+                    conf_threshold = 0.8  # 80% de confianza
+                    high_conf = np.sum((prob_class_1 < 0.2) | (
+                        prob_class_1 > conf_threshold))
+                    st.metric("Predicciones confiables",
+                              f"{high_conf}/{len(y_true)}")
+
+                # Interpretación
+                if overlap_percentage < 0.2:
+                    st.success(
+                        "✅ Excelente separación entre clases - El modelo está muy confiado en sus predicciones")
+                elif overlap_percentage < 0.4:
+                    st.info("👍 Buena separación entre clases")
+                else:
+                    st.warning(
+                        "⚠️ Las clases se superponen significativamente - Considera ajustar el umbral de decisión")
+
+        elif len(unique_classes) > 2:
+            # Para clasificación multiclase
+            st.info(
+                "**Nota:** Clasificación multiclase detectada. Mostrando distribución de probabilidades para cada clase.")
+            # Se crea un histograma diferente para cada clase en figuras separadas.
+            with st.expander("ℹ️ ¿Cómo interpretar la Distribución de Probabilidades Multiclase?", expanded=False):
+                st.markdown("""
+                La distribución de probabilidades para cada clase muestra la confianza del modelo al predecir la clase a la que pertenece una muestra. 
+                En un escenario de clasificación multiclase, el modelo asigna una probabilidad a cada clase posible, y la clase predicha suele ser la de mayor probabilidad.
+
+                **Interpretación:**
+                - Cada barra en cada histograma representa la frecuencia de las probabilidades predichas para una clase específica.
+                - Un modelo bien calibrado tendrá una alta concentración de muestras en los extremos (cerca de 0 o 1) para la clase correcta.
+                - Distribuciones más planas o con picos intermedios sugieren que el modelo presenta incertidumbre o confusión entre clases.
+
+                **Consejos:**
+                - Presta atención a las clases con solapamiento en sus distribuciones, ya que esto puede indicar áreas de incertidumbre.
+                - Considera ajustar el umbral de decisión para mejorar la precisión en clases específicas.
+                """)
+
+            n_classes = len(unique_classes)
+            n_cols = min(3, n_classes)
+            n_rows = (n_classes + n_cols - 1) // n_cols
+
+            fig, axes = plt.subplots(
+                n_rows, n_cols, figsize=(5 * n_cols, 4 * n_rows))
+
+            # Manejar caso de una sola clase
+            if n_classes == 1:
+                axes = [axes]
+            elif n_rows == 1:
+                axes = axes if n_cols > 1 else [axes]
+            else:
+                axes = axes.flatten()
+
+            for i, class_val in enumerate(unique_classes):
+                if i < len(axes):
+                    ax_sub = axes[i]
+
+                    # Probabilidades para esta clase
+                    class_probs = y_pred_proba[:, i]
+
+                    ax_sub.hist(class_probs, bins=20, alpha=0.7,
+                                color=plt.cm.Set3(i), edgecolor='black')
+
+                    class_label = class_names[i] if class_names and i < len(
+                        class_names) else f"Clase {class_val}"
+                    ax_sub.set_title(
+                        f'Probabilidades para {class_label}')
+                    ax_sub.set_xlabel('Probabilidad')
+                    ax_sub.set_ylabel('Frecuencia')
+                    ax_sub.grid(True, alpha=0.3)
+                    ax_sub.set_xlim(0, 1)
+
+            # Ocultar subplots vacíos
+            for i in range(n_classes, len(axes)):
+                axes[i].set_visible(False)
+
+            plt.tight_layout()
+
+            col1, col2, col3 = st.columns([0.1, 0.8, 0.1])
+            with col2:
+                st.pyplot(fig, use_container_width=True)
+
+            plt.close(fig)
+        else:
+            st.error(
+                "Error: Datos de clasificación insuficientes para crear la visualización")
+
+    else:
+        st.error(
+            "Error: No hay probabilidades predichas disponibles. Asegúrate de que el modelo esté entrenado correctamente.")
+
+    # Análisis de umbrales de decisión para clasificación binaria
+    if len(np.unique(y_true)) == 2:
+        st.markdown("### 🎯 Análisis de Umbrales de Decisión")
+
+        # Explicación detallada sobre umbrales de decisión
+        with st.expander("ℹ️ ¿Cómo interpretar el Análisis de Umbrales?", expanded=False):
+            st.markdown("""
+            **¿Qué es el umbral de decisión?**
+            
+            El umbral de decisión es el valor que determina cuándo el modelo clasifica una muestra como 
+            positiva o negativa. Por defecto, este umbral es **0.5**:
+            - **Probabilidad ≥ 0.5** → Clase Positiva
+            - **Probabilidad < 0.5** → Clase Negativa
+            
+            **¿Por qué cambiar el umbral?**
+            
+            El umbral por defecto (0.5) no siempre es óptimo. Dependiendo del problema, 
+            puede ser beneficioso ajustarlo:
+            
+            **📈 Umbral más alto (0.6, 0.7, 0.8):**
+            - ✅ **Mayor Precisión:** Menos falsos positivos
+            - ✅ **Predicciones más conservadoras:** Solo clasifica como positivo cuando está muy seguro
+            - ⚠️ **Menor Recall:** Puede perder casos positivos reales
+            - **Útil cuando:** Los falsos positivos son muy costosos (ej: diagnóstico médico, inversiones)
+            
+            **📉 Umbral más bajo (0.3, 0.4):**
+            - ✅ **Mayor Recall:** Detecta más casos positivos reales
+            - ✅ **Predicciones más sensibles:** No se pierde tantos casos positivos
+            - ⚠️ **Menor Precisión:** Más falsos positivos
+            - **Útil cuando:** Los falsos negativos son muy costosos (ej: detección de fraude, seguridad)
+            
+            **Métricas mostradas:**
+            - **Accuracy:** Porcentaje total de predicciones correctas
+            - **Precision:** De las predicciones positivas, cuántas son correctas
+            - **Recall:** De los casos positivos reales, cuántos detectamos
+            - **F1-Score:** Balance entre precisión y recall
+            
+            **¿Cómo elegir el umbral óptimo?**
+            1. **Maximizar F1-Score:** Balance general entre precisión y recall
+            2. **Maximizar Precision:** Si los falsos positivos son costosos
+            3. **Maximizar Recall:** Si los falsos negativos son costosos
+            4. **Considerar el contexto:** Costos reales de errores en tu dominio
+            
+            **Ejemplo práctico:**
+            - **Email spam:** Prefiere falsos positivos (email importante en spam) que falsos negativos
+            - **Diagnóstico médico:** Prefiere falsos positivos (más pruebas) que falsos negativos (enfermedad no detectada)
+            - **Recomendaciones:** Balance entre no molestar (precisión) y no perder oportunidades (recall)
+            """)
+
+        # Calcular métricas para diferentes umbrales
+        thresholds = np.arange(0.1, 1.0, 0.1)
+        threshold_metrics = []
+
+        for threshold in thresholds:
+            y_pred_thresh = (
+                y_pred_proba[:, 1] >= threshold).astype(int)
+
+            if len(np.unique(y_pred_thresh)) > 1:  # Evitar división por cero
+                precision = precision_score(
+                    y_true, y_pred_thresh, zero_division=0)
+                recall = recall_score(
+                    y_true, y_pred_thresh, zero_division=0)
+                f1 = f1_score(y_true, y_pred_thresh,
+                              zero_division=0)
+                accuracy = accuracy_score(y_true, y_pred_thresh)
+
+                threshold_metrics.append({
+                    'Umbral': threshold,
+                    'Accuracy': accuracy,
+                    'Precision': precision,
+                    'Recall': recall,
+                    'F1-Score': f1
+                })
+
+        if threshold_metrics:
+            df_thresholds = pd.DataFrame(threshold_metrics)
+
+            # Encontrar el mejor umbral por F1-Score
+            best_f1_idx = df_thresholds['F1-Score'].idxmax()
+            best_threshold = df_thresholds.loc[best_f1_idx, 'Umbral']
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.metric("Umbral Actual", "0.50")
+                st.metric("Umbral Óptimo (F1)",
+                          f"{best_threshold:.2f}")
+
+                if abs(best_threshold - 0.5) > 0.1:
+                    st.info(
+                        f"💡 Considera ajustar el umbral a {best_threshold:.2f} para mejorar el F1-Score")
+
+            with col2:
+                # Mostrar tabla de umbrales (seleccionados)
+                display_thresholds = df_thresholds[df_thresholds['Umbral'].isin(
+                    [0.3, 0.5, 0.7])].copy()
+                for col in ['Accuracy', 'Precision', 'Recall', 'F1-Score']:
+                    display_thresholds[col] = display_thresholds[col].apply(
+                        lambda x: f"{x:.3f}")
+
+                st.markdown("**Comparación de Umbrales:**")
+                st.dataframe(
+                    display_thresholds, hide_index=True, use_container_width=True)
