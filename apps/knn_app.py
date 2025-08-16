@@ -516,7 +516,7 @@ def run_knn_app():
     # Pestaña de Predicciones                 #
     ###########################################
     elif tab == 5:
-        st.header("🔮 Predicciones con KNN")
+        st.header("🔮 Predicciones con Nuevos Datos")
         if st.session_state.knn_trained and st.session_state.knn_model is not None:
             create_prediction_interface(
                 st.session_state.knn_model,

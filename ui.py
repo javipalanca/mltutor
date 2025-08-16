@@ -806,26 +806,46 @@ def export_modelo_onnx(model, num_features):
             st.code("pip install skl2onnx", language="bash")
 
 
-def create_prediction_interface(tree_model, feature_names, class_names, tree_type, X_train=None, dataset_name=None):
+def create_button_panel(buttons) -> str:
+    # Crear columnas dinámicamente según el número de opciones
+    num_options = len(buttons)
+    viz_cols = st.columns(num_options)
+
+    if "viz_type" not in st.session_state or st.session_state.viz_type not in (v[1] for v in buttons):
+        st.session_state.viz_type = buttons[0][1]
+
+    # Crear botones dinámicamente
+    for i, (label, viz_type, key) in enumerate(buttons):
+        with viz_cols[i]:
+            if st.button(label,
+                         key=key,
+                         type="primary" if st.session_state.viz_type == viz_type else "secondary",
+                         use_container_width=True):
+                st.session_state.viz_type = viz_type
+                st.rerun()
+    return st.session_state.viz_type
+
+
+def create_prediction_interface(model, feature_names, class_names, task_type, X_train=None, dataset_name=None):
     """
     Crea una interfaz para hacer predicciones con nuevos datos.
 
     Parameters:
     -----------
-    tree_model : scikit-learn model
+    model : scikit-learn model
         Modelo entrenado (DecisionTree, KNN, etc.)
     feature_names : list
         Nombres de las características
     class_names : list
         Nombres de las clases (para clasificación)
-    tree_type : str
+    task_type : str
         Tipo de tarea ("Clasificación" o "Regresión")
     X_train : pd.DataFrame or np.array, optional
         Datos de entrenamiento para determinar rangos dinámicos de características
     dataset_name : str, optional
         Nombre del dataset para obtener metadata adicional
     """
-    st.subheader("Predicciones con nuevos datos")
+    # st.subheader("Predicciones con nuevos datos")
 
     # Obtener metadata del dataset si está disponible
     metadata = get_dataset_metadata(dataset_name) if dataset_name else {}
@@ -1094,84 +1114,76 @@ def create_prediction_interface(tree_model, feature_names, class_names, tree_typ
         new_data = np.array([new_data_values])
 
         # Hacer predicción
-        prediction = tree_model.predict(new_data)[0]
+        prediction = model.predict(new_data)[0]
 
         # Mostrar resultado según el tipo de árbol
-        if tree_type == "Clasificación":
+        if task_type == "Clasificación":
             prediction_label = class_names[prediction]
 
             st.markdown(f"""
             <div style="background-color: #E8F5E9; padding: 20px; border-radius: 10px; text-align: center; margin: 20px 0;">
                 <h3>Resultado de la predicción</h3>
-                <p style="font-size: 24px; font-weight: bold; color: #2E7D32;">Clase predicha: {prediction_label}</p>
+                <p style="font-size: 24px; font-weight: bold; color: #2E7D32;">Clase: {prediction_label}</p>
             </div>
             """, unsafe_allow_html=True)
 
             # Mostrar el camino de decisión solo para árboles de decisión
-            if hasattr(tree_model, 'tree_'):  # Solo para árboles de decisión
+            if hasattr(model, 'tree_'):  # Solo para árboles de decisión
                 st.markdown("### Camino de decisión")
 
                 # Usar la función desde model_evaluation
                 # Nota: No necesitamos pasar new_data (ya es un array 2D)
                 # pero aseguramos el formato correcto
-                show_prediction_path(tree_model, new_data,
+                show_prediction_path(model, new_data,
                                      feature_names, class_names)
-            else:
+            elif hasattr(model, 'n_neighbors'):  # KNN
                 # Para otros modelos como KNN, mostrar información del modelo
                 st.markdown("### Información del modelo")
-                if hasattr(tree_model, 'n_neighbors'):  # KNN
-                    st.info(f"""
+                st.info(f"""
                     **Modelo KNN utilizado:**
-                    - **Número de vecinos (K):** {tree_model.n_neighbors}
-                    - **Tipo de peso:** {tree_model.weights}
-                    - **Métrica de distancia:** {tree_model.metric}
+                    - **Número de vecinos (K):** {model.n_neighbors}
+                    - **Tipo de peso:** {model.weights}
+                    - **Métrica de distancia:** {model.metric}
                     
-                    El modelo KNN predice basándose en las {tree_model.n_neighbors} muestras más cercanas en el espacio de características.
-                    """)
+                    El modelo KNN predice basándose en las {model.n_neighbors} muestras más cercanas en el espacio de características.
+                """)
+            elif type(model).__name__ == "LogisticRegression":
+                st.info(f"""
+                **Modelo de Regresión utilizado:**
+                - **Tipo de regresión:** Logística
+                - **Variables independientes:** {feature_names}
+                - **Variable dependiente:** {class_names}
+                """)
 
         else:  # Regresión
             st.markdown(f"""
             <div style="background-color: #E8F5E9; padding: 20px; border-radius: 10px; text-align: center; margin: 20px 0;">
                 <h3>Resultado de la predicción</h3>
-                <p style="font-size: 24px; font-weight: bold; color: #2E7D32;">Valor predicho: {prediction:.4f}</p>
+                <p style="font-size: 24px; font-weight: bold; color: #2E7D32;">Valor: {prediction:.4f}</p>
             </div>
             """, unsafe_allow_html=True)
 
             # Mostrar el camino de decisión solo para árboles de decisión
-            if hasattr(tree_model, 'tree_'):  # Solo para árboles de decisión
+            if hasattr(model, 'tree_'):  # Solo para árboles de decisión
                 st.markdown("### Camino de decisión")
 
                 # Usar la función desde model_evaluation
-                show_prediction_path(tree_model, new_data, feature_names)
-            else:
-                # Para otros modelos como KNN, mostrar información del modelo
+                show_prediction_path(model, new_data, feature_names)
+            # Para otros modelos como KNN, mostrar información del modelo
+
+            elif hasattr(model, 'n_neighbors'):  # KNN
                 st.markdown("### Información del modelo")
-                if hasattr(tree_model, 'n_neighbors'):  # KNN
-                    st.info(f"""
+                st.info(f"""
                     **Modelo KNN utilizado:**
-                    - **Número de vecinos (K):** {tree_model.n_neighbors}
-                    - **Tipo de peso:** {tree_model.weights}
-                    - **Métrica de distancia:** {tree_model.metric}
-                    
-                    El modelo KNN predice basándose en las {tree_model.n_neighbors} muestras más cercanas en el espacio de características.
-                    """)
+                    - **Número de vecinos (K):** {model.n_neighbors}
+                    - **Tipo de peso:** {model.weights}
+                    - **Métrica de distancia:** {model.metric}
 
-
-def create_button_panel(buttons) -> str:
-    # Crear columnas dinámicamente según el número de opciones
-    num_options = len(buttons)
-    viz_cols = st.columns(num_options)
-
-    if "viz_type" not in st.session_state or st.session_state.viz_type not in (v[1] for v in buttons):
-        st.session_state.viz_type = buttons[0][1]
-
-    # Crear botones dinámicamente
-    for i, (label, viz_type, key) in enumerate(buttons):
-        with viz_cols[i]:
-            if st.button(label,
-                         key=key,
-                         type="primary" if st.session_state.viz_type == viz_type else "secondary",
-                         use_container_width=True):
-                st.session_state.viz_type = viz_type
-                st.rerun()
-    return st.session_state.viz_type
+                    El modelo KNN predice basándose en las {model.n_neighbors} muestras más cercanas en el espacio de características.
+                """)
+            elif type(model).__name__ == "LinearRegression":
+                st.info(f"""
+                **Modelo de Regresión utilizado:**
+                - **Tipo de regresión:** Lineal
+                - **Variables independientes:** {feature_names}    
+                """)

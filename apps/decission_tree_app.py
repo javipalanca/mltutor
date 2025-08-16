@@ -21,10 +21,10 @@ from viz.decision_boundary import plot_decision_boundary, plot_decision_surface
 from viz.roc import plot_roc_curve
 from viz.residual import plot_predictions, plot_residuals
 from viz.features import display_feature_importance
-from ui import create_button_panel
+from ui import create_button_panel, create_prediction_interface
 
 
-def create_prediction_interface(model, feature_names, class_names, task_type, X_train=None, dataset_name='Dataset'):
+def create_prediction_interface2(model, feature_names, class_names, task_type, X_train=None, dataset_name='Dataset'):
     """
     Crea una interfaz para hacer predicciones con nuevos datos usando solo librerías de terceros.
     """
@@ -305,7 +305,7 @@ def run_decision_trees_app():
         "🌲 Visualización",
         "🔍 Características",
         "🔮 Predicciones",
-        "💾 Exportar Modelo"
+        "💾 Exportar"
     ]
 
     # Crear contenedor para los botones de las pestañas
@@ -779,7 +779,7 @@ def run_decision_trees_app():
     # Pestaña de Predicciones                 #
     ###########################################
     elif st.session_state.active_tab == 5:
-        st.header("Predicciones con Nuevos Datos")
+        st.header("🔮 Predicciones con Nuevos Datos")
 
         if not st.session_state.get('is_trained', False):
             st.warning(

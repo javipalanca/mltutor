@@ -14,7 +14,7 @@ from algorithms.model_evaluation import show_detailed_evaluation
 from viz.roc import plot_roc_curve, plot_threshold_analysis
 from viz.residual import plot_predictions, plot_residuals
 from viz.decision_boundary import plot_decision_boundary, plot_decision_surface
-from ui import create_button_panel
+from ui import create_button_panel, create_prediction_interface
 
 
 def run_linear_regression_app():
@@ -1004,7 +1004,7 @@ def run_linear_regression_app():
     # Pestaña de Predicciones                 #
     ###########################################
     elif st.session_state.active_tab_lr == 5:
-        st.header("Hacer Predicciones")
+        st.header("🔮 Predicciones con Nuevos Datos")
 
         if st.session_state.get('model_trained_lr', False):
             model = st.session_state.get('model_lr')
@@ -1015,200 +1015,16 @@ def run_linear_regression_app():
             model_type = st.session_state.get('model_type_lr', 'Linear')
             task_type = st.session_state.get('task_type_lr', 'Regresión')
 
-            # Obtener metadata del dataset para adaptar los inputs
-            from dataset_metadata import get_dataset_metadata
-            metadata = get_dataset_metadata(dataset_name)
-            feature_descriptions = metadata.get('feature_descriptions', {})
-            value_mappings = metadata.get('value_mappings', {})
-            original_to_display = metadata.get('original_to_display', {})
-            categorical_features = metadata.get('categorical_features', [])
-
-            st.markdown("### Ingresa los valores para hacer una predicción")
-
-            # Analizar características si tenemos datos de entrenamiento
-            feature_info = {}
-            if X_train is not None:
-                # Convertir a DataFrame si es necesario
-                if hasattr(X_train, 'columns'):
-                    column_names = X_train.columns
-                else:
-                    column_names = range(len(feature_names))
-
-                for i, feature_display_name in enumerate(feature_names):
-                    # Obtener el nombre original de la columna
-                    if i < len(column_names):
-                        original_col_name = column_names[i]
-                    else:
-                        original_col_name = feature_display_name
-
-                    # Encontrar el nombre original usando reverse mapping
-                    reverse_mapping = {v: k for k,
-                                       v in original_to_display.items()}
-                    if feature_display_name in reverse_mapping:
-                        original_col_name = reverse_mapping[feature_display_name]
-
-                    # Usar el índice para acceder a las columnas
-                    if hasattr(X_train, 'iloc'):
-                        feature_col = X_train.iloc[:, i]
-                    else:
-                        feature_col = X_train[:, i]
-
-                    # Determinar tipo de característica
-                    unique_values = len(set(feature_col)) if hasattr(
-                        feature_col, '__iter__') else 10
-                    unique_vals = sorted(list(set(feature_col))) if hasattr(
-                        feature_col, '__iter__') else [0, 1]
-
-                    # Verificar si es categórica según metadata
-                    is_categorical_by_metadata = original_col_name in categorical_features
-
-                    if unique_values <= 2:
-                        feature_type = 'binary'
-                    elif unique_values <= 10 and (all(isinstance(x, (int, float)) and x == int(x) for x in unique_vals) or is_categorical_by_metadata):
-                        feature_type = 'categorical'
-                    else:
-                        feature_type = 'continuous'
-
-                    # Preparar información de la característica
-                    if feature_type in ['binary', 'categorical'] and original_col_name in value_mappings:
-                        display_values = []
-                        value_to_original = {}
-                        for orig_val in unique_vals:
-                            if orig_val in value_mappings[original_col_name]:
-                                display_val = value_mappings[original_col_name][orig_val]
-                                display_values.append(display_val)
-                                value_to_original[display_val] = orig_val
-                            else:
-                                display_values.append(str(orig_val))
-                                value_to_original[str(orig_val)] = orig_val
-
-                        feature_info[i] = {
-                            'type': feature_type,
-                            'values': unique_vals,
-                            'display_values': display_values,
-                            'value_to_original': value_to_original,
-                            'original_column': original_col_name,
-                            'display_name': feature_display_name
-                        }
-                    else:
-                        feature_info[i] = {
-                            'type': feature_type,
-                            'values': unique_vals,
-                            'min': float(min(unique_vals)) if feature_type == 'continuous' else min(unique_vals),
-                            'max': float(max(unique_vals)) if feature_type == 'continuous' else max(unique_vals),
-                            'mean': float(sum(feature_col) / len(feature_col)) if feature_type == 'continuous' and hasattr(feature_col, '__iter__') else None,
-                            'original_column': original_col_name,
-                            'display_name': feature_display_name
-                        }
-            else:
-                # Valores por defecto si no hay datos de entrenamiento
-                for i, feature in enumerate(feature_names):
-                    feature_info[i] = {
-                        'type': 'continuous',
-                        'min': 0.0,
-                        'max': 10.0,
-                        'mean': 5.0,
-                        'original_column': feature,
-                        'display_name': feature
-                    }
-
-            # Crear controles adaptativos para cada característica
-            input_values = []
-            cols = st.columns(min(3, len(feature_names)))
-
-            for i, feature in enumerate(feature_names):
-                with cols[i % len(cols)]:
-                    info = feature_info.get(
-                        i, {'type': 'continuous', 'min': 0.0, 'max': 10.0, 'mean': 5.0})
-
-                    # Crear etiqueta con descripción si está disponible
-                    original_col = info.get('original_column', feature)
-                    description = feature_descriptions.get(original_col, '')
-                    if description:
-                        label = f"**{feature}**\n\n*{description}*"
-                    else:
-                        label = feature
-
-                    if info['type'] == 'binary':
-                        # Control para características binarias
-                        if 'display_values' in info and 'value_to_original' in info:
-                            selected_display = st.selectbox(
-                                label,
-                                options=info['display_values'],
-                                index=0,
-                                key=f"pred_input_{i}"
-                            )
-                            value = info['value_to_original'][selected_display]
-                        elif len(info['values']) == 2 and 0 in info['values'] and 1 in info['values']:
-                            value = st.checkbox(label, key=f"pred_input_{i}")
-                            value = 1 if value else 0
-                        else:
-                            value = st.selectbox(
-                                label,
-                                options=info['values'],
-                                index=0,
-                                key=f"pred_input_{i}"
-                            )
-                        input_values.append(value)
-
-                    elif info['type'] == 'categorical':
-                        # Control para características categóricas
-                        if 'display_values' in info and 'value_to_original' in info:
-                            selected_display = st.selectbox(
-                                label,
-                                options=info['display_values'],
-                                index=0,
-                                key=f"pred_input_{i}"
-                            )
-                            value = info['value_to_original'][selected_display]
-                        else:
-                            value = st.selectbox(
-                                label,
-                                options=info['values'],
-                                index=0,
-                                key=f"pred_input_{i}"
-                            )
-                        input_values.append(value)
-
-                    else:  # continuous
-                        # Control para características continuas
-                        if 'min' in info and 'max' in info:
-                            step = (info['max'] - info['min']) / \
-                                100 if info['max'] != info['min'] else 0.1
-                            default_val = info.get(
-                                'mean', (info['min'] + info['max']) / 2)
-                            value = st.slider(
-                                label,
-                                min_value=info['min'],
-                                max_value=info['max'],
-                                value=default_val,
-                                step=step,
-                                key=f"pred_input_{i}"
-                            )
-                        else:
-                            value = st.number_input(
-                                label,
-                                value=0.0,
-                                key=f"pred_input_{i}"
-                            )
-                        input_values.append(value)
-
-            if st.button("🔮 Predecir", key="predict_lr_button"):
-                try:
-                    if model is not None:
-                        prediction = model.predict([input_values])[0]
-
-                        # For logistic regression, convert numeric prediction to class label
-                        if task_type == 'Clasificación' and class_names is not None:
-                            prediction_label = class_names[int(prediction)]
-                            st.success(f"Predicción: {prediction_label}")
-                        else:
-                            # For regression, show numeric prediction
-                            st.success(f"Predicción: {prediction:.4f}")
-                    else:
-                        st.error("Modelo no disponible")
-                except Exception as e:
-                    st.error(f"Error en la predicción: {str(e)}")
+            create_prediction_interface(
+                model,
+                feature_names,
+                class_names,
+                task_type,
+                # Pasar datos de entrenamiento para rangos dinámicos
+                X_train,
+                # Pasar nombre del dataset para metadata
+                dataset_name
+            )
         else:
             st.info("Entrena un modelo primero para hacer predicciones.")
 
