@@ -20,51 +20,8 @@ from viz.tree_visualizer import get_tree_text
 from viz.decision_boundary import plot_decision_boundary, plot_decision_surface
 from viz.roc import plot_roc_curve
 from viz.residual import plot_predictions, plot_residuals
+from viz.features import display_feature_importance
 from ui import create_button_panel
-
-
-def display_feature_importance(model, feature_names):
-    """
-    Muestra la importancia de las características usando solo librerías de terceros.
-    """
-    # Obtener importancias del modelo
-    importances = model.feature_importances_
-
-    # Crear DataFrame para ordenar
-    feature_importance_df = pd.DataFrame({
-        'feature': feature_names,
-        'importance': importances
-    }).sort_values('importance', ascending=True)
-
-    # Crear visualización
-    fig, ax = plt.subplots(figsize=(10, 8))
-
-    # Barplot horizontal
-    bars = ax.barh(
-        feature_importance_df['feature'], feature_importance_df['importance'])
-
-    # Colorear barras
-    colors = plt.cm.viridis(np.linspace(0, 1, len(bars)))
-    for bar, color in zip(bars, colors):
-        bar.set_color(color)
-
-    ax.set_xlabel('Importancia')
-    ax.set_title('Importancia de Características')
-    ax.grid(True, alpha=0.3)
-
-    # Añadir valores en las barras
-    for i, (feature, importance) in enumerate(zip(feature_importance_df['feature'], feature_importance_df['importance'])):
-        ax.text(importance + 0.001, i, f'{importance:.3f}', va='center')
-
-    plt.tight_layout()
-    st.pyplot(fig, use_container_width=True)
-
-    # Mostrar tabla con los valores
-    st.markdown("### Valores de Importancia")
-    importance_table = feature_importance_df.sort_values(
-        'importance', ascending=False)
-    importance_table['importance'] = importance_table['importance'].round(4)
-    st.dataframe(importance_table, use_container_width=True)
 
 
 def create_prediction_interface(model, feature_names, class_names, task_type, X_train=None, dataset_name='Dataset'):
@@ -812,7 +769,10 @@ def run_decision_trees_app():
             # Mostrar importancia de características
             display_feature_importance(
                 st.session_state.tree_model,
-                st.session_state.feature_names
+                st.session_state.feature_names,
+                X_test=st.session_state.get('X_test', None),
+                y_test=st.session_state.get('y_test', None),
+                task_type=st.session_state.get('tree_type', 'Clasificación')
             )
 
     ###########################################

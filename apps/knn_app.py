@@ -19,6 +19,7 @@ from utils import create_info_box, get_image_download_link, show_code_with_downl
 from viz.roc import plot_roc_curve, plot_threshold_analysis
 from viz.decision_boundary import plot_decision_surface, plot_decision_boundary
 from viz.residual import plot_predictions, plot_residuals
+from viz.features import display_feature_importance
 
 
 def run_knn_app():
@@ -52,6 +53,7 @@ def run_knn_app():
         "🏋️ Entrenamiento",
         "📈 Evaluación",
         "📉 Visualización",
+        "🔍 Características",
         "🔮 Predicciones"
     ]
 
@@ -494,9 +496,26 @@ def run_knn_app():
             st.info("Primero entrena un modelo KNN.")
 
     ###########################################
-    # Pestaña de Predicciones                 #
+    # Pestaña de Características              #
     ###########################################
     elif tab == 4:
+        st.header("🔍 Importancia de Características")
+        if st.session_state.knn_trained and st.session_state.knn_model is not None:
+            # Mostrar importancia de características usando permutation importance
+            display_feature_importance(
+                st.session_state.knn_model,
+                st.session_state.knn_feature_names,
+                X_test=st.session_state.get('knn_Xtest', None),
+                y_test=st.session_state.get('knn_ytest', None),
+                task_type=st.session_state.get('knn_task_type', 'Clasificación')
+            )
+        else:
+            st.info("Primero entrena un modelo KNN para ver la importancia de características.")
+
+    ###########################################
+    # Pestaña de Predicciones                 #
+    ###########################################
+    elif tab == 5:
         st.header("🔮 Predicciones con KNN")
         if st.session_state.knn_trained and st.session_state.knn_model is not None:
             create_prediction_interface(
