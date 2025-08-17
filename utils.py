@@ -8,7 +8,7 @@ import io
 import pickle
 import matplotlib.pyplot as plt
 import numpy as np
-
+import streamlit as st
 # Función para generar enlace de descarga de imagen
 
 
@@ -81,7 +81,6 @@ def show_code_with_download(code, title="Código", filename="codigo.py"):
     --------
     None
     """
-    import streamlit as st
 
     st.markdown(f"#### {title}")
 

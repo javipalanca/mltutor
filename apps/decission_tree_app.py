@@ -12,10 +12,21 @@ from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor, plot_tre
 
 from dataset.dataset_manager import load_data, preprocess_data
 from algorithms.model_training import train_decision_tree
-from algorithms.model_evaluation import evaluate_classification_model, evaluate_regression_model, show_detailed_evaluation
+from algorithms.model_evaluation import (
+    evaluate_classification_model,
+    evaluate_regression_model,
+    show_detailed_evaluation,
+)
 from utils import create_info_box, get_image_download_link, show_code_with_download
 from dataset.dataset_tab import run_dataset_tab, run_select_dataset
-from algorithms.code_examples import DECISION_BOUNDARY_CODE, VIZ_TREE_CODE, TEXT_TREE_CODE, generate_decision_boundary_code
+from algorithms.code_examples import (
+    DECISION_BOUNDARY_CODE,
+    VIZ_TREE_CODE,
+    TEXT_TREE_CODE,
+    generate_decision_boundary_code,
+    generate_tree_model_export_code,
+)
+from algorithms.export import display_tree_export_options
 from viz.tree_visualizer import get_tree_text
 from viz.decision_boundary import plot_decision_boundary, plot_decision_surface
 from viz.roc import plot_roc_curve
@@ -24,245 +35,6 @@ from viz.features import display_feature_importance
 from ui import create_button_panel, create_prediction_interface
 
 
-def create_prediction_interface2(model, feature_names, class_names, task_type, X_train=None, dataset_name='Dataset'):
-    """
-    Crea una interfaz para hacer predicciones con nuevos datos usando solo librerías de terceros.
-    """
-    st.markdown("### Hacer Predicción")
-
-    # Crear inputs para cada característica
-    inputs = {}
-
-    # Usar rangos dinámicos si se proporcionan datos de entrenamiento
-    if X_train is not None:
-        if hasattr(X_train, 'iloc'):
-            # DataFrame
-            mins = X_train.min()
-            maxs = X_train.max()
-            means = X_train.mean()
-        else:
-            # NumPy array
-            mins = np.min(X_train, axis=0)
-            maxs = np.max(X_train, axis=0)
-            means = np.mean(X_train, axis=0)
-    else:
-        mins = [0.0] * len(feature_names)
-        maxs = [100.0] * len(feature_names)
-        means = [50.0] * len(feature_names)
-
-    # Crear sliders o inputs numéricos
-    cols = st.columns(2)
-    for i, feature in enumerate(feature_names):
-        with cols[i % 2]:
-            if X_train is not None:
-                min_val = float(mins[i] if hasattr(
-                    mins, '__getitem__') else mins.iloc[i])
-                max_val = float(maxs[i] if hasattr(
-                    maxs, '__getitem__') else maxs.iloc[i])
-                mean_val = float(means[i] if hasattr(
-                    means, '__getitem__') else means.iloc[i])
-
-                inputs[feature] = st.slider(
-                    f"{feature}:",
-                    min_value=min_val,
-                    max_value=max_val,
-                    value=mean_val,
-                    step=(max_val - min_val) / 100
-                )
-            else:
-                inputs[feature] = st.number_input(f"{feature}:", value=0.0)
-
-    # Botón para hacer predicción
-    if st.button("Hacer Predicción", type="primary"):
-        # Preparar datos de entrada
-        input_values = [inputs[feature] for feature in feature_names]
-        input_array = np.array(input_values).reshape(1, -1)
-
-        try:
-            # Hacer predicción
-            prediction = model.predict(input_array)[0]
-
-            if task_type == "Clasificación":
-                # Obtener probabilidades si están disponibles
-                if hasattr(model, 'predict_proba'):
-                    probabilities = model.predict_proba(input_array)[0]
-
-                st.success(
-                    f"**Predicción:** {class_names[prediction] if class_names else f'Clase {prediction}'}")
-
-                if hasattr(model, 'predict_proba'):
-                    st.markdown("### Probabilidades por Clase")
-                    prob_df = pd.DataFrame({
-                        'Clase': class_names if class_names else [f'Clase {i}' for i in range(len(probabilities))],
-                        'Probabilidad': probabilities
-                    })
-                    prob_df['Probabilidad (%)'] = (
-                        prob_df['Probabilidad'] * 100).round(2)
-                    st.dataframe(prob_df, use_container_width=True)
-
-                    # Gráfico de barras de probabilidades
-                    fig, ax = plt.subplots(figsize=(8, 4))
-                    bars = ax.bar(prob_df['Clase'], prob_df['Probabilidad'])
-                    ax.set_ylabel('Probabilidad')
-                    ax.set_title('Probabilidades de Predicción')
-                    ax.set_ylim(0, 1)
-
-                    # Colorear la barra de la predicción
-                    bars[prediction].set_color('red')
-                    for i, bar in enumerate(bars):
-                        if i != prediction:
-                            bar.set_color('lightblue')
-
-                    plt.xticks(rotation=45)
-                    plt.tight_layout()
-                    st.pyplot(fig, use_container_width=True)
-            else:
-                st.success(f"**Predicción:** {prediction:.4f}")
-
-        except Exception as e:
-            st.error(f"Error al hacer la predicción: {str(e)}")
-
-
-def display_model_export_options(model, feature_names, class_names, task_type, max_depth, min_samples_split, criterion):
-    """
-    Muestra opciones para exportar el modelo usando solo librerías de terceros.
-    """
-    st.markdown("### Opciones de Exportación")
-
-    # Información del modelo
-    st.markdown("#### Información del Modelo")
-    model_info = {
-        "Tipo de Tarea": task_type,
-        "Criterio": criterion,
-        "Profundidad Máxima": max_depth,
-        "Muestras Mínimas para División": min_samples_split,
-        "Número de Características": len(feature_names),
-        "Número de Hojas": model.get_n_leaves(),
-        "Profundidad del Árbol": model.get_depth()
-    }
-
-    info_df = pd.DataFrame(list(model_info.items()),
-                           columns=['Parámetro', 'Valor'])
-    st.dataframe(info_df, use_container_width=True)
-
-    # Opciones de exportación
-    st.markdown("#### Formatos de Exportación")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        # Exportar como pickle
-        if st.button("📦 Exportar como Pickle", use_container_width=True):
-            # Crear objeto para serializar
-            model_data = {
-                'model': model,
-                'feature_names': feature_names,
-                'class_names': class_names,
-                'task_type': task_type,
-                'model_info': model_info
-            }
-
-            # Serializar
-            buffer = io.BytesIO()
-            pickle.dump(model_data, buffer)
-            buffer.seek(0)
-
-            st.download_button(
-                label="Descargar Modelo (.pkl)",
-                data=buffer.getvalue(),
-                file_name=f"decision_tree_model.pkl",
-                mime="application/octet-stream"
-            )
-
-    with col2:
-        # Exportar reglas como texto
-        if st.button("📝 Exportar Reglas como Texto", use_container_width=True):
-            tree_rules = export_text(
-                model,
-                feature_names=feature_names
-            )
-
-            st.download_button(
-                label="Descargar Reglas (.txt)",
-                data=tree_rules,
-                file_name="decision_tree_rules.txt",
-                mime="text/plain"
-            )
-
-    # Código Python para usar el modelo
-    st.markdown("#### Código Python para Usar el Modelo")
-
-    python_code = f"""
-# Código para usar el modelo de árbol de decisión
-import pickle
-import numpy as np
-
-# Cargar el modelo
-with open('decision_tree_model.pkl', 'rb') as f:
-    model_data = pickle.load(f)
-
-model = model_data['model']
-feature_names = model_data['feature_names']
-class_names = model_data['class_names']
-task_type = model_data['task_type']
-
-# Función para hacer predicciones
-def predecir(valores_caracteristicas):
-    \"\"\"
-    Hace una predicción con el modelo de árbol de decisión.
-    
-    Args:
-        valores_caracteristicas (list): Lista con valores para cada característica
-                                      en el orden: {feature_names}
-    
-    Returns:
-        Predicción del modelo
-    \"\"\"
-    # Convertir a array numpy
-    X = np.array(valores_caracteristicas).reshape(1, -1)
-    
-    # Hacer predicción
-    prediction = model.predict(X)[0]
-    
-    if task_type == "Clasificación":
-        if class_names:
-            return class_names[prediction]
-        else:
-            return f"Clase {{prediction}}"
-    else:
-        return prediction
-
-# Ejemplo de uso:
-# resultado = predecir([valor1, valor2, valor3, ...])
-# print(f"Predicción: {{resultado}}")
-
-# Para obtener probabilidades (solo clasificación):
-if task_type == "Clasificación" and hasattr(model, 'predict_proba'):
-    def predecir_con_probabilidades(valores_caracteristicas):
-        X = np.array(valores_caracteristicas).reshape(1, -1)
-        prediction = model.predict(X)[0]
-        probabilities = model.predict_proba(X)[0]
-        
-        resultado = {{
-            'prediccion': class_names[prediction] if class_names else f"Clase {{prediction}}",
-            'probabilidades': {{
-                (class_names[i] if class_names else f"Clase {{i}}"): prob 
-                for i, prob in enumerate(probabilities)
-            }}
-        }}
-        
-        return resultado
-"""
-
-    st.code(python_code, language='python')
-
-    # Botón para descargar el código
-    st.download_button(
-        label="📥 Descargar Código Python",
-        data=python_code,
-        file_name="usar_modelo.py",
-        mime="text/plain"
-    )
 
 
 def run_decision_trees_app():
@@ -302,7 +74,7 @@ def run_decision_trees_app():
         "📊 Datos",
         "🏋️ Entrenamiento",
         "📈 Evaluación",
-        "🌲 Visualización",
+        "📉 Visualización",
         "🔍 Características",
         "🔮 Predicciones",
         "💾 Exportar"

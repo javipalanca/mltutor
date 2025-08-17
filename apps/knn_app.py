@@ -13,6 +13,7 @@ from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from dataset.dataset_manager import create_dataset_selector, load_data, preprocess_data
 from algorithms.model_training import train_knn_model
 from algorithms.model_evaluation import evaluate_classification_model, evaluate_regression_model, show_detailed_evaluation
+from algorithms.export import display_model_export_options
 from ui import create_prediction_interface, create_button_panel
 from dataset.dataset_tab import run_dataset_tab
 from utils import create_info_box, get_image_download_link, show_code_with_download
@@ -54,7 +55,8 @@ def run_knn_app():
         "📈 Evaluación",
         "📉 Visualización",
         "🔍 Características",
-        "🔮 Predicciones"
+        "🔮 Predicciones",
+        "💾 Exportar"
     ]
 
     tab_cols = st.columns(len(tab_options))
@@ -529,6 +531,15 @@ def run_knn_app():
         else:
             st.info("Primero entrena un modelo KNN.")
 
+    ###########################################
+    # Pestaña de Exportar.                    #
+    ###########################################
+    elif tab == 6:
+        st.header("💾 Exportar Modelo")
+        if st.session_state.knn_trained and st.session_state.knn_model is not None:
+            display_model_export_options(st.session_state.knn_model)
+        else:
+            st.info("Primero entrena un modelo KNN.")
 
 def create_interactive_knn_visualization(X_2d, y, model, feature1, feature2, class_names, show_confidence, animate_distances):
     """

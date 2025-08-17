@@ -407,229 +407,10 @@ def mostrar_camino_decision(tree_model, X_nuevo, feature_names, class_names=None
 """
 
 
-def generate_linear_regression_code(feature_names):
-    """Generate complete Python code for linear regression."""
-    feature_names_str = str(feature_names)
+def generate_regression_code():
+    """Generate complete Python code for logistic and linear regression."""
 
-    code = f"""# Código completo para Regresión Lineal
-import numpy as np
-import pandas as pd
-from sklearn.linear_model import LinearRegression
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
-import matplotlib.pyplot as plt
-
-# 1. CARGAR Y PREPARAR LOS DATOS
-# Reemplaza esta sección con tu método de carga de datos
-# df = pd.read_csv('tu_archivo.csv')  # Cargar desde CSV
-# O usa datos de ejemplo:
-
-# Datos de ejemplo (reemplaza con tus datos reales)
-# X = df[{feature_names_str}]  # Características
-# y = df['variable_objetivo']  # Variable objetivo
-
-# 2. DIVIDIR LOS DATOS
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.3, random_state=42
-)
-
-# 3. CREAR Y ENTRENAR EL MODELO
-model = LinearRegression()
-model.fit(X_train, y_train)
-
-# 4. HACER PREDICCIONES
-y_pred_train = model.predict(X_train)
-y_pred_test = model.predict(X_test)
-
-# 5. EVALUAR EL MODELO
-r2_train = r2_score(y_train, y_pred_train)
-r2_test = r2_score(y_test, y_pred_test)
-mae_test = mean_absolute_error(y_test, y_pred_test)
-rmse_test = np.sqrt(mean_squared_error(y_test, y_pred_test))
-
-print("=== RESULTADOS DEL MODELO ===")
-print(f"R² Score (Entrenamiento): {{r2_train:.4f}}")
-print(f"R² Score (Prueba): {{r2_test:.4f}}")
-print(f"MAE (Error Absoluto Medio): {{mae_test:.4f}}")
-print(f"RMSE (Raíz Error Cuadrático Medio): {{rmse_test:.4f}}")
-
-# 6. MOSTRAR COEFICIENTES
-print("\\n=== COEFICIENTES DEL MODELO ===")
-feature_names = {feature_names_str}
-for i, coef in enumerate(model.coef_):
-    print(f"{{feature_names[i]}}: {{coef:.4f}}")
-print(f"Intercepto: {{model.intercept_:.4f}}")
-
-# 7. VISUALIZAR RESULTADOS
-plt.figure(figsize=(12, 5))
-
-# Gráfico 1: Predicciones vs Valores Reales
-plt.subplot(1, 2, 1)
-plt.scatter(y_test, y_pred_test, alpha=0.6)
-plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--', lw=2)
-plt.xlabel('Valores Reales')
-plt.ylabel('Predicciones')
-plt.title('Predicciones vs Valores Reales')
-plt.grid(True, alpha=0.3)
-
-# Gráfico 2: Residuos
-plt.subplot(1, 2, 2)
-residuals = y_test - y_pred_test
-plt.scatter(y_pred_test, residuals, alpha=0.6)
-plt.axhline(y=0, color='r', linestyle='--')
-plt.xlabel('Predicciones')
-plt.ylabel('Residuos')
-plt.title('Análisis de Residuos')
-plt.grid(True, alpha=0.3)
-
-plt.tight_layout()
-plt.show()
-
-# 8. FUNCIÓN PARA NUEVAS PREDICCIONES
-def predecir_nuevo_valor(nuevo_ejemplo):
-    \"\"\"
-    Función para hacer predicciones con nuevos datos.
-    
-    Parámetros:
-    nuevo_ejemplo: lista con valores para cada característica
-                  en el orden: {feature_names_str}
-    \"\"\"
-    nuevo_ejemplo = np.array(nuevo_ejemplo).reshape(1, -1)
-    prediccion = model.predict(nuevo_ejemplo)[0]
-    return prediccion
-
-# Ejemplo de uso para nuevas predicciones:
-# nuevo_ejemplo = [valor1, valor2, valor3, ...]  # Reemplaza con tus valores
-# resultado = predecir_nuevo_valor(nuevo_ejemplo)
-# print(f"Predicción para nuevo ejemplo: {{resultado:.4f}}")
-
-# 9. GUARDAR EL MODELO (OPCIONAL)
-import pickle
-
-# Guardar modelo
-with open('modelo_regresion_lineal.pkl', 'wb') as f:
-    pickle.dump(model, f)
-
-# Cargar modelo guardado
-# with open('modelo_regresion_lineal.pkl', 'rb') as f:
-#     modelo_cargado = pickle.load(f)
-"""
-    return code
-
-
-def generate_logistic_regression_code(feature_names, class_names):
-    """Generate complete Python code for logistic regression."""
-    feature_names_str = str(feature_names)
-    class_names_str = str(class_names)
-
-    code = f"""# Código completo para Regresión Logística
-import numpy as np
-import pandas as pd
-from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-# 1. CARGAR Y PREPARAR LOS DATOS
-# Reemplaza esta sección con tu método de carga de datos
-# df = pd.read_csv('tu_archivo.csv')  # Cargar desde CSV
-# O usa datos de ejemplo:
-
-# Datos de ejemplo (reemplaza con tus datos reales)
-# X = df[{feature_names_str}]  # Características
-# y = df['variable_objetivo']  # Variable objetivo (0, 1, 2, ...)
-
-# 2. DIVIDIR LOS DATOS
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.3, random_state=42, stratify=y
-)
-
-# 3. CREAR Y ENTRENAR EL MODELO
-model = LogisticRegression(max_iter=1000, random_state=42)
-model.fit(X_train, y_train)
-
-# 4. HACER PREDICCIONES
-y_pred_train = model.predict(X_train)
-y_pred_test = model.predict(X_test)
-y_pred_proba = model.predict_proba(X_test)
-
-# 5. EVALUAR EL MODELO
-accuracy_train = accuracy_score(y_train, y_pred_train)
-accuracy_test = accuracy_score(y_test, y_pred_test)
-
-print("=== RESULTADOS DEL MODELO ===")
-print(f"Accuracy (Entrenamiento): {{accuracy_train:.4f}}")
-print(f"Accuracy (Prueba): {{accuracy_test:.4f}}")
-
-# Reporte detallado de clasificación
-class_names = {class_names_str}
-print("\\n=== REPORTE DE CLASIFICACIÓN ===")
-print(classification_report(y_test, y_pred_test, target_names=class_names))
-
-# 6. MATRIZ DE CONFUSIÓN
-plt.figure(figsize=(12, 5))
-
-# Gráfico 1: Matriz de Confusión
-plt.subplot(1, 2, 1)
-cm = confusion_matrix(y_test, y_pred_test)
-sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
-            xticklabels=class_names, yticklabels=class_names)
-plt.title('Matriz de Confusión')
-plt.xlabel('Predicciones')
-plt.ylabel('Valores Reales')
-
-# Gráfico 2: Importancia de características (coeficientes)
-plt.subplot(1, 2, 2)
-feature_names = {feature_names_str}
-coef = model.coef_.flatten() if len(model.coef_.shape) > 1 else model.coef_
-colors = ['red' if x < 0 else 'blue' for x in coef]
-plt.barh(range(len(coef)), coef, color=colors, alpha=0.7)
-plt.yticks(range(len(coef)), feature_names)
-plt.xlabel('Coeficientes')
-plt.title('Importancia de Características')
-plt.axvline(x=0, color='black', linestyle='-', alpha=0.8)
-plt.grid(True, alpha=0.3, axis='x')
-
-plt.tight_layout()
-plt.show()
-
-# 7. MOSTRAR COEFICIENTES DETALLADOS
-print("\\n=== COEFICIENTES DEL MODELO ===")
-for i, coef in enumerate(coef):
-    effect = "aumenta" if coef > 0 else "disminuye"
-    print(f"{{feature_names[i]}}: {{coef:.4f}} ({{effect}} la probabilidad)")
-print(f"Intercepto: {{model.intercept_[0]:.4f}}")
-
-# 8. FUNCIÓN PARA NUEVAS PREDICCIONES
-def predecir_nueva_muestra(nuevo_ejemplo):
-    \"\"\"
-    Función para hacer predicciones con nuevos datos.
-    
-    Parámetros:
-    nuevo_ejemplo: lista con valores para cada característica
-                  en el orden: {feature_names_str}
-    
-    Retorna:
-    prediccion: clase predicha
-    probabilidades: probabilidades para cada clase
-    \"\"\"
-    nuevo_ejemplo = np.array(nuevo_ejemplo).reshape(1, -1)
-    prediccion = model.predict(nuevo_ejemplo)[0]
-    probabilidades = model.predict_proba(nuevo_ejemplo)[0]
-    
-    clase_predicha = class_names[prediccion]
-    return clase_predicha, probabilidades
-
-# Ejemplo de uso para nuevas predicciones:
-# nuevo_ejemplo = [valor1, valor2, valor3, ...]  # Reemplaza con tus valores
-# clase, probas = predecir_nueva_muestra(nuevo_ejemplo)
-# print(f"Clase predicha: {{clase}}")
-# print("Probabilidades por clase:")
-# for i, prob in enumerate(probas):
-#     print(f"  {{class_names[i]}}: {{prob:.4f}} ({{prob*100:.1f}}%)")
-
-# 9. GUARDAR EL MODELO (OPCIONAL)
+    code = f"""
 import pickle
 
 # Guardar modelo
@@ -637,31 +418,13 @@ with open('modelo_regresion_logistica.pkl', 'wb') as f:
     pickle.dump(model, f)
 
 # Cargar modelo guardado
-# with open('modelo_regresion_logistica.pkl', 'rb') as f:
-#     modelo_cargado = pickle.load(f)
+with open('modelo_regresion_logistica.pkl', 'rb') as f:
+    modelo_cargado = pickle.load(f)
 
-# 10. FUNCIÓN PARA INTERPRETAR PROBABILIDADES
-def interpretar_prediccion(nuevo_ejemplo, umbral_confianza=0.8):
-    \"\"\"
-    Interpreta una predicción mostrando la confianza del modelo.
-    \"\"\"
-    clase, probabilidades = predecir_nueva_muestra(nuevo_ejemplo)
-    max_prob = max(probabilidades)
-    
-    print(f"Predicción: {{clase}}")
-    print(f"Confianza: {{max_prob:.4f}} ({{max_prob*100:.1f}}%)")
-    
-    if max_prob >= umbral_confianza:
-        print("✅ Alta confianza en la predicción")
-    elif max_prob >= 0.6:
-        print("⚠️ Confianza moderada en la predicción")
-    else:
-        print("❌ Baja confianza en la predicción")
-    
-    return clase, max_prob
-
-# Ejemplo de interpretación:
-# interpretar_prediccion([valor1, valor2, valor3, ...])
+# Ejemplo de uso para nuevas predicciones:
+nuevo_ejemplo = [valor1, valor2, valor3, ...]  # Reemplaza con tus valores
+nuevo_ejemplo = np.array(nuevo_ejemplo).reshape(1, -1)
+prediccion = modelo_cargado.predict(nuevo_ejemplo)
 """
     return code
 
@@ -1577,4 +1340,68 @@ plt.show()
 
 # Para guardar a un archivo:
 # plt.savefig('frontera_decision.png', dpi=300, bbox_inches='tight')
+"""
+
+
+def generate_tree_model_export_code(feature_names):
+    return f"""
+# Código para usar el modelo de árbol de decisión
+import pickle
+import numpy as np
+
+# Cargar el modelo
+with open('decision_tree_model.pkl', 'rb') as f:
+    model_data = pickle.load(f)
+
+model = model_data['model']
+feature_names = model_data['feature_names']
+class_names = model_data['class_names']
+task_type = model_data['task_type']
+
+# Función para hacer predicciones
+def predecir(valores_caracteristicas):
+    \"\"\"
+    Hace una predicción con el modelo de árbol de decisión.
+    
+    Args:
+        valores_caracteristicas (list): Lista con valores para cada característica
+                                      en el orden: {feature_names}
+    
+    Returns:
+        Predicción del modelo
+    \"\"\"
+    # Convertir a array numpy
+    X = np.array(valores_caracteristicas).reshape(1, -1)
+    
+    # Hacer predicción
+    prediction = model.predict(X)[0]
+    
+    if task_type == "Clasificación":
+        if class_names:
+            return class_names[prediction]
+        else:
+            return f"Clase {{prediction}}"
+    else:
+        return prediction
+
+# Ejemplo de uso:
+# resultado = predecir([valor1, valor2, valor3, ...])
+# print(f"Predicción: {{resultado}}")
+
+# Para obtener probabilidades (solo clasificación):
+if task_type == "Clasificación" and hasattr(model, 'predict_proba'):
+    def predecir_con_probabilidades(valores_caracteristicas):
+        X = np.array(valores_caracteristicas).reshape(1, -1)
+        prediction = model.predict(X)[0]
+        probabilities = model.predict_proba(X)[0]
+        
+        resultado = {{
+            'prediccion': class_names[prediction] if class_names else f"Clase {{prediction}}",
+            'probabilidades': {{
+                (class_names[i] if class_names else f"Clase {{i}}"): prob 
+                for i, prob in enumerate(probabilities)
+            }}
+        }}
+        
+        return resultado
 """

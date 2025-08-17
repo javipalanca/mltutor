@@ -11,6 +11,7 @@ from dataset.dataset_tab import run_dataset_tab
 from utils import create_info_box, get_image_download_link, show_code_with_download
 from algorithms.model_training import train_linear_model
 from algorithms.model_evaluation import show_detailed_evaluation
+from algorithms.export import display_model_export_options
 from viz.roc import plot_roc_curve, plot_threshold_analysis
 from viz.residual import plot_predictions, plot_residuals
 from viz.decision_boundary import plot_decision_boundary, plot_decision_surface
@@ -62,7 +63,7 @@ def run_linear_regression_app():
         "📉 Visualización",
         "🔍 Coeficientes",
         "🔮 Predicciones",
-        "💾 Exportar Modelo"
+        "💾 Exportar"
     ]
 
     # Crear contenedor para los botones de las pestañas
@@ -1036,42 +1037,7 @@ def run_linear_regression_app():
 
         if st.session_state.get('model_trained_lr', False):
             model = st.session_state.get('model_lr')
+            display_model_export_options(model)
 
-            col1, col2 = st.columns(2)
-
-            with col2:
-                if st.button("📥 Descargar Modelo (Pickle)", key="download_pickle_lr"):
-                    pickle_data = export_model_pickle(model)
-                    st.download_button(
-                        label="Descargar modelo.pkl",
-                        data=pickle_data,
-                        file_name="linear_regression_model.pkl",
-                        mime="application/octet-stream"
-                    )
-
-            with col1:
-                if st.button("📄 Generar Código", key="generate_code_lr"):
-                    # Generate complete code for linear models
-                    model_type = st.session_state.get(
-                        'model_type_lr', 'Linear')
-                    feature_names = st.session_state.get(
-                        'feature_names_lr', [])
-                    class_names = st.session_state.get('class_names_lr', [])
-
-                    if model_type == "Logistic":
-                        code = generate_logistic_regression_code(
-                            feature_names, class_names)
-                    else:
-                        code = generate_linear_regression_code(feature_names)
-
-                    st.code(code, language="python")
-
-                    # Download button for the code
-                    st.download_button(
-                        label="📥 Descargar código",
-                        data=code,
-                        file_name=f"{'logistic' if model_type == 'Logistic' else 'linear'}_regression_code.py",
-                        mime="text/plain"
-                    )
         else:
             st.info("Entrena un modelo primero para exportarlo.")
