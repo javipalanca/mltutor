@@ -875,14 +875,24 @@ def create_prediction_interface(model, feature_names, class_names, task_type, X_
             df_train = X_train
             column_names = df_train.columns
 
+        n_cols = df_train.shape[1]
         for i, feature_display_name in enumerate(feature_names):
-            # Obtener el nombre original de la columna
-            if i < len(column_names):
-                original_col_name = column_names[i]
-            else:
-                original_col_name = feature_display_name
+            # Si el índice excede las columnas disponibles (mismatch), crear info sintética
+            if i >= n_cols:
+                feature_info[feature_display_name] = {
+                    'type': 'continuous',
+                    'values': [0.0, 1.0],
+                    'min': 0.0,
+                    'max': 1.0,
+                    'mean': 0.5,
+                    'original_column': feature_display_name
+                }
+                continue
 
-            # Siempre usar el índice para acceder a las columnas para evitar problemas con nombres traducidos
+            # Obtener el nombre original de la columna
+            original_col_name = column_names[i]
+
+            # Acceso seguro a la columna por posición
             feature_col = df_train.iloc[:, i]
 
             # Determinar tipo de característica

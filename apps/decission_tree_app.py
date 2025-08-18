@@ -26,15 +26,13 @@ from algorithms.code_examples import (
     generate_decision_boundary_code,
     generate_tree_model_export_code,
 )
-from algorithms.export import display_tree_export_options
+from algorithms.export import display_tree_export_options, display_model_export_options
 from viz.tree_visualizer import get_tree_text
 from viz.decision_boundary import plot_decision_boundary, plot_decision_surface
 from viz.roc import plot_roc_curve
 from viz.residual import plot_predictions, plot_residuals
 from viz.features import display_feature_importance
 from ui import create_button_panel, create_prediction_interface
-
-
 
 
 def run_decision_trees_app():
@@ -580,7 +578,7 @@ def run_decision_trees_app():
                 "Primero debes entrenar un modelo en la pestaña '🏋️ Entrenamiento'.")
         else:
             # Opciones para exportar el modelo
-            display_model_export_options(
+            display_tree_export_options(
                 st.session_state.tree_model,
                 st.session_state.feature_names,
                 st.session_state.class_names,
