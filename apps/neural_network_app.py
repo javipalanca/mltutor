@@ -16,6 +16,7 @@ from viz.nn import (
     show_neural_network_evaluation,
     create_neural_network_visualization,
     calculate_network_parameters,
+    show_neural_network_visualizations
 )
 from apps.navbar import navbar
 

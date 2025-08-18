@@ -1,6 +1,24 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
+import tensorflow as tf
+import numpy as np
+
+
+def safe_get_output_size(config):
+    """
+    Extrae el tamaño de salida de forma segura para evitar errores de comparación de arrays.
+    """
+    try:
+        output_size = config['output_size']
+        # Si es un array o lista, tomar el primer elemento
+        if hasattr(output_size, '__len__') and not isinstance(output_size, (str, bytes)):
+            return int(output_size[0]) if len(output_size) > 0 else 1
+        # Si es un escalar
+        return int(output_size)
+    except:
+        return 1
+
 
 def evaluate_nn(model, X_test, y_test, task_type):
     # Mostrar métricas básicas con explicaciones
@@ -702,1103 +720,480 @@ def show_neural_network_evaluation():
             "Asegúrate de que TensorFlow esté instalado y el modelo esté entrenado correctamente.")
 
 
+def initialize_model_safely():
+    """Inicializa el modelo de forma robusta y completa."""
+    try:
+        model = st.session_state.nn_model
+        config = st.session_state.nn_config
+        X_test, _ = st.session_state.nn_test_data
+        sample_data = X_test[:1].astype(np.float32)
+
+        # Método 1: Hacer una predicción simple para inicializar
+        _ = model.predict(sample_data, verbose=0)
+
+        # Método 2: Verificar y forzar construcción del modelo
+        if not hasattr(model, 'input') or model.input is None:
+            model.build(input_shape=(None, X_test.shape[1]))
+
+        # Método 3: Llamar al modelo directamente (TensorFlow 2.x)
+        if hasattr(model, 'call') and not hasattr(model, 'input'):
+            _ = model(sample_data)
+
+        # Método 4: Compilar si no está compilado
+        if not hasattr(model, 'optimizer') or model.optimizer is None:
+            config = st.session_state.nn_config
+            model.compile(
+                optimizer=config.get('optimizer', 'adam'),
+            )
+
+        # Verificación final
+        if hasattr(model, 'input') and model.input is not None:
+            return True, "✅ Modelo inicializado correctamente"
+        else:
+            return False, "❌ Error de inicialización: No se pudo acceder a model.input"
+
+    except Exception as e:
+        return False, f"❌ Error de inicialización: {str(e)}"
+
+
+def show_training_history_tab():
+    """Muestra el historial de entrenamiento."""
+    st.subheader("📊 Historial de Entrenamiento")
+
+    with st.expander("💡 Interpretación"):
+        st.markdown("""
+        **Pérdida bajando:** ✅ Aprendiendo | **Estable:** 🎯 Convergido
+        **Gap train/val grande:** 🚨 Sobreajuste
+        """)
+
+    history = st.session_state.nn_history
+    config = st.session_state.nn_config
+
+    plot_training_history(history, config['task_type'])
+
+    # Estadísticas del entrenamiento
+    col1, col2, col3 = st.columns(3)
+    final_loss = history.history['loss'][-1]
+    initial_loss = history.history['loss'][0]
+    improvement = ((initial_loss - final_loss) / initial_loss) * 100
+
+    with col1:
+        st.metric("🔴 Pérdida Final",
+                  f"{final_loss:.6f}", f"-{improvement:.1f}%")
+    with col2:
+        if 'val_loss' in history.history:
+            final_val_loss = history.history['val_loss'][-1]
+            gap = final_val_loss - final_loss
+            st.metric("🟡 Pérdida Validación",
+                      f"{final_val_loss:.6f}", f"Gap: {gap:.6f}")
+    with col3:
+        epochs = len(history.history['loss'])
+        st.metric("⏱️ Épocas", epochs)
+
+
+def show_weights_analysis_tab():
+    """Muestra el análisis de pesos y sesgos."""
+    import plotly.graph_objects as go
+    import numpy as np
+
+    st.subheader("🧠 Análisis de Pesos")
+
+    with st.expander("💡 Interpretación"):
+        st.markdown("""
+        **Pesos altos:** Conexiones importantes | **Cercanos a 0:** Conexiones débiles
+        **Distribución normal:** ✅ Red saludable
+        """)
+
+    model = st.session_state.nn_model
+
+    # Extraer pesos de forma robusta
+    try:
+        layer_weights, layer_biases = [], []
+        for i, layer in enumerate(model.layers):
+            if hasattr(layer, 'get_weights'):
+                weights = layer.get_weights()
+                if len(weights) >= 2:
+                    layer_weights.append(weights[0])
+                    layer_biases.append(weights[1])
+                    st.caption(
+                        f"✅ Capa {i+1}: {weights[0].shape} pesos, {weights[1].shape} sesgos")
+
+        if layer_weights:
+            for i, (weights, biases) in enumerate(zip(layer_weights, layer_biases)):
+                st.markdown(f"#### 📊 Capa {i+1}")
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    fig_w = go.Figure()
+                    fig_w.add_trace(go.Histogram(
+                        x=weights.flatten(), nbinsx=50, name='Pesos'))
+                    fig_w.update_layout(
+                        title=f'Pesos Capa {i+1}', height=300)
+                    st.plotly_chart(fig_w, use_container_width=True)
+
+                with col2:
+                    fig_b = go.Figure()
+                    fig_b.add_trace(go.Histogram(
+                        x=biases.flatten(), nbinsx=20, name='Sesgos'))
+                    fig_b.update_layout(
+                        title=f'Sesgos Capa {i+1}', height=300)
+                    st.plotly_chart(fig_b, use_container_width=True)
+
+            # Salud general
+            all_weights = np.concatenate(
+                [w.flatten() for w in layer_weights])
+            weight_std = np.std(all_weights)
+
+            if weight_std < 0.01:
+                st.error("🚨 Pesos muy pequeños - red no aprendió bien")
+            elif weight_std > 2:
+                st.warning(
+                    "⚠️ Pesos muy grandes - posible inestabilidad")
+            else:
+                st.success("✅ Distribución de pesos saludable")
+        else:
+            st.warning(
+                "⚠️ No se encontraron capas con pesos entrenables")
+
+    except Exception as weights_error:
+        st.error(f"❌ Error analizando pesos: {weights_error}")
+
+
+def show_decision_surface_tab():
+    """Muestra la superficie de decisión."""
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    st.subheader("🎯 Superficie de Decisión")
+
+    model = st.session_state.nn_model
+    config = st.session_state.nn_config
+
+    if config.get('task_type') == 'Clasificación':
+        if config['input_size'] > 2:
+            feature_names = st.session_state.get('nn_feature_names',
+                                                 [f'Característica {i+1}' for i in range(config['input_size'])])
+
+            col1, col2 = st.columns(2)
+            with col1:
+                feature1 = st.selectbox("Primera característica:", feature_names,
+                                        index=0, key="viz_f1")
+            with col2:
+                feature2 = st.selectbox("Segunda característica:", feature_names,
+                                        index=min(1, len(feature_names)-1), key="viz_f2")
+
+            if feature1 != feature2:
+                try:
+                    X_test, _ = st.session_state.nn_test_data
+
+                    # Extraer características seleccionadas
+                    feature_idx = [feature_names.index(
+                        feature1), feature_names.index(feature2)]
+                    X_2d = X_test[:, feature_idx]
+
+                    # Crear malla
+                    h = 0.02
+                    x_min, x_max = X_2d[:, 0].min(
+                    ) - 0.5, X_2d[:, 0].max() + 0.5
+                    y_min, y_max = X_2d[:, 1].min(
+                    ) - 0.5, X_2d[:, 1].max() + 0.5
+                    xx, yy = np.meshgrid(
+                        np.arange(x_min, x_max, h), np.arange(y_min, y_max, h))
+
+                    # Crear puntos para predicción con valores promedio
+                    mesh_points = []
+                    mean_values = np.mean(X_test, axis=0)
+
+                    for i in range(xx.ravel().shape[0]):
+                        point = mean_values.copy()
+                        point[feature_idx[0]] = xx.ravel()[i]
+                        point[feature_idx[1]] = yy.ravel()[i]
+                        mesh_points.append(point)
+
+                    mesh_points = np.array(mesh_points)
+                    Z = model.predict(mesh_points, verbose=0)
+
+                    # Procesar predicciones
+                    if len(Z.shape) > 1 and Z.shape[1] > 1:
+                        Z = np.argmax(Z, axis=1)
+                    else:
+                        Z = (Z > 0.5).astype(int).ravel()
+                    Z = Z.reshape(xx.shape)
+
+                    # Crear visualización
+                    fig, ax = plt.subplots(figsize=(10, 8))
+                    contourf = ax.contourf(
+                        xx, yy, Z, levels=50, alpha=0.8, cmap='RdYlBu')
+
+                    # Agregar puntos de datos
+                    _, y_test = st.session_state.nn_test_data
+                    y_plot = np.argmax(y_test, axis=1) if len(
+                        y_test.shape) > 1 else y_test
+                    ax.scatter(X_2d[:, 0], X_2d[:, 1], c=y_plot, cmap='RdYlBu',
+                               edgecolors='black', s=50, alpha=0.9)
+
+                    ax.set_xlabel(feature1)
+                    ax.set_ylabel(feature2)
+                    ax.set_title(
+                        f'Superficie de Decisión: {feature1} vs {feature2}')
+                    plt.colorbar(contourf, ax=ax)
+                    st.pyplot(fig)
+
+                    st.success("✅ Superficie generada exitosamente")
+
+                except Exception as surf_error:
+                    st.error(f"❌ Error: {surf_error}")
+            else:
+                st.warning("⚠️ Selecciona características diferentes")
+        else:
+            st.info("💡 Implementación para datasets 2D próximamente")
+    else:
+        st.info("🏔️ Superficie de predicción para regresión próximamente")
+
+
+def show_layer_activations_tab():
+    """Muestra el análisis de activaciones de capas."""
+    import tensorflow as tf
+    import plotly.graph_objects as go
+    import numpy as np
+
+    st.subheader("📉 Análisis de Activaciones")
+
+    with st.expander("💡 Interpretación"):
+        st.markdown("""
+        **Muchos ceros:** 💀 Neuronas muertas | **Valores extremos:** 🔴 Saturación
+        **Distribución balanceada:** ✅ Red saludable
+        """)
+
+    model = st.session_state.nn_model
+
+    def analyze_activations_safely():
+        """Analiza activaciones de forma robusta evitando errores de modelo no inicializado."""
+        try:
+            X_test, _ = st.session_state.nn_test_data
+
+            # Verificar que el modelo tiene capas válidas
+            valid_layers = []
+            for i, layer in enumerate(model.layers):
+                # Solo incluir capas densas con salida definida
+                if (hasattr(layer, 'output') and
+                    layer.output is not None and
+                    hasattr(layer, 'units') and
+                        i > 0 and i < len(model.layers) - 1):
+                    valid_layers.append((i, layer))
+
+            if not valid_layers:
+                st.warning(
+                    "⚠️ No hay capas intermedias válidas para analizar")
+                return False
+
+            st.success(
+                f"✅ Encontradas {len(valid_layers)} capas válidas para análisis")
+
+            # Método alternativo: analizar capa por capa
+            for layer_idx, layer in valid_layers:
+                try:
+                    # Crear modelo parcial hasta esta capa
+                    partial_model = tf.keras.Model(
+                        inputs=model.input,
+                        outputs=layer.output
+                    )
+
+                    # Hacer predicciones en muestra pequeña
+                    sample_size = min(50, len(X_test))
+                    sample_data = X_test[:sample_size].astype(
+                        np.float32)
+
+                    activations = partial_model.predict(
+                        sample_data, verbose=0)
+
+                    st.markdown(
+                        f"#### 📊 Capa {layer_idx + 1} ({layer.name})")
+                    col1, col2, col3, col4 = st.columns(4)
+
+                    with col1:
+                        st.metric(
+                            "🔥 Media", f"{np.mean(activations):.4f}")
+                    with col2:
+                        st.metric("📊 Desv. Std.",
+                                  f"{np.std(activations):.4f}")
+                    with col3:
+                        dead_ratio = np.mean(activations == 0) * 100
+                        st.metric("💀 % Muertas", f"{dead_ratio:.1f}%")
+                    with col4:
+                        saturated_ratio = np.mean(
+                            activations >= 0.99) * 100
+                        st.metric("🔴 % Saturadas",
+                                  f"{saturated_ratio:.1f}%")
+
+                    # Estado de salud
+                    if dead_ratio > 50:
+                        st.error(
+                            f"🚨 Capa {layer_idx + 1}: Muchas neuronas muertas")
+                    elif dead_ratio > 20:
+                        st.warning(
+                            f"⚠️ Capa {layer_idx + 1}: Algunas neuronas muertas")
+                    else:
+                        st.success(
+                            f"✅ Capa {layer_idx + 1}: Saludable")
+
+                    # Histograma de activaciones
+                    if st.checkbox(f"Ver distribución Capa {layer_idx + 1}", key=f"show_hist_{layer_idx}"):
+                        fig = go.Figure()
+                        fig.add_trace(go.Histogram(
+                            x=activations.flatten(),
+                            nbinsx=50,
+                            name=f'Activaciones Capa {layer_idx + 1}'
+                        ))
+                        fig.update_layout(
+                            title=f'Distribución de Activaciones - Capa {layer_idx + 1}',
+                            height=300
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+
+                except Exception as layer_error:
+                    st.error(
+                        f"❌ Error analizando capa {layer_idx + 1}: {layer_error}")
+                    continue
+
+            return True
+
+        except Exception as e:
+            st.error(f"❌ Error general en análisis de capas: {e}")
+            return False
+
+    # Ejecutar análisis robusto
+    if not analyze_activations_safely():
+        st.info("""
+        💡 **Alternativas disponibles:**
+        - Revisa el análisis de pesos en la pestaña anterior
+        - El historial de entrenamiento puede darte insights sobre el comportamiento del modelo
+        - Considera reentrenar el modelo con una arquitectura más simple
+        """)
+
+
 def show_neural_network_visualizations():
-    """Muestra visualizaciones avanzadas del modelo."""
+    """Muestra visualizaciones avanzadas del modelo de forma simplificada."""
     if 'nn_model' not in st.session_state or st.session_state.nn_model is None:
         st.warning(
             "⚠️ Primero debes entrenar un modelo en la pestaña 'Entrenamiento'")
         return
 
-    # Tips educativos sobre visualizaciones
     st.info("""
     🎓 **Visualizaciones de Redes Neuronales:**
-    - **Historial de entrenamiento**: Muestra cómo evoluciona el aprendizaje
-    - **Pesos y sesgos**: Revelan qué ha aprendido cada neurona
-    - **Superficie de decisión**: Cómo la red separa las clases (2D)
-    - **Análisis de capas**: Activaciones y patrones internos
-    
-    🔧 **Reparación Automática**: Esta función incluye inicialización automática del modelo para prevenir errores comunes.
+    - **Historial**: Evolución del aprendizaje - **Pesos**: Lo que aprendió cada neurona
+    - **Superficie**: Cómo separa las clases (2D) - **Capas**: Activaciones internas
     """)
 
     try:
-        import tensorflow as tf
-        import plotly.graph_objects as go
-        from plotly.subplots import make_subplots
-        import numpy as np
-        import matplotlib.pyplot as plt
-        from sklearn.preprocessing import StandardScaler
+        # Intentar inicialización
+        success, message = initialize_model_safely()
 
-        model = st.session_state.nn_model
-        history = st.session_state.nn_history
-        config = st.session_state.nn_config
+        if success:
+            st.success(message)
+        else:
+            st.error(message)
 
-        # SOLUCIÓN DEFINITIVA PARA EL ERROR DE TENSORFLOW
-        st.info("🔄 Inicializando modelo para visualizaciones...")
-
-        # Obtener datos de test
-        X_test, _ = st.session_state.nn_test_data
-
-        # ESTRATEGIA DEFINITIVA: FORZAR CONSTRUCCIÓN COMPLETA
-        try:
-            # Preparar datos de muestra
-            sample_data = X_test[:1].astype(np.float32)
-
-            # PASO 1: Forzar la construcción del modelo de forma agresiva
-            st.info("🏗️ Forzando construcción del modelo...")
-
-            # DIAGNÓSTICO INICIAL
-            st.info(
-                f"Estado inicial: built={getattr(model, 'built', False)}, input={'definido' if hasattr(model, 'input') and model.input is not None else 'None'}")
-
-            # ESTRATEGIA ESPECÍFICA PARA EL PROBLEMA DETECTADO
-            # Cuando model.built=True pero model.input=None
-            construction_success = False
-
-            for attempt in range(3):
-                try:
-                    st.info(f"Intento {attempt + 1}/3 de construcción...")
-
-                    # ESTRATEGIA 1: Forzar predicción simple
-                    _ = model.predict(sample_data, verbose=0)
-
-                    # ESTRATEGIA 2: Si input sigue siendo None, forzar build con input_shape
-                    if not hasattr(model, 'input') or model.input is None:
-                        st.info("🔧 Aplicando fix específico para input=None...")
-                        # Reconstruir completamente el modelo
-                        model.build(input_shape=(None, X_test.shape[1]))
-
-                        # Forzar que el modelo "vea" datos reales
-                        _ = model(sample_data)  # Llamada directa
-
-                    # ESTRATEGIA 3: Si aún no funciona, usar _set_inputs (método interno)
-                    if not hasattr(model, 'input') or model.input is None:
-                        st.info("🔧 Aplicando fix avanzado...")
-                        # Método interno de TensorFlow para forzar input
-                        try:
-                            model._set_inputs(sample_data)
-                        except:
-                            # Si falla, intentar con fit en modo dummy usando la función de pérdida CORRECTA
-                            try:
-                                # Determinar la función de pérdida correcta según la arquitectura
-                                output_size = model.layers[-1].units if hasattr(
-                                    model.layers[-1], 'units') else 1
-
-                                if output_size == 1:
-                                    # Clasificación binaria o regresión
-                                    if hasattr(model.layers[-1], 'activation') and 'sigmoid' in str(model.layers[-1].activation):
-                                        loss_func = 'binary_crossentropy'
-                                    else:
-                                        loss_func = 'mse'  # Regresión
-                                else:
-                                    # Clasificación multiclase
-                                    loss_func = 'sparse_categorical_crossentropy'
-
-                                st.info(
-                                    f"🔧 Usando {loss_func} para reparación...")
-                                model.compile(optimizer='adam', loss=loss_func)
-
-                                # Crear dummy target con el tamaño correcto
-                                if loss_func == 'sparse_categorical_crossentropy':
-                                    dummy_target = np.zeros(
-                                        (1,), dtype=np.int32)  # Clase 0
-                                elif loss_func == 'binary_crossentropy':
-                                    dummy_target = np.zeros(
-                                        (1, 1), dtype=np.float32)  # Probabilidad 0
-                                else:  # MSE
-                                    dummy_target = np.zeros(
-                                        (1, output_size), dtype=np.float32)
-
-                                model.fit(sample_data, dummy_target,
-                                          epochs=1, verbose=0)
-                            except Exception as fit_error:
-                                st.warning(
-                                    f"Fix avanzado falló: {str(fit_error)}")
-                                pass
-
-                    # VERIFICACIÓN CRÍTICA
-                    if hasattr(model, 'input') and model.input is not None:
-                        st.success(
-                            f"✅ Construcción exitosa en intento {attempt + 1}")
-                        construction_success = True
-                        break
-                    else:
-                        st.warning(
-                            f"⚠️ Intento {attempt + 1} falló: input sigue siendo None")
-
-                except Exception as build_error:
-                    st.warning(
-                        f"⚠️ Intento {attempt + 1} falló: {str(build_error)}")
-                    if attempt == 2:  # Último intento
-                        # Último recurso: recrear el modelo completamente
-                        st.info("🔥 ÚLTIMO RECURSO: Intentando recrear modelo...")
-                        try:
-                            # Obtener pesos del modelo actual
-                            weights = model.get_weights()
-
-                            # Recrear arquitectura desde config
-                            config = st.session_state.nn_config
-
-                            import tensorflow as tf
-                            new_model = tf.keras.Sequential()
-                            new_model.add(tf.keras.layers.Input(
-                                shape=(config['input_size'],)))
-
-                            # Recrear capas densas (excluyendo Input y Dropout)
-                            layer_idx = 0
-                            for i, layer in enumerate(model.layers):
-                                if hasattr(layer, 'units'):  # Es una capa Dense
-                                    if layer_idx == 0:  # Primera capa densa
-                                        new_model.add(tf.keras.layers.Dense(
-                                            layer.units,
-                                            activation=layer.activation.__name__
-                                        ))
-                                    else:  # Capas siguientes
-                                        new_model.add(tf.keras.layers.Dense(
-                                            layer.units,
-                                            activation=layer.activation.__name__
-                                        ))
-                                    layer_idx += 1
-                                elif hasattr(layer, 'rate'):  # Es Dropout
-                                    new_model.add(
-                                        tf.keras.layers.Dropout(layer.rate))
-
-                            # Compilar nuevo modelo con la configuración CORRECTA
-                            if config['task_type'] == 'Clasificación':
-                                if config.get('output_size', 1) == 1:
-                                    loss_func = 'binary_crossentropy'
-                                else:
-                                    loss_func = 'sparse_categorical_crossentropy'
-                            else:
-                                loss_func = 'mse'
-
-                            new_model.compile(optimizer='adam', loss=loss_func)
-
-                            # Forzar construcción
-                            _ = new_model.predict(sample_data, verbose=0)
-
-                            # Copiar pesos si es posible
-                            try:
-                                new_model.set_weights(weights)
-                                st.info("✅ Pesos copiados exitosamente")
-                            except:
-                                st.warning(
-                                    "⚠️ No se pudieron copiar los pesos")
-
-                            # Reemplazar modelo en session_state
-                            st.session_state.nn_model = new_model
-                            model = new_model
-
-                            if model.input is not None:
-                                st.success("🎉 Modelo recreado exitosamente!")
-                                construction_success = True
-                                break
-
-                        except Exception as recreate_error:
-                            st.error(
-                                f"❌ Recreación falló: {str(recreate_error)}")
-
-                            # ÚLTIMO ÚLTIMO RECURSO: Modelo completamente nuevo SIN copiar pesos
-                            st.info(
-                                "🚨 ÚLTIMO RECURSO EXTREMO: Modelo completamente nuevo...")
-                            try:
-                                config = st.session_state.nn_config
-
-                                # Crear modelo minimalista garantizado que SIEMPRE funciona
-                                minimal_model = tf.keras.Sequential([
-                                    tf.keras.layers.Input(
-                                        shape=(config['input_size'],)),
-                                    tf.keras.layers.Dense(
-                                        32, activation='relu'),
-                                    tf.keras.layers.Dense(
-                                        config['output_size'], activation=config['output_activation'])
-                                ])
-
-                                # Compilar con configuración correcta
-                                if config['task_type'] == 'Clasificación':
-                                    loss_func = 'sparse_categorical_crossentropy' if config[
-                                        'output_size'] > 1 else 'binary_crossentropy'
-                                else:
-                                    loss_func = 'mse'
-
-                                minimal_model.compile(
-                                    optimizer='adam', loss=loss_func, metrics=['accuracy'])
-
-                                # Forzar construcción INMEDIATA
-                                dummy_input = np.zeros(
-                                    (1, config['input_size']), dtype=np.float32)
-                                _ = minimal_model.predict(
-                                    dummy_input, verbose=0)
-
-                                # VERIFICAR que funcione
-                                if minimal_model.input is not None:
-                                    st.warning(
-                                        "⚠️ Modelo minimal creado (PERDISTE los pesos entrenados)")
-                                    st.info(
-                                        "💡 Este modelo te permitirá ver las visualizaciones, pero necesitarás reentrenar")
-                                    st.session_state.nn_model = minimal_model
-                                    model = minimal_model
-                                    construction_success = True
-                                    break
-                                else:
-                                    st.error(
-                                        "🚨 IMPOSIBLE: Incluso el modelo minimal falló")
-
-                            except Exception as minimal_error:
-                                st.error(
-                                    f"❌ Modelo minimal falló: {str(minimal_error)}")
-                                st.error(
-                                    "🚨 ERROR CRÍTICO: TensorFlow no funciona correctamente en este entorno")
-                                pass
-
-            if not construction_success:
-                raise Exception(
-                    "Fallo total en construcción después de todos los intentos")
-
-            # PASO 2: Verificación EXHAUSTIVA que el modelo funcione
-            # No solo verificar model.input, sino que REALMENTE funcione
-            test_prediction = model.predict(sample_data, verbose=0)
-
-            # Verificar que las capas están construidas
-            layers_built = all(getattr(layer, 'built', True)
-                               for layer in model.layers)
-
-            if model.input is not None and layers_built and test_prediction is not None:
-                st.success("✅ Modelo completamente construido y funcional")
-
-                # PASO 3: Crear modelo de activaciones CON VERIFICACIÓN ROBUSTA
-                if len(model.layers) > 2:  # Al menos Input + Hidden + Output
-                    try:
-                        # Identificar capas válidas para activaciones (excluir Input y Output)
-                        intermediate_layers = []
-                        for i, layer in enumerate(model.layers):
-                            # Excluir la primera capa (Input) y la última (Output)
-                            if i > 0 and i < len(model.layers) - 1:
-                                if hasattr(layer, 'output') and layer.output is not None:
-                                    intermediate_layers.append(layer.output)
-
-                        if intermediate_layers:
-                            # Crear modelo de activaciones
-                            activation_model = tf.keras.Model(
-                                inputs=model.input,
-                                outputs=intermediate_layers
-                            )
-
-                            # VERIFICAR que el modelo de activaciones funcione
-                            test_activations = activation_model.predict(
-                                sample_data, verbose=0)
-
-                            # Guardar solo si funciona
-                            st.session_state.activation_model = activation_model
-                            st.success(
-                                f"✅ Modelo de activaciones creado ({len(intermediate_layers)} capas)")
-                        else:
-                            st.warning(
-                                "⚠️ No hay capas intermedias válidas para análisis")
-                            st.session_state.activation_model = None
-                    except Exception as activation_error:
-                        st.warning("⚠️ Error creando modelo de activaciones")
-                        st.caption(f"Detalle: {str(activation_error)}")
-                        st.session_state.activation_model = None
-                else:
-                    st.info("ℹ️ Red muy simple, análisis de capas limitado")
-                    st.session_state.activation_model = None
-
-            else:
-                # Si llegamos aquí, hay un problema fundamental
-                error_details = []
-                if model.input is None:
-                    error_details.append("model.input es None")
-                if not layers_built:
-                    error_details.append("capas no construidas")
-                if test_prediction is None:
-                    error_details.append("predicción falló")
-
-                raise Exception(
-                    f"Modelo no funcional: {', '.join(error_details)}")
-
-        except Exception as error:
-            st.error("❌ FALLO CRÍTICO: El modelo no se puede inicializar")
-            st.markdown("### 🚨 Diagnóstico del Error")
-            st.code(f"Error: {str(error)}")
-
-            # Diagnóstico técnico detallado
-            st.markdown("### 🔬 Estado Técnico del Modelo")
-            try:
-                st.write(f"- **Tipo de modelo**: {type(model).__name__}")
-                st.write(
-                    f"- **Modelo construido**: {getattr(model, 'built', 'Desconocido')}")
-                st.write(
-                    f"- **Input definido**: {model.input is not None if hasattr(model, 'input') else 'No disponible'}")
-                st.write(
-                    f"- **Número de capas**: {len(model.layers) if hasattr(model, 'layers') else 'Desconocido'}")
-
-                if hasattr(model, 'layers'):
-                    st.write("- **Estado de capas**:")
-                    for i, layer in enumerate(model.layers):
-                        built_status = getattr(layer, 'built', 'Desconocido')
-                        st.write(
-                            f"  - Capa {i+1} ({layer.__class__.__name__}): {built_status}")
-
-            except Exception as diag_error:
-                st.write(f"Error en diagnóstico: {diag_error}")
-
-            st.markdown("### 💡 Solución Obligatoria")
-            st.error(
-                "**El modelo está corrupto o mal construido. DEBES reentrenarlo desde cero.**")
-            st.markdown("""
-            **Pasos para solucionarlo:**
-            1. Ve a la pestaña **'Entrenamiento'**
-            2. Reentrena el modelo completamente
-            3. NO uses modelos guardados previamente
-            4. Regresa a esta pestaña después del entrenamiento
-            """)
-
-            if st.button("🔙 Ir a Reentrenar Modelo", type="primary", use_container_width=True):
-                st.session_state.active_tab_nn = 2
-                st.rerun()
-
-            return
-
-        # CREAR PESTAÑAS DE VISUALIZACIÓN UNA VEZ QUE EL MODELO ESTÁ REPARADO
-        viz_tab1, viz_tab2, viz_tab3, viz_tab4 = st.tabs([
-            "📊 Historial de Entrenamiento",
-            "🧠 Pesos y Sesgos",
-            "🎯 Superficie de Decisión",
-            "📉 Análisis de Capas"
-        ])
-
-        with viz_tab1:
-            st.subheader("📊 Historial de Entrenamiento Detallado")
-            st.markdown("📈 **¿Cómo aprendió tu red neuronal?**")
-
-            # Explicación sobre el historial
-            with st.expander("💡 ¿Cómo interpretar estas gráficas?"):
-                st.markdown("""
-                **Gráfica de Pérdida (Loss):**
-                - **Bajando**: La red está aprendiendo ✅
-                - **Estable**: Ha convergido 🎯
-                - **Subiendo**: Posible sobreajuste ⚠️
-                - **Gap grande entre train/val**: Sobreajuste 🚨
-                
-                **Gráfica de Accuracy (clasificación) o MAE (regresión):**
-                - **Subiendo**: Mejorando en las predicciones ✅
-                - **Plateau**: Ha alcanzado su límite 📊
-                - **Train > Val**: Normal, pero gap grande = sobreajuste ⚠️
-                """)
-
-            plot_training_history(history, config['task_type'])
-
-            # Información adicional del entrenamiento
-            st.markdown("#### 📊 Estadísticas del Entrenamiento")
-            col1, col2, col3 = st.columns(3)
-
+            # Opciones de recuperación
+            col1, col2 = st.columns(2)
             with col1:
-                final_loss = history.history['loss'][-1]
-                initial_loss = history.history['loss'][0]
-                improvement = ((initial_loss - final_loss) /
-                               initial_loss) * 100
-                st.metric("🔴 Pérdida Final (Entrenamiento)", f"{final_loss:.6f}",
-                          f"-{improvement:.1f}% desde inicio")
-
-            with col2:
-                if 'val_loss' in history.history:
-                    final_val_loss = history.history['val_loss'][-1]
-                    overfitting_gap = final_val_loss - final_loss
-                    st.metric("🟡 Pérdida Final (Validación)", f"{final_val_loss:.6f}",
-                              f"Gap: {overfitting_gap:.6f}")
-
-                    # Interpretación del gap
-                    if overfitting_gap < 0.01:
-                        st.success("✅ **Sin sobreajuste**: Gap muy pequeño")
-                    elif overfitting_gap < 0.05:
-                        st.warning("⚠️ **Sobreajuste leve**: Gap aceptable")
-                    else:
-                        st.error("🚨 **Sobreajuste**: Gap significativo")
-
-            with col3:
-                epochs_trained = len(history.history['loss'])
-                st.metric("⏱️ Épocas Entrenadas", epochs_trained)
-
-                # ¿Paró por early stopping?
-                if 'nn_config' in st.session_state:
-                    max_epochs = st.session_state.get('training_epochs', 100)
-                    if epochs_trained < max_epochs:
-                        st.caption(
-                            "🛑 **Early Stopping**: Paró automáticamente")
-                    else:
-                        st.caption("🔄 **Completó todas las épocas**")
-
-        with viz_tab2:
-            st.subheader("🧠 Análisis de Pesos y Sesgos")
-            st.markdown("🔍 **¿Qué ha aprendido cada neurona?**")
-
-            # Explicación sobre pesos
-            with st.expander("💡 ¿Qué significan los pesos?"):
-                st.markdown("""
-                **Pesos (Weights):**
-                - **Valores altos**: Conexiones importantes entre neuronas
-                - **Valores cercanos a 0**: Conexiones débiles o irrelevantes
-                - **Valores negativos**: Relaciones inversas
-                - **Distribución**: Indica si la red está bien inicializada
-                
-                **Sesgos (Biases):**
-                - **Valores altos**: Neurona se activa fácilmente
-                - **Valores bajos**: Neurona es más selectiva
-                - **Distribución**: Debe ser razonable, no extrema
-                """)
-
-            # Obtener pesos de todas las capas
-            layer_weights = []
-            layer_biases = []
-
-            for i, layer in enumerate(model.layers):
-                if hasattr(layer, 'get_weights') and layer.get_weights():
-                    weights = layer.get_weights()
-                    if len(weights) >= 2:  # Pesos y sesgos
-                        layer_weights.append(weights[0])
-                        layer_biases.append(weights[1])
-
-            if layer_weights:
-                # Crear gráficos para cada capa
-                for i, (weights, biases) in enumerate(zip(layer_weights, layer_biases)):
-                    st.markdown(f"#### 📊 Capa {i+1}")
-
-                    col1, col2 = st.columns(2)
-
-                    with col1:
-                        # Histograma de pesos
-                        fig_weights = go.Figure()
-                        fig_weights.add_trace(go.Histogram(
-                            x=weights.flatten(),
-                            nbinsx=50,
-                            name=f'Pesos Capa {i+1}',
-                            opacity=0.7
-                        ))
-                        fig_weights.update_layout(
-                            title=f'Distribución de Pesos - Capa {i+1}',
-                            xaxis_title='Valor de Peso',
-                            yaxis_title='Frecuencia',
-                            height=300
-                        )
-                        st.plotly_chart(fig_weights, use_container_width=True)
-
-                        # Estadísticas de pesos
-                        st.caption(f"📊 **Estadísticas**: Media={np.mean(weights):.4f}, "
-                                   f"Std={np.std(weights):.4f}, "
-                                   f"Min={np.min(weights):.4f}, "
-                                   f"Max={np.max(weights):.4f}")
-
-                    with col2:
-                        # Histograma de sesgos
-                        fig_biases = go.Figure()
-                        fig_biases.add_trace(go.Histogram(
-                            x=biases.flatten(),
-                            nbinsx=20,
-                            name=f'Sesgos Capa {i+1}',
-                            opacity=0.7,
-                            marker_color='orange'
-                        ))
-                        fig_biases.update_layout(
-                            title=f'Distribución de Sesgos - Capa {i+1}',
-                            xaxis_title='Valor de Sesgo',
-                            yaxis_title='Frecuencia',
-                            height=300
-                        )
-                        st.plotly_chart(fig_biases, use_container_width=True)
-
-                        # Estadísticas de sesgos
-                        st.caption(f"📊 **Estadísticas**: Media={np.mean(biases):.4f}, "
-                                   f"Std={np.std(biases):.4f}, "
-                                   f"Min={np.min(biases):.4f}, "
-                                   f"Max={np.max(biases):.4f}")
-
-                # Análisis general
-                st.markdown("#### 🔍 Análisis General de la Red")
-                all_weights = np.concatenate(
-                    [w.flatten() for w in layer_weights])
-                all_biases = np.concatenate(
-                    [b.flatten() for b in layer_biases])
-
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("🎯 Pesos Promedio",
-                              f"{np.mean(all_weights):.6f}")
-                with col2:
-                    st.metric("📊 Desv. Std. Pesos",
-                              f"{np.std(all_weights):.6f}")
-                with col3:
-                    dead_neurons = np.sum(np.abs(all_weights) < 1e-6)
-                    st.metric("💀 Pesos ~0", f"{dead_neurons}")
-
-                # Salud de la red
-                if np.std(all_weights) < 0.01:
-                    st.error(
-                        "🚨 **Problema**: Pesos muy pequeños, la red puede no haber aprendido")
-                elif np.std(all_weights) > 2:
-                    st.warning(
-                        "⚠️ **Atención**: Pesos muy grandes, posible inestabilidad")
-                else:
-                    st.success("✅ **Saludable**: Distribución de pesos normal")
-            else:
-                st.warning("No se pudieron extraer los pesos del modelo")
-
-        with viz_tab3:
-            st.subheader("🎯 Superficie de Decisión")
-            st.markdown(
-                "🗺️ **¿Cómo divide tu red el espacio de características?**")
-
-            # Verificar si es clasificación para mostrar superficie de decisión
-            if config.get('task_type', 'Clasificación') == 'Clasificación':
-                # Si hay más de 2 características, permitir seleccionar 2
-                if config['input_size'] > 2:
-                    st.info(
-                        "💡 Tu dataset tiene más de 2 características. Selecciona 2 para visualizar la superficie de decisión.")
-
-                    # Obtener nombres de características
-                    if 'nn_feature_names' in st.session_state:
-                        feature_names = st.session_state.nn_feature_names
-                    else:
-                        feature_names = [
-                            f'Característica {i+1}' for i in range(config['input_size'])]
-
-                    st.markdown("### Selección de Características")
-                    col1, col2 = st.columns(2)
-
-                    with col1:
-                        feature1 = st.selectbox(
-                            "Primera característica:",
-                            feature_names,
-                            index=0,
-                            key="viz_feature1_nn"
-                        )
-
-                    with col2:
-                        feature2 = st.selectbox(
-                            "Segunda característica:",
-                            feature_names,
-                            index=min(1, len(feature_names) - 1),
-                            key="viz_feature2_nn"
-                        )
-
-                    if feature1 != feature2:
-                        # Obtener datos de test para la visualización
-                        X_test, y_test = st.session_state.nn_test_data
-
-                        # Obtener índices de las características seleccionadas
-                        feature_idx = [feature_names.index(
-                            feature1), feature_names.index(feature2)]
-
-                        # Extraer las características seleccionadas
-                        X_2d = X_test[:, feature_idx]
-
-                        # Generar superficie de decisión
-                        try:
-                            st.info("🎨 Generando superficie de decisión...")
-
-                            # Crear malla de puntos para la superficie
-                            h = 0.02  # tamaño del paso en la malla
-                            x_min, x_max = X_2d[:, 0].min(
-                            ) - 0.5, X_2d[:, 0].max() + 0.5
-                            y_min, y_max = X_2d[:, 1].min(
-                            ) - 0.5, X_2d[:, 1].max() + 0.5
-                            xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
-                                                 np.arange(y_min, y_max, h))
-
-                            # Para hacer predicciones en la malla, necesitamos crear puntos completos
-                            # con valores promedio para las características no seleccionadas
-                            X_full_test = X_test.copy()
-                            mesh_points = []
-
-                            for i in range(xx.ravel().shape[0]):
-                                # Usar valores promedio
-                                point = np.mean(X_full_test, axis=0)
-                                # Primera característica seleccionada
-                                point[feature_idx[0]] = xx.ravel()[i]
-                                # Segunda característica seleccionada
-                                point[feature_idx[1]] = yy.ravel()[i]
-                                mesh_points.append(point)
-
-                            mesh_points = np.array(mesh_points)
-
-                            # Hacer predicciones en la malla
-                            Z = model.predict(mesh_points, verbose=0)
-
-                            # Si es clasificación multiclase, tomar la clase con mayor probabilidad
-                            if len(Z.shape) > 1 and Z.shape[1] > 1:
-                                Z = np.argmax(Z, axis=1)
-                            else:
-                                # Para clasificación binaria
-                                Z = (Z > 0.5).astype(int).ravel()
-
-                            Z = Z.reshape(xx.shape)
-
-                            # Crear la visualización
-                            fig, ax = plt.subplots(figsize=(10, 8))
-
-                            # Dibujar la superficie de decisión
-                            contourf = ax.contourf(
-                                xx, yy, Z, levels=50, alpha=0.8, cmap='RdYlBu')
-
-                            # Añadir los puntos de datos reales
-                            if 'nn_class_names' in st.session_state and st.session_state.nn_class_names:
-                                class_names = st.session_state.nn_class_names
-                                # Mapear y_test a índices de clase si es necesario
-                                if hasattr(y_test, 'shape') and len(y_test.shape) > 1:
-                                    y_plot = np.argmax(y_test, axis=1)
-                                else:
-                                    y_plot = y_test
-
-                                # Crear scatter plot por clase
-                                unique_classes = np.unique(y_plot)
-                                colors = plt.cm.Set1(
-                                    np.linspace(0, 1, len(unique_classes)))
-
-                                for i, class_idx in enumerate(unique_classes):
-                                    mask = y_plot == class_idx
-                                    class_name = class_names[class_idx] if class_idx < len(
-                                        class_names) else f'Clase {class_idx}'
-                                    ax.scatter(X_2d[mask, 0], X_2d[mask, 1],
-                                               c=[colors[i]], label=class_name,
-                                               edgecolors='black', s=50, alpha=0.9)
-                            else:
-                                ax.scatter(X_2d[:, 0], X_2d[:, 1], c=y_test,
-                                           cmap='RdYlBu', edgecolors='black', s=50, alpha=0.9)
-
-                            # Configurar etiquetas y título
-                            ax.set_xlabel(feature1, fontsize=12)
-                            ax.set_ylabel(feature2, fontsize=12)
-                            ax.set_title(
-                                f'Superficie de Decisión de Red Neuronal\n{feature1} vs {feature2}', fontsize=14)
-                            ax.grid(True, alpha=0.3)
-
-                            # Añadir leyenda si hay nombres de clase
-                            if 'nn_class_names' in st.session_state and st.session_state.nn_class_names:
-                                ax.legend(bbox_to_anchor=(
-                                    1.05, 1), loc='upper left')
-
-                            # Añadir colorbar para la superficie
-                            plt.colorbar(contourf, ax=ax,
-                                         label='Predicción de Clase')
-
-                            plt.tight_layout()
-                            st.pyplot(fig)
-
-                            # Información adicional
-                            st.success(
-                                "✅ Superficie de decisión generada exitosamente")
-                            st.info(f"""
-                            🔍 **Información de la visualización:**
-                            - **Características mostradas:** {feature1} vs {feature2}
-                            - **Otras características:** Se mantienen en sus valores promedio
-                            - **Colores de fondo:** Regiones de decisión de la red neuronal
-                            - **Puntos:** Datos reales de prueba
-                            - **Fronteras:** Límites donde la red cambia de decisión
-                            """)
-
-                            # Interpretación de la superficie
-                            with st.expander("💡 ¿Cómo interpretar la superficie de decisión?"):
-                                st.markdown("""
-                                **Colores de fondo:**
-                                - Cada color representa una clase diferente que predice la red
-                                - Las transiciones suaves indican fronteras de decisión graduales
-                                - Las transiciones bruscas indican fronteras más definidas
-                                
-                                **Puntos de datos:**
-                                - Muestran dónde están ubicados los datos reales en este espacio 2D
-                                - Puntos del mismo color deberían estar en regiones del mismo color de fondo
-                                - Puntos en la región "incorrecta" indican errores de clasificación
-                                
-                                **Complejidad de las fronteras:**
-                                - Fronteras muy complejas pueden indicar sobreajuste
-                                - Fronteras muy simples pueden indicar subajuste
-                                - Lo ideal son fronteras que capturen el patrón sin ser excesivamente complejas
-                                """)
-
-                        except Exception as e:
-                            st.error(
-                                f"❌ Error al generar la superficie de decisión: {str(e)}")
-                            st.info(
-                                "💡 Intenta con diferentes características o verifica que el modelo esté correctamente entrenado.")
-
-                    else:
-                        st.warning(
-                            "⚠️ Por favor selecciona dos características diferentes.")
-
-                else:
-                    # Dataset con 2 o menos características - mostrar directamente
-                    st.info("🎨 Generando superficie de decisión...")
-                    st.markdown("""
-                    **Superficie de Decisión 2D:**
-                    - Cada color representa una clase predicha
-                    - Los puntos son tus datos de entrenamiento
-                    - Las fronteras muestran cómo la red separa las clases
-                    - Fronteras suaves = red bien generalizada
-                    - Fronteras muy complejas = posible sobreajuste
-                    """)
-
-                    # Aquí se podría implementar la visualización directa para datasets 2D
-                    st.info(
-                        "💡 Implementación completa para datasets 2D próximamente.")
-
-            else:
-                # Para tareas de regresión
-                st.info("🏔️ **Superficie de Predicción para Regresión**")
-                st.markdown("""
-                Para tareas de regresión, se puede visualizar una superficie de predicción que muestra 
-                cómo varían las predicciones numéricas en el espacio de características.
-                """)
-
-                if config['input_size'] > 2:
-                    st.markdown(
-                        "💡 Selecciona 2 características para visualizar la superficie de predicción.")
-                    # Aquí se podría implementar similar lógica para regresión
-                    st.info(
-                        "🚧 Implementación de superficie de predicción para regresión próximamente.")
-                else:
-                    st.info(
-                        "🚧 Implementación de superficie de predicción próximamente.")
-
-        with viz_tab4:
-            st.subheader("📉 Análisis de Capas")
-            st.markdown("🔬 **Activaciones y patrones internos de la red**")
-
-            # Explicación sobre activaciones
-            with st.expander("💡 ¿Qué son las activaciones?"):
-                st.markdown("""
-                **Activaciones:**
-                - **Valores que producen las neuronas** cuando procesan datos
-                - **Primeras capas**: Detectan características básicas
-                - **Capas intermedias**: Combinan características en patrones
-                - **Última capa**: Decisión final o predicción
-                
-                **Qué buscar:**
-                - **Muchos ceros**: Neuronas "muertas" (problema)
-                - **Valores extremos**: Saturación (problema)
-                - **Distribución balanceada**: Red saludable ✅
-                """)
-
-            # USAR EL MODELO DE ACTIVACIONES PRE-CREADO EN LA INICIALIZACIÓN
-            try:
-                # Obtener datos de test
-                X_test, y_test = st.session_state.nn_test_data
-                sample_size = min(100, len(X_test))
-                X_sample = X_test[:sample_size]
-
-                # Verificar que el modelo tiene suficientes capas
-                if len(model.layers) <= 1:
-                    st.warning(
-                        "⚠️ El modelo tiene muy pocas capas para análisis detallado")
-                    return
-
-                # VERIFICAR SI HAY MODELO DE ACTIVACIONES PRE-CREADO
-                activation_model = None
-
-                # Método 1: Modelo creado durante el entrenamiento
-                if hasattr(model, '_activation_model_ready'):
-                    activation_model = model._activation_model_ready
-                    st.success(
-                        "✅ Usando modelo de activaciones preparado durante el entrenamiento")
-
-                # Método 2: Modelo guardado en session_state
-                elif 'activation_model' in st.session_state and st.session_state.activation_model is not None:
-                    activation_model = st.session_state.activation_model
-                    st.success(
-                        "✅ Usando modelo de activaciones de session_state")
-
-                # Método 3: Crear on-demand si no existe
-                else:
-                    st.info("🔧 Creando modelo de activaciones...")
+                if st.button("🔧 Intentar Reparación Automática", key="auto_repair"):
                     try:
                         import tensorflow as tf
-                        intermediate_layers = []
-                        for i, layer in enumerate(model.layers):
-                            # Excluir la primera capa (Input) y la última (Output)
-                            if i > 0 and i < len(model.layers) - 1:
-                                if hasattr(layer, 'output') and layer.output is not None:
-                                    intermediate_layers.append(layer.output)
 
-                        if intermediate_layers:
-                            activation_model = tf.keras.Model(
-                                inputs=model.input,
-                                outputs=intermediate_layers
-                            )
-                            # Verificar que funcione
-                            _ = activation_model.predict(
-                                X_sample[:1], verbose=0)
-                            st.session_state.activation_model = activation_model
-                            st.success(
-                                "✅ Modelo de activaciones creado exitosamente")
+                        # Método de reparación avanzada
+                        X_test, y_test = st.session_state.nn_test_data
+                        model = st.session_state.nn_model
+                        config = st.session_state.nn_config
+
+                        # Recrear y recompilar el modelo
+                        model.build(input_shape=(None, X_test.shape[1]))
+
+                        # Configurar optimizador y loss según el tipo de tarea
+                        if config['task_type'] == 'Clasificación':
+                            if config['output_size'] == 1:
+                                loss = 'binary_crossentropy'
+                                metrics = ['accuracy']
+                            else:
+                                loss = 'sparse_categorical_crossentropy'
+                                metrics = ['accuracy']
                         else:
-                            st.warning(
-                                "⚠️ No hay capas intermedias válidas para análisis")
-                            return
-                    except Exception as create_error:
-                        st.error(
-                            f"❌ Error creando modelo de activaciones: {str(create_error)}")
-                        st.info(
-                            "💡 El modelo necesita ser reentrenado para análisis de capas")
-                        return
+                            loss = 'mse'
+                            metrics = ['mae']
 
-                # Si llegamos aquí, tenemos un modelo de activaciones válido
-                if activation_model is None:
-                    st.error("❌ No se pudo obtener modelo de activaciones")
-                    return
+                        model.compile(
+                            optimizer=config.get('optimizer', 'adam'),
+                            loss=loss,
+                            metrics=metrics
+                        )
 
-                # Obtener activaciones usando el modelo pre-creado
-                activations = activation_model.predict(X_sample, verbose=0)
+                        # Hacer predicción de prueba
+                        sample_data = X_test[:1].astype('float32')
+                        _ = model.predict(sample_data, verbose=0)
 
-                if not isinstance(activations, list):
-                    activations = [activations]
+                        st.success("✅ Modelo reparado exitosamente")
+                        st.rerun()
 
-                st.success(
-                    f"✅ Análisis de {len(activations)} capas completado exitosamente")
+                    except Exception as repair_error:
+                        st.error(f"❌ Error en reparación: {repair_error}")
 
-                # Mostrar estadísticas por capa
-                for i, activation in enumerate(activations):
-                    st.markdown(f"#### 📊 Capa {i+1} - Activaciones")
+            with col2:
+                if st.button("🔙 Ir a Reentrenar", type="primary", key="go_retrain"):
+                    st.session_state.active_tab_nn = 2
+                    st.rerun()
 
-                    col1, col2, col3, col4 = st.columns(4)
-                    with col1:
-                        st.metric("🔥 Media", f"{np.mean(activation):.4f}")
-                    with col2:
-                        st.metric("📊 Desv. Std.", f"{np.std(activation):.4f}")
-                    with col3:
-                        dead_ratio = np.mean(activation == 0) * 100
-                        st.metric("💀 % Neuronas Muertas", f"{dead_ratio:.1f}%")
-                    with col4:
-                        saturated_ratio = np.mean(activation >= 0.99) * 100
-                        st.metric("🔴 % Saturadas", f"{saturated_ratio:.1f}%")
+            # Si no se puede reparar, terminar la función
+            if not success:
+                st.info(
+                    "💡 **Sugerencia:** Reentrena el modelo para garantizar una inicialización completa.")
+                return
 
-                    # Interpretación de la salud
-                    if dead_ratio > 50:
-                        st.error(
-                            f"🚨 **Problema en Capa {i+1}**: Muchas neuronas muertas")
-                    elif dead_ratio > 20:
-                        st.warning(
-                            f"⚠️ **Atención en Capa {i+1}**: Algunas neuronas muertas")
-                    else:
-                        st.success(
-                            f"✅ **Capa {i+1} Saludable**: Buena activación")
+        # CREAR PESTAÑAS DE VISUALIZACIÓN
+        viz_tab1, viz_tab2, viz_tab3, viz_tab4 = st.tabs([
+            "📊 Historial", "🧠 Pesos", "🎯 Superficie", "📉 Capas"
+        ])
 
-            except Exception as e:
-                error_msg = str(e)
-                if "never been called" in error_msg or "no defined input" in error_msg:
-                    st.error(
-                        "🚨 **Error de Inicialización del Modelo Sequential**")
-                    st.markdown("""
-                    **¿Qué significa este error?**
-                    - El modelo Sequential de TensorFlow no ha sido completamente inicializado
-                    - Las capas no conocen el tamaño de sus entradas
-                    - Se necesita hacer al menos una predicción para construir el modelo
-                    
-                    **Solución Automática:**
-                    La función incluye reparación automática que debería resolver esto.
-                    Si persiste, usa el botón de 'Reparar Modelo' en la sección de errores abajo.
-                    """)
-                    st.info(
-                        "💡 **Tip:** Este error es común con modelos Sequential recién cargados y tiene solución automática.")
-                else:
-                    st.error(f"❌ Error inesperado en el análisis: {str(e)}")
-                    st.info(
-                        "🔧 Esto puede indicar un problema con la arquitectura del modelo.")
+        # TAB 1: HISTORIAL DE ENTRENAMIENTO
+        with viz_tab1:
+            show_training_history_tab()
 
-                st.markdown(f"**Error técnico:** {error_msg}")
+        # TAB 2: PESOS Y SESGOS
+        with viz_tab2:
+            show_weights_analysis_tab()
 
-        # Botón para generar código de visualización
-        st.markdown("### 💻 Código Python")
-        if st.button("📝 Generar Código de Visualización", use_container_width=True):
-            code = generate_neural_network_visualization_code(config)
-            st.markdown("#### 🐍 Código Python para Visualizaciones")
-            st.code(code, language='python')
+        # TAB 3: SUPERFICIE DE DECISIÓN
+        with viz_tab3:
+            show_decision_surface_tab()
 
-            st.download_button(
-                label="💾 Descargar Código de Visualización",
-                data=code,
-                file_name="visualizaciones_red_neuronal.py",
-                mime="text/plain"
-            )
+        # TAB 4: ANÁLISIS DE CAPAS
+        with viz_tab4:
+            show_layer_activations_tab()
 
-        # Navegación
+        # NAVEGACIÓN
         st.markdown("---")
-        st.markdown("### 🧭 Navegación")
-        col_nav1, col_nav2 = st.columns(2)
-        with col_nav1:
+        col1, col2 = st.columns(2)
+        with col1:
             if st.button("🔙 Volver a Evaluación", use_container_width=True):
                 st.session_state.active_tab_nn = 3
                 st.rerun()
-        with col_nav2:
+        with col2:
             if st.button("🔮 Hacer Predicciones", type="primary", use_container_width=True):
                 st.session_state.active_tab_nn = 5
                 st.rerun()
 
     except Exception as e:
-        st.error(f"❌ Error en las visualizaciones: {str(e)}")
+        st.error(f"❌ Error en visualizaciones: {str(e)}")
 
-        # Diagnóstico detallado del error
-        error_type = type(e).__name__
-        error_msg = str(e)
-
-        st.markdown("### 🔍 Diagnóstico del Error")
-
-        if "never been called" in error_msg or "no defined input" in error_msg:
-            st.error("🚨 **Problema de Inicialización del Modelo**")
+        if "never been called" in str(e):
             st.markdown("""
-            **Causa del problema:**
-            - El modelo Sequential no ha sido completamente inicializado
-            - Las capas no tienen sus formas de entrada definidas
-            - Se necesita hacer al menos una predicción para construir el modelo
+            **🔧 Solución:** El modelo necesita inicialización completa.
+            1. Reentrena el modelo desde cero
+            2. O usa el botón de reparación automática
             """)
 
-            # Botón de reparación automática
-            col1, col2 = st.columns(2)
-
-            with col1:
-                if st.button("🔧 Reparar Modelo Automáticamente", type="primary", key="auto_repair"):
-                    try:
-                        st.info("🔄 Iniciando reparación exhaustiva del modelo...")
-
-                        # Obtener datos de test
-                        if 'nn_test_data' in st.session_state:
-                            X_test, y_test = st.session_state.nn_test_data
-
-                            # Forzar construcción del modelo con múltiples estrategias MEJORADAS
-                            with st.spinner("Aplicando estrategias de reparación..."):
-                                progress_bar = st.progress(0)
-
-                                # Estrategia 1: Predicción simple
-                                progress_bar.progress(20)
-                                _ = model.predict(X_test[:1], verbose=0)
-
-                                # Estrategia 2: Llamada directa al modelo
-                                progress_bar.progress(40)
-                                _ = model(X_test[:1])
-
-                                # Estrategia 3: Predicción con batch más grande
-                                progress_bar.progress(60)
-                                batch_size = min(10, len(X_test))
-                                _ = model.predict(
-                                    X_test[:batch_size], verbose=0)
-
-                                # Estrategia 4: Compilar explícitamente si es necesario
-                                progress_bar.progress(80)
-                                if not model.built:
-                                    model.build(input_shape=(
-                                        None, X_test.shape[1]))
-
-                                # Estrategia 5: Verificar input tensor
-                                if model.input is None:
-                                    model._set_inputs(X_test[:1])
-
-                                # Estrategia 6: Forzar todas las capas
-                                for i, layer in enumerate(model.layers):
-                                    if hasattr(layer, 'built') and not layer.built:
-                                        if i == 0:
-                                            layer.build(input_shape=(
-                                                None, X_test.shape[1]))
-                                        else:
-                                            prev_output = model.layers[i -
-                                                                       1].output_shape
-                                            layer.build(prev_output)
-
-                                progress_bar.progress(100)
-
-                            # Verificación EXHAUSTIVA que el modelo esté funcionando
-                            st.info("✅ Verificando reparación...")
-
-                            # Test múltiples operaciones
-                            test_pred = model.predict(X_test[:5], verbose=0)
-                            _ = model.get_weights()
-
-                            # Test crítico: modelo de activaciones
-                            if len(model.layers) > 1:
-                                layer_outputs = [
-                                    layer.output for layer in model.layers[:-1]]
-                                test_activation_model = tf.keras.Model(
-                                    inputs=model.input, outputs=layer_outputs)
-                                _ = test_activation_model.predict(
-                                    X_test[:1], verbose=0)
-
-                            st.success("🎉 ¡Modelo reparado exitosamente!")
-                            st.info(
-                                "✅ El modelo está completamente inicializado y listo para todas las visualizaciones.")
-
-                            # Botón para recargar visualizaciones
-                            if st.button("🔄 Recargar Visualizaciones", type="primary"):
-                                st.rerun()
-
-                        else:
-                            st.error(
-                                "❌ No se encontraron datos de test para reparar el modelo")
-
-                    except Exception as repair_error:
-                        st.error(
-                            f"❌ Error durante la reparación: {repair_error}")
-
-                        # Diagnóstico específico del error
-                        if "never been called" in str(repair_error):
-                            st.warning(
-                                "🔧 **Error persistente de inicialización**")
-                            st.markdown("""
-                            **Estrategias adicionales:**
-                            1. Reinicia la aplicación completamente
-                            2. Reentrena el modelo desde cero  
-                            3. Verifica que TensorFlow esté actualizado
-                            4. Prueba con un dataset más pequeño
-                            """)
-                        else:
-                            st.info("💡 Intenta reentrenar el modelo desde cero.")
-
-            with col2:
-                st.markdown("**💡 Solución manual:**")
-                st.markdown("""
-                1. Ve a la pestaña **'Entrenamiento'**
-                2. Reentrena el modelo desde cero
-                3. Regresa a esta pestaña
-                4. Las visualizaciones deberían funcionar
-                """)
-
-                if st.button("🔙 Ir a Entrenamiento", key="go_training"):
-                    st.session_state.active_tab_nn = 2
-                    st.rerun()
-
-        else:
-            # Otros tipos de errores
-            st.warning("⚠️ **Error Inesperado**")
-            st.code(f"Tipo: {error_type}\nMensaje: {error_msg}")
-
-            st.markdown("""
-            **Posibles soluciones:**
-            - Verifica que TensorFlow esté instalado correctamente
-            - Asegúrate de que el modelo esté entrenado
-            - Intenta reentrenar el modelo
-            - Reinicia la aplicación si persiste el problema
-            """)
-
-        # Información técnica adicional
-        with st.expander("🔬 Información Técnica Detallada"):
-            try:
-                st.write("**Estado del Modelo:**")
-                st.write(f"- Tipo: {type(model).__name__}")
-                st.write(
-                    f"- Construido: {getattr(model, 'built', 'No disponible')}")
-                st.write(
-                    f"- Número de capas: {len(model.layers) if hasattr(model, 'layers') else 'No disponible'}")
-
-                if hasattr(model, 'input'):
-                    st.write(
-                        f"- Input definido: {'✅' if model.input is not None else '❌'}")
-
-                if hasattr(model, 'layers'):
-                    st.write("**Estado de las Capas:**")
-                    for i, layer in enumerate(model.layers):
-                        layer_built = getattr(layer, 'built', False)
-                        st.write(
-                            f"  - Capa {i+1} ({layer.__class__.__name__}): {'✅' if layer_built else '❌'}")
-
-            except Exception as debug_error:
-                st.write(f"Error obteniendo información: {debug_error}")
-
-        st.info("💡 **Tip**: Este error es común con modelos Sequential. La reparación automática debería resolverlo.")
+            if st.button("🔙 Ir a Entrenamiento", type="primary"):
+                st.session_state.active_tab_nn = 2
+                st.rerun()
 
 
 def show_neural_network_predictions():
@@ -2169,7 +1564,7 @@ def show_neural_network_predictions():
 
             if config['task_type'] == 'Clasificación':
                 output_size = safe_get_output_size(config)
-                if output_size > 2:
+                if output_size > 2:  # Multiclase
                     base_class_idx = np.argmax(base_prediction[0])
                     base_confidence = base_prediction[0][base_class_idx]
 
@@ -2395,18 +1790,3 @@ def show_neural_network_predictions():
     except Exception as e:
         st.error(f"Error en las predicciones: {str(e)}")
         st.info("Asegúrate de que el modelo esté entrenado correctamente.")
-
-
-def safe_get_output_size(config):
-    """
-    Extrae el tamaño de salida de forma segura para evitar errores de comparación de arrays.
-    """
-    try:
-        output_size = config['output_size']
-        # Si es un array o lista, tomar el primer elemento
-        if hasattr(output_size, '__len__') and not isinstance(output_size, (str, bytes)):
-            return int(output_size[0]) if len(output_size) > 0 else 1
-        # Si es un escalar
-        return int(output_size)
-    except:
-        return 1

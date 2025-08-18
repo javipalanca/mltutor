@@ -366,30 +366,74 @@ def train_neural_network(df, target_col, config, learning_rate, epochs, validati
             y_train_encoded = y_train.values
             y_test_encoded = y_test.values
 
-        # Construir modelo con Input layer (mejores prácticas)
-        model = keras.Sequential()
+        # 🔧 CONSTRUCCIÓN ROBUSTA DEL MODELO - MÉTODO MEJORADO
+        # Opción 1: Usar Functional API (más robusta)
+        if True:  # Cambiar a False para usar Sequential
+            # FUNCTIONAL API - GARANTIZA model.input
+            input_layer = keras.layers.Input(
+                shape=(config['input_size'],), name='input_layer')
+            x = input_layer
 
-        # Capa de entrada explícita (elimina warnings)
-        model.add(keras.layers.Input(shape=(config['input_size'],)))
+            # Primera capa
+            x = keras.layers.Dense(
+                config['architecture'][1],
+                activation=config['activation'],
+                name='dense_1')(x)
+            x = keras.layers.Dropout(
+                config['dropout_rate'], name='dropout_1')(x)
 
-        # Primera capa densa (sin input_shape)
-        model.add(keras.layers.Dense(
-            config['architecture'][1],
-            activation=config['activation']
-        ))
-        model.add(keras.layers.Dropout(config['dropout_rate']))
+            # Capas ocultas
+            for i, layer_size in enumerate(config['architecture'][2:-1], start=2):
+                x = keras.layers.Dense(
+                    layer_size, activation=config['activation'],
+                    name=f'dense_{i}')(x)
+                x = keras.layers.Dropout(
+                    config['dropout_rate'], name=f'dropout_{i}')(x)
 
-        # Capas ocultas
-        for layer_size in config['architecture'][2:-1]:
+            # Capa de salida
+            output_layer = keras.layers.Dense(
+                config['output_size'],
+                activation=config['output_activation'],
+                name='output_layer'
+            )(x)
+
+            # Crear modelo funcional
+            model = keras.Model(inputs=input_layer,
+                                outputs=output_layer, name='neural_network')
+
+            # ✅ model.input GARANTIZADO aquí
+
+        else:
+
+            # Construir modelo con Input layer (mejores prácticas)
+            model = keras.Sequential(name='neural_network')
+
+            # Capa de entrada explícita (elimina warnings)
+            model.add(keras.layers.Input(shape=(config['input_size'],)))
+
+            # Primera capa densa (sin input_shape)
             model.add(keras.layers.Dense(
-                layer_size, activation=config['activation']))
+                config['architecture'][1],
+                activation=config['activation'],
+                name="dense_1"
+            ))
             model.add(keras.layers.Dropout(config['dropout_rate']))
 
-        # Capa de salida
-        model.add(keras.layers.Dense(
-            config['output_size'],
-            activation=config['output_activation']
-        ))
+            # Capas ocultas
+            for i, layer_size in enumerate(config['architecture'][2:-1], start=2):
+                model.add(keras.layers.Dense(
+                    layer_size,
+                    activation=config['activation'],
+                    name=f'dense_{i}'
+                ))
+                model.add(keras.layers.Dropout(config['dropout_rate']))
+
+            # Capa de salida
+            model.add(keras.layers.Dense(
+                config['output_size'],
+                activation=config['output_activation'],
+                name="output_layer"
+            ))
 
         # Paso 3: Compilando el modelo
         if progress_callback:
