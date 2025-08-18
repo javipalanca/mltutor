@@ -851,65 +851,170 @@ def show_weights_analysis_tab():
     """Muestra el análisis de pesos y sesgos."""
     import plotly.graph_objects as go
     import numpy as np
+    import pandas as pd
 
-    st.subheader("🧠 Análisis de Pesos")
+    st.subheader("🧠 Análisis de Pesos y Sesgos")
 
-    with st.expander("💡 Interpretación"):
+    with st.expander("💡 Cómo interpretar esta pestaña", expanded=False):
         st.markdown("""
-        **Pesos altos:** Conexiones importantes | **Cercanos a 0:** Conexiones débiles
-        **Distribución normal:** ✅ Red saludable
+        Esta sección te ayuda a entender **qué está aprendiendo** la red:
+
+        • **Histograma de Pesos:** Muestra la distribución de las conexiones entre neuronas.
+          - Distribución centrada en 0 y con forma aproximadamente normal suele indicar un entrenamiento saludable.
+          - Pesos extremadamente grandes pueden provocar inestabilidad o sobreajuste.
+          - Pesos casi todos muy cercanos a 0 pueden indicar que la red no aprendió (underfitting) o exceso de regularización.
+
+        • **Histograma de Sesgos:** Indica desplazamientos aprendidos por cada neurona.
+          - Sesgos suelen estar más concentrados; valores extremos pueden saturar activaciones.
+
+        • **Líneas verticales:**
+          - Línea gris: valor 0 (referencia neutra)
+          - Línea verde discontinua: media actual
+
+        • **% Casi Cero:** Conexiones cuyo valor absoluto < 1e-3. Un porcentaje moderado (<60%) es normal; demasiado alto puede indicar red infraentrenada.
         """)
+
+    with st.expander("⚙️ Opciones de visualización", expanded=False):
+        colc1, colc2, colc3 = st.columns(3)
+        with colc1:
+            bins_w = st.slider("Bins pesos", 10, 120, 50, key="bins_weights")
+        with colc2:
+            bins_b = st.slider("Bins sesgos", 5, 60, 20, key="bins_biases")
+        with colc3:
+            log_y = st.checkbox("Escala log en frecuencia", value=False,
+                                help="Útil si hay valores muy concentrados")
 
     model = st.session_state.nn_model
 
     # Extraer pesos de forma robusta
     try:
         layer_weights, layer_biases = [], []
+        layer_summaries = []
         for i, layer in enumerate(model.layers):
             if hasattr(layer, 'get_weights'):
                 weights = layer.get_weights()
                 if len(weights) >= 2:
-                    layer_weights.append(weights[0])
-                    layer_biases.append(weights[1])
+                    W, b = weights[0], weights[1]
+                    layer_weights.append(W)
+                    layer_biases.append(b)
+                    near_zero_ratio = np.mean(np.abs(W) < 1e-3) * 100
+                    layer_summaries.append({
+                        'Capa': i+1,
+                        'Forma Pesos': str(W.shape),
+                        'Media Pesos': float(np.mean(W)),
+                        'Std Pesos': float(np.std(W)),
+                        '% |w|<1e-3': round(near_zero_ratio, 1),
+                        'Media Sesgos': float(np.mean(b)),
+                        'Std Sesgos': float(np.std(b)),
+                        'Num Parámetros': W.size + b.size
+                    })
                     st.caption(
-                        f"✅ Capa {i+1}: {weights[0].shape} pesos, {weights[1].shape} sesgos")
+                        f"✅ Capa {i+1}: {W.shape} pesos, {b.shape} sesgos")
 
         if layer_weights:
+            # Tabla resumen
+            st.markdown("### 📋 Resumen por Capa")
+            summary_df = pd.DataFrame(layer_summaries)
+            st.dataframe(summary_df, use_container_width=True)
+
+            # Análisis global
+            all_weights = np.concatenate([w.flatten() for w in layer_weights])
+            global_std = np.std(all_weights)
+            global_mean = np.mean(all_weights)
+            near_zero_global = np.mean(np.abs(all_weights) < 1e-3) * 100
+
+            colg1, colg2, colg3, colg4 = st.columns(4)
+            with colg1:
+                st.metric("Media global", f"{global_mean:.4f}")
+            with colg2:
+                st.metric("Std global", f"{global_std:.4f}")
+            with colg3:
+                st.metric("% |w|<1e-3", f"{near_zero_global:.1f}%")
+            with colg4:
+                st.metric("Capas analizadas", len(layer_weights))
+
+            if global_std < 0.01:
+                st.warning(
+                    "🟡 Muchos pesos muy pequeños: posible underfitting o regularización alta")
+            elif global_std > 2:
+                st.warning(
+                    "⚠️ Pesos con varianza muy alta: posible inestabilidad del entrenamiento")
+            else:
+                st.success("✅ Varianza de pesos dentro de un rango saludable")
+
+            st.markdown("### 🔍 Distribución por Capa")
             for i, (weights, biases) in enumerate(zip(layer_weights, layer_biases)):
                 st.markdown(f"#### 📊 Capa {i+1}")
                 col1, col2 = st.columns(2)
 
+                w_flat = weights.flatten()
+                b_flat = biases.flatten()
+                w_mean, w_std = np.mean(w_flat), np.std(w_flat)
+                b_mean, b_std = np.mean(b_flat), np.std(b_flat)
+                w_near_zero = np.mean(np.abs(w_flat) < 1e-3) * 100
+
                 with col1:
                     fig_w = go.Figure()
                     fig_w.add_trace(go.Histogram(
-                        x=weights.flatten(), nbinsx=50, name='Pesos'))
+                        x=w_flat, nbinsx=bins_w, name='Pesos', marker_color='#1f77b4'
+                    ))
+                    # Líneas de referencia
+                    fig_w.add_vline(x=0, line_color='gray', line_width=1)
+                    fig_w.add_vline(x=w_mean, line_color='green', line_dash='dash',
+                                    annotation_text='Media', annotation_position='top right')
                     fig_w.update_layout(
-                        title=f'Pesos Capa {i+1}', height=300)
+                        title=f'Distribución Pesos Capa {i+1}',
+                        height=320,
+                        xaxis_title="Valor de peso",
+                        yaxis_title="Frecuencia",
+                        yaxis_type='log' if log_y else 'linear',
+                        bargap=0.02,
+                        margin=dict(l=10, r=10, t=40, b=10)
+                    )
                     st.plotly_chart(fig_w, use_container_width=True)
+                    st.caption(
+                        f"Media={w_mean:.4f} | Std={w_std:.4f} | %≈0={w_near_zero:.1f}% | Rango=[{w_flat.min():.3f}, {w_flat.max():.3f}]")
 
                 with col2:
                     fig_b = go.Figure()
                     fig_b.add_trace(go.Histogram(
-                        x=biases.flatten(), nbinsx=20, name='Sesgos'))
+                        x=b_flat, nbinsx=bins_b, name='Sesgos', marker_color='#ff7f0e'
+                    ))
+                    fig_b.add_vline(x=0, line_color='gray', line_width=1)
+                    fig_b.add_vline(x=b_mean, line_color='green', line_dash='dash',
+                                    annotation_text='Media', annotation_position='top right')
                     fig_b.update_layout(
-                        title=f'Sesgos Capa {i+1}', height=300)
+                        title=f'Distribución Sesgos Capa {i+1}',
+                        height=320,
+                        xaxis_title="Valor de sesgo",
+                        yaxis_title="Frecuencia",
+                        yaxis_type='log' if log_y else 'linear',
+                        bargap=0.02,
+                        margin=dict(l=10, r=10, t=40, b=10)
+                    )
                     st.plotly_chart(fig_b, use_container_width=True)
+                    st.caption(
+                        f"Media={b_mean:.4f} | Std={b_std:.4f} | Rango=[{b_flat.min():.3f}, {b_flat.max():.3f}]")
 
-            # Salud general
-            all_weights = np.concatenate(
-                [w.flatten() for w in layer_weights])
-            weight_std = np.std(all_weights)
+            st.markdown("### 🩺 Evaluación General")
+            insights = []
+            if near_zero_global > 75:
+                insights.append(
+                    "Muchos pesos casi nulos → considera reducir regularización o entrenar más épocas.")
+            if global_std < 0.01:
+                insights.append(
+                    "Varianza extremadamente baja → el modelo quizá no aprendió patrones útiles.")
+            if global_std > 2:
+                insights.append(
+                    "Varianza muy alta → riesgo de explosión de gradientes/saturación.")
+            if not insights:
+                insights.append(
+                    "Distribución equilibrada de pesos y sesgos. No se detectan anomalías destacables.")
 
-            if weight_std < 0.01:
-                st.error("🚨 Pesos muy pequeños - red no aprendió bien")
-            elif weight_std > 2:
-                st.warning(
-                    "⚠️ Pesos muy grandes - posible inestabilidad")
-            else:
-                st.success("✅ Distribución de pesos saludable")
+            for msg in insights:
+                st.write(f"• {msg}")
         else:
-            st.warning(
-                "⚠️ No se encontraron capas con pesos entrenables")
+            st.warning("⚠️ No se encontraron capas con pesos entrenables")
 
     except Exception as weights_error:
         st.error(f"❌ Error analizando pesos: {weights_error}")
@@ -1013,119 +1118,459 @@ def show_layer_activations_tab():
     import plotly.graph_objects as go
     import numpy as np
 
-    st.subheader("📉 Análisis de Activaciones")
+    st.subheader("📉 Análisis de Activaciones y Neuronas Muertas")
 
-    with st.expander("💡 Interpretación"):
+    with st.expander("💡 ¿Qué verás aquí?", expanded=False):
         st.markdown("""
-        **Muchos ceros:** 💀 Neuronas muertas | **Valores extremos:** 🔴 Saturación
-        **Distribución balanceada:** ✅ Red saludable
+        Esta pestaña muestra **cómo se activan las neuronas internas** y detecta:
+
+        * 💀 **Neuronas muertas:** Nunca se activan (todas sus salidas ≈ 0 en ReLU) → No aportan nada.
+        * 😴 **Neuronas casi constantes:** Producen (casi) siempre el mismo valor → Muy poca contribución.
+        * 🔴 **Saturación:** Muchas activaciones muy altas (por ejemplo >0.99 en sigmoides) → Gradientes débiles.
+
+        **¿Por qué ocurren las neuronas muertas?**
+        - Learning rate alto que empuja los pesos a regiones sin recuperación
+        - Inicialización poco favorable
+        - Demasiada regularización (L1/L2 / dropout mal configurado)
+        - Arquitectura sobredimensionada
+
+        **Cómo mitigarlo:** Reduce LR, elimina capas innecesarias, cambia inicialización o usa activaciones como LeakyReLU / ELU.
         """)
 
     model = st.session_state.nn_model
 
-    def analyze_activations_safely():
-        """Analiza activaciones de forma robusta evitando errores de modelo no inicializado."""
-        try:
-            X_test, _ = st.session_state.nn_test_data
+    # Controles
+    with st.expander("⚙️ Parámetros de Análisis", expanded=False):
+        colc1, colc2, colc3, colc4 = st.columns(4)
+        with colc1:
+            sample_size = st.slider(
+                "Muestras", 10, 200, 50, help="Número de ejemplos de test usados para calcular activaciones")
+        with colc2:
+            dead_threshold = st.number_input("Umbral muerta (<=)", 0.0, 1.0, 0.0, 0.01,
+                                             help="Si TODAS las activaciones de la neurona están por debajo o iguales a este valor, se marca como muerta")
+        with colc3:
+            constant_std = st.number_input("Std constante <", 1e-6, 1.0, 1e-3, format="%.6f",
+                                           help="Si la desviación estándar de una neurona es menor a este valor, se considera casi constante")
+        with colc4:
+            show_network_map = st.checkbox("Mostrar mapa de red", value=True)
 
-            # Verificar que el modelo tiene capas válidas
-            valid_layers = []
-            for i, layer in enumerate(model.layers):
-                # Solo incluir capas densas con salida definida
-                if (hasattr(layer, 'output') and
-                    layer.output is not None and
-                    hasattr(layer, 'units') and
-                        i > 0 and i < len(model.layers) - 1):
-                    valid_layers.append((i, layer))
+        colr1, colr2, colr3 = st.columns(3)
+        with colr1:
+            jitter_strength = st.slider(
+                "Dispersión nodos", 0, 50, 18, help="Separación horizontal aleatoria (sin aumentar altura). 0 = columnas rectas.")
+        with colr2:
+            connection_sample_pct = st.slider(
+                "% conexiones dibujadas", 10, 100, 70,
+                help="Para capas muy densas reduce líneas dibujadas manteniendo estructura (submuestreo determinista)")
+        with colr3:
+            adaptive_radius = st.checkbox(
+                "Radio adaptativo", value=True, help="Reduce el tamaño de nodos en capas con muchas neuronas para evitar solapamiento")
 
-            if not valid_layers:
-                st.warning(
-                    "⚠️ No hay capas intermedias válidas para analizar")
-                return False
+        colgA, colgB, colgC = st.columns(3)
+        with colgA:
+            group_large_layers = st.checkbox(
+                "Agrupar capas grandes", value=True, help="Divide internamente capas con muchas neuronas en varias subcolumnas para reducir apelotonamiento sin aumentar altura")
+        with colgB:
+            min_spacing = st.slider(
+                "Espaciado mínimo vertical", 12, 50, 22, help="Altura mínima entre neuronas dentro de una subcolumna")
+        with colgC:
+            max_columns = st.slider(
+                "Máx subcolumnas capa", 1, 6, 3, help="Límite superior de subcolumnas usadas al agrupar capas grandes")
 
-            st.success(
-                f"✅ Encontradas {len(valid_layers)} capas válidas para análisis")
+    try:
+        X_test, _ = st.session_state.nn_test_data
+        sample_size = min(sample_size, len(X_test))
+        sample_data = X_test[:sample_size].astype(np.float32)
 
-            # Método alternativo: analizar capa por capa
-            for layer_idx, layer in valid_layers:
-                try:
-                    # Crear modelo parcial hasta esta capa
-                    partial_model = tf.keras.Model(
-                        inputs=model.input,
-                        outputs=layer.output
-                    )
+        # Identificar capas densas ocultas (excluye entrada implícita y última capa de salida)
+        hidden_layers = []
+        # excluye capa de salida
+        for idx, layer in enumerate(model.layers[:-1]):
+            # evitar capa de entrada (InputLayer / primera densa)
+            if hasattr(layer, 'units') and idx > 0:
+                hidden_layers.append((idx, layer))
 
-                    # Hacer predicciones en muestra pequeña
-                    sample_size = min(50, len(X_test))
-                    sample_data = X_test[:sample_size].astype(
-                        np.float32)
+        if not hidden_layers:
+            st.warning("⚠️ No hay capas ocultas densas para analizar")
+            return
 
-                    activations = partial_model.predict(
-                        sample_data, verbose=0)
+        layer_stats = []
+        dead_neurons_per_layer = []
+        constant_neurons_per_layer = []
+        saturation_per_layer = []
+        activations_cache = []
 
-                    st.markdown(
-                        f"#### 📊 Capa {layer_idx + 1} ({layer.name})")
-                    col1, col2, col3, col4 = st.columns(4)
+        for layer_index, layer in hidden_layers:
+            try:
+                partial_model = tf.keras.Model(
+                    inputs=model.input, outputs=layer.output)
+                acts = partial_model.predict(sample_data, verbose=0)
+                activations_cache.append(acts)
 
-                    with col1:
-                        st.metric(
-                            "🔥 Media", f"{np.mean(activations):.4f}")
-                    with col2:
-                        st.metric("📊 Desv. Std.",
-                                  f"{np.std(activations):.4f}")
-                    with col3:
-                        dead_ratio = np.mean(activations == 0) * 100
-                        st.metric("💀 % Muertas", f"{dead_ratio:.1f}%")
-                    with col4:
-                        saturated_ratio = np.mean(
-                            activations >= 0.99) * 100
-                        st.metric("🔴 % Saturadas",
-                                  f"{saturated_ratio:.1f}%")
+                # Calcular métricas por neurona
+                neuron_means = acts.mean(axis=0)
+                neuron_stds = acts.std(axis=0)
+                # Dead: todas activaciones <= dead_threshold
+                dead_mask = (acts <= dead_threshold).all(axis=0)
+                constant_mask = (~dead_mask) & (neuron_stds < constant_std)
+                # Saturación (heurística simple: activaciones muy altas ~1.0 si rango 0-1)
+                sat_mask = (acts >= 0.99).mean(axis=0) > 0.5 if acts.max(
+                ) <= 1.2 else np.zeros_like(dead_mask, dtype=bool)
 
-                    # Estado de salud
-                    if dead_ratio > 50:
-                        st.error(
-                            f"🚨 Capa {layer_idx + 1}: Muchas neuronas muertas")
-                    elif dead_ratio > 20:
-                        st.warning(
-                            f"⚠️ Capa {layer_idx + 1}: Algunas neuronas muertas")
+                dead_idx = np.where(dead_mask)[0].tolist()
+                constant_idx = np.where(constant_mask)[0].tolist()
+                sat_ratio = (acts >= 0.99).mean() * \
+                    100 if acts.max() <= 1.2 else 0.0
+
+                layer_stats.append({
+                    'Capa': layer_index + 1,
+                    'Neuronas': acts.shape[1],
+                    'Muertas': len(dead_idx),
+                    '% Muertas': len(dead_idx) / acts.shape[1] * 100,
+                    'Constantes': len(constant_idx),
+                    '% Const': len(constant_idx) / acts.shape[1] * 100,
+                    '% Saturación≈': sat_ratio,
+                    'Media Act.': float(neuron_means.mean()),
+                    'Std Act.': float(neuron_stds.mean())
+                })
+                dead_neurons_per_layer.append(dead_idx)
+                constant_neurons_per_layer.append(constant_idx)
+                saturation_per_layer.append(sat_ratio)
+            except Exception as layer_err:
+                st.error(f"Error capa {layer_index+1}: {layer_err}")
+                continue
+
+        # Resumen
+        import pandas as pd
+        st.markdown("### 📋 Resumen por Capa Oculta")
+        df_stats = pd.DataFrame(layer_stats)
+        st.dataframe(df_stats, use_container_width=True)
+
+        # Interpretación global
+        total_dead = sum(s['Muertas'] for s in layer_stats)
+        total_neurons = sum(s['Neuronas'] for s in layer_stats)
+        dead_pct = total_dead / total_neurons * 100 if total_neurons else 0
+        if dead_pct > 50:
+            st.error(
+                f"🚨 Alta proporción de neuronas muertas ({dead_pct:.1f}%) → Revisa LR, inicialización o arquitectura")
+        elif dead_pct > 20:
+            st.warning(
+                f"⚠️ Proporción moderada de neuronas muertas ({dead_pct:.1f}%)")
+        else:
+            st.success(f"✅ Neuronas muertas bajo control ({dead_pct:.1f}%)")
+
+        # Detalle por capa con histogramas
+        st.markdown("### 🔍 Detalle de Activaciones")
+        for (layer_index, layer), acts in zip(hidden_layers, activations_cache):
+            with st.expander(f"Capa {layer_index+1} ({layer.name})", expanded=False):
+                colm1, colm2, colm3, colm4 = st.columns(4)
+                with colm1:
+                    st.metric("Neuronas", acts.shape[1])
+                with colm2:
+                    st.metric(
+                        "Muertas", f"{len(dead_neurons_per_layer[hidden_layers.index((layer_index, layer))])}")
+                with colm3:
+                    st.metric(
+                        "Constantes", f"{len(constant_neurons_per_layer[hidden_layers.index((layer_index, layer))])}")
+                with colm4:
+                    st.metric(
+                        "Saturación %", f"{saturation_per_layer[hidden_layers.index((layer_index, layer))]:.1f}")
+
+                if st.checkbox(f"Mostrar histograma activaciones capa {layer_index+1}", key=f"hist_act_{layer_index}"):
+                    fig_act = go.Figure()
+                    fig_act.add_trace(go.Histogram(
+                        x=acts.flatten(), nbinsx=50, name='Activaciones'))
+                    fig_act.update_layout(
+                        height=280, title=f"Distribución Activaciones Capa {layer_index+1}")
+                    st.plotly_chart(fig_act, use_container_width=True)
+
+                if st.checkbox(f"Mostrar medias por neurona capa {layer_index+1}", key=f"means_{layer_index}"):
+                    neuron_means = acts.mean(axis=0)
+                    fig_mean = go.Figure(go.Bar(y=neuron_means, name='Media'))
+                    fig_mean.update_layout(
+                        height=260, title=f"Medias de Activación (Capa {layer_index+1})", xaxis_title='Neurona', yaxis_title='Media')
+                    st.plotly_chart(fig_mean, use_container_width=True)
+
+        # Mapa de red con calaveras
+        if show_network_map:
+            st.markdown("### 🗺️ Mapa de Neuronas Muertas (💀) y Constantes (😴)")
+            # Preparar datos para HTML
+            architecture = []
+            # input size estimado
+            try:
+                input_dim = model.layers[0].input_shape[-1]
+            except Exception:
+                input_dim = st.session_state.nn_config.get('input_size', 0)
+            architecture.append(int(input_dim))
+            for idx, layer in hidden_layers:
+                architecture.append(int(layer.units))
+            # capa salida
+            out_units = getattr(model.layers[-1], 'units', 1)
+            architecture.append(int(out_units))
+
+            dead_js = dead_neurons_per_layer
+            const_js = constant_neurons_per_layer
+
+            # Construir información de pesos/sesgos por neurona para tooltip
+            import json
+            neuron_info = []  # índice 0 capa entrada (sin pesos entrantes)
+            neuron_info.append([])
+            # Dense layers en orden (todas las capas con kernel incluyendo salida)
+            dense_layers = [ly for ly in model.layers if hasattr(ly, 'kernel')]
+            for d_idx, d_layer in enumerate(dense_layers):
+                W, b = d_layer.get_weights()[:2]
+                layer_list = []
+                for j in range(W.shape[1]):
+                    w_col = W[:, j]
+                    info_item = {
+                        'bias': float(b[j]),
+                        'mean_w': float(np.mean(w_col)),
+                        'std_w': float(np.std(w_col)),
+                        'max_abs_w': float(np.max(np.abs(w_col)))
+                    }
+                    # Marcar estado si es capa oculta (excluye salida)
+                    arch_layer_index = d_idx + 1  # arquitectura incluye input al inicio
+                    if arch_layer_index < len(architecture) - 1:  # capa oculta
+                        hidden_list_index = arch_layer_index - 1  # dead_js index
+                        if hidden_list_index < len(dead_js):
+                            if j in dead_js[hidden_list_index]:
+                                info_item['estado'] = 'muerta'
+                            elif j in const_js[hidden_list_index]:
+                                info_item['estado'] = 'constante'
+                            else:
+                                info_item['estado'] = 'activa'
+                        else:
+                            info_item['estado'] = 'activa'
                     else:
-                        st.success(
-                            f"✅ Capa {layer_idx + 1}: Saludable")
+                        info_item['estado'] = 'salida'
+                    layer_list.append(info_item)
+                neuron_info.append(layer_list)
 
-                    # Histograma de activaciones
-                    if st.checkbox(f"Ver distribución Capa {layer_idx + 1}", key=f"show_hist_{layer_idx}"):
-                        fig = go.Figure()
-                        fig.add_trace(go.Histogram(
-                            x=activations.flatten(),
-                            nbinsx=50,
-                            name=f'Activaciones Capa {layer_idx + 1}'
-                        ))
-                        fig.update_layout(
-                            title=f'Distribución de Activaciones - Capa {layer_idx + 1}',
-                            height=300
-                        )
-                        st.plotly_chart(fig, use_container_width=True)
+            weight_info_js = json.dumps(neuron_info)
 
-                except Exception as layer_error:
-                    st.error(
-                        f"❌ Error analizando capa {layer_idx + 1}: {layer_error}")
-                    continue
+            # Calcular ancho ideal del iframe (más capas => más ancho), con límites razonables
+            try:
+                comp_width = min(
+                    1600, max(700, 260 + 180 * (len(architecture) - 1)))
+            except Exception:
+                comp_width = 1000
 
-            return True
+            html_map = f"""
+                        <style>
+                            .nn-dead-wrapper {{
+                                width:100%;
+                                max-width:100%;
+                                margin:0 auto;
+                                border:1px solid #ddd;
+                                padding:12px 12px 4px 12px;
+                                border-radius:8px;
+                                background:#fafafa;
+                                box-sizing:border-box;
+                            }}
+                            #deadCanvas {{
+                                width:100% !important;
+                                height:460px !important;
+                                display:block;
+                            }}
+                        </style>
+                        <div class='nn-dead-wrapper'>
+                            <canvas id='deadCanvas'></canvas>
+                            <div style='font-size:12px;margin-top:6px;'>Leyenda: <span style='color:#1976d2'>● Activa</span>  <span style='opacity:0.35'>● Inactiva</span>  💀 Muerta  😴 Constante</div>
+                        </div>
+                        <script>
+                            const arch = {architecture};
+                            const dead = {dead_js};
+                            const constantN = {const_js};
+                            const jitterStrength = {jitter_strength};
+                            const connectionSample = {connection_sample_pct} / 100.0; // proporción de conexiones a dibujar
+                            const adaptiveRadius = {str(adaptive_radius).lower()};
+                            const groupLarge = {str(group_large_layers).lower()};
+                            const minSpacing = {min_spacing};
+                            const maxCols = {max_columns};
+                            const neuronInfo = {weight_info_js};
+                            const canvas = document.getElementById('deadCanvas');
+                            const ctx = canvas.getContext('2d');
+                            let __nnData = null; // coords y radios
+                            // PRNG determinista simple basado en capa y neurona
+                            function hash(l, i, j=0) {{
+                                let h = l * 374761393 + i * 668265263 + j * 2147483647;
+                                h = (h ^ (h >> 13)) * 1274126177;
+                                h = (h ^ (h >> 16));
+                                return (h >>> 0) / 4294967295; // [0,1)
+                            }}
+                            function resize() {{
+                                const parentW = canvas.parentElement.getBoundingClientRect().width;
+                                canvas.width = parentW;
+                                canvas.height = 460;
+                                draw();
+                            }}
+                            function nodeY(idx, total, h, margin) {{
+                                if(total===1) return h/2;
+                                const spacing = (h - 2*margin)/(total-1);
+                                return margin + idx*spacing;
+                            }}
+                            function draw() {{
+                                ctx.clearRect(0,0,canvas.width,canvas.height);
+                                // Márgenes dinámicos para aprovechar ancho sin pegarse a bordes
+                                const marginY = 50;
+                                const marginX = Math.min(80, Math.max(40, canvas.width*0.05));
+                                const layerGap = (canvas.width - 2*marginX) / (arch.length-1);
+                                // radios por capa
+                                const layerR = arch.map(n => adaptiveRadius ? Math.min(14, Math.max(5, (canvas.height/(n+6)))) : 10);
+                                // Precalcular coordenadas de neuronas por capa con posible agrupación
+                                const coords = [];
+                                for(let l=0; l<arch.length; l++) {{
+                                    const n = arch[l];
+                                    const baseX = marginX + l*layerGap;
+                                    const layerCoords = [];
+                                    if(groupLarge && n > 0) {{
+                                        const availableH = canvas.height - 2*marginY;
+                                        const maxPerCol = Math.max(1, Math.floor(availableH / minSpacing));
+                                        let cols = Math.ceil(n / maxPerCol);
+                                        cols = Math.min(cols, maxCols);
+                                        const perCol = maxPerCol; // base capacity per col
+                                        const colOffset = Math.min(32, layerGap * 0.25); // separación horizontal entre subcolumnas
+                                        for(let i=0;i<n;i++) {{
+                                            const col = Math.floor(i / perCol);
+                                            const row = i % perCol;
+                                            // Ajustar filas reales en última columna
+                                            const itemsInCol = (col === cols-1) ? (n - col*perCol) : perCol;
+                                            const y = itemsInCol === 1 ? (canvas.height/2) : (marginY + row * ((canvas.height - 2*marginY)/(itemsInCol-1)));
+                                            const jitter = jitterStrength ? (hash(l,i)-0.5) * jitterStrength : 0;
+                                            const x = baseX + (col - (cols-1)/2) * colOffset + jitter;
+                                            layerCoords.push({{x,y,r:layerR[l]}});
+                                        }}
+                                    }} else {{
+                                        for(let i=0;i<n;i++) {{
+                                            const jitter = jitterStrength ? (hash(l,i)-0.5) * jitterStrength : 0;
+                                            const x = baseX + jitter;
+                                            const y = nodeY(i, n, canvas.height, marginY);
+                                            layerCoords.push({{x,y,r:layerR[l]}});
+                                        }}
+                                    }}
+                                    coords.push(layerCoords);
+                                }}
+                                __nnData = {{coords, layerR}};
+                                ctx.globalAlpha = 0.15;
+                                // Dibujar conexiones usando coords
+                                for(let l=0; l<arch.length-1; l++) {{
+                                    const leftCount = arch[l];
+                                    const rightCount = arch[l+1];
+                                    for(let i=0; i<leftCount; i++) {{
+                                        const c1 = coords[l][i];
+                                        for(let j=0; j<rightCount; j++) {{
+                                            if(connectionSample < 0.999) {{
+                                                const pr = hash(l,i,j);
+                                                if(pr > connectionSample) continue;
+                                            }}
+                                            const c2 = coords[l+1][j];
+                                            ctx.beginPath();
+                                            ctx.moveTo(c1.x, c1.y);
+                                            ctx.lineTo(c2.x, c2.y);
+                                            ctx.strokeStyle = '#777';
+                                            ctx.lineWidth = 1; ctx.stroke();
+                                        }}
+                                    }}
+                                }}
+                                ctx.globalAlpha = 1;
+                                for(let l=0; l<arch.length; l++) {{
+                                    const isHidden = l>0 && l<arch.length-1;
+                                    for(let i=0;i<arch[l];i++) {{
+                                        const c = coords[l][i];
+                                        const x = c.x; const y = c.y;
+                                        // Radio adaptativo: depende de densidad vertical y ancho (si está activado)
+                                        const r = layerR[l];
+                                        let alpha = 1;
+                                        let emoji = '';
+                                        if(isHidden) {{
+                                            const layerHiddenIndex = l-1;
+                                            const deadList = dead[layerHiddenIndex] || [];
+                                            const constList = constantN[layerHiddenIndex] || [];
+                                            if(deadList.includes(i)) {{ alpha = 0.25; emoji = '💀'; }}
+                                            else if(constList.includes(i)) {{ alpha = 0.45; emoji = '😴'; }}
+                                        }}
+                                        ctx.globalAlpha = alpha;
+                                        ctx.beginPath();
+                                        ctx.fillStyle = l===0? '#4ECDC4' : (l===arch.length-1? '#FF6B6B' : '#1976d2');
+                                        ctx.arc(x,y,r,0,Math.PI*2);
+                                        ctx.fill();
+                                        ctx.strokeStyle = '#1b1f23';
+                                        ctx.lineWidth = 1.3; ctx.stroke();
+                                        ctx.globalAlpha = 1;
+                                        if(emoji) {{ ctx.font='14px sans-serif'; ctx.fillText(emoji, x-8, y+5); }}
+                                    }}
+                                    ctx.font = '13px sans-serif';
+                                    ctx.fillStyle = '#333';
+                                    let label = l===0? 'Entrada' : (l===arch.length-1? 'Salida' : 'Oculta '+(l));
+                                    ctx.fillText(label + ' ('+ arch[l] +')', marginX + l*layerGap - 35, 18);
+                                }}
+                            }}
+                            window.addEventListener('resize', () => {{ clearTimeout(window.__deadT); window.__deadT = setTimeout(resize, 120); }});
+                            resize();
+                            // Tooltip
+                            const wrapper = canvas.parentElement;
+                            const tip = document.createElement('div');
+                            tip.className = 'nn-tooltip';
+                            tip.style.cssText = 'position:absolute;pointer-events:none;background:#fff;border:1px solid #ccc;padding:6px 8px;font-size:12px;border-radius:6px;box-shadow:0 2px 6px rgba(0,0,0,0.15);display:none;max-width:220px;line-height:1.2;';
+                            wrapper.style.position = 'relative';
+                            wrapper.appendChild(tip);
+                            function formatVal(v) {{ return (Math.abs(v) < 1e-4 ? v.toExponential(2) : v.toFixed(4)); }}
+                            function handleMove(ev) {{
+                                if(!__nnData) return;
+                                const rect = canvas.getBoundingClientRect();
+                                const mx = ev.clientX - rect.left;
+                                const my = ev.clientY - rect.top;
+                                let found = null;
+                                for(let l=0; l<__nnData.coords.length; l++) {{
+                                    for(let i=0;i<__nnData.coords[l].length;i++) {{
+                                        const c = __nnData.coords[l][i];
+                                        const dx = mx - c.x; const dy = my - c.y;
+                                        if(dx*dx + dy*dy <= (c.r+4)*(c.r+4)) {{ found = {{l,i,c}}; break; }}
+                                    }}
+                                    if(found) break;
+                                }}
+                                if(found) {{
+                                    const l = found.l; const i = found.i;
+                                    if(l === 0) {{ tip.innerHTML = `<strong>Capa Entrada</strong><br>Índice: ${{i}}`; }}
+                                    else if(neuronInfo[l] && neuronInfo[l][i]) {{
+                                        const info = neuronInfo[l][i];
+                                        const estado = info.estado || 'n/a';
+                                        tip.innerHTML = `<strong>Capa ${{l===arch.length-1? 'Salida':'Oculta '+l}}</strong> · Neurona ${{i}}<br>`+
+                                            `Bias: ${{formatVal(info.bias)}}<br>`+
+                                            `w̄: ${{formatVal(info.mean_w)}} | σ: ${{formatVal(info.std_w)}}<br>`+
+                                            `|w|max: ${{formatVal(info.max_abs_w)}}<br>`+
+                                            `Estado: ${{estado}}`;
+                                    }} else {{
+                                        tip.innerHTML = `<strong>Capa ${{l}}</strong> · Neurona ${{i}}`;
+                                    }}
+                                    tip.style.left = (mx + 14) + 'px';
+                                    tip.style.top = (my + 14) + 'px';
+                                    tip.style.display = 'block';
+                                }} else {{
+                                    tip.style.display = 'none';
+                                }}
+                            }}
+                            canvas.addEventListener('mousemove', handleMove);
+                            canvas.addEventListener('mouseleave', () => {{ tip.style.display='none'; }});
+                        </script>
+                        """
+            components.html(html_map, height=510,
+                            scrolling=False, width=comp_width)
 
-        except Exception as e:
-            st.error(f"❌ Error general en análisis de capas: {e}")
-            return False
+        with st.expander("🧪 ¿Qué hacer si hay muchas neuronas muertas?", expanded=False):
+            st.markdown("""
+            **Acciones recomendadas:**
+            1. Disminuye el learning rate
+            2. Usa activaciones alternativas (LeakyReLU, ELU)
+            3. Reduce profundidad o neuronas redundantes
+            4. Revisa inicialización (HeNormal para ReLU)
+            5. Entrena más épocas si la pérdida aún baja
+            """)
 
-    # Ejecutar análisis robusto
-    if not analyze_activations_safely():
-        st.info("""
-        💡 **Alternativas disponibles:**
-        - Revisa el análisis de pesos en la pestaña anterior
-        - El historial de entrenamiento puede darte insights sobre el comportamiento del modelo
-        - Considera reentrenar el modelo con una arquitectura más simple
-        """)
+    except Exception as e:
+        st.error(f"❌ Error en análisis de activaciones: {e}")
+        st.info(
+            "Verifica que el modelo esté entrenado y que existan capas ocultas densas.")
 
 
 def show_neural_network_visualizations():

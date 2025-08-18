@@ -1,3 +1,4 @@
+import tensorflow as tf
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -780,19 +781,44 @@ def run_neural_networks_app():
             class_names = st.session_state.nn_class_names
             task_type = st.session_state.nn_config.get(
                 'task_type', 'Clasificación')
-            y_pred = model.predict(X_test, verbose=0)
+            # === Predicciones y preparación de etiquetas para evaluación ===
+            raw_pred = model.predict(X_test, verbose=0)
+
             if task_type == "Clasificación":
-                y_pred = np.asarray(y_pred).argmax(axis=1)
+                # Determinar formato de y_test (one-hot vs etiquetas)
+                y_test_arr = np.asarray(y_test)
+                one_hot = (y_test_arr.ndim > 1 and y_test_arr.shape[1] > 1)
+
+                # Procesar predicciones según forma de salida del modelo
+                if raw_pred.ndim > 1 and raw_pred.shape[1] > 1:
+                    # Salida multiclase (softmax / linear / tanh etc.)
+                    y_pred_classes = np.argmax(raw_pred, axis=1)
+                else:
+                    # Salida binaria (1 neurona, normalmente sigmoid)
+                    y_pred_classes = (raw_pred.ravel() > 0.5).astype(int)
+
+                # Procesar etiquetas reales
+                if one_hot:
+                    y_test_classes = np.argmax(y_test_arr, axis=1)
+                else:
+                    # Ya son etiquetas enteras (binaria o sparse multiclase)
+                    y_test_classes = y_test_arr.ravel()
+
+                # Guardar para otras pestañas
+                st.session_state.nn_y_pred = y_pred_classes
+
+                # Primero evaluar con el formato original (para model.evaluate)
+                evaluate_nn(model, X_test, y_test, task_type)
+                # Mostrar evaluación detallada con clases procesadas
+                show_detailed_evaluation(
+                    y_test_classes, y_pred_classes, class_names, task_type)
             else:
-                y_pred = y_pred.ravel()
-            # y_pred = np.eye(len(class_names))[y_pred]
-
-            st.session_state.nn_y_pred = y_pred
-
-            evaluate_nn(model, X_test, y_test, task_type)
-            if task_type == "Clasificación":
-                y_test = np.asarray(y_test).argmax(axis=1)
-            show_detailed_evaluation(y_test, y_pred, class_names, task_type)
+                # Regresión
+                y_pred_reg = raw_pred.ravel()
+                st.session_state.nn_y_pred = y_pred_reg
+                evaluate_nn(model, X_test, y_test, task_type)
+                show_detailed_evaluation(
+                    y_test, y_pred_reg, class_names, task_type)
 
             history = st.session_state.nn_history
             config = st.session_state.nn_config
