@@ -23,7 +23,7 @@ from viz.nn import (
     show_decision_surface_tab,
     show_layer_activations_tab
 )
-from ui import create_button_panel
+from ui import create_button_panel, create_prediction_interface
 from apps.navbar import navbar
 
 
@@ -871,7 +871,28 @@ def run_neural_networks_app():
         if not st.session_state.get('model_trained_nn', False):
             st.warning("⚠️ Primero debes entrenar un modelo.")
         else:
-            show_neural_network_predictions()
+            # Usar los datos ORIGINALES (antes de escalar) para preservar tipos/categorías.
+            # nn_test_data[0] es un array escalado que pierde información categórica y provoca sliders.
+            try:
+                if 'nn_df' in st.session_state and 'nn_target_col' in st.session_state:
+                    X_original_for_ui = st.session_state.nn_df.drop(
+                        columns=[st.session_state.nn_target_col])
+                else:
+                    # Fallback: si algo falla, usar el array test (mantiene comportamiento previo)
+                    X_original_for_ui = st.session_state.nn_test_data[0]
+            except Exception:
+                X_original_for_ui = st.session_state.nn_test_data[0]
+
+            create_prediction_interface(
+                st.session_state.nn_model,
+                st.session_state.nn_feature_names,
+                st.session_state.nn_class_names,
+                st.session_state.get('nn_task_type', 'Clasificación'),
+                # Pasar datos originales para que el tipo de feature se detecte correctamente
+                X_original_for_ui,
+                # Pasar nombre del dataset para metadata
+                st.session_state.get('selected_dataset', 'Titanic')
+            )
 
     ###########################################
     #     Pestaña de Exportar.                #

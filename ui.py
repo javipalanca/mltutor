@@ -1110,80 +1110,141 @@ def create_prediction_interface(model, feature_names, class_names, task_type, X_
 
     # Realizar predicción cuando se presiona el botón
     if predict_button:
-        # Convertir a array para la predicción
-        new_data = np.array([new_data_values])
+        # Convertir a array para la predicción (orden original)
+        new_data = np.array([new_data_values], dtype=np.float32)
 
-        # Hacer predicción
-        prediction = model.predict(new_data)[0]
+        # Detectar si es un modelo TensorFlow/Keras
+        is_keras = False
+        try:
+            import tensorflow as tf  # noqa: F401
+            from tensorflow.keras import Model as KerasModel
+            is_keras = isinstance(model, KerasModel)
+        except Exception:
+            is_keras = False
 
-        # Mostrar resultado según el tipo de árbol
+        # Aplicar scaler si está disponible en sesión (para NN) y no es ya árbol/KNN
+        scaler = st.session_state.get(
+            'nn_scaler') if 'nn_scaler' in st.session_state else None
+        if is_keras and scaler is not None:
+            try:
+                new_data_scaled = scaler.transform(new_data)
+            except Exception:
+                new_data_scaled = new_data
+        else:
+            new_data_scaled = new_data
+
+        # Predicción según tipo de modelo
+        try:
+            if is_keras:
+                raw_pred = model.predict(new_data_scaled, verbose=0)
+            else:
+                raw_pred = model.predict(new_data)
+        except Exception as pred_err:
+            st.error(f"Error durante la predicción: {pred_err}")
+            return
+
+        # --- CLASIFICACIÓN ---
         if task_type == "Clasificación":
-            prediction_label = class_names[prediction]
+            # Preparar nombres de clases (árbol/KNN vs NN)
+            if class_names is None and 'nn_class_names' in st.session_state:
+                class_names = st.session_state.nn_class_names
 
+            # Keras binary (salida (1,) o (1,1))
+            if is_keras and raw_pred is not None:
+                arr = np.array(raw_pred)
+                if arr.ndim == 2 and arr.shape[1] == 1:
+                    prob = float(arr[0, 0])
+                    pred_idx = 1 if prob >= 0.5 else 0
+                    pred_label = class_names[pred_idx] if class_names and len(
+                        class_names) >= pred_idx+1 else str(pred_idx)
+                    st.markdown(f"""
+                    <div style=\"background-color: #E8F5E9; padding: 20px; border-radius: 10px; text-align: center; margin: 20px 0;\">
+                        <h3>Resultado de la predicción</h3>
+                        <p style=\"font-size: 22px; font-weight: bold; color: #2E7D32;\">Clase: {pred_label}</p>
+                        <p style=\"margin:4px 0;\">Probabilidad clase positiva: {prob:.4f}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:  # Multiclase softmax
+                    probs = arr[0]
+                    pred_idx = int(np.argmax(probs))
+                    pred_label = class_names[pred_idx] if class_names and len(
+                        class_names) > pred_idx else str(pred_idx)
+                    st.markdown(f"""
+                    <div style=\"background-color: #E8F5E9; padding: 20px; border-radius: 10px; text-align: center; margin: 20px 0;\">
+                        <h3>Resultado de la predicción</h3>
+                        <p style=\"font-size: 22px; font-weight: bold; color: #2E7D32;\">Clase: {pred_label}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    # Tabla de probabilidades
+                    if class_names:
+                        prob_df = pd.DataFrame({
+                            'Clase': class_names,
+                            'Probabilidad': probs
+                        })
+                        st.dataframe(prob_df.style.format(
+                            {'Probabilidad': '{:.4f}'}), use_container_width=True)
+            else:  # scikit-learn modelos clásicos
+                prediction = int(raw_pred[0])
+                pred_label = class_names[prediction] if class_names and len(
+                    class_names) > prediction else str(prediction)
+                st.markdown(f"""
+                <div style=\"background-color: #E8F5E9; padding: 20px; border-radius: 10px; text-align: center; margin: 20px 0;\">
+                    <h3>Resultado de la predicción</h3>
+                    <p style=\"font-size: 24px; font-weight: bold; color: #2E7D32;\">Clase: {pred_label}</p>
+                </div>
+                """, unsafe_allow_html=True)
+
+                # Camino de decisión / info modelo
+                if hasattr(model, 'tree_'):
+                    st.markdown("### Camino de decisión")
+                    show_prediction_path(
+                        model, new_data, feature_names, class_names)
+                elif hasattr(model, 'n_neighbors'):
+                    st.markdown("### Información del modelo KNN")
+                    st.info(f"""
+                        **Modelo KNN**
+                        - K: {model.n_neighbors}
+                        - Pesos: {model.weights}
+                        - Métrica: {model.metric}
+                    """)
+                elif type(model).__name__ == "LogisticRegression" and hasattr(model, 'predict_proba'):
+                    probs = model.predict_proba(new_data)[0]
+                    if class_names and len(probs) == len(class_names):
+                        prob_df = pd.DataFrame(
+                            {'Clase': class_names, 'Probabilidad': probs})
+                        st.dataframe(prob_df.style.format(
+                            {'Probabilidad': '{:.4f}'}), use_container_width=True)
+
+        # --- REGRESIÓN ---
+        else:
+            if is_keras:
+                val = float(np.array(raw_pred).reshape(-1)[0])
+            else:
+                val = float(raw_pred) if np.isscalar(raw_pred) else float(
+                    np.array(raw_pred).reshape(-1)[0])
             st.markdown(f"""
-            <div style="background-color: #E8F5E9; padding: 20px; border-radius: 10px; text-align: center; margin: 20px 0;">
+            <div style=\"background-color: #E8F5E9; padding: 20px; border-radius: 10px; text-align: center; margin: 20px 0;\">
                 <h3>Resultado de la predicción</h3>
-                <p style="font-size: 24px; font-weight: bold; color: #2E7D32;">Clase: {prediction_label}</p>
+                <p style=\"font-size: 24px; font-weight: bold; color: #2E7D32;\">Valor: {val:.4f}</p>
             </div>
             """, unsafe_allow_html=True)
 
-            # Mostrar el camino de decisión solo para árboles de decisión
-            if hasattr(model, 'tree_'):  # Solo para árboles de decisión
+            if hasattr(model, 'tree_'):
                 st.markdown("### Camino de decisión")
-
-                # Usar la función desde model_evaluation
-                # Nota: No necesitamos pasar new_data (ya es un array 2D)
-                # pero aseguramos el formato correcto
-                show_prediction_path(model, new_data,
-                                     feature_names, class_names)
-            elif hasattr(model, 'n_neighbors'):  # KNN
-                # Para otros modelos como KNN, mostrar información del modelo
-                st.markdown("### Información del modelo")
-                st.info(f"""
-                    **Modelo KNN utilizado:**
-                    - **Número de vecinos (K):** {model.n_neighbors}
-                    - **Tipo de peso:** {model.weights}
-                    - **Métrica de distancia:** {model.metric}
-                    
-                    El modelo KNN predice basándose en las {model.n_neighbors} muestras más cercanas en el espacio de características.
-                """)
-            elif type(model).__name__ == "LogisticRegression":
-                st.info(f"""
-                **Modelo de Regresión utilizado:**
-                - **Tipo de regresión:** Logística
-                - **Variables independientes:** {feature_names}
-                - **Variable dependiente:** {class_names}
-                """)
-
-        else:  # Regresión
-            st.markdown(f"""
-            <div style="background-color: #E8F5E9; padding: 20px; border-radius: 10px; text-align: center; margin: 20px 0;">
-                <h3>Resultado de la predicción</h3>
-                <p style="font-size: 24px; font-weight: bold; color: #2E7D32;">Valor: {prediction:.4f}</p>
-            </div>
-            """, unsafe_allow_html=True)
-
-            # Mostrar el camino de decisión solo para árboles de decisión
-            if hasattr(model, 'tree_'):  # Solo para árboles de decisión
-                st.markdown("### Camino de decisión")
-
-                # Usar la función desde model_evaluation
                 show_prediction_path(model, new_data, feature_names)
-            # Para otros modelos como KNN, mostrar información del modelo
-
-            elif hasattr(model, 'n_neighbors'):  # KNN
-                st.markdown("### Información del modelo")
+            elif hasattr(model, 'n_neighbors'):
+                st.markdown("### Información del modelo KNN")
                 st.info(f"""
-                    **Modelo KNN utilizado:**
-                    - **Número de vecinos (K):** {model.n_neighbors}
-                    - **Tipo de peso:** {model.weights}
-                    - **Métrica de distancia:** {model.metric}
-
-                    El modelo KNN predice basándose en las {model.n_neighbors} muestras más cercanas en el espacio de características.
+                    **Modelo KNN**
+                    - K: {model.n_neighbors}
+                    - Pesos: {model.weights}
+                    - Métrica: {model.metric}
                 """)
-            elif type(model).__name__ == "LinearRegression":
-                st.info(f"""
-                **Modelo de Regresión utilizado:**
-                - **Tipo de regresión:** Lineal
-                - **Variables independientes:** {feature_names}    
-                """)
+            elif type(model).__name__ == "LinearRegression" and hasattr(model, 'coef_'):
+                st.markdown("### Coeficientes")
+                coef_df = pd.DataFrame({
+                    'Característica': feature_names,
+                    'Coeficiente': model.coef_.flatten() if len(getattr(model, 'coef_', [])) else []
+                })
+                if not coef_df.empty:
+                    st.dataframe(coef_df)
