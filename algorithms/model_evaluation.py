@@ -454,7 +454,8 @@ def show_prediction_path(tree_model, X_new, feature_names, class_names=None):
         leaf_id = tree_model.apply(X_new)
 
         # Obtener los nodos en el camino
-        node_index = node_indicator.indices[node_indicator.indptr[0]:node_indicator.indptr[1]]
+        node_index = node_indicator.indices[node_indicator.indptr[0]
+            :node_indicator.indptr[1]]
 
         path_explanation = []
         for node_id in node_index:
