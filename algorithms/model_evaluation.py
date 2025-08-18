@@ -454,8 +454,7 @@ def show_prediction_path(tree_model, X_new, feature_names, class_names=None):
         leaf_id = tree_model.apply(X_new)
 
         # Obtener los nodos en el camino
-        node_index = node_indicator.indices[node_indicator.indptr[0]
-            :node_indicator.indptr[1]]
+        node_index = node_indicator.indices[node_indicator.indptr[0]                                            :node_indicator.indptr[1]]
 
         path_explanation = []
         for node_id in node_index:
@@ -488,3 +487,673 @@ def show_prediction_path(tree_model, X_new, feature_names, class_names=None):
         st.error(f"Error al mostrar el camino de decisión: {str(e)}")
         st.info(
             "Intenta reformatear los datos de entrada o verificar que el modelo sea compatible.")
+
+
+def neural_network_diagnostics(history, config):
+    st.markdown("### 🔍 Diagnóstico del Entrenamiento")
+
+    # Calcular métricas diagnósticas
+    diagnostics = analyze_training_diagnostics(history, config)
+
+    # Mostrar diagnósticos en pestañas
+    st.markdown("### 🎯 Estado General")
+    show_general_health(diagnostics, history, config)
+
+    st.markdown("### 📊 Tendencias")
+    show_trend_analysis(diagnostics, history)
+
+    st.markdown("### ⚠️ Alertas")
+    show_training_alerts(diagnostics, history, config)
+
+    # SECCIÓN 5: RECOMENDACIONES INTELIGENTES
+    st.markdown("### 💡 Recomendaciones")
+    recommendations = generate_training_recommendations(
+        diagnostics, history, config)
+
+    if recommendations['excellent']:
+        st.success("🌟 " + recommendations['excellent'])
+    elif recommendations['good']:
+        st.info("✅ " + recommendations['good'])
+    elif recommendations['warning']:
+        st.warning("⚠️ " + recommendations['warning'])
+    elif recommendations['critical']:
+        st.error("🚨 " + recommendations['critical'])
+
+    # SECCIÓN 6: ACCIONES SUGERIDAS
+    if recommendations.get('actions'):
+        with st.expander("🔧 Acciones Sugeridas", expanded=False):
+            for action in recommendations['actions']:
+                st.markdown(f"• {action}")
+
+
+def analyze_training_diagnostics(history, config):
+    """Analiza el historial INCLUYENDO métricas de rendimiento real."""
+    diagnostics = {}
+
+    loss_values = history.history['loss']
+    epochs = len(loss_values)
+
+    # 1. Análisis de convergencia de pérdida (como antes)
+    if epochs >= 10:
+        early_loss = np.mean(loss_values[:epochs//4])
+        late_loss = np.mean(loss_values[-epochs//4:])
+        convergence_rate = (early_loss - late_loss) / early_loss
+    else:
+        convergence_rate = (loss_values[0] - loss_values[-1]) / loss_values[0]
+
+    diagnostics['convergence_rate'] = convergence_rate
+    diagnostics['loss_converged'] = convergence_rate > 0.01
+
+    # 2. Análisis de sobreajuste (como antes)
+    if 'val_loss' in history.history:
+        val_loss = history.history['val_loss']
+        train_loss = loss_values
+
+        window = min(5, epochs//2)
+        recent_gap = np.mean(val_loss[-window:]) - \
+            np.mean(train_loss[-window:])
+        relative_gap = recent_gap / np.mean(train_loss[-window:])
+
+        diagnostics['overfitting_gap'] = relative_gap
+        diagnostics['is_overfitting'] = relative_gap > 0.15
+    else:
+        diagnostics['overfitting_gap'] = 0
+        diagnostics['is_overfitting'] = False
+
+    # 3. Análisis de estabilidad (como antes)
+    if epochs >= 5:
+        recent_losses = loss_values[-5:]
+        stability = np.std(recent_losses) / np.mean(recent_losses)
+        diagnostics['stability'] = stability
+        diagnostics['loss_stable'] = stability < 0.05
+    else:
+        diagnostics['stability'] = float('inf')
+        diagnostics['loss_stable'] = False
+
+    # 🚀 4. NUEVO: ANÁLISIS DE RENDIMIENTO REAL
+    if config['task_type'] == 'Clasificación':
+        if 'accuracy' in history.history:
+            # Accuracy de entrenamiento
+            train_acc = history.history['accuracy'][-1]
+            diagnostics['final_train_accuracy'] = train_acc
+
+            # Accuracy de validación (si existe)
+            if 'val_accuracy' in history.history:
+                val_acc = history.history['val_accuracy'][-1]
+                diagnostics['final_val_accuracy'] = val_acc
+
+                # 🎯 CRITERIOS REALISTAS DE CALIDAD
+                diagnostics['good_train_accuracy'] = train_acc > 0.7
+                diagnostics['good_val_accuracy'] = val_acc > 0.7
+                diagnostics['excellent_val_accuracy'] = val_acc > 0.85
+
+                # Detectar sobreajuste por accuracy
+                acc_gap = train_acc - val_acc
+                diagnostics['accuracy_overfitting'] = acc_gap > 0.15
+
+            else:
+                # Solo tenemos accuracy de entrenamiento
+                diagnostics['good_train_accuracy'] = train_acc > 0.7
+                diagnostics['good_val_accuracy'] = False  # No disponible
+                diagnostics['excellent_val_accuracy'] = False
+                diagnostics['accuracy_overfitting'] = False
+        else:
+            # No hay métricas de accuracy
+            diagnostics['final_train_accuracy'] = None
+            diagnostics['good_train_accuracy'] = False
+            diagnostics['good_val_accuracy'] = False
+            diagnostics['excellent_val_accuracy'] = False
+            diagnostics['accuracy_overfitting'] = False
+
+    else:  # Regresión
+        if 'mae' in history.history:
+            final_mae = history.history['mae'][-1]
+            diagnostics['final_mae'] = final_mae
+
+            if 'val_mae' in history.history:
+                val_mae = history.history['val_mae'][-1]
+                diagnostics['final_val_mae'] = val_mae
+
+                # Para regresión, necesitamos contexto del rango de datos
+                # Por ahora, usamos heurísticas generales
+                diagnostics['good_mae'] = val_mae < np.mean(
+                    history.history['mae'][:5])
+            else:
+                diagnostics['good_mae'] = final_mae < np.mean(
+                    history.history['mae'][:5])
+        else:
+            diagnostics['good_mae'] = False
+
+    # 🎯 5. EVALUACIÓN INTEGRAL DE CALIDAD
+    # Ahora consideramos TANTO la curva de pérdida COMO el rendimiento real
+
+    if config['task_type'] == 'Clasificación':
+        # Para clasificación, el accuracy es lo más importante
+        if diagnostics.get('good_val_accuracy', False):
+            diagnostics['overall_quality'] = 'excellent' if diagnostics.get(
+                'excellent_val_accuracy', False) else 'good'
+        elif diagnostics.get('good_train_accuracy', False):
+            diagnostics['overall_quality'] = 'moderate'  # Solo bueno en train
+        else:
+            diagnostics['overall_quality'] = 'poor'  # Accuracy bajo
+    else:
+        # Para regresión
+        if diagnostics.get('good_mae', False):
+            diagnostics['overall_quality'] = 'good'
+        else:
+            diagnostics['overall_quality'] = 'poor'
+
+    # 6. Combinar criterios de pérdida Y rendimiento
+    diagnostics['converged'] = (
+        diagnostics['loss_converged'] and
+        diagnostics['overall_quality'] in ['excellent', 'good']
+    )
+
+    diagnostics['is_stable'] = (
+        diagnostics['loss_stable'] and
+        diagnostics['overall_quality'] != 'poor'
+    )
+
+    return diagnostics
+
+
+def show_general_health(diagnostics, history, config):
+    """Muestra el estado general INCLUYENDO rendimiento real."""
+
+    health_score = 0
+    total_checks = 0
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("**📋 Checklist de Salud:**")
+
+        # 1. Convergencia (pérdida + rendimiento)
+        if diagnostics['converged']:
+            st.success("✅ Modelo convergió con buen rendimiento")
+            health_score += 1
+        else:
+            if diagnostics['loss_converged']:
+                st.warning("⚠️ Pérdida convergió pero rendimiento bajo")
+            else:
+                st.error("❌ Modelo no convergió suficientemente")
+        total_checks += 1
+
+        # 2. Sobreajuste (pérdida + accuracy)
+        overfitting_detected = diagnostics['is_overfitting'] or diagnostics.get(
+            'accuracy_overfitting', False)
+        if not overfitting_detected:
+            st.success("✅ Sin signos de sobreajuste")
+            health_score += 1
+        else:
+            if diagnostics['is_overfitting']:
+                st.error(
+                    f"❌ Sobreajuste en pérdida (gap: {diagnostics['overfitting_gap']*100:.1f}%)")
+            if diagnostics.get('accuracy_overfitting', False):
+                train_acc = diagnostics.get('final_train_accuracy', 0)
+                val_acc = diagnostics.get('final_val_accuracy', 0)
+                st.error(
+                    f"❌ Sobreajuste en accuracy (train: {train_acc:.3f}, val: {val_acc:.3f})")
+        total_checks += 1
+
+        # 3. Estabilidad
+        if diagnostics['is_stable']:
+            st.success("✅ Entrenamiento estable")
+            health_score += 1
+        else:
+            st.warning(
+                f"⚠️ Entrenamiento inestable (CV: {diagnostics['stability']*100:.1f}%)")
+        total_checks += 1
+
+        # 🚀 4. NUEVO: RENDIMIENTO REAL
+        if config['task_type'] == 'Clasificación':
+            if diagnostics.get('excellent_val_accuracy', False):
+                st.success("🌟 Excelente accuracy de validación")
+                health_score += 1
+            elif diagnostics.get('good_val_accuracy', False):
+                st.success("✅ Buen accuracy de validación")
+                health_score += 1
+            elif diagnostics.get('good_train_accuracy', False):
+                st.warning("⚠️ Solo buen accuracy en entrenamiento")
+            else:
+                st.error("❌ Accuracy bajo (modelo no está aprendiendo bien)")
+        else:
+            if diagnostics.get('good_mae', False):
+                st.success("✅ Error de regresión aceptable")
+                health_score += 1
+            else:
+                st.error("❌ Error de regresión alto")
+        total_checks += 1
+
+    with col2:
+        st.markdown("**🎯 Puntuación de Salud:**")
+
+        health_percentage = (health_score / total_checks) * 100
+
+        # 🎯 NUEVA LÓGICA: Considerar rendimiento real
+        overall_quality = diagnostics.get('overall_quality', 'poor')
+
+        if overall_quality == 'excellent' and health_percentage >= 75:
+            st.success(f"🌟 Excelente: {health_percentage:.0f}%")
+            health_status = "🌟 Modelo listo para producción"
+        elif overall_quality == 'good' and health_percentage >= 60:
+            st.info(f"👍 Bueno: {health_percentage:.0f}%")
+            health_status = "👍 Modelo con buen rendimiento"
+        elif overall_quality == 'moderate':
+            st.warning(f"⚠️ Moderado: {health_percentage:.0f}%")
+            health_status = "⚠️ Modelo necesita validación adicional"
+        else:
+            st.error(f"🚨 Crítico: {health_percentage:.0f}%")
+            health_status = "🚨 Modelo no está funcionando correctamente"
+
+        st.info(health_status)
+
+        # Mostrar métricas específicas
+        if config['task_type'] == 'Clasificación':
+            if 'final_val_accuracy' in diagnostics and diagnostics['final_val_accuracy'] is not None:
+                val_acc = diagnostics['final_val_accuracy']
+                delta_color = "normal" if val_acc > 0.7 else "inverse"
+                st.metric("🎯 Accuracy Validación",
+                          f"{val_acc:.3f}",
+                          delta_color=delta_color,
+                          help="Métrica más importante para clasificación")
+            elif 'final_train_accuracy' in diagnostics and diagnostics['final_train_accuracy'] is not None:
+                train_acc = diagnostics['final_train_accuracy']
+                st.metric("🎯 Accuracy Entrenamiento",
+                          f"{train_acc:.3f}",
+                          help="Solo disponible accuracy de entrenamiento")
+        else:
+            if 'final_val_mae' in diagnostics:
+                st.metric("📏 MAE Validación",
+                          f"{diagnostics['final_val_mae']:.4f}",
+                          help="Error promedio en validación")
+
+
+def generate_training_recommendations(diagnostics, history, config):
+    """Genera recomendaciones basadas en pérdida Y rendimiento real."""
+
+    recommendations = {
+        'excellent': None,
+        'good': None,
+        'warning': None,
+        'critical': None,
+        'actions': []
+    }
+
+    # 🎯 NUEVA LÓGICA: Priorizar rendimiento real sobre curvas
+    overall_quality = diagnostics.get('overall_quality', 'poor')
+
+    # Contar problemas reales
+    real_issues = []
+
+    if not diagnostics['converged']:
+        real_issues.append('convergencia')
+    if diagnostics['is_overfitting'] or diagnostics.get('accuracy_overfitting', False):
+        real_issues.append('sobreajuste')
+    if not diagnostics['is_stable']:
+        real_issues.append('estabilidad')
+    if overall_quality == 'poor':
+        real_issues.append('rendimiento_bajo')
+
+    # Generar recomendaciones basadas en problemas reales
+    if overall_quality == 'excellent' and len(real_issues) == 0:
+        recommendations['excellent'] = "¡Entrenamiento excelente! Modelo con alto rendimiento y buenas curvas."
+        recommendations['actions'] = [
+            "✅ El modelo está listo para producción",
+            "📊 Considera hacer validación cruzada para confirmar robustez",
+            "🚀 Puedes proceder a hacer predicciones con confianza"
+        ]
+    elif overall_quality in ['good'] and len(real_issues) <= 1:
+        recommendations['good'] = "Entrenamiento bueno con rendimiento satisfactorio."
+
+        # Acciones específicas basadas en el problema
+        if 'sobreajuste' in real_issues:
+            recommendations['actions'].extend([
+                "🔧 Añadir más regularización (dropout, L1/L2)",
+                "📈 Aumentar datos de entrenamiento si es posible"
+            ])
+        elif 'estabilidad' in real_issues:
+            recommendations['actions'].extend([
+                "📉 Reducir learning rate para mayor estabilidad",
+                "📦 Aumentar batch size"
+            ])
+        else:
+            recommendations['actions'].append("👍 Continuar con este enfoque")
+
+    elif overall_quality == 'moderate' or len(real_issues) == 2:
+        recommendations['warning'] = "Rendimiento moderado. El modelo funciona pero tiene limitaciones importantes."
+        recommendations['actions'].extend([
+            "📊 Revisar datos de validación - pueden no ser representativos",
+            "🔄 Considerar reentrenar con diferentes hiperparámetros",
+            "🎯 Evaluar si la arquitectura es apropiada para el problema"
+        ])
+    else:
+        # Rendimiento crítico
+        if overall_quality == 'poor':
+            recommendations['critical'] = f"⚠️ CRÍTICO: El modelo tiene muy bajo rendimiento (accuracy ≤ 70%). Las curvas pueden verse bien pero el modelo no está aprendiendo correctamente."
+        else:
+            recommendations['critical'] = "El entrenamiento tiene múltiples problemas serios."
+
+        recommendations['actions'].extend([
+            "🚨 PRIORIDAD: Revisar datos de entrada y preprocesamiento",
+            "🏗️ Simplificar arquitectura del modelo",
+            "📚 Verificar que el problema sea realmente solucionable con estos datos",
+            "🔄 Considerar cambiar completamente de enfoque"
+        ])
+
+    # Añadir acciones específicas para problemas de rendimiento
+    if overall_quality == 'poor':
+        recommendations['actions'].insert(
+            0, "🎯 El modelo no está aprendiendo patrones útiles - revisar datos y arquitectura")
+
+    return recommendations
+
+
+def show_trend_analysis(diagnostics, history):
+    """Muestra análisis de tendencias."""
+
+    loss_values = history.history['loss']
+    epochs = len(loss_values)
+
+    st.markdown("### 📈 Análisis de Tendencias por Fase")
+    with st.expander("📚 ¿Qué significan las tendencias de pérdida?", expanded=False):
+        st.markdown("""
+        ### 🎯 **Interpretación de Tendencias por Fase:**
+        
+        **🟢 Fase Inicial (Primeras épocas):**
+        - **Descendente rápido:** ✅ Excelente - El modelo está aprendiendo patrones básicos
+        - **Descendente lento:** ⚠️ Learning rate muy bajo o datos complejos
+        - **Ascendente:** 🚨 Learning rate muy alto o problema en los datos
+        
+        **🟡 Fase Media (Épocas intermedias):**
+        - **Descendente sostenido:** ✅ Aprendizaje progresivo saludable
+        - **Plateau temprano:** ⚠️ Posible saturación o learning rate muy bajo
+        - **Fluctuaciones:** 📊 Normal, pero pueden indicar batch size pequeño
+        
+        **🔴 Fase Final (Últimas épocas):**
+        - **Estabilizado:** 🎯 Ideal - Convergencia alcanzada
+        - **Descendente:** 📈 Aún aprendiendo - Considera más épocas
+        - **Ascendente:** 🚨 Sobreajuste - Detener entrenamiento antes
+        
+        ### 📊 **Patrones de Calidad:**
+        - **Curva logarítmica suave:** Patrón ideal de aprendizaje
+        - **Escalones descendentes:** Learning rate scheduling efectivo
+        - **Zigzag descendente:** Normal con batch gradient descent
+        - **Valle en U:** Posible learning rate muy alto inicialmente
+        """)
+    if epochs >= 10:
+        col1, col2, col3 = st.columns(3)
+        # Dividir en segmentos para análisis
+        early_segment = loss_values[:epochs//3]
+        middle_segment = loss_values[epochs//3:2*epochs//3]
+        late_segment = loss_values[2*epochs//3:]
+
+        early_trend = np.polyfit(
+            range(len(early_segment)), early_segment, 1)[0]
+        middle_trend = np.polyfit(
+            range(len(middle_segment)), middle_segment, 1)[0]
+        late_trend = np.polyfit(
+            range(len(late_segment)), late_segment, 1)[0]
+
+        with col1:
+            # Interpretación detallada para fase inicial
+            direction = "Descendente" if early_trend < 0 else "Ascendente"
+
+            if early_trend < -0.1:
+                trend_quality = "🚀 Excelente"
+                trend_help = "Aprendizaje inicial muy efectivo"
+            elif early_trend < -0.01:
+                trend_quality = "✅ Bueno"
+                trend_help = "Aprendizaje inicial satisfactorio"
+            elif early_trend < 0:
+                trend_quality = "⚠️ Lento"
+                trend_help = "Aprendizaje inicial lento - considera aumentar learning rate"
+            else:
+                trend_quality = "🚨 Problema"
+                trend_help = "Pérdida aumentando - revisar learning rate y datos"
+
+            st.metric("🟢 Inicio (33%)",
+                      f"{early_trend:.6f}",
+                      f"{direction} - {trend_quality}",
+                      help=trend_help)
+        with col2:
+            # Interpretación detallada para fase media
+            direction = "Descendente" if middle_trend < 0 else "Ascendente"
+
+            if middle_trend < -0.01:
+                trend_quality = "📈 Progresando"
+                trend_help = "Aprendizaje continuo saludable"
+            elif middle_trend < 0:
+                trend_quality = "📊 Lento"
+                trend_help = "Aprendizaje desacelerando - normal en fases medias"
+            elif abs(middle_trend) < 0.001:
+                trend_quality = "🎯 Plateau"
+                trend_help = "Posible convergencia temprana"
+            else:
+                trend_quality = "⚠️ Subiendo"
+                trend_help = "Pérdida aumentando - posible sobreajuste"
+
+            st.metric("🟡 Medio (33%)",
+                      f"{middle_trend:.6f}",
+                      f"{direction} - {trend_quality}",
+                      help=trend_help)
+        with col3:
+            # Interpretación detallada para fase final
+            direction = "Descendente" if late_trend < 0 else "Ascendente"
+
+            if abs(late_trend) < 0.001:
+                trend_quality = "🎯 Convergido"
+                trend_help = "Excelente - modelo estabilizado"
+            elif late_trend < -0.01:
+                trend_quality = "📈 Mejorando"
+                trend_help = "Aún aprendiendo - considera más épocas"
+            elif late_trend < 0:
+                trend_quality = "📊 Lento"
+                trend_help = "Mejora marginal - cerca de convergencia"
+            else:
+                trend_quality = "🚨 Sobreajuste"
+                trend_help = "Pérdida aumentando - detener entrenamiento"
+
+            st.metric("🔴 Final (33%)",
+                      f"{late_trend:.6f}",
+                      f"{direction} - {trend_quality}",
+                      help=trend_help)
+
+         # Análisis comparativo entre fases
+        st.markdown("### 🔄 Análisis Comparativo")
+
+        col_comp1, col_comp2 = st.columns(2)
+
+        with col_comp1:
+            st.markdown("**📊 Velocidad de Aprendizaje:**")
+
+            # Comparar velocidades de aprendizaje
+            speeds = [abs(early_trend), abs(middle_trend), abs(late_trend)]
+            phase_names = ["Inicial", "Media", "Final"]
+            fastest_phase = phase_names[speeds.index(max(speeds))]
+
+            st.info(f"🏃‍♂️ **Fase más activa:** {fastest_phase}")
+
+            # Detectar aceleración o desaceleración
+            if abs(early_trend) > abs(middle_trend) > abs(late_trend):
+                st.success("✅ Desaceleración natural - Patrón ideal")
+            elif abs(late_trend) > abs(early_trend):
+                st.warning("⚠️ Aceleración tardía - Revisar parámetros")
+            else:
+                st.info("📊 Patrón mixto de aprendizaje")
+
+        with col_comp2:
+            st.markdown("**🎯 Consistencia:**")
+
+            # Análisis de consistencia
+            trend_consistency = np.std([early_trend, middle_trend, late_trend])
+
+            if trend_consistency < 0.01:
+                st.success("🎯 Alta consistencia - Aprendizaje estable")
+            elif trend_consistency < 0.1:
+                st.info("📊 Consistencia moderada - Normal")
+            else:
+                st.warning("⚠️ Baja consistencia - Aprendizaje irregular")
+
+            # Detectar patrones específicos
+            if early_trend < 0 and middle_trend < 0 and late_trend >= 0:
+                st.error("🚨 Patrón de sobreajuste detectado")
+            elif all(t < 0 for t in [early_trend, middle_trend, late_trend]):
+                st.success("✅ Mejora sostenida en todas las fases")
+    else:
+        st.info("📊 Historial muy corto para análisis detallado")
+        st.markdown("""
+        **🔍 Para un análisis completo necesitas:**
+        - ✅ Al menos 10 épocas de entrenamiento
+        - 📊 Datos de validación (recomendado)
+        - 🎯 Métricas adicionales según el tipo de problema
+        """)
+
+    # Sección de patrones detectados con más detalle
+    st.markdown("### 🔄 Patrones de Comportamiento Detectados")
+
+    # Detectar patrones más específicos
+    patterns = []
+    recommendations = []
+
+    # Análisis de plateau
+    if diagnostics.get('plateau', False):
+        patterns.append(
+            "🎯 **Plateau alcanzado:** El modelo ha llegado a su límite de aprendizaje")
+        recommendations.append(
+            "💡 Considera early stopping o cambiar arquitectura")
+
+    # Análisis de convergencia
+    convergence_rate = diagnostics.get('convergence_rate', 0)
+    if convergence_rate > 0.5:
+        patterns.append(
+            "🚀 **Convergencia rápida:** Excelente capacidad de aprendizaje")
+        recommendations.append("✅ Parámetros bien ajustados")
+    elif convergence_rate > 0.1:
+        patterns.append(
+            "📈 **Convergencia moderada:** Aprendizaje progresivo saludable")
+        recommendations.append("👍 Rendimiento satisfactorio")
+    elif convergence_rate > 0.01:
+        patterns.append("🐌 **Convergencia lenta:** Aprendizaje gradual")
+        recommendations.append(
+            "⚠️ Considera aumentar learning rate o revisar datos")
+    else:
+        patterns.append(
+            "❌ **Sin convergencia:** Modelo no está aprendiendo efectivamente")
+        recommendations.append("🚨 Revisar completamente configuración y datos")
+
+    # Análisis de sobreajuste
+    if diagnostics.get('is_overfitting', False):
+        overfitting_gap = diagnostics.get('overfitting_gap', 0) * 100
+        patterns.append(
+            f"📊 **Sobreajuste progresivo:** Gap train/val del {overfitting_gap:.1f}%")
+        recommendations.append("🛑 Implementar regularización o early stopping")
+
+    # Análisis de estabilidad
+    if not diagnostics.get('is_stable', True):
+        stability = diagnostics.get('stability', 0) * 100
+        patterns.append(
+            f"📈 **Entrenamiento inestable:** Variabilidad del {stability:.1f}%")
+        recommendations.append("🔧 Reducir learning rate o aumentar batch size")
+
+    # Mostrar patrones y recomendaciones
+    if patterns:
+        col_pat1, col_pat2 = st.columns(2)
+
+        with col_pat1:
+            st.markdown("**🔍 Patrones Identificados:**")
+            for pattern in patterns:
+                st.markdown(f"• {pattern}")
+
+        with col_pat2:
+            st.markdown("**💡 Recomendaciones:**")
+            for recommendation in recommendations:
+                st.markdown(f"• {recommendation}")
+    else:
+        st.success(
+            "🎉 No se detectaron patrones problemáticos - ¡Entrenamiento saludable!")
+
+    # Sección de contexto educativo adicional
+    with st.expander("🎓 Contexto Educativo: ¿Cómo interpretar estos números?", expanded=False):
+        st.markdown("""
+        ### 📐 **Entendiendo los Valores de Tendencia:**
+        
+        **Valores Negativos (Descendente):**
+        - `-0.1` o menor: 🚀 Aprendizaje muy rápido
+        - `-0.01` a `-0.1`: ✅ Aprendizaje saludable  
+        - `-0.001` a `-0.01`: 📊 Aprendizaje gradual
+        - `-0.0001` a `-0.001`: 🎯 Convergencia fina
+        
+        **Valores Cerca de Cero:**
+        - `-0.0001` a `+0.0001`: 🎯 Convergencia ideal
+        
+        **Valores Positivos (Ascendente):**
+        - `+0.0001` a `+0.001`: ⚠️ Ligero deterioro
+        - `+0.001` a `+0.01`: 🚨 Problema moderado
+        - `+0.01` o mayor: 💥 Problema grave
+        
+        ### 🔬 **Factores que Afectan las Tendencias:**
+        
+        **Learning Rate:**
+        - Muy alto → Oscilaciones o divergencia
+        - Muy bajo → Convergencia lenta
+        - Optimal → Descenso suave y rápido
+        
+        **Batch Size:**
+        - Pequeño → Más ruido, convergencia irregular
+        - Grande → Menos ruido, convergencia suave
+        - Optimal → Balance entre velocidad y estabilidad
+        
+        **Arquitectura del Modelo:**
+        - Muy simple → Plateau temprano (underfitting)
+        - Muy compleja → Sobreajuste tardío
+        - Apropiada → Convergencia saludable sin sobreajuste
+        """)
+
+
+def show_training_alerts(diagnostics, history, config):
+    """Muestra alertas y problemas detectados."""
+
+    alerts = []
+
+    # Alertas críticas
+    if not diagnostics['converged']:
+        alerts.append({
+            'level': 'error',
+            'message': 'Modelo no convergió suficientemente',
+            'action': 'Aumentar número de épocas o ajustar learning rate'
+        })
+
+    if diagnostics['is_overfitting']:
+        alerts.append({
+            'level': 'error',
+            'message': f'Sobreajuste detectado (gap: {diagnostics["overfitting_gap"]*100:.1f}%)',
+            'action': 'Reducir complejidad del modelo, añadir regularización o más datos'
+        })
+
+    # Alertas de advertencia
+    if not diagnostics['is_stable']:
+        alerts.append({
+            'level': 'warning',
+            'message': f'Entrenamiento inestable (variabilidad: {diagnostics["stability"]*100:.1f}%)',
+            'action': 'Reducir learning rate o aumentar batch size'
+        })
+
+    if diagnostics.get('plateau', False):
+        alerts.append({
+            'level': 'info',
+            'message': 'Plateau detectado en las últimas épocas',
+            'action': 'El modelo puede haber alcanzado su límite de aprendizaje'
+        })
+
+    # Mostrar alertas
+    if not alerts:
+        st.success("🎉 ¡No se detectaron problemas significativos!")
+    else:
+        for alert in alerts:
+            if alert['level'] == 'error':
+                st.error(f"🚨 **{alert['message']}**\n💡 {alert['action']}")
+            elif alert['level'] == 'warning':
+                st.warning(f"⚠️ **{alert['message']}**\n💡 {alert['action']}")
+            else:
+                st.info(f"ℹ️ **{alert['message']}**\n💡 {alert['action']}")

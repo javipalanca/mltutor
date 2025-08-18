@@ -760,10 +760,30 @@ def show_training_history_tab():
     """Muestra el historial de entrenamiento."""
     st.subheader("📊 Historial de Entrenamiento")
 
-    with st.expander("💡 Interpretación"):
+   # SECCIÓN 1: INTERPRETACIÓN EDUCATIVA EXPANDIDA
+    with st.expander("💡 Interpretación del Entrenamiento", expanded=False):
         st.markdown("""
-        **Pérdida bajando:** ✅ Aprendiendo | **Estable:** 🎯 Convergido
-        **Gap train/val grande:** 🚨 Sobreajuste
+        📚 **Guía para Interpretar los Gráficos:**
+        
+        **🔴 Pérdida (Loss):**
+        - **Bajando:** ✅ El modelo está aprendiendo correctamente
+        - **Estable:** 🎯 El modelo ha convergido (terminó de aprender)
+        - **Subiendo:** 🚨 Posible sobreajuste o learning rate muy alto
+        
+        **🟡 Validación vs Entrenamiento:**
+        - **Líneas cercanas:** ✅ Generalización saludable
+        - **Gap creciente:** 🚨 Sobreajuste (memorización vs aprendizaje)
+        - **Validación mejor que entrenamiento:** 🤔 Posible error en datos
+        
+        **📈 Accuracy/Métricas:**
+        - **Crecimiento sostenido:** ✅ Aprendizaje progresivo
+        - **Plateau:** 🎯 Límite del modelo alcanzado
+        - **Fluctuaciones grandes:** ⚠️ Batch size muy pequeño o datos ruidosos
+        
+        **🎯 Señales de Calidad:**
+        - ✅ Loss decreciente y suave
+        - ✅ Gap train/val menor al 10%
+        - ✅ Métricas estables al final
         """)
 
     history = st.session_state.nn_history
@@ -772,23 +792,59 @@ def show_training_history_tab():
     plot_training_history(history, config['task_type'])
 
     # Estadísticas del entrenamiento
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     final_loss = history.history['loss'][-1]
     initial_loss = history.history['loss'][0]
     improvement = ((initial_loss - final_loss) / initial_loss) * 100
 
+    # Calcular estadísticas robustas
+    loss_values = history.history['loss']
+    epochs_total = len(loss_values)
+
+    # Detectar convergencia (últimas 5 épocas)
+    convergence_window = min(5, epochs_total // 2)
+    recent_losses = loss_values[-convergence_window:]
+    loss_stability = np.std(recent_losses) / np.mean(recent_losses) * 100
+
     with col1:
         st.metric("🔴 Pérdida Final",
-                  f"{final_loss:.6f}", f"-{improvement:.1f}%")
+                  f"{final_loss:.6f}",
+                  f"-{improvement:.1f}%",
+                  help="Pérdida en la última época vs primera época")
     with col2:
         if 'val_loss' in history.history:
             final_val_loss = history.history['val_loss'][-1]
             gap = final_val_loss - final_loss
+            gap_percentage = (gap / final_loss) * 100
+
+            # Color del delta basado en el gap
+            delta_color = "normal" if abs(gap_percentage) < 10 else "inverse"
+
             st.metric("🟡 Pérdida Validación",
-                      f"{final_val_loss:.6f}", f"Gap: {gap:.6f}")
+                      f"{final_val_loss:.6f}",
+                      f"Gap: {gap:.6f} ({gap_percentage:+.1f}%)",
+                      delta_color=delta_color,
+                      help="Diferencia entre validación y entrenamiento indica sobreajuste")
+
     with col3:
-        epochs = len(history.history['loss'])
-        st.metric("⏱️ Épocas", epochs)
+        st.metric("⏱️ Épocas", epochs_total,
+                  help="Número total de épocas de entrenamiento")
+    with col4:
+        # Indicador de estabilidad
+        if loss_stability < 1:
+            stability_emoji = "🎯"
+            stability_text = "Estable"
+        elif loss_stability < 5:
+            stability_emoji = "📊"
+            stability_text = "Moderado"
+        else:
+            stability_emoji = "📈"
+            stability_text = "Variable"
+
+        st.metric(f"{stability_emoji} Estabilidad",
+                  stability_text,
+                  f"{loss_stability:.1f}% CV",
+                  help="Variabilidad en las últimas épocas (menor = más estable)")
 
 
 def show_weights_analysis_tab():
@@ -1087,66 +1143,12 @@ def show_neural_network_visualizations():
 
     try:
         # Intentar inicialización
-        success, message = initialize_model_safely()
+        # success, message = initialize_model_safely()
 
-        if success:
-            st.success(message)
-        else:
-            st.error(message)
-
-            # Opciones de recuperación
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("🔧 Intentar Reparación Automática", key="auto_repair"):
-                    try:
-                        import tensorflow as tf
-
-                        # Método de reparación avanzada
-                        X_test, y_test = st.session_state.nn_test_data
-                        model = st.session_state.nn_model
-                        config = st.session_state.nn_config
-
-                        # Recrear y recompilar el modelo
-                        model.build(input_shape=(None, X_test.shape[1]))
-
-                        # Configurar optimizador y loss según el tipo de tarea
-                        if config['task_type'] == 'Clasificación':
-                            if config['output_size'] == 1:
-                                loss = 'binary_crossentropy'
-                                metrics = ['accuracy']
-                            else:
-                                loss = 'sparse_categorical_crossentropy'
-                                metrics = ['accuracy']
-                        else:
-                            loss = 'mse'
-                            metrics = ['mae']
-
-                        model.compile(
-                            optimizer=config.get('optimizer', 'adam'),
-                            loss=loss,
-                            metrics=metrics
-                        )
-
-                        # Hacer predicción de prueba
-                        sample_data = X_test[:1].astype('float32')
-                        _ = model.predict(sample_data, verbose=0)
-
-                        st.success("✅ Modelo reparado exitosamente")
-                        st.rerun()
-
-                    except Exception as repair_error:
-                        st.error(f"❌ Error en reparación: {repair_error}")
-
-            with col2:
-                if st.button("🔙 Ir a Reentrenar", type="primary", key="go_retrain"):
-                    st.session_state.active_tab_nn = 2
-                    st.rerun()
-
-            # Si no se puede reparar, terminar la función
-            if not success:
-                st.info(
-                    "💡 **Sugerencia:** Reentrena el modelo para garantizar una inicialización completa.")
-                return
+        # if success:
+        #    st.success(message)
+        # else:
+        #    st.error(message)
 
         # CREAR PESTAÑAS DE VISUALIZACIÓN
         viz_tab1, viz_tab2, viz_tab3, viz_tab4 = st.tabs([

@@ -8,6 +8,15 @@ from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 
+# Importar TensorFlow/Keras
+import tensorflow as tf
+from tensorflow import keras
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.metrics import classification_report, confusion_matrix
+import numpy as np
+import time
+
 from dataset.dataset_manager import preprocess_data
 from algorithms.model_evaluation import evaluate_classification_model, evaluate_regression_model
 from viz.nn import safe_get_output_size
@@ -319,15 +328,6 @@ def train_neural_network(df, target_col, config, learning_rate, epochs, validati
     Entrena una red neuronal con la configuración especificada.
     """
     try:
-        # Importar TensorFlow/Keras
-        import tensorflow as tf
-        from tensorflow import keras
-        from sklearn.model_selection import train_test_split
-        from sklearn.preprocessing import StandardScaler, LabelEncoder
-        from sklearn.metrics import classification_report, confusion_matrix
-        import numpy as np
-        import time
-
         # Paso 1: Preparar datos (ya mostrado)
         X = df.drop(columns=[target_col])
         y = df[target_col]

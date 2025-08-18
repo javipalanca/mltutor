@@ -10,14 +10,19 @@ from dataset.dataset_tab import run_select_dataset, show_dataset_info, run_explo
 from utils import create_info_box, get_image_download_link, show_code_with_download
 from algorithms.code_examples import generate_neural_network_architecture_code, generate_neural_network_evaluation_code
 from algorithms.model_training import train_neural_network
-from algorithms.model_evaluation import show_detailed_evaluation
+from algorithms.model_evaluation import show_detailed_evaluation, neural_network_diagnostics
 from viz.nn import (
     evaluate_nn,
     show_neural_network_evaluation,
     create_neural_network_visualization,
     calculate_network_parameters,
-    show_neural_network_visualizations
+    show_neural_network_visualizations,
+    show_training_history_tab,
+    show_weights_analysis_tab,
+    show_decision_surface_tab,
+    show_layer_activations_tab
 )
+from ui import create_button_panel
 from apps.navbar import navbar
 
 
@@ -789,6 +794,10 @@ def run_neural_networks_app():
                 y_test = np.asarray(y_test).argmax(axis=1)
             show_detailed_evaluation(y_test, y_pred, class_names, task_type)
 
+            history = st.session_state.nn_history
+            config = st.session_state.nn_config
+            neural_network_diagnostics(history, config)
+
             navbar("active_tab_nn", "Volver a Entrenamiento", "Ver Visualización")
 
     ###########################################
@@ -799,7 +808,34 @@ def run_neural_networks_app():
         if not st.session_state.get('model_trained_nn', False):
             st.warning("⚠️ Primero debes entrenar un modelo.")
         else:
-            show_neural_network_visualizations()
+            st.info("""
+            🎓 **Visualizaciones de Redes Neuronales:**
+            - **Historial**: Evolución del aprendizaje 
+            - **Pesos**: Lo que aprendió cada neurona
+            - **Superficie**: Cómo separa las clases (2D) 
+            - **Capas**: Activaciones internas
+            """)
+
+            # Usar botones para seleccionar el tipo de visualización
+            viz_options = [
+                ("📊 Historial", "Historial", "viz_history"),
+                ("🧠 Análisis de Pesos", "Pesos", "viz_weights"),
+                ("🎯 Superficie de Decisión", "Superficie", "viz_surface"),
+                ("📉 Análisis de Activaciones", "Activaciones", "viz_activations"),
+            ]
+
+            viz_type = create_button_panel(viz_options)
+
+            if viz_type == "Historial":
+                show_training_history_tab()
+            elif viz_type == "Pesos":
+                show_weights_analysis_tab()
+            elif viz_type == "Superficie":
+                show_decision_surface_tab()
+            elif viz_type == "Activaciones":
+                show_layer_activations_tab()
+
+        navbar("active_tab_nn", "Volver a Evaluación", "Ver Predicciones")
 
     ###########################################
     #     Pestaña de Predicciones             #
