@@ -195,38 +195,6 @@ def run_csv_loader_app():
             st.markdown("---")
             st.success("✅ ¡Dataset CSV cargado exitosamente!")
 
-            # Mostrar opciones de análisis
-            st.markdown("### 🚀 Próximos pasos:")
-
-            col1, col2, col3 = st.columns(3)
-
-            with col1:
-                if st.button("🌲 Analizar con Árboles de Decisión",
-                             key="analyze_trees",
-                             use_container_width=True,
-                             type="primary"):
-                    st.session_state.navigation = "🌲 Árboles de Decisión"
-                    st.rerun()
-
-            with col2:
-                if st.button("📊 Analizar con Regresión",
-                             key="analyze_linear",
-                             use_container_width=True,
-                             type="primary"):
-                    st.session_state.navigation = "📊 Regresión"
-                    st.rerun()
-
-            with col3:
-                if st.button("🔄 Cargar otro archivo",
-                             key="load_another",
-                             use_container_width=True):
-                    # Limpiar el estado del CSV cargado
-                    if 'csv_datasets' in st.session_state:
-                        st.session_state.csv_datasets.clear()
-                    if 'selected_dataset' in st.session_state:
-                        del st.session_state.selected_dataset
-                    st.rerun()
-
             # Información adicional sobre el dataset cargado
             st.markdown("### 📊 Información del Dataset Cargado:")
 
