@@ -2,4 +2,4 @@
 docker build -t mltutor .
 
 # Ejecutar el contenedor
-docker run -p 8501:8501 mltutor
+docker run -p 8502:8502 mltutor

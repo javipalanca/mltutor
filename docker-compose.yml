@@ -6,10 +6,13 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8501:8501"
+      - "8502:8502"
     restart: unless-stopped
     volumes:
       - ./data:/app/data
     environment:
-      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_PORT=8502
       - STREAMLIT_SERVER_HEADLESS=true
+      - PYTHONPATH=/app:${PYTHONPATH}
+
+
