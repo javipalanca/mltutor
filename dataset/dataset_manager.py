@@ -9,7 +9,7 @@ import seaborn as sns
 import streamlit as st
 import os
 
-from sklearn.datasets import load_iris, load_wine, load_breast_cancer
+from sklearn.datasets import load_iris, load_wine, load_breast_cancer, load_digits, load_diabetes
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 
@@ -104,6 +104,83 @@ def load_builtin_dataset(dataset_name):
     elif "Pingüinos" in dataset_name:
         X, y, feature_names, class_names, dataset_info, task_type = load_additional_dataset(
             dataset_name)
+
+    # Nuevos datasets
+    elif "Dígitos" in dataset_name:
+        data = load_digits()
+        X = pd.DataFrame(data.data)
+        y = pd.Series(data.target, name="digit")
+        feature_names = [f"p{i}" for i in range(X.shape[1])]
+        class_names = [str(c) for c in sorted(np.unique(data.target))]
+        dataset_info = {
+            'description': f"Dígitos manuscritos: {X.shape[0]} muestras, {X.shape[1]} píxeles (8x8) aplanados, 10 clases",
+            'target': 'digit',
+            'task_type': 'Clasificación',
+            'samples': X.shape[0],
+            'features': X.shape[1],
+            'classes': 10
+        }
+        task_type = "Clasificación"
+
+    elif "Diabetes" in dataset_name:
+        data = load_diabetes()
+        X = pd.DataFrame(data.data, columns=data.feature_names)
+        y = pd.Series(data.target, name="disease_progression")
+        feature_names = list(data.feature_names)
+        class_names = None
+        dataset_info = {
+            'description': f"Diabetes: {X.shape[0]} muestras, {X.shape[1]} características; regresión de progresión de la enfermedad",
+            'target': 'disease_progression',
+            'task_type': 'Regresión',
+            'samples': X.shape[0],
+            'features': X.shape[1],
+            'classes': None
+        }
+        task_type = "Regresión"
+
+    elif "Diamantes" in dataset_name:
+        df = sns.load_dataset("diamonds")
+        # Codificar categóricas
+        cat_cols = df.select_dtypes(include=['object', 'category']).columns
+        for col in cat_cols:
+            le = LabelEncoder()
+            df[col] = le.fit_transform(df[col].astype(str))
+        # Muestreo para rendimiento
+        if len(df) > 8000:
+            df = df.sample(8000, random_state=42)
+        y = df['price']
+        X = df.drop(columns=['price'])
+        feature_names = X.columns.tolist()
+        class_names = None
+        dataset_info = {
+            'description': f"Diamantes (muestreo): {len(df)} muestras, {X.shape[1]} características, predicción de precio",
+            'target': 'price',
+            'task_type': 'Regresión',
+            'samples': len(df),
+            'features': X.shape[1],
+            'classes': None
+        }
+        task_type = "Regresión"
+
+    elif "MPG" in dataset_name:
+        df = sns.load_dataset("mpg").dropna()
+        y = df['mpg']
+        X = df.drop(columns=['mpg'])
+        cat_cols = X.select_dtypes(include=['object', 'category']).columns
+        for col in cat_cols:
+            le = LabelEncoder()
+            X[col] = le.fit_transform(X[col].astype(str))
+        feature_names = X.columns.tolist()
+        class_names = None
+        dataset_info = {
+            'description': f"MPG: {len(df)} muestras limpias, {X.shape[1]} características, consumo de combustible (regresión)",
+            'target': 'mpg',
+            'task_type': 'Regresión',
+            'samples': len(df),
+            'features': X.shape[1],
+            'classes': None
+        }
+        task_type = "Regresión"
 
     else:
         raise ValueError(f"Conjunto de datos '{dataset_name}' no reconocido")
@@ -288,7 +365,11 @@ def load_data(dataset_option):
         "🚢 Titanic - Supervivencia": "🚢 Titanic - Supervivencia",
         "💰 Propinas - Predicción de propinas": "💰 Propinas - Predicción de propinas",
         "🏠 Viviendas California - Precios": "🏠 Viviendas California - Precios",
-        "🐧 Pingüinos - Clasificación de especies": "🐧 Pingüinos - Clasificación de especies"
+        "🐧 Pingüinos - Clasificación de especies": "🐧 Pingüinos - Clasificación de especies",
+        "🔢 Dígitos - Clasificación de dígitos": "🔢 Dígitos - Clasificación de dígitos",
+        "🩺 Diabetes - Progresión (regresión)": "🩺 Diabetes - Progresión (regresión)",
+        "💎 Diamantes - Precio (regresión)": "💎 Diamantes - Precio (regresión)",
+        "⛽ MPG - Consumo combustible (regresión)": "⛽ MPG - Consumo combustible (regresión)"
     }
 
     # Comprobar si es un dataset CSV personalizado cargado
@@ -345,6 +426,10 @@ def create_dataset_selector(show_predefined=True):
         "🌸 Iris - Clasificación de flores",
         "🍷 Vino - Clasificación de vinos",
         "🔬 Cáncer - Diagnóstico binario",
+        "🔢 Dígitos - Clasificación de dígitos",
+        "🩺 Diabetes - Progresión (regresión)",
+        "💎 Diamantes - Precio (regresión)",
+        "⛽ MPG - Consumo combustible (regresión)",
         "🚢 Titanic - Supervivencia",
         "💰 Propinas - Predicción de propinas",
         "🏠 Viviendas California - Precios",
@@ -505,13 +590,17 @@ def create_dataset_selector(show_predefined=True):
 
         # Mostrar información del dataset seleccionado
         dataset_info = {
-            "🌸 Iris - Clasificación de flores": "150 muestras • 4 características • 3 especies de iris • Clasificación clásica",
-            "🍷 Vino - Clasificación de vinos": "178 muestras • 13 características químicas • 3 clases de vino • Clasificación",
-            "🔬 Cáncer - Diagnóstico binario": "569 muestras • 30 características • Benigno/Maligno • Clasificación médica",
-            "🚢 Titanic - Supervivencia": "891 pasajeros • 11 características • Supervivencia • Clasificación histórica",
-            "💰 Propinas - Predicción de propinas": "244 cuentas • 6 características • Monto de propina • Regresión",
+            "🌸 Iris - Clasificación de flores": "150 muestras • 4 características • 3 especies de iris • Clasificación",
+            "🍷 Vino - Clasificación de vinos": "178 muestras • 13 características • 3 clases de vino • Clasificación",
+            "🔬 Cáncer - Diagnóstico binario": "569 muestras • 30 características • Benigno/Maligno • Clasificación",
+            "🔢 Dígitos - Clasificación de dígitos": "1797 muestras • 64 píxeles • 10 clases • Clasificación",
+            "🩺 Diabetes - Progresión (regresión)": "442 muestras • 10 características • Progresión enfermedad • Regresión",
+            "💎 Diamantes - Precio (regresión)": "≈54k (muestreo ≤8000) • 9 características • Precio • Regresión",
+            "⛽ MPG - Consumo combustible (regresión)": "392 muestras (limpias) • ~7-8 características • MPG • Regresión",
+            "🚢 Titanic - Supervivencia": "891 pasajeros • 11 características • Supervivencia • Clasificación",
+            "💰 Propinas - Predicción de propinas": "244 cuentas • 6 características • Propina • Regresión",
             "🏠 Viviendas California - Precios": "20,640 distritos • 8 características • Precio vivienda • Regresión",
-            "🐧 Pingüinos - Clasificación de especies": "333 pingüinos • 6 características • 3 especies • Clasificación biológica"
+            "🐧 Pingüinos - Clasificación de especies": "333 pingüinos • 6 características • 3 especies • Clasificación"
         }
 
         if dataset_option in dataset_info:

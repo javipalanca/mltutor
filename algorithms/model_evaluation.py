@@ -112,15 +112,28 @@ def show_detailed_evaluation(y_test, y_pred, class_names, model_type):
         Tipo de modelo ('Clasificación' o 'Regresión')
     """
     if model_type == "Clasificación":
-        # Calcular métricas
+        # Preparar etiquetas y nombres de clase de forma robusta
+        if class_names is None:
+            labels = sorted(np.unique(y_test))
+            target_names = [str(l) for l in labels]
+        else:
+            # Si class_names está presente, asumir que las clases son 0..n-1
+            try:
+                labels = list(range(len(class_names)))
+                target_names = [str(n) for n in class_names]
+            except Exception:
+                labels = sorted(np.unique(y_test))
+                target_names = [str(l) for l in labels]
+
+        # Calcular métricas usando labels y target_names
         report = classification_report(
-            y_test, y_pred, target_names=class_names, output_dict=True)
+            y_test, y_pred, labels=labels, target_names=target_names, output_dict=True)
         report_df = pd.DataFrame(report).transpose()
 
         # Métricas globales
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            acc_value = report['accuracy']
+            acc_value = report.get('accuracy', 0.0)
             st.metric("Exactitud (Accuracy)", f"{acc_value:.4f}",
                       help="Proporción total de predicciones correctas")
             # Indicador de calidad
@@ -133,15 +146,15 @@ def show_detailed_evaluation(y_test, y_pred, class_names, model_type):
             else:
                 st.warning("Necesita mejora", icon="❌")
         with col2:
-            st.metric("Precisión media", f"{report['weighted avg']['precision']:.4f}",
+            st.metric("Precisión media", f"{report.get('weighted avg', {}).get('precision', 0.0):.4f}",
                       help="Media ponderada de la precisión de cada clase")
         with col3:
-            st.metric("Exhaustividad media (Recall)", f"{report['weighted avg']['recall']:.4f}",
+            st.metric("Exhaustividad media (Recall)", f"{report.get('weighted avg', {}).get('recall', 0.0):.4f}",
                       help="Media ponderada de la exhaustividad de cada clase")
         with col4:
-            st.metric("F1-Score medio", f"{report['weighted avg']['f1-score']:.4f}",
+            st.metric("F1-Score medio", f"{report.get('weighted avg', {}).get('f1-score', 0.0):.4f}",
                       help="Media armónica de precisión y exhaustividad")
-            f1_score = report['weighted avg']['f1-score']
+            f1_score = report.get('weighted avg', {}).get('f1-score', 0.0)
             if f1_score >= 0.8:
                 st.success("🌟 Excelente balance")
             elif f1_score >= 0.7:
@@ -157,10 +170,12 @@ def show_detailed_evaluation(y_test, y_pred, class_names, model_type):
             ['accuracy', 'macro avg', 'weighted avg'], errors='ignore')
 
         # Matriz de confusión
-        cm = confusion_matrix(y_test, y_pred)
+        cm = confusion_matrix(y_test, y_pred, labels=labels)
         fig_cm, ax_cm = plt.subplots(figsize=(6, 5))  # Reducir tamaño
+        xticks = target_names if target_names is not None else None
+        yticks = target_names if target_names is not None else None
         sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax_cm,
-                    xticklabels=class_names, yticklabels=class_names)
+                    xticklabels=xticks, yticklabels=yticks)
         ax_cm.set_xlabel('Predicción')
         ax_cm.set_ylabel('Real')
         ax_cm.set_title('Matriz de Confusión')
@@ -228,11 +243,15 @@ def show_detailed_evaluation(y_test, y_pred, class_names, model_type):
         # Visualización avanzada - Predicciones correctas e incorrectas
         st.markdown("### Visualización de Predicciones")
 
+        # Construir mapping seguro label -> name
+        label_to_name = {labels[i]: target_names[i]
+                         for i in range(len(labels))}
+
         # Crear dataframe con resultados
         results_df = pd.DataFrame({
-            'Real': [class_names[x] for x in y_test],
-            'Predicción': [class_names[x] for x in y_pred],
-            'Correcto': y_test == y_pred
+            'Real': [label_to_name.get(v, str(v)) for v in y_test],
+            'Predicción': [label_to_name.get(v, str(v)) for v in y_pred],
+            'Correcto': (np.array(y_test) == np.array(y_pred))
         })
 
         # Mostrar algunas muestras
@@ -252,8 +271,9 @@ def show_detailed_evaluation(y_test, y_pred, class_names, model_type):
 
         # Gráfico de precisión por clase
         fig_prec, ax_prec = plt.subplots(figsize=(8, 4))  # Reducir altura
-        prec_by_class = {
-            class_name: report[class_name]['precision'] for class_name in class_names}
+        prec_by_class = {}
+        for name in target_names:
+            prec_by_class[name] = report.get(name, {}).get('precision', 0.0)
         sns.barplot(x=list(prec_by_class.keys()), y=list(
             prec_by_class.values()), ax=ax_prec)
         ax_prec.set_ylim(0, 1)
@@ -454,7 +474,8 @@ def show_prediction_path(tree_model, X_new, feature_names, class_names=None):
         leaf_id = tree_model.apply(X_new)
 
         # Obtener los nodos en el camino
-        node_index = node_indicator.indices[node_indicator.indptr[0]                                            :node_indicator.indptr[1]]
+        node_index = node_indicator.indices[node_indicator.indptr[0]
+            :node_indicator.indptr[1]]
 
         path_explanation = []
         for node_id in node_index:

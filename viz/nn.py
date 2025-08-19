@@ -2,7 +2,10 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 import tensorflow as tf
+import matplotlib.pyplot as plt
 import numpy as np
+
+from viz.decision_boundary import plot_decision_surface
 
 
 def safe_get_output_size(config):
@@ -1022,8 +1025,6 @@ def show_weights_analysis_tab():
 
 def show_decision_surface_tab():
     """Muestra la superficie de decisión."""
-    import numpy as np
-    import matplotlib.pyplot as plt
 
     st.subheader("🎯 Superficie de Decisión")
 
@@ -1109,7 +1110,107 @@ def show_decision_surface_tab():
         else:
             st.info("💡 Implementación para datasets 2D próximamente")
     else:
-        st.info("🏔️ Superficie de predicción para regresión próximamente")
+        # REGRESIÓN: superficie continua (heatmap / contour) usando 2 features
+        try:
+            feature_names = st.session_state.get('nn_feature_names',
+                                                 [f'Característica {i+1}' for i in range(config.get('input_size', 2))])
+
+            if config.get('input_size', 2) > 2:
+                col1, col2 = st.columns(2)
+                with col1:
+                    feature1 = st.selectbox("Primera característica:", feature_names,
+                                            index=0, key="viz_f1_reg")
+                with col2:
+                    feature2 = st.selectbox("Segunda característica:", feature_names,
+                                            index=min(1, len(feature_names)-1), key="viz_f2_reg")
+                if feature1 == feature2:
+                    st.warning("⚠️ Selecciona características diferentes")
+                    return
+                feature_idx = [feature_names.index(
+                    feature1), feature_names.index(feature2)]
+                X_test, y_test = st.session_state.nn_test_data
+                X_2d = X_test[:, feature_idx]
+            else:
+                # input_size == 2
+                X_test, y_test = st.session_state.nn_test_data
+                feature_idx = [0, 1]
+                feature1, feature2 = feature_names[0], feature_names[1]
+                X_2d = X_test[:, :2]
+
+            # Crear malla en espacio de las dos features
+            h = 0.02
+            x_min, x_max = X_2d[:, 0].min() - 0.5, X_2d[:, 0].max() + 0.5
+            y_min, y_max = X_2d[:, 1].min() - 0.5, X_2d[:, 1].max() + 0.5
+            xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
+                                 np.arange(y_min, y_max, h))
+
+            # Construir puntos completos (dim original) copiando medias; deja en la misma escala que X_test
+            mean_values = np.mean(X_test, axis=0)
+            mesh_points = np.tile(mean_values, (xx.ravel().shape[0], 1))
+            mesh_points[:, feature_idx[0]] = xx.ravel()
+            mesh_points[:, feature_idx[1]] = yy.ravel()
+
+            model = st.session_state.nn_model
+
+            # Intentar predecir directamente con el modelo; si falla por forma, usar surrogate (distillation)
+            try:
+                Z_raw = model.predict(mesh_points, verbose=0)
+                # Si salida multivariada tomar primera columna (regresión simple). Si es (N,1) aplanar.
+                if Z_raw.ndim > 1:
+                    if Z_raw.shape[1] == 1:
+                        Z_vals = Z_raw.ravel()
+                    else:
+                        # Multisalida: reducir a primera salida por defecto
+                        Z_vals = Z_raw[:, 0]
+                else:
+                    Z_vals = Z_raw.ravel()
+            except Exception:
+                # Distillation: obtener preds del modelo sobre X_test y entrenar surrogate en X_2d -> pred
+                try:
+                    from sklearn.neighbors import KNeighborsRegressor
+                    # Obtener predicciones del modelo sobre X_test (si falla, usar y_test)
+                    try:
+                        preds_full = model.predict(X_test, verbose=0)
+                        if preds_full.ndim > 1 and preds_full.shape[1] > 1:
+                            # multisalida -> tomar primera salida
+                            y_surrogate = preds_full[:, 0]
+                        else:
+                            y_surrogate = preds_full.ravel()
+                    except Exception:
+                        y_surrogate = np.asarray(y_test).ravel()
+
+                    surrogate = KNeighborsRegressor(n_neighbors=15)
+                    surrogate.fit(X_2d, y_surrogate)
+                    Z_vals = surrogate.predict(
+                        np.column_stack([xx.ravel(), yy.ravel()]))
+                except Exception as e_sur:
+                    raise RuntimeError(
+                        f"Error generando superficie (surrogate): {e_sur}") from e_sur
+
+            Z = Z_vals.reshape(xx.shape)
+
+            # Plot continuous surface
+            fig, ax = plt.subplots(figsize=(10, 7))
+            contour = ax.contourf(
+                xx, yy, Z, cmap='viridis', alpha=0.9, levels=100)
+            cbar = plt.colorbar(contour, ax=ax)
+            cbar.set_label('Valor predicho')
+
+            # Scatter de puntos reales (usar y_test valores reales)
+            y_plot = y_test.ravel()
+            sc = ax.scatter(X_2d[:, 0], X_2d[:, 1], c=y_plot,
+                            cmap='viridis', edgecolors='k', s=40, alpha=0.9)
+            ax.set_xlabel(feature1)
+            ax.set_ylabel(feature2)
+            ax.set_title(
+                f'Superficie de Decisión (Regresión): {feature1} vs {feature2}')
+            st.pyplot(fig)
+            st.success("✅ Superficie de regresión generada exitosamente")
+
+        except Exception as surf_error:
+            st.error(
+                f"❌ Error generando superficie de regresión: {surf_error}")
+            st.info("Se intentó predecir con el modelo; si la arquitectura espera otra dimensionalidad se usa un surrogate (KNN) entrenado con las predicciones del modelo.")
 
 
 def show_layer_activations_tab():
