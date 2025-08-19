@@ -33,6 +33,7 @@ from viz.roc import plot_roc_curve
 from viz.residual import plot_predictions, plot_residuals
 from viz.features import display_feature_importance
 from ui import create_button_panel, create_prediction_interface
+from apps.navbar import navbar
 
 
 def run_decision_trees_app():
@@ -135,11 +136,14 @@ def run_decision_trees_app():
 
     run_dataset_tab(st.session_state.active_tab)
 
+    if st.session_state.active_tab == 0:
+        navbar("active_tab", None, "Continuar a Entrenamiento")
+
     ###########################################
     # Pestaña de Entrenamiento                #
     ###########################################
 
-    if st.session_state.active_tab == 1:
+    elif st.session_state.active_tab == 1:
         st.header("Configuración del Modelo")
 
         # Inicializar session state variables
@@ -304,6 +308,8 @@ def run_decision_trees_app():
                 except Exception as e:
                     st.error(f"Error al entrenar el modelo: {str(e)}")
 
+        navbar("active_tab", "Volver a Datos", "Continuar a Evaluación")
+
     ###########################################
     # Pestaña de Evaluación                   #
     ###########################################
@@ -326,6 +332,9 @@ def run_decision_trees_app():
                     'tree_type', 'Clasificación') == "Clasificación" else None,
                 st.session_state.get('tree_type', 'Clasificación')
             )
+
+        navbar("active_tab", "Volver a Entrenamiento",
+               "Continuar a Visualización")
 
     ###########################################
     # Pestaña de Visualización                #
@@ -526,6 +535,9 @@ def run_decision_trees_app():
                 plot_decision_surface(
                     model_2d, feature_names, X_train, y_train)
 
+        navbar("active_tab", "Volver a Evaluación",
+               "Continuar a Características")
+
     ###########################################
     # Pestaña de Características              #
     ###########################################
@@ -544,6 +556,9 @@ def run_decision_trees_app():
                 y_test=st.session_state.get('y_test', None),
                 task_type=st.session_state.get('tree_type', 'Clasificación')
             )
+
+        navbar("active_tab", "Volver a Visualización",
+               "Continuar a Predicciones")
 
     ###########################################
     # Pestaña de Predicciones                 #
@@ -567,6 +582,9 @@ def run_decision_trees_app():
                 st.session_state.get('selected_dataset', 'Titanic')
             )
 
+        navbar("active_tab", "Volver a Características",
+               "Continuar a Exportar")
+
     ###########################################
     # Pestaña de Exportar Modelo              #
     ###########################################
@@ -587,3 +605,6 @@ def run_decision_trees_app():
                 st.session_state.get('min_samples_split', 2),
                 st.session_state.get('criterion', 'gini')
             )
+
+        navbar("active_tab", "Volver a Predicciones",
+               None)

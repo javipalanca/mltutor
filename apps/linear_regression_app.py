@@ -16,6 +16,7 @@ from viz.roc import plot_roc_curve, plot_threshold_analysis
 from viz.residual import plot_predictions, plot_residuals
 from viz.decision_boundary import plot_decision_boundary, plot_decision_surface
 from ui import create_button_panel, create_prediction_interface
+from apps.navbar import navbar
 
 
 def run_linear_regression_app():
@@ -116,6 +117,9 @@ def run_linear_regression_app():
     # Pestaña de Datos                        #
     ###########################################
     run_dataset_tab(st.session_state.active_tab_lr)
+
+    if st.session_state.active_tab_lr == 0:
+        navbar("active_tab_lr", None, "Continuar a Entrenamiento")
 
     ###########################################
     # Pestaña de Entrenamiento                #
@@ -266,6 +270,9 @@ def run_linear_regression_app():
             else:
                 st.error("Por favor, carga un dataset válido primero.")
 
+        navbar("active_tab_lr", "Volver a Datos",
+               "Continuar a Evaluación")
+
     ###########################################
     # Pestaña de Evaluación                   #
     ###########################################
@@ -292,6 +299,9 @@ def run_linear_regression_app():
                 class_names,
                 model_type
             )
+
+        navbar("active_tab_lr", "Volver a Entrenamiento",
+               "Continuar a Visualización")
 
     ###########################################
     # Pestaña de Visualización                #
@@ -393,6 +403,9 @@ def run_linear_regression_app():
 
         else:
             st.info("Entrena un modelo primero para ver las visualizaciones.")
+
+        navbar("active_tab_lr", "Volver a Evaluación",
+               "Continuar a Coeficientes")
 
     ###########################################
     # Pestaña de Coeficientes                 #
@@ -1001,6 +1014,9 @@ def run_linear_regression_app():
         else:
             st.info("Entrena un modelo primero para ver los coeficientes.")
 
+        navbar("active_tab_lr", "Volver a Visualización",
+               "Continuar a Predicciones")
+
     ###########################################
     # Pestaña de Predicciones                 #
     ###########################################
@@ -1029,6 +1045,9 @@ def run_linear_regression_app():
         else:
             st.info("Entrena un modelo primero para hacer predicciones.")
 
+        navbar("active_tab_lr", "Volver a Coeficientes",
+               "Continuar a Exportar")
+
     ###########################################
     # Pestaña de Exportar                     #
     ###########################################
@@ -1041,3 +1060,5 @@ def run_linear_regression_app():
 
         else:
             st.info("Entrena un modelo primero para exportarlo.")
+
+        navbar("active_tab_lr", "Volver a Predicciones", None)

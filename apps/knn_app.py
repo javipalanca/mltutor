@@ -21,6 +21,7 @@ from viz.roc import plot_roc_curve, plot_threshold_analysis
 from viz.decision_boundary import plot_decision_surface, plot_decision_boundary
 from viz.residual import plot_predictions, plot_residuals
 from viz.features import display_feature_importance
+from apps.navbar import navbar
 
 
 def run_knn_app():
@@ -135,6 +136,8 @@ def run_knn_app():
     ###########################################
     run_dataset_tab(tab)
 
+    if tab == 0:
+        navbar("active_tab_knn", None, "Continuar a Entrenamiento")
     ###########################################
     # Pestaña de Entrenamiento                #
     ###########################################
@@ -229,6 +232,8 @@ def run_knn_app():
         else:
             st.info("Primero selecciona y carga un dataset en la pestaña de Datos.")
 
+        navbar("active_tab_knn", "Volver a Datos", "Continuar a Evaluación")
+
     ###########################################
     # Pestaña de Evaluación.                  #
     ###########################################
@@ -254,6 +259,9 @@ def run_knn_app():
                     "No se encontraron los datos necesarios para la evaluación.")
         else:
             st.info("Primero entrena un modelo KNN.")
+
+        navbar("active_tab_knn", "Volver a Entrenamiento",
+               "Continuar a Visualización")
 
     ###########################################
     # Pestaña de Visualización                #
@@ -497,6 +505,9 @@ def run_knn_app():
         else:
             st.info("Primero entrena un modelo KNN.")
 
+        navbar("active_tab_knn", "Volver a Evaluación",
+               "Continuar a Características")
+
     ###########################################
     # Pestaña de Características              #
     ###########################################
@@ -509,10 +520,15 @@ def run_knn_app():
                 st.session_state.knn_feature_names,
                 X_test=st.session_state.get('knn_Xtest', None),
                 y_test=st.session_state.get('knn_ytest', None),
-                task_type=st.session_state.get('knn_task_type', 'Clasificación')
+                task_type=st.session_state.get(
+                    'knn_task_type', 'Clasificación')
             )
         else:
-            st.info("Primero entrena un modelo KNN para ver la importancia de características.")
+            st.info(
+                "Primero entrena un modelo KNN para ver la importancia de características.")
+
+        navbar("active_tab_knn", "Volver a Visualización",
+               "Continuar a Predicciones")
 
     ###########################################
     # Pestaña de Predicciones                 #
@@ -531,6 +547,9 @@ def run_knn_app():
         else:
             st.info("Primero entrena un modelo KNN.")
 
+        navbar("active_tab_knn", "Volver a Características",
+               "Continuar a Exportar")
+
     ###########################################
     # Pestaña de Exportar.                    #
     ###########################################
@@ -540,6 +559,9 @@ def run_knn_app():
             display_model_export_options(st.session_state.knn_model)
         else:
             st.info("Primero entrena un modelo KNN.")
+
+        navbar("active_tab_knn", "Volver a Predicciones", None)
+
 
 def create_interactive_knn_visualization(X_2d, y, model, feature1, feature2, class_names, show_confidence, animate_distances):
     """
