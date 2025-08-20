@@ -1032,10 +1032,9 @@ def show_decision_surface_tab():
     config = st.session_state.nn_config
 
     if config.get('task_type') == 'Clasificación':
+        feature_names = st.session_state.get('nn_feature_names',
+                                             [f'Característica {i+1}' for i in range(config['input_size'])])
         if config['input_size'] > 2:
-            feature_names = st.session_state.get('nn_feature_names',
-                                                 [f'Característica {i+1}' for i in range(config['input_size'])])
-
             col1, col2 = st.columns(2)
             with col1:
                 feature1 = st.selectbox("Primera característica:", feature_names,
@@ -1044,71 +1043,76 @@ def show_decision_surface_tab():
                 feature2 = st.selectbox("Segunda característica:", feature_names,
                                         index=min(1, len(feature_names)-1), key="viz_f2")
 
-            if feature1 != feature2:
-                try:
-                    X_test, _ = st.session_state.nn_test_data
-
-                    # Extraer características seleccionadas
-                    feature_idx = [feature_names.index(
-                        feature1), feature_names.index(feature2)]
-                    X_2d = X_test[:, feature_idx]
-
-                    # Crear malla
-                    h = 0.02
-                    x_min, x_max = X_2d[:, 0].min(
-                    ) - 0.5, X_2d[:, 0].max() + 0.5
-                    y_min, y_max = X_2d[:, 1].min(
-                    ) - 0.5, X_2d[:, 1].max() + 0.5
-                    xx, yy = np.meshgrid(
-                        np.arange(x_min, x_max, h), np.arange(y_min, y_max, h))
-
-                    # Crear puntos para predicción con valores promedio
-                    mesh_points = []
-                    mean_values = np.mean(X_test, axis=0)
-
-                    for i in range(xx.ravel().shape[0]):
-                        point = mean_values.copy()
-                        point[feature_idx[0]] = xx.ravel()[i]
-                        point[feature_idx[1]] = yy.ravel()[i]
-                        mesh_points.append(point)
-
-                    mesh_points = np.array(mesh_points)
-                    Z = model.predict(mesh_points, verbose=0)
-
-                    # Procesar predicciones
-                    if len(Z.shape) > 1 and Z.shape[1] > 1:
-                        Z = np.argmax(Z, axis=1)
-                    else:
-                        Z = (Z > 0.5).astype(int).ravel()
-                    Z = Z.reshape(xx.shape)
-
-                    # Crear visualización
-                    fig, ax = plt.subplots(figsize=(10, 8))
-                    contourf = ax.contourf(
-                        xx, yy, Z, levels=50, alpha=0.8, cmap='RdYlBu')
-
-                    # Agregar puntos de datos
-                    _, y_test = st.session_state.nn_test_data
-                    y_plot = np.argmax(y_test, axis=1) if len(
-                        y_test.shape) > 1 else y_test
-                    ax.scatter(X_2d[:, 0], X_2d[:, 1], c=y_plot, cmap='RdYlBu',
-                               edgecolors='black', s=50, alpha=0.9)
-
-                    ax.set_xlabel(feature1)
-                    ax.set_ylabel(feature2)
-                    ax.set_title(
-                        f'Superficie de Decisión: {feature1} vs {feature2}')
-                    plt.colorbar(contourf, ax=ax)
-                    st.pyplot(fig)
-
-                    st.success("✅ Superficie generada exitosamente")
-
-                except Exception as surf_error:
-                    st.error(f"❌ Error: {surf_error}")
-            else:
+            if feature1 == feature2:
                 st.warning("⚠️ Selecciona características diferentes")
+                return
+            else:
+                X_test, _ = st.session_state.nn_test_data
+
+                # Extraer características seleccionadas
+                feature_idx = [feature_names.index(
+                    feature1), feature_names.index(feature2)]
+                X_2d = X_test[:, feature_idx]
         else:
-            st.info("💡 Implementación para datasets 2D próximamente")
+            # input_size == 2
+            X_test, _ = st.session_state.nn_test_data
+            feature_idx = [0, 1]
+            feature1, feature2 = feature_names[0], feature_names[1]
+            X_2d = X_test[:, :2]
+        try:
+            # Crear malla
+            h = 0.02
+            x_min, x_max = X_2d[:, 0].min(
+            ) - 0.5, X_2d[:, 0].max() + 0.5
+            y_min, y_max = X_2d[:, 1].min(
+            ) - 0.5, X_2d[:, 1].max() + 0.5
+            xx, yy = np.meshgrid(
+                np.arange(x_min, x_max, h), np.arange(y_min, y_max, h))
+
+            # Crear puntos para predicción con valores promedio
+            mesh_points = []
+            mean_values = np.mean(X_test, axis=0)
+
+            for i in range(xx.ravel().shape[0]):
+                point = mean_values.copy()
+                point[feature_idx[0]] = xx.ravel()[i]
+                point[feature_idx[1]] = yy.ravel()[i]
+                mesh_points.append(point)
+
+            mesh_points = np.array(mesh_points)
+            Z = model.predict(mesh_points, verbose=0)
+
+            # Procesar predicciones
+            if len(Z.shape) > 1 and Z.shape[1] > 1:
+                Z = np.argmax(Z, axis=1)
+            else:
+                Z = (Z > 0.5).astype(int).ravel()
+            Z = Z.reshape(xx.shape)
+
+            # Crear visualización
+            fig, ax = plt.subplots(figsize=(10, 8))
+            contourf = ax.contourf(
+                xx, yy, Z, levels=50, alpha=0.8, cmap='RdYlBu')
+
+            # Agregar puntos de datos
+            _, y_test = st.session_state.nn_test_data
+            y_plot = np.argmax(y_test, axis=1) if len(
+                y_test.shape) > 1 else y_test
+            ax.scatter(X_2d[:, 0], X_2d[:, 1], c=y_plot, cmap='RdYlBu',
+                       edgecolors='black', s=50, alpha=0.9)
+
+            ax.set_xlabel(feature1)
+            ax.set_ylabel(feature2)
+            ax.set_title(
+                f'Superficie de Decisión: {feature1} vs {feature2}')
+            plt.colorbar(contourf, ax=ax)
+            st.pyplot(fig)
+
+            st.success("✅ Superficie generada exitosamente")
+
+        except Exception as surf_error:
+            st.error(f"❌ Error: {surf_error}")
+
     else:
         # REGRESIÓN: superficie continua (heatmap / contour) usando 2 features
         try:
