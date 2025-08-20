@@ -322,13 +322,16 @@ def run_explore_dataset_tab():
             st.info("💡 **Correlación**: Mide la relación lineal entre características. Valores cercanos a 1 o -1 indican correlación fuerte.")
 
             # Matriz de correlación
-            corr = X_df.corr()
+            y_corr = pd.Series(y, name=target_col)
+
+            df_corr = pd.concat([X_df, y_corr], axis=1)
+            corr = df_corr.corr()
 
             # Generar máscara para el triángulo superior
             mask = np.triu(np.ones_like(corr, dtype=bool))
 
             # Generar mapa de calor
-            fig_corr, ax = plt.subplots(figsize=(10, 8))
+            fig_corr, ax = plt.subplots(figsize=(20, 16))
             sns.heatmap(corr, mask=mask, annot=True, fmt=".2f", cmap="coolwarm",
                         square=True, linewidths=.5, cbar_kws={"shrink": .8}, ax=ax)
             ax.set_title("Matriz de Correlación de Características")
