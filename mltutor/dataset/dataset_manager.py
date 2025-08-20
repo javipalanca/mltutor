@@ -9,7 +9,7 @@ import seaborn as sns
 import streamlit as st
 import os
 
-from sklearn.datasets import load_iris, load_wine, load_breast_cancer, load_digits, load_diabetes
+from sklearn.datasets import load_iris, load_wine, load_breast_cancer, load_digits, load_diabetes, make_moons
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 
@@ -181,6 +181,23 @@ def load_builtin_dataset(dataset_name):
             'classes': None
         }
         task_type = "Regresión"
+
+    elif "Moons" in dataset_name or "🌙" in dataset_name:
+        # Dataset sintético Two Moons (clasificación no lineal)
+        X_arr, y_arr = make_moons(n_samples=500, noise=0.2, random_state=42)
+        X = pd.DataFrame(X_arr, columns=['x1', 'x2'])
+        y = pd.Series(y_arr, name='label')
+        feature_names = ['x1', 'x2']
+        class_names = ['class_0', 'class_1']
+        dataset_info = {
+            'description': f"Moons sintético: {X.shape[0]} muestras, 2 características, 2 clases (no lineal).",
+            'target': 'label',
+            'task_type': 'Clasificación',
+            'samples': X.shape[0],
+            'features': X.shape[1],
+            'classes': 2
+        }
+        task_type = "Clasificación"
 
     else:
         raise ValueError(f"Conjunto de datos '{dataset_name}' no reconocido")
@@ -368,6 +385,7 @@ def load_data(dataset_option):
         "🐧 Pingüinos - Clasificación de especies": "🐧 Pingüinos - Clasificación de especies",
         "🔢 Dígitos - Clasificación de dígitos": "🔢 Dígitos - Clasificación de dígitos",
         "🩺 Diabetes - Progresión (regresión)": "🩺 Diabetes - Progresión (regresión)",
+        "🌙 Moons - Clasificación sintética": "🌙 Moons - Clasificación sintética",
         "💎 Diamantes - Precio (regresión)": "💎 Diamantes - Precio (regresión)",
         "⛽ MPG - Consumo combustible (regresión)": "⛽ MPG - Consumo combustible (regresión)"
     }

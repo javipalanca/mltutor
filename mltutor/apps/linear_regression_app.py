@@ -365,7 +365,7 @@ def run_linear_regression_app():
                 elif viz_type == "Frontera":
                     # Frontera de decisión
                     # Verificar que es un modelo de clasificación y que está entrenado
-                    if not st.session_state.get('is_trained', False):
+                    if not st.session_state.get('model_trained_lr', False):
                         st.warning(
                             "Primero debes entrenar un modelo en la pestaña '🏋️ Entrenamiento'.")
                     else:

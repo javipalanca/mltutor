@@ -43,6 +43,7 @@ def run_select_dataset():
         "🩺 Diabetes - Progresión (regresión)",
         "💎 Diamantes - Precio (regresión)",
         "⛽ MPG - Consumo combustible (regresión)",
+        "🌙 Moons - Clasificación sintética",
         "🚢 Titanic - Supervivencia",
         "💰 Propinas - Predicción de propinas",
         "🏠 Viviendas California - Precios",
@@ -77,6 +78,10 @@ def run_select_dataset():
     elif "Cáncer" in dataset_option:
         st.markdown(
             "🔬 **Cáncer**: Problema binario médico con 30 características.")
+    elif "Moons" in dataset_option or "🌙" in dataset_option:
+        st.markdown(
+            "🌙 **Moons**: Dataset sintético de dos lunas entrelazadas. Ideal para probar clasificadores en problemas no lineales y visualizar fronteras de decisión.")
+
     elif "Titanic" in dataset_option:
         st.markdown(
             "🚢 **Titanic**: Predicción de supervivencia con datos categóricos y numéricos.")
