@@ -8,12 +8,22 @@ import numpy as np
 import seaborn as sns
 import streamlit as st
 import os
+import datetime
 
 from sklearn.datasets import load_iris, load_wine, load_breast_cancer, load_digits, load_diabetes, make_moons
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 
 from dataset.additional_datasets import load_additional_dataset
+
+
+def reset_moons_dataset(n_samples=500, noise=0.2):
+    random_step_based_on_current_time = int(
+        datetime.datetime.now().timestamp())
+    X_arr, y_arr = make_moons(n_samples=n_samples, noise=noise,
+                              random_state=random_step_based_on_current_time)
+    st.session_state['moons_X'] = X_arr
+    st.session_state['moons_y'] = y_arr
 
 
 def load_builtin_dataset(dataset_name):
@@ -184,7 +194,10 @@ def load_builtin_dataset(dataset_name):
 
     elif "Moons" in dataset_name or "🌙" in dataset_name:
         # Dataset sintético Two Moons (clasificación no lineal)
-        X_arr, y_arr = make_moons(n_samples=500, noise=0.2, random_state=42)
+        if st.session_state.get('moons_X', None) is None:
+            reset_moons_dataset()
+        X_arr = st.session_state.get('moons_X', None)
+        y_arr = st.session_state.get('moons_y', None)
         X = pd.DataFrame(X_arr, columns=['x1', 'x2'])
         y = pd.Series(y_arr, name='label')
         feature_names = ['x1', 'x2']

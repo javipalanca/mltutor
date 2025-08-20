@@ -4,7 +4,7 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-from dataset.dataset_manager import load_data
+from dataset.dataset_manager import load_data, reset_moons_dataset
 from utils import create_info_box, get_image_download_link, show_code_with_download
 from algorithms.code_examples import SCATTERPLOT_MATRIX
 
@@ -97,6 +97,10 @@ def run_select_dataset():
 
     # Actualizar la variable de sesión
     st.session_state.selected_dataset = dataset_option
+
+    if "Moons" in dataset_option or "🌙" in dataset_option:
+        reset_moons_dataset()
+        st.info("Dataset generado aleatoriamente.")
 
     # Separador después del selector
     st.markdown("---")
@@ -373,13 +377,20 @@ def run_explore_dataset_tab():
 
             with col2:
                 # Seleccionar número máximo de características
-                max_features_selected = st.slider(
-                    "Número máximo de características:",
-                    min_value=2,
-                    max_value=min(6, len(X_df.columns)),
-                    value=min(4, len(X_df.columns)),
-                    help="Un número mayor de características puede hacer que el gráfico sea más difícil de interpretar."
-                )
+                n_features = len(X_df.columns)
+                if n_features <= 2:
+                    # Evitar crear un slider cuando min==max (Streamlit requiere min < max)
+                    max_features_selected = n_features
+                    st.info(
+                        f"Sólo hay {n_features} características disponibles; usando las {n_features} para el pairplot.")
+                else:
+                    max_features_selected = st.slider(
+                        "Número máximo de características:",
+                        min_value=2,
+                        max_value=min(6, n_features),
+                        value=min(4, n_features),
+                        help="Un número mayor de características puede hacer que el gráfico sea más difícil de interpretar."
+                    )
 
             # Permitir al usuario seleccionar las características específicas
             st.markdown("##### Selecciona las características para visualizar")
