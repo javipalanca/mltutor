@@ -1,0 +1,32 @@
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+ENV PYTHONPATH=/app
+
+WORKDIR /app
+COPY requirements.txt .
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      wget ca-certificates && \
+    pip install -r requirements.txt && \
+    apt-get purge -y --auto-remove && rm -rf /var/lib/apt/lists/*
+
+COPY . .
+COPY ./mltutor /app/mltutor
+
+# Streamlit config vía envs (también puedes usar ~/.streamlit/config.toml)
+ENV STREAMLIT_SERVER_HEADLESS=true \
+    STREAMLIT_SERVER_PORT=8502 \
+    STREAMLIT_SERVER_ENABLECORS=false \
+    STREAMLIT_SERVER_ENABLEXsrfProtection=true \
+    STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+
+EXPOSE 8502
+
+# Healthcheck nativo del contenedor (útil también fuera de Swarm)
+HEALTHCHECK --interval=10s --timeout=3s --start-period=15s --retries=3 \
+  CMD wget -qO- http://localhost:8502/healthz || exit 1
+
+CMD ["bash","-lc","streamlit run app_refactored.py --server.port=8502 --server.address=0.0.0.0"]
