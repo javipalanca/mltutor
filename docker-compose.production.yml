@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  mltutor:
+    image: mltutor:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8501:8501"
+    deploy:
+      replicas: 1  # UNA SOLA RÉPLICA - Escalado vertical
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      resources:
+        limits:
+          cpus: '4.0'      # Más CPUs para una sola instancia
+          memory: 16G       # Más memoria
+        reservations:
+          cpus: '4.0'
+          memory: 16G
+    environment:
+      - STREAMLIT_SERVER_PORT=8502
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      - STREAMLIT_SERVER_HEADLESS=true
+      - PYTHONPATH=/app:${PYTHONPATH}
+      - STREAMLIT_SERVER_ENABLE_CORS=false
+      - STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION=false
+      - STREAMLIT_SERVER_MAX_UPLOAD_SIZE=200
+      - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+      - STREAMLIT_SERVER_ENABLE_WEBSOCKET_COMPRESSION=true
+      - STREAMLIT_GLOBAL_DEVELOPMENT_MODE=false
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8502/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    volumes:
+      - mltutor-data:/app/data
+    networks:
+      - mltutor-network
+    restart: unless-stopped
+
+volumes:
+  mltutor-data:
+    driver: local
+
+networks:
+  mltutor-network:
+    driver: bridge
