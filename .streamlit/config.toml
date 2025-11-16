@@ -1,0 +1,30 @@
+[server]
+# Puerto en el que se ejecuta Streamlit
+port = 8501
+address = "0.0.0.0"
+
+# Modo headless para producción
+headless = true
+
+# Habilitar CORS para permitir conexiones desde el proxy
+enableCORS = false
+enableXsrfProtection = false
+
+# Tamaño máximo de upload (en MB)
+maxUploadSize = 200
+
+# Habilitar compresión WebSocket
+enableWebsocketCompression = true
+
+[browser]
+# No recopilar estadísticas de uso
+gatherUsageStats = false
+
+# Dirección base para recursos estáticos
+# Esto ayuda a que los recursos se carguen correctamente detrás de un proxy
+serverAddress = "0.0.0.0"
+serverPort = 8501
+
+[runner]
+# Ejecutar en modo de producción
+fastReruns = true

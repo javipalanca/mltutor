@@ -57,9 +57,6 @@ dmypy.json
 # VS Code
 .vscode/
 
-# Streamlit cache and logs
-.streamlit/
-**/.streamlit/
 
 # Environment variables
 .env
