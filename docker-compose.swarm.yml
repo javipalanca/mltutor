@@ -10,7 +10,7 @@ services:
       #  - "8501:8501"
     deploy:
       replicas: 3  # Número de instancias paralelas
-      #endpoint_mode: dnsrr        # <— importante: que resuelva todas las tareas
+      endpoint_mode: dnsrr        # <— importante: que resuelva todas las tareas
       update_config:
         parallelism: 1
         delay: 10s

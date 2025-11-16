@@ -54,12 +54,15 @@ docker service ps mltutor_nginx --no-trunc
 echo ""
 
 # 6. Probar resolución DNS
-echo -e "${BLUE}[6/8]${NC} Probando resolución DNS de tasks.mltutor..."
+echo -e "${BLUE}[6/8]${NC} Probando resolución DNS de servicios dentro del stack..."
 NGINX_CONTAINER=$(docker ps --filter name=mltutor_nginx --format "{{.ID}}" | head -n1)
 
 if [ -n "$NGINX_CONTAINER" ]; then
     echo "Contenedor nginx: $NGINX_CONTAINER"
-    docker exec $NGINX_CONTAINER nslookup tasks.mltutor 2>/dev/null || echo -e "${YELLOW}⚠${NC} No se pudo resolver tasks.mltutor"
+    echo "• Resolviendo tasks.mltutor_mltutor:"
+    docker exec $NGINX_CONTAINER nslookup tasks.mltutor_mltutor 2>/dev/null || echo -e "${YELLOW}⚠${NC} No se pudo resolver tasks.mltutor_mltutor"
+    echo "• Resolviendo mltutor_mltutor:"
+    docker exec $NGINX_CONTAINER nslookup mltutor_mltutor 2>/dev/null || echo -e "${YELLOW}⚠${NC} No se pudo resolver mltutor_mltutor"
 else
     echo -e "${RED}✗${NC} No se encontró contenedor de nginx"
 fi
@@ -77,10 +80,14 @@ echo ""
 # 8. Intentar conectar desde nginx a mltutor
 echo -e "${BLUE}[BONUS]${NC} Intentando conectar desde nginx a mltutor..."
 if [ -n "$NGINX_CONTAINER" ]; then
-    echo "Probando conexión a tasks.mltutor:8501..."
-    docker exec $NGINX_CONTAINER wget -qO- --timeout=5 http://tasks.mltutor:8501/healthz 2>/dev/null && \
-        echo -e "${GREEN}✓${NC} Conexión exitosa!" || \
-        echo -e "${RED}✗${NC} No se pudo conectar a mltutor"
+    echo "Probando conexión a tasks.mltutor_mltutor:8501..."
+    docker exec $NGINX_CONTAINER wget -qO- --timeout=5 http://tasks.mltutor_mltutor:8501/healthz 2>/dev/null && \
+        echo -e "${GREEN}✓${NC} Conexión exitosa por tasks.mltutor_mltutor!" || \
+        echo -e "${RED}✗${NC} No se pudo conectar a tasks.mltutor_mltutor"
+    echo "Probando conexión a mltutor_mltutor:8501 (VIP)..."
+    docker exec $NGINX_CONTAINER wget -qO- --timeout=5 http://mltutor_mltutor:8501/healthz 2>/dev/null && \
+        echo -e "${GREEN}✓${NC} Conexión exitosa por VIP!" || \
+        echo -e "${RED}✗${NC} No se pudo conectar por VIP"
 fi
 echo ""
 
