@@ -7,7 +7,7 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8501:8501"
+      - "8502:8502"
     deploy:
       replicas: 1  # UNA SOLA RÉPLICA - Escalado vertical
       restart_policy:
