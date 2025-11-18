@@ -9,6 +9,7 @@ from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 
 # Importar TensorFlow/Keras
+import os
 import tensorflow as tf
 from tensorflow import keras
 from sklearn.model_selection import train_test_split
@@ -16,6 +17,12 @@ from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.metrics import classification_report, confusion_matrix
 import numpy as np
 import time
+
+# Configurar TensorFlow según las preferencias del usuario
+from mltutor.config import USE_GPU
+if not USE_GPU:
+    # Usar CPU (más estable en macOS)
+    tf.config.set_visible_devices([], 'GPU')
 
 from dataset.dataset_manager import preprocess_data
 from algorithms.model_evaluation import evaluate_classification_model, evaluate_regression_model

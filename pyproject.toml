@@ -1,0 +1,51 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mltutor"
+version = "0.1.0"
+description = "Interactive ML tutor built with Streamlit."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+  { name = "Javier Palanca" }
+]
+dependencies = [
+  "numpy>=1.20.0",
+  "pandas>=1.3.0",
+  "scikit-learn>=1.0.0",
+  "matplotlib>=3.4.0",
+  "seaborn>=0.11.0",
+  "pillow>=8.0.0",
+  "pydot>=1.4.0",
+  "streamlit>=1.30.0",
+  "skl2onnx==1.19.1",
+  "onnx>=1.13.0",
+  "mpld3>=0.5.8",
+  "graphviz>=0.20",
+  "python-dotenv>=1.0.0",
+  "protobuf>=3.20.0",
+  "plotly>=5.14.0",
+  "joblib>=1.2.0",
+  "rich>=13.0.0",
+  # TensorFlow (plataforma específica)
+  # - Linux/Windows: tensorflow oficial
+  # - macOS ARM64: tensorflow-macos + aceleración con tensorflow-metal
+  # - macOS Intel: usa Conda o Docker (no hay wheel oficial reciente)
+  "tensorflow>=2.13.0; platform_system == 'Linux' or platform_system == 'Windows'",
+  "tensorflow-macos>=2.13.0; platform_system == 'Darwin' and platform_machine == 'arm64'",
+  "tensorflow-metal>=1.0.0; platform_system == 'Darwin' and platform_machine == 'arm64'"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pyinstaller>=6.0",
+  "pyinstaller-hooks-contrib>=2024.7",
+  "pytest>=7.4",
+  "ruff>=0.4.0",
+  "black>=23.7.0"
+]
+
+#[tool.uv]
+# uv reads dependencies from [project]
