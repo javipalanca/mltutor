@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=MLTutor
+GenericName=Tutor de Machine Learning
+Comment=Aprende Machine Learning de forma interactiva
+Exec=mltutor
+Icon=mltutor
+Type=Application
+Categories=Education;Science;
+Terminal=true
+Keywords=machine learning;ia;inteligencia artificial;aprendizaje automático;

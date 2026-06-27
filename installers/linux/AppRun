@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# AppRun — punto de entrada del AppImage de MLTutor.
+#
+# AppImage monta el AppDir en $APPDIR y ejecuta este script.
+# Delegamos directamente al binario PyInstaller.
+
+set -euo pipefail
+
+SELF="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || realpath "${BASH_SOURCE[0]}")"
+HERE="$(dirname "$SELF")"
+
+exec "$HERE/usr/bin/mltutor/mltutor" "$@"

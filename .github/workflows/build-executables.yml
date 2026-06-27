@@ -1,0 +1,149 @@
+name: Build executables
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            platform: linux-x86_64
+            archive: tar
+          - os: windows-latest
+            platform: windows-x86_64
+            archive: zip
+          - os: macos-latest
+            platform: macos-arm64
+            archive: tar
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync --extra dev
+
+      # Genera installers/mltutor.png e installers/mltutor.ico (Windows los usa)
+      - name: Generate application icon
+        run: uv run python installers/create_icon.py installers/
+
+      - name: Build with PyInstaller
+        run: uv run pyinstaller pyinstaller.spec --noconfirm
+
+      - name: Smoke test (binary starts)
+        if: matrix.os != 'windows-latest'
+        shell: bash
+        run: |
+          ./dist/mltutor/mltutor --server-mode 8765 &
+          PID=$!
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:8765 > /dev/null; then
+              echo "Server responded OK"
+              kill $PID
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Server did not start" >&2
+          kill $PID || true
+          exit 1
+
+      # ── Archivo crudo (para usuarios técnicos) ─────────────────────────────
+      - name: Package (tar.gz)
+        if: matrix.archive == 'tar'
+        run: tar -czf mltutor-${{ matrix.platform }}.tar.gz -C dist mltutor
+
+      - name: Package (zip)
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        run: Compress-Archive -Path dist/mltutor -DestinationPath mltutor-${{ matrix.platform }}.zip
+
+      - name: Upload archive artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mltutor-${{ matrix.platform }}-archive
+          path: mltutor-${{ matrix.platform }}.*
+          retention-days: 14
+
+      # ── macOS: .app + .dmg ─────────────────────────────────────────────────
+      - name: Build DMG (macOS)
+        if: matrix.os == 'macos-latest'
+        run: bash installers/macos/build_dmg.sh
+
+      - name: Upload DMG artifact
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: mltutor-${{ matrix.platform }}-dmg
+          path: "*.dmg"
+          retention-days: 14
+
+      # ── Windows: Inno Setup installer ─────────────────────────────────────
+      - name: Build Inno Setup installer (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $iscc)) {
+            choco install innosetup --yes --no-progress
+          }
+          & $iscc installers\windows\mltutor.iss
+
+      - name: Upload installer artifact (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: mltutor-${{ matrix.platform }}-installer
+          path: "*-installer.exe"
+          retention-days: 14
+
+      # ── Linux: AppImage ────────────────────────────────────────────────────
+      - name: Install FUSE (Linux, needed to run AppImage in CI)
+        if: matrix.os == 'ubuntu-22.04'
+        run: sudo apt-get install -y libfuse2
+
+      - name: Build AppImage (Linux)
+        if: matrix.os == 'ubuntu-22.04'
+        run: bash installers/linux/build_appimage.sh
+
+      - name: Upload AppImage artifact
+        if: matrix.os == 'ubuntu-22.04'
+        uses: actions/upload-artifact@v4
+        with:
+          name: mltutor-${{ matrix.platform }}-appimage
+          path: "*.AppImage"
+          retention-days: 14
+
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            mltutor-*.tar.gz
+            mltutor-*.zip
+            *.dmg
+            *.AppImage
+            *-installer.exe
+          generate_release_notes: true
