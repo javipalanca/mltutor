@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "skills": {
+    "pandas-pro": {
+      "source": "jeffallan/claude-skills",
+      "sourceType": "github",
+      "computedHash": "66059434cd805de09e273ee3d5ebe20f0014224d4769a46c4b2b2c99b34d28f2"
+    },
+    "python-executor": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "2979857a8ffb1b1a64665dc611caa4fa9669c47edbf242261b27a6b15638d08c"
+    },
+    "python-testing-patterns": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "computedHash": "69915bb276b6aec61fe5b283a933f96584f66d14b616ce2060d95757629c6866"
+    },
+    "scikit-learn": {
+      "source": "davila7/claude-code-templates",
+      "sourceType": "github",
+      "computedHash": "f03f68164d506a6cdf7e8cae1e46bd38c0e1327248d9aaeece66cb4b6392a3c7"
+    },
+    "senior-data-scientist": {
+      "source": "davila7/claude-code-templates",
+      "sourceType": "github",
+      "computedHash": "95d92329998ee2d8956dbf9a917d1d978578e1643a84a09b42f2f66e28780524"
+    }
+  }
+}
