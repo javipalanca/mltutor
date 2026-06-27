@@ -98,7 +98,8 @@ jobs:
           if (!(Test-Path $iscc)) {
             choco install innosetup --yes --no-progress
           }
-          & $iscc installers\windows\mltutor.iss
+          $version = (python -c "import tomllib; d=tomllib.load(open('pyproject.toml','rb')); print(d['project']['version'])")
+          & $iscc /DAppVersion=$version installers\windows\mltutor.iss
 
       - name: Upload installer artifact (Windows)
         if: matrix.os == 'windows-latest'

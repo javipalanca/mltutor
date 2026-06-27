@@ -12,7 +12,11 @@
 ;   mltutor-windows-x86_64-installer.exe
 
 #define AppName      "MLTutor"
-#define AppVersion   GetStringFileInfo("..\..\dist\mltutor\mltutor.exe", "FileVersion")
+; AppVersion se inyecta en tiempo de compilación con /DAppVersion=x.y.z
+; Si no se pasa explícitamente, se usa 0.0.0 como fallback seguro.
+#ifndef AppVersion
+  #define AppVersion "0.0.0"
+#endif
 #define AppPublisher "Javier Palanca"
 #define AppURL       "https://github.com/javipalanca/mltutor"
 #define AppExeName   "mltutor.exe"
