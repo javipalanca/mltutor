@@ -31,13 +31,14 @@ dependencies = [
   "joblib>=1.2.0",
   "rich>=13.0.0",
   # Ventana nativa de escritorio que empotra la UI de Streamlit.
-  # En macOS usa WKWebView (pyobjc) y en Windows WebView2 (pythonnet);
-  # pywebview instala esas dependencias automáticamente según plataforma.
+  # En macOS usa WKWebView (pyobjc); pywebview instala esas dependencias
+  # automáticamente según plataforma.
   "pywebview>=5.1",
-  # Backend Qt para pywebview en Linux: autocontenido (no depende de
-  # webkit2gtk del sistema) y empaquetable con PyInstaller.
-  "qtpy>=2.4; platform_system == 'Linux'",
-  "PySide6>=6.6; platform_system == 'Linux'",
+  # Backend Qt para pywebview en Linux y Windows: autocontenido y
+  # empaquetable con PyInstaller (el backend WinForms/.NET de pywebview
+  # crashea bajo PyInstaller: excepción CLR 0xE0434352).
+  "qtpy>=2.4; platform_system == 'Linux' or platform_system == 'Windows'",
+  "PySide6>=6.6; platform_system == 'Linux' or platform_system == 'Windows'",
   # TensorFlow (plataforma específica)
   # - Linux/Windows: tensorflow oficial
   # - macOS ARM64: tensorflow-macos + aceleración con tensorflow-metal

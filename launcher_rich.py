@@ -191,11 +191,13 @@ def open_native_window(url: str) -> bool:
         if getattr(sys, "frozen", False):
             os.environ.setdefault("QTWEBENGINE_DISABLE_SANDBOX", "1")
 
+    gui_kwargs = {}
     if os.name == "nt" and getattr(sys, "frozen", False):
-        # pythonnet 3 + PyInstaller: la autodetección de runtime puede
-        # abortar con 0xE0434352; el runtime clásico (.NET Framework,
-        # presente en todo Windows 10/11) es el camino estable
-        os.environ.setdefault("PYTHONNET_RUNTIME", "netfx")
+        # En el ejecutable congelado de Windows se usa el backend Qt: el de
+        # WinForms/.NET (pythonnet) aborta bajo PyInstaller con una
+        # excepción CLR (0xE0434352) imposible de capturar desde Python
+        gui_kwargs["gui"] = "qt"
+        os.environ.setdefault("QTWEBENGINE_DISABLE_SANDBOX", "1")
 
     window = webview.create_window(
         WINDOW_TITLE,
@@ -233,9 +235,9 @@ def open_native_window(url: str) -> bool:
 
     try:
         if autoclose:
-            webview.start(_autoclose_worker, **icon_kwargs)
+            webview.start(_autoclose_worker, **gui_kwargs, **icon_kwargs)
         else:
-            webview.start(**icon_kwargs)
+            webview.start(**gui_kwargs, **icon_kwargs)
         return True
     except Exception:
         traceback.print_exc()

@@ -60,23 +60,10 @@ for pkg in collect_pkgs:
     except Exception:
         print(f'[spec] aviso: no se pudo recolectar {pkg}')
 
-# Backend de pywebview en Windows: WinForms + WebView2 vía pythonnet y
-# clr_loader (importados dinámicamente en webview.start(), PyInstaller no
-# los rastrea; sin ellos la ventana nativa no arranca y cae al navegador)
-if sys.platform == 'win32':
-    for pkg in ['pythonnet', 'clr_loader']:
-        try:
-            ca_datas, ca_binaries, ca_hidden = collect_all(pkg)
-            datas += ca_datas
-            binaries += ca_binaries
-            hiddenimports += ca_hidden
-        except Exception:
-            print(f'[spec] aviso: no se pudo recolectar {pkg}')
-    hiddenimports += ['clr', 'webview.platforms.winforms', 'webview.platforms.edgechromium']
-
-# Backend de pywebview en Linux: Qt WebEngine vía qtpy/PySide6 (importados
-# dinámicamente, PyInstaller no los detecta solo)
-if sys.platform.startswith('linux'):
+# Backend de pywebview en Linux y Windows: Qt WebEngine vía qtpy/PySide6
+# (importados dinámicamente, PyInstaller no los detecta solo). En Windows
+# NO se usa el backend WinForms/.NET: crashea bajo PyInstaller (0xE0434352).
+if sys.platform.startswith('linux') or sys.platform == 'win32':
     hiddenimports += [
         'qtpy',
         'PySide6.QtCore',
