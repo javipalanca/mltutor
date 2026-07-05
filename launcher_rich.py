@@ -139,6 +139,8 @@ def run_server(port: int) -> None:
         "--global.developmentMode", "false",
         # Ocultar el botón Deploy y las opciones de desarrollador
         "--client.toolbarMode", "minimal",
+        # Forzar tema claro: los estilos de la app no son legibles en oscuro
+        "--theme.base", "light",
     ]
     try:
         stcli.main()
@@ -179,6 +181,9 @@ def open_native_window(url: str) -> bool:
         traceback.print_exc()
         return False
 
+    # Permitir descargas (st.download_button); sin esto el WebView las ignora
+    webview.settings["ALLOW_DOWNLOADS"] = True
+
     if sys.platform.startswith("linux"):
         # QtWebEngine no puede usar el sandbox de Chromium dentro de un
         # ejecutable PyInstaller
@@ -197,8 +202,22 @@ def open_native_window(url: str) -> bool:
     autoclose = os.environ.get("MLTUTOR_WINDOW_TIMEOUT")
 
     def _autoclose_worker():
-        time.sleep(float(autoclose))
-        window.destroy()
+        limit = float(autoclose)
+        # ¿Ha llegado a mostrarse la ventana? Si no, es un fallo real.
+        shown = window.events.shown.wait(limit)
+        if not shown:
+            stop_server()
+            os._exit(3)
+        time.sleep(limit)
+        try:
+            window.destroy()
+        except Exception:
+            traceback.print_exc()
+        # Failsafe: si destroy() no termina el bucle de eventos, forzar la
+        # salida para que el test no se quede colgado (la ventana sí abrió)
+        time.sleep(15)
+        stop_server()
+        os._exit(0)
 
     # Icono de la ventana (solo lo usan los backends GTK/Qt; en Windows y
     # macOS el icono sale del ejecutable/bundle)

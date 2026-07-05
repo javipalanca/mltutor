@@ -37,7 +37,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 \
             libxcb-cursor0 libnss3 libasound2 libgbm1 libxcomposite1 \
-            libxdamage1 libxrandr2 libxtst6 libxss1 xvfb
+            libxdamage1 libxrandr2 libxtst6 libxss1 xvfb \
+            libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 \
+            libxcb-render-util0 libxcb-shape0 libxcb-shm0 libxcb-sync1 \
+            libxcb-xfixes0 libxcb-xinerama0 libxcb-xkb1
 
       - name: Install dependencies
         run: uv sync --extra dev
@@ -104,15 +107,24 @@ jobs:
 
       - name: Smoke test (native window, Windows)
         if: matrix.os == 'windows-latest'
-        timeout-minutes: 10
+        timeout-minutes: 8
         shell: pwsh
         run: |
-          $env:MLTUTOR_WINDOW_TIMEOUT = "45"
+          $env:MLTUTOR_WINDOW_TIMEOUT = "30"
           $env:MLTUTOR_REQUIRE_WINDOW = "1"
-          $p = Start-Process -FilePath "dist/mltutor/mltutor.exe" -PassThru -Wait
+          $p = Start-Process -FilePath "dist/mltutor/mltutor.exe" -PassThru
+          # Margen: arranque del servidor (~1-2 min con TF) + ventana + cierre
+          $exited = $p.WaitForExit(300000)
+          Write-Host "--- ~/.mltutor/mltutor.log ---"
+          Get-Content "$env:USERPROFILE\.mltutor\mltutor.log" -Tail 80 -ErrorAction SilentlyContinue
+          Write-Host "------------------------------"
+          if (-not $exited) {
+            Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+            Write-Error "La app no terminó (colgada tras 5 min)"
+            exit 1
+          }
           if ($p.ExitCode -ne 0) {
-            Write-Error "Native window test failed (exit $($p.ExitCode)). Log:"
-            Get-Content "$env:USERPROFILE\.mltutor\mltutor.log" -Tail 60 -ErrorAction SilentlyContinue
+            Write-Error "Native window test failed (exit $($p.ExitCode))"
             exit 1
           }
           Write-Host "Native window OK"

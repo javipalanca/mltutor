@@ -32,3 +32,8 @@ fastReruns = true
 [client]
 # Ocultar el botón Deploy y las opciones de desarrollador de la barra superior
 toolbarMode = "minimal"
+
+[theme]
+# Forzar tema claro: los estilos personalizados de la app no son legibles
+# en modo oscuro
+base = "light"
