@@ -43,6 +43,10 @@ dependencies = [
   # - macOS ARM64: tensorflow-macos + aceleración con tensorflow-metal
   # - macOS Intel: usa Conda o Docker (no hay wheel oficial reciente)
   "tensorflow>=2.13.0; platform_system == 'Linux' or platform_system == 'Windows'",
+  # En Windows el wheel de tensorflow es un metapaquete vacío que delega en
+  # tensorflow-intel, pero uv no ve esa dependencia (los wheels de TF declaran
+  # metadatos distintos por plataforma), así que hay que pedirla explícitamente
+  "tensorflow-intel>=2.13.0; platform_system == 'Windows'",
   "tensorflow-macos>=2.13.0; platform_system == 'Darwin' and platform_machine == 'arm64'",
   "tensorflow-metal>=1.0.0; platform_system == 'Darwin' and platform_machine == 'arm64'"
 ]

@@ -44,6 +44,19 @@ jobs:
       - name: Build with PyInstaller
         run: uv run pyinstaller pyinstaller.spec --noconfirm
 
+      - name: Check bundled libraries
+        shell: bash
+        run: |
+          # tensorflow debe ir dentro del paquete (en Windows llega vía
+          # tensorflow-intel; sin él la app de redes neuronales no funciona)
+          for lib in tensorflow streamlit sklearn webview; do
+            if [ ! -d "dist/mltutor/_internal/$lib" ]; then
+              echo "FALTA $lib en el paquete" >&2
+              exit 1
+            fi
+          done
+          echo "Librerías críticas presentes"
+
       - name: Smoke test (binary starts)
         if: matrix.os != 'windows-latest'
         shell: bash
@@ -61,6 +74,23 @@ jobs:
           echo "Server did not start" >&2
           kill $PID || true
           exit 1
+
+      - name: Smoke test (binary starts, Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $proc = Start-Process -FilePath "dist/mltutor/mltutor.exe" `
+            -ArgumentList "--server-mode","8765" -PassThru
+          $ok = $false
+          for ($i = 0; $i -lt 60; $i++) {
+            try {
+              Invoke-WebRequest -Uri "http://127.0.0.1:8765" -UseBasicParsing -TimeoutSec 2 | Out-Null
+              $ok = $true
+              break
+            } catch { Start-Sleep -Seconds 2 }
+          }
+          Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+          if ($ok) { Write-Host "Server responded OK" } else { Write-Error "Server did not start"; exit 1 }
 
       - name: Package (tar.gz)
         if: matrix.archive == 'tar'
