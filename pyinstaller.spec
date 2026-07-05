@@ -138,7 +138,7 @@ if sys.platform == 'darwin':
         info_plist={
             'CFBundleName': 'MLTutor',
             'CFBundleDisplayName': 'MLTutor',
-            'CFBundleShortVersionString': '0.1.0',
+            'CFBundleShortVersionString': '0.2.0',
             'NSHighResolutionCapable': True,
         },
     )
