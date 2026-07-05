@@ -104,6 +104,16 @@ que el servidor responde.
 Nota: macOS Intel no está soportado (no hay wheels de TensorFlow recientes
 para esa plataforma).
 
+### Firma y notarización en macOS (pendiente)
+
+El bundle va firmado *ad-hoc* (lo hace PyInstaller), pero **no notarizado**:
+macOS moderno lo bloquea en la primera apertura y el estudiante tiene que
+autorizarlo en Ajustes (ver instrucciones más abajo). La solución
+definitiva es firmar con un certificado *Developer ID Application* y
+notarizar con `notarytool`, lo que requiere una cuenta de pago del Apple
+Developer Program. Cuando se disponga de ella, se puede automatizar en el
+workflow con los secrets del certificado y `xcrun notarytool submit`.
+
 ## Instrucciones para estudiantes
 
 1. Descargar el fichero de su sistema operativo desde la página de Releases.
@@ -112,10 +122,13 @@ para esa plataforma).
      el asistente; después, abrir *MLTutor* desde el Menú Inicio. Si
      SmartScreen avisa, pulsar *Más información* → *Ejecutar de todas
      formas*.
-   - **macOS**: descomprimir; la primera vez, clic derecho sobre
-     `MLTutor.app` → *Abrir* (el bundle no está firmado y Gatekeeper lo
-     bloquea con doble clic normal). Alternativa por terminal:
-     `xattr -cr MLTutor.app`.
+   - **macOS**: descomprimir e intentar abrir `MLTutor.app` (fallará con
+     *"no se puede abrir"* o error -47: el bundle no está notarizado y
+     Gatekeeper lo bloquea; desde macOS Sequoia el clic derecho → *Abrir*
+     ya no sirve). Después, ir a **Ajustes del Sistema → Privacidad y
+     seguridad**, bajar hasta el aviso sobre MLTutor y pulsar **Abrir de
+     todos modos**. Alternativa por terminal (sin pasar por Ajustes):
+     `xattr -dr com.apple.quarantine MLTutor.app` y abrir normalmente.
    - **Linux**: descomprimir y ejecutar `./mltutor/mltutor` desde una
      terminal.
 3. Se abrirá MLTutor en su propia ventana. Al cerrar la ventana, la app
