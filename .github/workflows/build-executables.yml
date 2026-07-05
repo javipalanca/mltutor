@@ -1,0 +1,106 @@
+name: Build executables
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            platform: linux-x86_64
+            archive: tar
+          - os: windows-latest
+            platform: windows-x86_64
+            archive: zip
+          - os: macos-latest
+            platform: macos-arm64
+            archive: tar
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Qt system libraries (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 \
+            libxcb-cursor0 libnss3 libasound2 libgbm1
+
+      - name: Install dependencies
+        run: uv sync --extra dev
+
+      - name: Build with PyInstaller
+        run: uv run pyinstaller pyinstaller.spec --noconfirm
+
+      - name: Smoke test (binary starts)
+        if: matrix.os != 'windows-latest'
+        shell: bash
+        run: |
+          ./dist/mltutor/mltutor --server-mode 8765 &
+          PID=$!
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:8765 > /dev/null; then
+              echo "Server responded OK"
+              kill $PID
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Server did not start" >&2
+          kill $PID || true
+          exit 1
+
+      - name: Package (tar.gz)
+        if: matrix.archive == 'tar'
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            # En macOS se distribuye el bundle .app (doble clic nativo)
+            tar -czf mltutor-${{ matrix.platform }}.tar.gz -C dist MLTutor.app
+          else
+            tar -czf mltutor-${{ matrix.platform }}.tar.gz -C dist mltutor
+          fi
+
+      - name: Package (zip)
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        run: Compress-Archive -Path dist/mltutor -DestinationPath mltutor-${{ matrix.platform }}.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mltutor-${{ matrix.platform }}
+          path: mltutor-${{ matrix.platform }}.*
+          retention-days: 14
+
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            mltutor-*.tar.gz
+            mltutor-*.zip
+          generate_release_notes: true

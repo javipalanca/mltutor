@@ -19,6 +19,17 @@ Esta aplicación permite visualizar y comprender algoritmos de machine learning 
 - Exportación de modelos en diferentes formatos
 - Datasets de ejemplo incluidos
 
+## Ejecutables para estudiantes
+
+Hay ejecutables autocontenidos para Windows, macOS (Apple Silicon) y Linux
+que no requieren instalar Python ni dependencias: basta con descargarlos
+desde la página de *Releases* del repositorio, descomprimir y ejecutar.
+MLTutor se abre como una app de escritorio con su propia ventana nativa
+(la interfaz de Streamlit va empotrada mediante pywebview); al cerrar la
+ventana la aplicación se detiene sola.
+Consulta [BUILD_EXECUTABLES.md](BUILD_EXECUTABLES.md) para los detalles de
+generación y las instrucciones de uso por plataforma.
+
 ## Requisitos
 
 - Python 3.7 o superior
