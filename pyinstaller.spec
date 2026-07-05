@@ -7,6 +7,7 @@
 
 import os
 import sys
+import tomllib
 
 from PyInstaller.building.api import COLLECT, EXE, PYZ
 from PyInstaller.building.build_main import Analysis
@@ -14,6 +15,10 @@ from PyInstaller.building.datastruct import Tree
 from PyInstaller.utils.hooks import collect_all
 
 project_root = os.path.abspath('.')
+
+# Versión única desde pyproject.toml
+with open(os.path.join(project_root, 'pyproject.toml'), 'rb') as f:
+    APP_VERSION = tomllib.load(f)['project']['version']
 
 datas = []
 binaries = []
@@ -54,6 +59,20 @@ for pkg in collect_pkgs:
         hiddenimports += ca_hidden
     except Exception:
         print(f'[spec] aviso: no se pudo recolectar {pkg}')
+
+# Backend de pywebview en Windows: WinForms + WebView2 vía pythonnet y
+# clr_loader (importados dinámicamente en webview.start(), PyInstaller no
+# los rastrea; sin ellos la ventana nativa no arranca y cae al navegador)
+if sys.platform == 'win32':
+    for pkg in ['pythonnet', 'clr_loader']:
+        try:
+            ca_datas, ca_binaries, ca_hidden = collect_all(pkg)
+            datas += ca_datas
+            binaries += ca_binaries
+            hiddenimports += ca_hidden
+        except Exception:
+            print(f'[spec] aviso: no se pudo recolectar {pkg}')
+    hiddenimports += ['clr', 'webview.platforms.winforms', 'webview.platforms.edgechromium']
 
 # Backend de pywebview en Linux: Qt WebEngine vía qtpy/PySide6 (importados
 # dinámicamente, PyInstaller no los detecta solo)
@@ -139,7 +158,7 @@ if sys.platform == 'darwin':
         info_plist={
             'CFBundleName': 'MLTutor',
             'CFBundleDisplayName': 'MLTutor',
-            'CFBundleShortVersionString': '0.2.1',
+            'CFBundleShortVersionString': APP_VERSION,
             'NSHighResolutionCapable': True,
         },
     )

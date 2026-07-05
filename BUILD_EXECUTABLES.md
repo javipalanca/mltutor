@@ -62,8 +62,19 @@ compila en paralelo para:
 | Plataforma | Runner | Artefacto | Contenido |
 |---|---|---|---|
 | Linux x86_64 | ubuntu-22.04 | `mltutor-linux-x86_64.tar.gz` | carpeta `mltutor/` |
-| Windows x86_64 | windows-latest | `mltutor-windows-x86_64.zip` | carpeta `mltutor/` |
+| Windows x86_64 | windows-latest | `mltutor-windows-x86_64-setup.exe` | instalador (Inno Setup) |
 | macOS arm64 (Apple Silicon) | macos-latest | `mltutor-macos-arm64.tar.gz` | bundle `MLTutor.app` |
+
+En Windows se distribuye un **instalador** en lugar de un zip: instala en
+Archivos de programa, crea el acceso directo del Menú Inicio con el icono
+y añade desinstalador (el usuario nunca ve el directorio `_internal` de
+PyInstaller). El script del instalador es
+[installers/windows/mltutor.iss](installers/windows/mltutor.iss).
+
+Además del test de servidor, el CI comprueba en Windows y Linux (con
+xvfb) que la **ventana nativa** abre de verdad (`MLTUTOR_REQUIRE_WINDOW=1`
+desactiva el fallback a navegador y hace fallar el build si no hay
+ventana).
 
 Se dispara:
 
@@ -72,6 +83,20 @@ Se dispara:
 - **Con un tag** `v*` (p. ej. `git tag v1.0.0 && git push --tags`):
   además publica una **GitHub Release** con los tres ficheros adjuntos,
   lista para compartir el enlace de descarga con los estudiantes.
+
+## Publicar una release (script)
+
+Todo el ciclo está automatizado en [release.sh](release.sh):
+
+```bash
+./release.sh 0.3.0
+```
+
+El script actualiza la versión en `pyproject.toml` (única fuente de
+versión: el bundle de macOS y el instalador de Windows la leen de ahí),
+hace commit, crea y pushea el tag `v0.3.0`, espera a que el CI compile
+las tres plataformas y verifica que la release queda publicada con todos
+los artefactos. Requiere `gh` (GitHub CLI) autenticado.
 
 Incluye un *smoke test* en Linux/macOS que arranca el binario y comprueba
 que el servidor responde.
@@ -82,16 +107,18 @@ para esa plataforma).
 ## Instrucciones para estudiantes
 
 1. Descargar el fichero de su sistema operativo desde la página de Releases.
-2. Descomprimirlo.
-3. Ejecutar:
-   - **Windows**: doble clic en `mltutor.exe` (dentro de la carpeta
-     `mltutor`). Si SmartScreen avisa, pulsar *Más información* →
-     *Ejecutar de todas formas*.
-   - **macOS**: la primera vez, clic derecho sobre `MLTutor.app` → *Abrir*
-     (el bundle no está firmado y Gatekeeper lo bloquea con doble clic
-     normal). Alternativa por terminal: `xattr -cr MLTutor.app`.
-   - **Linux**: `./mltutor/mltutor` desde una terminal.
-4. Se abrirá MLTutor en su propia ventana. Al cerrar la ventana, la app
+2. Instalar / ejecutar:
+   - **Windows**: doble clic en `mltutor-windows-x86_64-setup.exe` y seguir
+     el asistente; después, abrir *MLTutor* desde el Menú Inicio. Si
+     SmartScreen avisa, pulsar *Más información* → *Ejecutar de todas
+     formas*.
+   - **macOS**: descomprimir; la primera vez, clic derecho sobre
+     `MLTutor.app` → *Abrir* (el bundle no está firmado y Gatekeeper lo
+     bloquea con doble clic normal). Alternativa por terminal:
+     `xattr -cr MLTutor.app`.
+   - **Linux**: descomprimir y ejecutar `./mltutor/mltutor` desde una
+     terminal.
+3. Se abrirá MLTutor en su propia ventana. Al cerrar la ventana, la app
    se detiene sola. Con `--browser` se usa el modo clásico (navegador).
 
 El ejecutable ocupa en torno a 1–2 GB descomprimido (TensorFlow incluido).

@@ -31,6 +31,9 @@ WINDOW_MIN_SIZE = (1000, 700)
 
 streamlit_process = None
 
+# True cuando el ejecutable es windowed (sin consola): no hay Ctrl+C posible
+windowed_mode = False
+
 
 def setup_windowed_io() -> None:
     """En un ejecutable windowed (sin consola) stdout/stderr son None.
@@ -39,8 +42,10 @@ def setup_windowed_io() -> None:
     Streamlit/rich no fallen al escribir y se pueda diagnosticar cualquier
     problema.
     """
+    global windowed_mode
     if sys.stdout is not None and sys.stderr is not None:
         return
+    windowed_mode = True
     try:
         log_dir = os.path.join(os.path.expanduser("~"), ".mltutor")
         os.makedirs(log_dir, exist_ok=True)
@@ -97,9 +102,30 @@ def wait_for_port(port: int, timeout: float = 120.0) -> bool:
     return False
 
 
+def watch_parent() -> None:
+    """Termina el servidor si el proceso padre (la app) desaparece.
+
+    Evita servidores huérfanos si el launcher muere sin poder hacer una
+    parada ordenada (cierre forzado, kill, cuelgue...).
+    """
+    import threading
+
+    parent = os.getppid()
+
+    def _watch():
+        while True:
+            time.sleep(5)
+            if os.getppid() != parent:
+                os._exit(0)
+
+    threading.Thread(target=_watch, daemon=True).start()
+
+
 def run_server(port: int) -> None:
     """Ejecuta Streamlit en este mismo proceso (necesario en modo congelado)."""
     from streamlit.web import cli as stcli
+
+    watch_parent()
 
     app_path = resource_path(os.path.join("mltutor", "app.py"))
     sys.argv = [
@@ -145,9 +171,12 @@ def open_native_window(url: str) -> bool:
     Bloquea hasta que el usuario cierra la ventana. Devuelve False si no
     hay backend gráfico disponible (el llamante hará fallback a navegador).
     """
+    import traceback
+
     try:
         import webview
     except Exception:
+        traceback.print_exc()
         return False
 
     if sys.platform.startswith("linux"):
@@ -183,6 +212,7 @@ def open_native_window(url: str) -> bool:
             webview.start(**icon_kwargs)
         return True
     except Exception:
+        traceback.print_exc()
         return False
 
 
@@ -250,6 +280,11 @@ def main() -> None:
         if open_native_window(url):
             # El usuario ha cerrado la ventana: apagar el servidor y salir
             shutdown(0)
+        # En CI se exige la ventana nativa: sin fallback silencioso
+        if os.environ.get("MLTUTOR_REQUIRE_WINDOW") == "1":
+            console.print("[red]❌ No se pudo abrir la ventana nativa.[/red]")
+            stop_server()
+            sys.exit(3)
         console.print(
             "[yellow]No hay entorno gráfico compatible; usando el navegador.[/yellow]"
         )
@@ -258,6 +293,21 @@ def main() -> None:
     webbrowser.open(url)
 
     console.print("[bold green]MLTutor está funcionando[/bold green]")
+
+    if windowed_mode and os.name == "nt":
+        # Sin consola no hay Ctrl+C: un diálogo nativo permite cerrar la app
+        import ctypes
+
+        ctypes.windll.user32.MessageBoxW(
+            None,
+            "MLTutor se está ejecutando en el navegador.\n\n"
+            "Deja este diálogo abierto mientras uses MLTutor.\n"
+            "Pulsa Aceptar cuando quieras cerrar la aplicación.",
+            "MLTutor",
+            0x00000040,  # MB_ICONINFORMATION
+        )
+        shutdown(0)
+
     console.print("[dim]El servidor seguirá corriendo. Presiona Ctrl+C cuando termines.[/dim]\n")
 
     try:

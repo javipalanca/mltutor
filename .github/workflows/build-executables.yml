@@ -18,7 +18,7 @@ jobs:
             archive: tar
           - os: windows-latest
             platform: windows-x86_64
-            archive: zip
+            archive: installer
           - os: macos-latest
             platform: macos-arm64
             archive: tar
@@ -36,7 +36,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 \
-            libxcb-cursor0 libnss3 libasound2 libgbm1
+            libxcb-cursor0 libnss3 libasound2 libgbm1 libxcomposite1 \
+            libxdamage1 libxrandr2 libxtst6 libxss1 xvfb
 
       - name: Install dependencies
         run: uv sync --extra dev
@@ -92,6 +93,30 @@ jobs:
           Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
           if ($ok) { Write-Host "Server responded OK" } else { Write-Error "Server did not start"; exit 1 }
 
+      - name: Smoke test (native window, Linux)
+        if: runner.os == 'Linux'
+        timeout-minutes: 10
+        run: |
+          export MLTUTOR_WINDOW_TIMEOUT=45
+          export MLTUTOR_REQUIRE_WINDOW=1
+          xvfb-run -a ./dist/mltutor/mltutor
+          echo "Native window OK"
+
+      - name: Smoke test (native window, Windows)
+        if: matrix.os == 'windows-latest'
+        timeout-minutes: 10
+        shell: pwsh
+        run: |
+          $env:MLTUTOR_WINDOW_TIMEOUT = "45"
+          $env:MLTUTOR_REQUIRE_WINDOW = "1"
+          $p = Start-Process -FilePath "dist/mltutor/mltutor.exe" -PassThru -Wait
+          if ($p.ExitCode -ne 0) {
+            Write-Error "Native window test failed (exit $($p.ExitCode)). Log:"
+            Get-Content "$env:USERPROFILE\.mltutor\mltutor.log" -Tail 60 -ErrorAction SilentlyContinue
+            exit 1
+          }
+          Write-Host "Native window OK"
+
       - name: Package (tar.gz)
         if: matrix.archive == 'tar'
         shell: bash
@@ -103,16 +128,22 @@ jobs:
             tar -czf mltutor-${{ matrix.platform }}.tar.gz -C dist mltutor
           fi
 
-      - name: Package (zip)
-        if: matrix.archive == 'zip'
+      - name: Package (Windows installer)
+        if: matrix.archive == 'installer'
         shell: pwsh
-        run: Compress-Archive -Path dist/mltutor -DestinationPath mltutor-${{ matrix.platform }}.zip
+        run: |
+          $version = uv run python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])"
+          Write-Host "Building installer for version $version"
+          iscc /DAppVersion=$version installers\windows\mltutor.iss
+          if (-not (Test-Path "mltutor-windows-x86_64-setup.exe")) {
+            Write-Error "Installer not generated"; exit 1
+          }
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: mltutor-${{ matrix.platform }}
-          path: mltutor-${{ matrix.platform }}.*
+          path: mltutor-${{ matrix.platform }}*
           retention-days: 14
 
   release:
@@ -132,5 +163,5 @@ jobs:
         with:
           files: |
             mltutor-*.tar.gz
-            mltutor-*.zip
+            mltutor-*-setup.exe
           generate_release_notes: true
