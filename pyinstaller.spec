@@ -112,6 +112,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon=os.path.join(project_root, 'assets', 'icon.ico') if sys.platform == 'win32' else None,
 )
 
 coll = COLLECT(
@@ -133,12 +134,12 @@ if sys.platform == 'darwin':
     app = BUNDLE(
         coll,
         name='MLTutor.app',
-        icon=None,
+        icon=os.path.join(project_root, 'assets', 'icon.icns'),
         bundle_identifier='es.upv.mltutor',
         info_plist={
             'CFBundleName': 'MLTutor',
             'CFBundleDisplayName': 'MLTutor',
-            'CFBundleShortVersionString': '0.2.0',
+            'CFBundleShortVersionString': '0.2.1',
             'NSHighResolutionCapable': True,
         },
     )

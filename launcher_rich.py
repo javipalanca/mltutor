@@ -111,6 +111,8 @@ def run_server(port: int) -> None:
         "--server.fileWatcherType", "none",
         "--browser.gatherUsageStats", "false",
         "--global.developmentMode", "false",
+        # Ocultar el botón Deploy y las opciones de desarrollador
+        "--client.toolbarMode", "minimal",
     ]
     try:
         stcli.main()
@@ -169,11 +171,16 @@ def open_native_window(url: str) -> bool:
         time.sleep(float(autoclose))
         window.destroy()
 
+    # Icono de la ventana (solo lo usan los backends GTK/Qt; en Windows y
+    # macOS el icono sale del ejecutable/bundle)
+    icon_path = resource_path(os.path.join("mltutor", "assets", "icon.png"))
+    icon_kwargs = {"icon": icon_path} if os.path.exists(icon_path) else {}
+
     try:
         if autoclose:
-            webview.start(_autoclose_worker)
+            webview.start(_autoclose_worker, **icon_kwargs)
         else:
-            webview.start()
+            webview.start(**icon_kwargs)
         return True
     except Exception:
         return False

@@ -28,3 +28,7 @@ serverPort = 8501
 [runner]
 # Ejecutar en modo de producción
 fastReruns = true
+
+[client]
+# Ocultar el botón Deploy y las opciones de desarrollador de la barra superior
+toolbarMode = "minimal"
