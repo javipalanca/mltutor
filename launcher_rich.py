@@ -23,6 +23,7 @@ import time
 import webbrowser
 
 SERVER_FLAG = "--server-mode"
+WINDOW_FLAG = "--window-mode"
 BROWSER_FLAG = "--browser"
 DEFAULT_PORT = 8501
 WINDOW_TITLE = "MLTutor"
@@ -190,6 +191,12 @@ def open_native_window(url: str) -> bool:
         if getattr(sys, "frozen", False):
             os.environ.setdefault("QTWEBENGINE_DISABLE_SANDBOX", "1")
 
+    if os.name == "nt" and getattr(sys, "frozen", False):
+        # pythonnet 3 + PyInstaller: la autodetección de runtime puede
+        # abortar con 0xE0434352; el runtime clásico (.NET Framework,
+        # presente en todo Windows 10/11) es el camino estable
+        os.environ.setdefault("PYTHONNET_RUNTIME", "netfx")
+
     window = webview.create_window(
         WINDOW_TITLE,
         url,
@@ -232,6 +239,25 @@ def open_native_window(url: str) -> bool:
         return True
     except Exception:
         traceback.print_exc()
+        return False
+
+
+def run_window_process(url: str) -> bool:
+    """Abre la ventana nativa en un proceso hijo y espera a que se cierre.
+
+    Aísla el launcher de cuelgues duros del backend gráfico (p. ej. una
+    excepción .NET no capturable en Windows): si el hijo muere, el launcher
+    sigue vivo y puede hacer fallback a navegador. Devuelve True si la
+    ventana funcionó (el usuario la cerró), False si no pudo abrirse.
+    """
+    if getattr(sys, "frozen", False):
+        cmd = [sys.executable, WINDOW_FLAG, url]
+    else:
+        cmd = [sys.executable, os.path.abspath(__file__), WINDOW_FLAG, url]
+    try:
+        proc = subprocess.Popen(cmd, env=os.environ.copy())
+        return proc.wait() == 0
+    except Exception:
         return False
 
 
@@ -296,7 +322,7 @@ def main() -> None:
 
     if not force_browser:
         console.print("[green]✓[/green] Abriendo MLTutor...\n")
-        if open_native_window(url):
+        if run_window_process(url):
             # El usuario ha cerrado la ventana: apagar el servidor y salir
             shutdown(0)
         # En CI se exige la ventana nativa: sin fallback silencioso
@@ -350,5 +376,11 @@ if __name__ == "__main__":
             server_port = DEFAULT_PORT
         run_server(server_port)
         sys.exit(0)
+
+    if WINDOW_FLAG in sys.argv:
+        idx = sys.argv.index(WINDOW_FLAG)
+        window_url = sys.argv[idx + 1]
+        watch_parent()
+        sys.exit(0 if open_native_window(window_url) else 3)
 
     main()

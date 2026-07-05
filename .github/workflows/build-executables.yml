@@ -45,6 +45,21 @@ jobs:
       - name: Install dependencies
         run: uv sync --extra dev
 
+      # Diagnóstico: ¿funciona la ventana nativa desde el venv (sin
+      # PyInstaller)? Si esto pasa y el test del congelado falla, el
+      # problema es de empaquetado; si ambos fallan, es del entorno CI.
+      - name: Smoke test (native window from venv, Windows)
+        if: matrix.os == 'windows-latest'
+        continue-on-error: true
+        timeout-minutes: 8
+        shell: pwsh
+        run: |
+          $env:MLTUTOR_WINDOW_TIMEOUT = "30"
+          $env:MLTUTOR_REQUIRE_WINDOW = "1"
+          uv run python launcher_rich.py
+          if ($LASTEXITCODE -ne 0) { Write-Error "venv window failed ($LASTEXITCODE)"; exit 1 }
+          Write-Host "venv window OK"
+
       - name: Build with PyInstaller
         run: uv run pyinstaller pyinstaller.spec --noconfirm
 
