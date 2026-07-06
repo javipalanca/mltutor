@@ -63,13 +63,19 @@ compila en paralelo para:
 |---|---|---|---|
 | Linux x86_64 | ubuntu-22.04 | `mltutor-linux-x86_64.tar.gz` | carpeta `mltutor/` |
 | Windows x86_64 | windows-latest | `mltutor-windows-x86_64-setup.exe` | instalador (Inno Setup) |
+| Windows x86_64 | windows-latest | `mltutor-windows-x86_64-portable.zip` | carpeta `mltutor/` (portable) |
 | macOS arm64 (Apple Silicon) | macos-latest | `mltutor-macos-arm64.tar.gz` | bundle `MLTutor.app` |
 
-En Windows se distribuye un **instalador** en lugar de un zip: instala en
-Archivos de programa, crea el acceso directo del Menú Inicio con el icono
-y añade desinstalador (el usuario nunca ve el directorio `_internal` de
-PyInstaller). El script del instalador es
+En Windows se distribuye un **instalador** además de un zip portable. El
+instalador **no requiere permisos de administrador**: instala por-usuario
+en `%LOCALAPPDATA%\Programs\MLTutor` (sin UAC; un admin puede forzar la
+instalación global con `/ALLUSERS`), crea el acceso directo del Menú
+Inicio con el icono y añade desinstalador (el usuario nunca ve el
+directorio `_internal` de PyInstaller). El script del instalador es
 [installers/windows/mltutor.iss](installers/windows/mltutor.iss).
+El **zip portable** no instala nada: descomprimir y ejecutar
+`mltutor\mltutor.exe` — útil en equipos con políticas restrictivas
+(laboratorios docentes).
 
 Además del test de servidor, el CI comprueba en Windows y Linux (con
 xvfb) que la **ventana nativa** abre de verdad (`MLTUTOR_REQUIRE_WINDOW=1`

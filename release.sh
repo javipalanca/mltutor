@@ -79,8 +79,8 @@ gh run watch "$run_id" --exit-status
 # --- Verificar la release --------------------------------------------------
 echo
 n_assets=$(gh release view "$TAG" --json assets -q '.assets | length')
-if [[ "$n_assets" -lt 3 ]]; then
-  echo "❌ La release solo tiene $n_assets artefactos (se esperaban 3)" >&2
+if [[ "$n_assets" -lt 4 ]]; then
+  echo "❌ La release solo tiene $n_assets artefactos (se esperaban 4)" >&2
   exit 1
 fi
 echo "✓ Release $TAG publicada con $n_assets artefactos:"

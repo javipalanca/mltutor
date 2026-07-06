@@ -34,8 +34,11 @@ AppUpdatesURL={#AppURL}/releases
 DefaultDirName={autopf}\{#AppName}
 DefaultGroupName={#AppName}
 AllowNoIcons=yes
+; Instalación por-usuario sin permisos de administrador (laboratorios
+; docentes): va a %LOCALAPPDATA%\Programs\MLTutor sin UAC. Un admin puede
+; forzar instalación global con el flag /ALLUSERS.
 PrivilegesRequired=lowest
-PrivilegesRequiredOverridesAllowed=dialog
+PrivilegesRequiredOverridesAllowed=commandline
 
 ; Salida: raíz del proyecto (dos niveles arriba del .iss)
 OutputDir=..\..\

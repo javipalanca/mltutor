@@ -166,6 +166,14 @@ jobs:
             Write-Error "Installer not generated"; exit 1
           }
 
+      - name: Package (Windows portable zip)
+        if: matrix.archive == 'installer'
+        shell: pwsh
+        run: |
+          # Alternativa sin instalación para equipos con políticas
+          # restrictivas (laboratorios): descomprimir y ejecutar mltutor.exe
+          Compress-Archive -Path dist/mltutor -DestinationPath mltutor-windows-x86_64-portable.zip
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -191,4 +199,5 @@ jobs:
           files: |
             mltutor-*.tar.gz
             mltutor-*-setup.exe
+            mltutor-*-portable.zip
           generate_release_notes: true
