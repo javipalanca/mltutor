@@ -49,6 +49,8 @@ collect_pkgs = [
     'dotenv',
     # pywebview (ventana nativa de escritorio)
     'webview',
+    # CAs para HTTPS en el ejecutable congelado (descarga de datasets)
+    'certifi',
 ]
 
 for pkg in collect_pkgs:

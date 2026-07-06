@@ -65,6 +65,25 @@ def setup_windowed_io() -> None:
         sys.stderr = log
 
 
+def setup_ssl_certificates() -> None:
+    """Apunta SSL al bundle de CAs de certifi en el ejecutable congelado.
+
+    El Python empaquetado por PyInstaller no encuentra el almacén de
+    certificados del sistema, y cualquier urlopen HTTPS (p. ej. la
+    descarga de datasets de scikit-learn) falla con
+    CERTIFICATE_VERIFY_FAILED.
+    """
+    if not getattr(sys, "frozen", False):
+        return
+    try:
+        import certifi
+
+        os.environ.setdefault("SSL_CERT_FILE", certifi.where())
+        os.environ.setdefault("REQUESTS_CA_BUNDLE", certifi.where())
+    except Exception:
+        pass
+
+
 def resource_path(relative_path: str) -> str:
     """Obtiene la ruta correcta tanto en desarrollo como en ejecutable congelado."""
     if hasattr(sys, "_MEIPASS"):
@@ -369,6 +388,7 @@ if __name__ == "__main__":
     multiprocessing.freeze_support()
 
     setup_windowed_io()
+    setup_ssl_certificates()
 
     if SERVER_FLAG in sys.argv:
         idx = sys.argv.index(SERVER_FLAG)
