@@ -37,19 +37,29 @@ def _validate_dataset(X, y, dataset_name):
 
 def _load_seaborn_with_fallback(dataset_name, fallback_filename=None):
     """
-    Carga un dataset desde seaborn con fallback a archivo local.
+    Carga un dataset de seaborn, preferentemente desde la copia local.
+
+    Las copias locales van incluidas en data/sample_datasets/ (también en
+    el ejecutable empaquetado), así que la app funciona sin conexión; solo
+    si faltara el fichero se descarga desde seaborn.
 
     Parameters:
     -----------
     dataset_name : str
         Nombre del dataset en seaborn
     fallback_filename : str, optional
-        Nombre del archivo de fallback
+        Nombre del archivo local (por defecto, "<dataset_name>.csv")
 
     Returns:
     --------
     DataFrame : Los datos cargados
     """
+    filename = fallback_filename or f"{dataset_name}.csv"
+    file_path = os.path.join(os.path.dirname(
+        __file__), 'data', 'sample_datasets', filename)
+    if os.path.exists(file_path):
+        return pd.read_csv(file_path)
+
     try:
         data = sns.load_dataset(dataset_name)
         if data is None or data.empty:
@@ -57,18 +67,9 @@ def _load_seaborn_with_fallback(dataset_name, fallback_filename=None):
                 f"No se pudo cargar el dataset {dataset_name} desde seaborn")
         return data
     except Exception as e:
-        print(
-            f"Advertencia: No se pudo cargar {dataset_name} desde seaborn: {e}")
-        if fallback_filename:
-            # Fallback a archivo local
-            file_path = os.path.join(os.path.dirname(
-                __file__), 'data', 'sample_datasets', fallback_filename)
-            if os.path.exists(file_path):
-                data = pd.read_csv(file_path)
-                print(f"Usando archivo local: {file_path}")
-                return data
         raise ValueError(
-            f"No se pudo cargar el dataset {dataset_name} ni desde seaborn ni desde archivo local")
+            f"No se pudo cargar el dataset {dataset_name}: no hay copia "
+            f"local ({filename}) y la descarga desde seaborn falló: {e}")
 
 
 def load_titanic_dataset():
