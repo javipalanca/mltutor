@@ -42,9 +42,13 @@ for pkg in [
 
 # Add mltutor package manually
 datas += [(os.path.join(project_root, 'mltutor'), 'mltutor')]
+# Add data folder
+if os.path.exists(os.path.join(project_root, 'data')):
+    datas += [(os.path.join(project_root, 'data'), 'data')]
+
 
 a = Analysis(
-    ['launcher_rich.py'],
+    ['launcher.py'],
     pathex=[project_root],
     binaries=binaries,
     datas=datas,
@@ -67,8 +71,8 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
-    console=True,  # mostrar consola para ver el output de rich
+    upx=False,
+    console=False,  # mostrar consola para ver el output de rich
     disable_windowed_traceback=False,
     target_arch=None,
     codesign_identity=None,
@@ -81,7 +85,14 @@ coll = COLLECT(
     a.zipfiles,
     a.datas,
     strip=False,
-    upx=True,
+    upx=False,
     upx_exclude=[],
     name='mltutor',
+)
+
+app = BUNDLE(
+    coll,
+    name='mltutor.app',
+    icon=None,
+    bundle_identifier='com.javipalanca.mltutor',
 )

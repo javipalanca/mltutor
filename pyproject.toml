@@ -35,7 +35,8 @@ dependencies = [
   # - macOS Intel: usa Conda o Docker (no hay wheel oficial reciente)
   "tensorflow>=2.13.0; platform_system == 'Linux' or platform_system == 'Windows'",
   "tensorflow-macos>=2.13.0; platform_system == 'Darwin' and platform_machine == 'arm64'",
-  "tensorflow-metal>=1.0.0; platform_system == 'Darwin' and platform_machine == 'arm64'"
+  "tensorflow-metal>=1.0.0; platform_system == 'Darwin' and platform_machine == 'arm64'",
+  "PySide6>=6.0.0"
 ]
 
 [project.optional-dependencies]
