@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "mltutor-dev",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": ["run", "python", "launcher_rich.py", "--server-mode", "8511"],
+      "port": 8511
+    },
+    {
+      "name": "mltutor-frozen",
+      "runtimeExecutable": "./dist/mltutor/mltutor",
+      "runtimeArgs": ["--server-mode", "8766"],
+      "port": 8766
+    }
+  ]
+}

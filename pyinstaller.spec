@@ -1,54 +1,97 @@
-# Minimal PyInstaller spec for mltutor launcher + Streamlit
+# PyInstaller spec para MLTutor (launcher + Streamlit + app)
 # Build: uv run pyinstaller pyinstaller.spec
+#
+# Nota: mltutor/ se incluye como datos (Streamlit ejecuta app.py como
+# fichero), por lo que PyInstaller no puede rastrear sus imports. Todas
+# las librerías que usa la app deben forzarse aquí con collect_all.
 
-from PyInstaller.utils.hooks import collect_all
-from PyInstaller.utils.hooks import collect_submodules
-from PyInstaller.building.build_main import Analysis, PYZ, EXE, COLLECT
-from PyInstaller.building.datastruct import Tree
 import os
+import sys
+import tomllib
 
-block_cipher = None
+from PyInstaller.building.api import COLLECT, EXE, PYZ
+from PyInstaller.building.build_main import Analysis
+from PyInstaller.building.datastruct import Tree
+from PyInstaller.utils.hooks import collect_all
 
 project_root = os.path.abspath('.')
+
+# Versión única desde pyproject.toml
+with open(os.path.join(project_root, 'pyproject.toml'), 'rb') as f:
+    APP_VERSION = tomllib.load(f)['project']['version']
 
 datas = []
 binaries = []
 hiddenimports = []
 
-# Collect third-party package data likely needed at runtime
-for pkg in [
+# Paquetes que usa la app (importados desde app.py, que es un "dato")
+collect_pkgs = [
     'streamlit',
+    'altair',
+    'pyarrow',
     'sklearn',
+    'scipy',
     'matplotlib',
     'seaborn',
     'numpy',
     'pandas',
+    'PIL',
     'pydot',
     'onnx',
     'skl2onnx',
+    'onnxconverter_common',
     'mpld3',
     'plotly',
-    'protobuf',
+    'joblib',
     'tensorflow',
+    'keras',
     'rich',
-]:
+    'dotenv',
+    # pywebview (ventana nativa de escritorio)
+    'webview',
+    # CAs para HTTPS en el ejecutable congelado (descarga de datasets)
+    'certifi',
+]
+
+for pkg in collect_pkgs:
     try:
         ca_datas, ca_binaries, ca_hidden = collect_all(pkg)
         datas += ca_datas
         binaries += ca_binaries
         hiddenimports += ca_hidden
     except Exception:
-        pass
+        print(f'[spec] aviso: no se pudo recolectar {pkg}')
 
-# Add mltutor package manually
-datas += [(os.path.join(project_root, 'mltutor'), 'mltutor')]
-# Add data folder
+# Backend de pywebview en Linux y Windows: Qt WebEngine vía qtpy/PySide6
+# (importados dinámicamente, PyInstaller no los detecta solo). En Windows
+# NO se usa el backend WinForms/.NET: crashea bajo PyInstaller (0xE0434352).
+if sys.platform.startswith('linux') or sys.platform == 'win32':
+    hiddenimports += [
+        'qtpy',
+        'PySide6.QtCore',
+        'PySide6.QtGui',
+        'PySide6.QtWidgets',
+        'PySide6.QtNetwork',
+        'PySide6.QtWebChannel',
+        'PySide6.QtWebEngineCore',
+        'PySide6.QtWebEngineWidgets',
+        'PySide6.QtPrintSupport',
+    ]
+
+# Código fuente de la app como datos (sin caches); se añade en COLLECT,
+# ya que Tree no es compatible con el formato de datas de Analysis
+app_tree = Tree(
+    os.path.join(project_root, 'mltutor'),
+    prefix='mltutor',
+    excludes=['__pycache__', '*.pyc', '.DS_Store'],
+)
+
+# Conservar los datos adicionales del empaquetado local, si existen.
 if os.path.exists(os.path.join(project_root, 'data')):
     datas += [(os.path.join(project_root, 'data'), 'data')]
 
-
 a = Analysis(
-    ['launcher.py'],
+    ['launcher_rich.py'],
     pathex=[project_root],
     binaries=binaries,
     datas=datas,
@@ -56,11 +99,11 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=['tkinter', 'pytest', 'IPython'],
     noarchive=False,
 )
 
-pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+pyz = PYZ(a.pure, a.zipped_data)
 
 exe = EXE(
     pyz,
@@ -72,11 +115,16 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
-    console=False,  # mostrar consola para ver el output de rich
+    # App de escritorio: sin consola en Windows (la salida va a
+    # ~/.mltutor/mltutor.log). En Linux se mantiene la consola porque el
+    # binario se lanza desde terminal y sirve de diagnóstico; en macOS el
+    # flag solo afecta al binario suelto (la distribución es MLTutor.app).
+    console=sys.platform != 'win32',
     disable_windowed_traceback=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon=os.path.join(project_root, 'assets', 'icon.ico') if sys.platform == 'win32' else None,
 )
 
 coll = COLLECT(
@@ -84,15 +132,26 @@ coll = COLLECT(
     a.binaries,
     a.zipfiles,
     a.datas,
+    app_tree,
     strip=False,
     upx=False,
-    upx_exclude=[],
     name='mltutor',
 )
 
-app = BUNDLE(
-    coll,
-    name='mltutor.app',
-    icon=None,
-    bundle_identifier='com.javipalanca.mltutor',
-)
+# En macOS, además del directorio dist/mltutor se genera un bundle
+# MLTutor.app con doble clic nativo (sin terminal)
+if sys.platform == 'darwin':
+    from PyInstaller.building.osx import BUNDLE
+
+    app = BUNDLE(
+        coll,
+        name='MLTutor.app',
+        icon=os.path.join(project_root, 'assets', 'icon.icns'),
+        bundle_identifier='es.upv.mltutor',
+        info_plist={
+            'CFBundleName': 'MLTutor',
+            'CFBundleDisplayName': 'MLTutor',
+            'CFBundleShortVersionString': APP_VERSION,
+            'NSHighResolutionCapable': True,
+        },
+    )

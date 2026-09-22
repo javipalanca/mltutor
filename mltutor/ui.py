@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import io
+import os
 import base64
 from sklearn.tree import plot_tree
 
@@ -27,8 +28,10 @@ def setup_page():
     Configura la página principal de la aplicación Streamlit con estilos y título.
     """
     # Configuración de la página
+    icon_path = os.path.join(os.path.dirname(__file__), "assets", "icon.png")
     st.set_page_config(
         page_title="🎓 MLTutor",
+        page_icon=icon_path if os.path.exists(icon_path) else "🎓",
         layout="wide",
         initial_sidebar_state="expanded"
     )

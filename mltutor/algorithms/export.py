@@ -33,6 +33,25 @@ def _zip_dir(src_dir: str) -> bytes:
     return buf.getvalue()
 
 
+def convert_keras_to_tflite(model) -> bytes:
+    """Convierte un modelo Keras a TFLite.
+
+    Con Keras 3 (TF >= 2.16) TFLiteConverter.from_keras_model falla con
+    "Functional object has no attribute _get_save_spec"; en ese caso se
+    exporta primero a SavedModel y se convierte desde el directorio.
+    """
+    import tensorflow as tf
+
+    try:
+        converter = tf.lite.TFLiteConverter.from_keras_model(model)
+        return converter.convert()
+    except AttributeError:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            model.export(tmpdir)
+            converter = tf.lite.TFLiteConverter.from_saved_model(tmpdir)
+            return converter.convert()
+
+
 def export_saved_model_as_zip(model, safe_mode: bool):
     """
     Exporta un modelo Keras como SavedModel comprimido en ZIP.
@@ -424,10 +443,7 @@ def show_neural_network_export():
                         )
                         st.success("✅ HDF5 generado")
                     elif format_option == "TensorFlow Lite (.tflite)":
-                        import tensorflow as tf
-                        converter = tf.lite.TFLiteConverter.from_keras_model(
-                            model)
-                        tflite_model = converter.convert()
+                        tflite_model = convert_keras_to_tflite(model)
                         st.download_button(
                             label="📥 Descargar Modelo TFLite",
                             data=tflite_model,

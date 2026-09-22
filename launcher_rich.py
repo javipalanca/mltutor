@@ -1,20 +1,87 @@
 #!/usr/bin/env python
 """
-Launcher con interfaz rica en terminal usando Rich.
-Requiere: pip install rich
+Launcher de MLTutor: app de escritorio que empotra la UI de Streamlit
+en una ventana nativa mediante pywebview (WKWebView en macOS, WebView2
+en Windows, Qt WebEngine en Linux). Si no hay backend gráfico disponible
+cae de forma transparente al modo clásico: abrir el navegador.
+
+Funciona tanto en desarrollo (python launcher_rich.py) como dentro de un
+ejecutable PyInstaller. En modo congelado no existe un intérprete Python
+externo, así que el launcher se relanza a sí mismo con --server-mode y
+ejecuta Streamlit en el propio proceso.
+
+Flags:
+  --server-mode PORT   (interno) ejecuta el servidor Streamlit
+  --browser            fuerza el modo clásico (navegador + terminal)
 """
-import subprocess
-import webbrowser
-import time
-import sys
 import os
 import signal
-import urllib.request
-import threading
+import socket
+import subprocess
+import sys
+import time
+import webbrowser
 
-# Global process variable
-streamlit_process = None
 SERVER_FLAG = "--server-mode"
+WINDOW_FLAG = "--window-mode"
+BROWSER_FLAG = "--browser"
+DEFAULT_PORT = 8501
+WINDOW_TITLE = "MLTutor"
+WINDOW_SIZE = (1280, 860)
+WINDOW_MIN_SIZE = (1000, 700)
+
+streamlit_process = None
+
+# True cuando el ejecutable es windowed (sin consola): no hay Ctrl+C posible
+windowed_mode = False
+
+
+def setup_windowed_io() -> None:
+    """En un ejecutable windowed (sin consola) stdout/stderr son None.
+
+    Los redirigimos a un fichero de log (~/.mltutor/mltutor.log) para que
+    Streamlit/rich no fallen al escribir y se pueda diagnosticar cualquier
+    problema.
+    """
+    global windowed_mode
+    if sys.stdout is not None and sys.stderr is not None:
+        return
+    windowed_mode = True
+    try:
+        log_dir = os.path.join(os.path.expanduser("~"), ".mltutor")
+        os.makedirs(log_dir, exist_ok=True)
+        log = open(
+            os.path.join(log_dir, "mltutor.log"),
+            "a",
+            buffering=1,
+            encoding="utf-8",
+            errors="replace",
+        )
+    except OSError:
+        log = open(os.devnull, "w", encoding="utf-8")
+    if sys.stdout is None:
+        sys.stdout = log
+    if sys.stderr is None:
+        sys.stderr = log
+
+
+def setup_ssl_certificates() -> None:
+    """Apunta SSL al bundle de CAs de certifi en el ejecutable congelado.
+
+    El Python empaquetado por PyInstaller no encuentra el almacén de
+    certificados del sistema, y cualquier urlopen HTTPS (p. ej. la
+    descarga de datasets de scikit-learn) falla con
+    CERTIFICATE_VERIFY_FAILED.
+    """
+    if not getattr(sys, "frozen", False):
+        return
+    try:
+        import certifi
+
+        os.environ.setdefault("SSL_CERT_FILE", certifi.where())
+        os.environ.setdefault("REQUESTS_CA_BUNDLE", certifi.where())
+    except Exception:
+        pass
 
 
 def resource_path(relative_path: str) -> str:
@@ -22,34 +89,78 @@ def resource_path(relative_path: str) -> str:
     if hasattr(sys, "_MEIPASS"):
         base_path = sys._MEIPASS
     else:
-        base_path = os.path.abspath(".")
+        base_path = os.path.abspath(os.path.dirname(__file__))
     return os.path.join(base_path, relative_path)
 
 
-def _run_streamlit_inprocess(app_path: str, port: int = 8501):
-    """Ejecuta Streamlit en el proceso actual (para modo congelado)."""
-    try:
-        from streamlit.web import cli as stcli
-    except ImportError:
-        # Fallback para versiones antiguas de streamlit
+def find_free_port(preferred: int = DEFAULT_PORT) -> int:
+    """Devuelve el puerto preferido si está libre; si no, uno libre cualquiera."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         try:
-            from streamlit import cli as stcli
-        except Exception as e:
-            print(f"Error importando Streamlit: {e}")
-            sys.exit(1)
-            
+            s.bind(("127.0.0.1", preferred))
+            return preferred
+        except OSError:
+            pass
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+def wait_for_port(port: int, timeout: float = 120.0) -> bool:
+    """Espera a que el servidor acepte conexiones en el puerto dado."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if streamlit_process is not None and streamlit_process.poll() is not None:
+            return False
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(0.5)
+            try:
+                s.connect(("127.0.0.1", port))
+                return True
+            except OSError:
+                time.sleep(0.3)
+    return False
+
+
+def watch_parent() -> None:
+    """Termina el servidor si el proceso padre (la app) desaparece.
+
+    Evita servidores huérfanos si el launcher muere sin poder hacer una
+    parada ordenada (cierre forzado, kill, cuelgue...).
+    """
+    import threading
+
+    parent = os.getppid()
+
+    def _watch():
+        while True:
+            time.sleep(5)
+            if os.getppid() != parent:
+                os._exit(0)
+
+    threading.Thread(target=_watch, daemon=True).start()
+
+
+def run_server(port: int) -> None:
+    """Ejecuta Streamlit en este mismo proceso (necesario en modo congelado)."""
+    from streamlit.web import cli as stcli
+
+    watch_parent()
+
+    app_path = resource_path(os.path.join("mltutor", "app.py"))
     sys.argv = [
         "streamlit",
         "run",
         app_path,
-        "--server.port",
-        str(port),
-        "--server.headless",
-        "true",
-        "--browser.gatherUsageStats",
-        "false",
-        "--global.developmentMode",
-        "false",
+        "--server.port", str(port),
+        "--server.headless", "true",
+        "--server.fileWatcherType", "none",
+        "--browser.gatherUsageStats", "false",
+        "--global.developmentMode", "false",
+        # Ocultar el botón Deploy y las opciones de desarrollador
+        "--client.toolbarMode", "minimal",
+        # Forzar tema claro: los estilos de la app no son legibles en oscuro
+        "--theme.base", "light",
     ]
     try:
         stcli.main()
@@ -57,222 +168,241 @@ def _run_streamlit_inprocess(app_path: str, port: int = 8501):
         pass
 
 
-def run_gui(url: str):
-    """Ejecuta la interfaz gráfica de control."""
-    try:
-        import tkinter as tk
-        from tkinter import messagebox
-    except ImportError:
-        return
-
-    root = tk.Tk()
-    root.title("MLTutor Launcher")
-    root.geometry("300x150")
-    root.resizable(False, False)
-
-    def on_open():
-        webbrowser.open(url)
-
-    def on_close():
-        if streamlit_process:
-            streamlit_process.terminate()
-        root.destroy()
-        sys.exit(0)
-
-    root.protocol("WM_DELETE_WINDOW", on_close)
-
-    tk.Label(root, text="🧠 MLTutor", font=("Arial", 16, "bold")).pack(pady=(20, 5))
-    tk.Label(root, text="El servidor está ejecutándose.", fg="green").pack(pady=5)
-
-    btn_frame = tk.Frame(root)
-    btn_frame.pack(pady=10)
-
-    tk.Button(btn_frame, text="Abrir Navegador", command=on_open).pack(side=tk.LEFT, padx=5)
-    tk.Button(btn_frame, text="Detener y Salir", command=on_close, bg="#ffcccc").pack(side=tk.LEFT, padx=5)
-
-    # Check server health periodically
-    def check_health():
-        if streamlit_process and streamlit_process.poll() is not None:
-            # Server died
-            try:
-                messagebox.showerror("Error", "El servidor de Streamlit se ha detenido inesperadamente.")
-            except:
-                pass
-            on_close()
-        root.after(2000, check_health)
-
-    check_health()
-    try:
-        root.mainloop()
-    except Exception as e:
-        with open(os.path.expanduser("~/mltutor_crash.log"), "w") as f:
-            f.write(str(e))
-        sys.exit(1)
+def spawn_server(port: int, env: dict) -> subprocess.Popen:
+    """Lanza el proceso servidor (este mismo programa con --server-mode)."""
+    if getattr(sys, "frozen", False):
+        cmd = [sys.executable, SERVER_FLAG, str(port)]
+    else:
+        cmd = [sys.executable, os.path.abspath(__file__), SERVER_FLAG, str(port)]
+    return subprocess.Popen(cmd, env=env)
 
 
-def wait_for_server(url: str, timeout: int = 60) -> bool:
-    """Espera a que el servidor responda 200 OK."""
-    start_time = time.time()
-    while time.time() - start_time < timeout:
-        try:
-            with urllib.request.urlopen(url, timeout=1) as response:
-                if response.status == 200:
-                    return True
-        except Exception:
-            time.sleep(0.5)
-    return False
-
-
-def signal_handler(sig, frame):
-    """Maneja la señal de interrupción."""
-    print("\nDeteniendo MLTutor...")
-    if streamlit_process:
+def stop_server(timeout: float = 10.0) -> None:
+    """Detiene el proceso servidor si sigue vivo."""
+    if streamlit_process and streamlit_process.poll() is None:
         streamlit_process.terminate()
-    print("✓ MLTutor detenido correctamente")
-    sys.exit(0)
+        try:
+            streamlit_process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            streamlit_process.kill()
 
 
-def main():
-    """Inicia Streamlit con interfaz rica o GUI según el entorno."""
+def open_native_window(url: str) -> bool:
+    """Muestra la UI en una ventana nativa de escritorio.
+
+    Bloquea hasta que el usuario cierra la ventana. Devuelve False si no
+    hay backend gráfico disponible (el llamante hará fallback a navegador).
+    """
+    import traceback
+
+    try:
+        import webview
+    except Exception:
+        traceback.print_exc()
+        return False
+
+    # Permitir descargas (st.download_button); sin esto el WebView las ignora
+    webview.settings["ALLOW_DOWNLOADS"] = True
+
+    if sys.platform.startswith("linux"):
+        # QtWebEngine no puede usar el sandbox de Chromium dentro de un
+        # ejecutable PyInstaller
+        if getattr(sys, "frozen", False):
+            os.environ.setdefault("QTWEBENGINE_DISABLE_SANDBOX", "1")
+
+    gui_kwargs = {}
+    if os.name == "nt" and getattr(sys, "frozen", False):
+        # En el ejecutable congelado de Windows se usa el backend Qt: el de
+        # WinForms/.NET (pythonnet) aborta bajo PyInstaller con una
+        # excepción CLR (0xE0434352) imposible de capturar desde Python
+        gui_kwargs["gui"] = "qt"
+        os.environ.setdefault("QTWEBENGINE_DISABLE_SANDBOX", "1")
+
+    window = webview.create_window(
+        WINDOW_TITLE,
+        url,
+        width=WINDOW_SIZE[0],
+        height=WINDOW_SIZE[1],
+        min_size=WINDOW_MIN_SIZE,
+    )
+
+    # Cierre automático para pruebas (smoke tests): MLTUTOR_WINDOW_TIMEOUT=N
+    autoclose = os.environ.get("MLTUTOR_WINDOW_TIMEOUT")
+
+    def _autoclose_worker():
+        limit = float(autoclose)
+        # ¿Ha llegado a mostrarse la ventana? Si no, es un fallo real.
+        shown = window.events.shown.wait(limit)
+        if not shown:
+            stop_server()
+            os._exit(3)
+        time.sleep(limit)
+        try:
+            window.destroy()
+        except Exception:
+            traceback.print_exc()
+        # Failsafe: si destroy() no termina el bucle de eventos, forzar la
+        # salida para que el test no se quede colgado (la ventana sí abrió)
+        time.sleep(15)
+        stop_server()
+        os._exit(0)
+
+    # Icono de la ventana (solo lo usan los backends GTK/Qt; en Windows y
+    # macOS el icono sale del ejecutable/bundle)
+    icon_path = resource_path(os.path.join("mltutor", "assets", "icon.png"))
+    icon_kwargs = {"icon": icon_path} if os.path.exists(icon_path) else {}
+
+    try:
+        if autoclose:
+            webview.start(_autoclose_worker, **gui_kwargs, **icon_kwargs)
+        else:
+            webview.start(**gui_kwargs, **icon_kwargs)
+        return True
+    except Exception:
+        traceback.print_exc()
+        return False
+
+
+def run_window_process(url: str) -> bool:
+    """Abre la ventana nativa en un proceso hijo y espera a que se cierre.
+
+    Aísla el launcher de cuelgues duros del backend gráfico (p. ej. una
+    excepción .NET no capturable en Windows): si el hijo muere, el launcher
+    sigue vivo y puede hacer fallback a navegador. Devuelve True si la
+    ventana funcionó (el usuario la cerró), False si no pudo abrirse.
+    """
+    if getattr(sys, "frozen", False):
+        cmd = [sys.executable, WINDOW_FLAG, url]
+    else:
+        cmd = [sys.executable, os.path.abspath(__file__), WINDOW_FLAG, url]
+    try:
+        proc = subprocess.Popen(cmd, env=os.environ.copy())
+        return proc.wait() == 0
+    except Exception:
+        return False
+
+
+def main() -> None:
     global streamlit_process
-    
-    # Si nos lanzan con el flag especial, actuamos como servidor Streamlit
-    if SERVER_FLAG in sys.argv:
-        app_path = resource_path("mltutor/app.py")
-        _run_streamlit_inprocess(app_path, port=8501)
-        sys.exit(0)
+
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.progress import Progress, SpinnerColumn, TextColumn
+
+    console = Console(file=sys.stdout)
+    force_browser = BROWSER_FLAG in sys.argv
+
+    def shutdown(exit_code: int = 0):
+        console.print("\n[yellow]Deteniendo MLTutor...[/yellow]")
+        stop_server()
+        console.print("[green]✓[/green] MLTutor detenido correctamente")
+        sys.exit(exit_code)
+
+    def signal_handler(sig, frame):
+        shutdown(0)
 
     signal.signal(signal.SIGINT, signal_handler)
-    
-    app_path = resource_path("mltutor/app.py")
-    port = 8501
-    url = f"http://localhost:{port}"
-    
-    # Detectar si debemos usar GUI (sin consola o .app)
-    use_gui = False
-    if sys.stdout is None or not sys.stdout.isatty():
-        use_gui = True
-    
-    # Si estamos en modo GUI, no usamos Rich
-    if use_gui:
-        # Iniciar servidor en segundo plano
-        env = os.environ.copy()
-        if 'USE_GPU' not in env:
-            env['USE_GPU'] = '0'
-            
-        if hasattr(sys, "_MEIPASS"):
-            cmd = [sys.executable, SERVER_FLAG]
-        else:
-            cmd = [
-                sys.executable, "-m", "streamlit", "run",
-                app_path,
-                "--server.port", str(port),
-                "--server.headless", "true",
-                "--browser.gatherUsageStats", "false"
-            ]
+    if hasattr(signal, "SIGTERM"):
+        signal.signal(signal.SIGTERM, signal_handler)
 
-        streamlit_process = subprocess.Popen(
-            cmd,
-            env=env,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
+    console.print(Panel.fit(
+        "[bold blue]🧠 MLTutor[/bold blue]\n"
+        "[dim]Aprende Machine Learning de forma interactiva[/dim]",
+        border_style="blue",
+    ))
+
+    port = find_free_port()
+    url = f"http://127.0.0.1:{port}"
+
+    env = os.environ.copy()
+    # Por defecto usa CPU (más estable). Para GPU: USE_GPU=1
+    env.setdefault("USE_GPU", "0")
+
+    use_gpu = env.get("USE_GPU") == "1"
+    backend = "GPU" if use_gpu else "CPU"
+
+    console.print(f"\n[cyan]📊 Servidor:[/cyan] {url}")
+    console.print(f"[cyan]⚙️  Backend:[/cyan] {backend}\n")
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+    ) as progress:
+        task = progress.add_task("[cyan]Iniciando servidor...", total=None)
+        streamlit_process = spawn_server(port, env)
+        started = wait_for_port(port)
+        if started:
+            progress.update(task, description="[green]Servidor iniciado ✓")
+        progress.stop()
+
+    if not started:
+        console.print("[red]❌ El servidor no ha podido iniciarse.[/red]")
+        stop_server()
+        sys.exit(1)
+
+    if not force_browser:
+        console.print("[green]✓[/green] Abriendo MLTutor...\n")
+        if run_window_process(url):
+            # El usuario ha cerrado la ventana: apagar el servidor y salir
+            shutdown(0)
+        # En CI se exige la ventana nativa: sin fallback silencioso
+        if os.environ.get("MLTUTOR_REQUIRE_WINDOW") == "1":
+            console.print("[red]❌ No se pudo abrir la ventana nativa.[/red]")
+            stop_server()
+            sys.exit(3)
+        console.print(
+            "[yellow]No hay entorno gráfico compatible; usando el navegador.[/yellow]"
         )
-        
-        # Esperamos activamente antes de mostrar la GUI para asegurar que arranque
-        wait_for_server(f"{url}/_stcore/health", timeout=30)
-        webbrowser.open(url)
-        
-        run_gui(url)
-        return
 
-    # Modo Consola (Rich)
+    console.print("[green]✓[/green] Abriendo navegador...\n")
+    webbrowser.open(url)
+
+    console.print("[bold green]MLTutor está funcionando[/bold green]")
+
+    if windowed_mode and os.name == "nt":
+        # Sin consola no hay Ctrl+C: un diálogo nativo permite cerrar la app
+        import ctypes
+
+        ctypes.windll.user32.MessageBoxW(
+            None,
+            "MLTutor se está ejecutando en el navegador.\n\n"
+            "Deja este diálogo abierto mientras uses MLTutor.\n"
+            "Pulsa Aceptar cuando quieras cerrar la aplicación.",
+            "MLTutor",
+            0x00000040,  # MB_ICONINFORMATION
+        )
+        shutdown(0)
+
+    console.print("[dim]El servidor seguirá corriendo. Presiona Ctrl+C cuando termines.[/dim]\n")
+
     try:
-        from rich.console import Console
-        from rich.panel import Panel
-        from rich.progress import Progress, SpinnerColumn, TextColumn
-        
-        console = Console()
-        
-        # Banner
-        console.print(Panel.fit(
-            "[bold blue]🧠 MLTutor[/bold blue]\n"
-            "[dim]Aprende Machine Learning de forma interactiva[/dim]",
-            border_style="blue"
-        ))
-        
-        # Detectar configuración de GPU
-        use_gpu = os.environ.get('USE_GPU', '0') == '1'
-        backend = "GPU (Metal)" if use_gpu else "CPU"
-        
-        console.print(f"\n[cyan]📊 Servidor:[/cyan] {url}")
-        console.print(f"[cyan]⚙️  Backend:[/cyan] {backend}")
-        console.print("[dim]Presiona Ctrl+C para detener[/dim]\n")
-        
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console
-        ) as progress:
-            task = progress.add_task("[cyan]Iniciando servidor...", total=None)
-            
-            try:
-                # Configurar entorno
-                env = os.environ.copy()
-                if 'USE_GPU' not in env:
-                    env['USE_GPU'] = '0'
-                
-                # Determinar comando
-                if hasattr(sys, "_MEIPASS"):
-                    # Modo congelado: relanzamos este mismo ejecutable con flag
-                    cmd = [sys.executable, SERVER_FLAG]
-                else:
-                    # Modo desarrollo: usamos python -m streamlit
-                    cmd = [
-                        sys.executable, "-m", "streamlit", "run",
-                        app_path,
-                        "--server.port", str(port),
-                        "--server.headless", "true",
-                        "--browser.gatherUsageStats", "false"
-                    ]
-
-                # Iniciar Streamlit
-                streamlit_process = subprocess.Popen(
-                    cmd,
-                    env=env,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL
-                )
-                
-                # Esperar a que el servidor esté listo
-                if wait_for_server(f"{url}/_stcore/health"):
-                    progress.update(task, description="[green]Servidor iniciado ✓")
-                else:
-                    progress.update(task, description="[red]Tiempo de espera agotado")
-                    console.print("[red]El servidor tardó demasiado en responder.[/red]")
-                
-                progress.stop()
-                
-                # Abrir navegador
-                console.print("[green]✓[/green] Abriendo navegador...\n")
-                webbrowser.open(url)
-                
-                console.print("[bold green]MLTutor está funcionando[/bold green]")
-                console.print("[dim]El servidor seguirá corriendo. Presiona Ctrl+C cuando termines.[/dim]\n")
-                
-                # Mantener vivo
-                streamlit_process.wait()
-                
-            except Exception as e:
-                console.print(f"[red]❌ Error:[/red] {e}")
-                if streamlit_process:
-                    streamlit_process.terminate()
-                sys.exit(1)
-                
-    except ImportError:
-        print("Rich no está instalado. Ejecutando en modo básico.")
-        # Fallback básico si rich falla
-        pass
+        streamlit_process.wait()
+    except KeyboardInterrupt:
+        signal_handler(signal.SIGINT, None)
 
 
 if __name__ == "__main__":
+    # En Windows, PyInstaller necesita esto porque el launcher se relanza a sí mismo
+    import multiprocessing
+    multiprocessing.freeze_support()
+
+    setup_windowed_io()
+    setup_ssl_certificates()
+
+    if SERVER_FLAG in sys.argv:
+        idx = sys.argv.index(SERVER_FLAG)
+        try:
+            server_port = int(sys.argv[idx + 1])
+        except (IndexError, ValueError):
+            server_port = DEFAULT_PORT
+        run_server(server_port)
+        sys.exit(0)
+
+    if WINDOW_FLAG in sys.argv:
+        idx = sys.argv.index(WINDOW_FLAG)
+        window_url = sys.argv[idx + 1]
+        watch_parent()
+        sys.exit(0 if open_native_window(window_url) else 3)
+
     main()
