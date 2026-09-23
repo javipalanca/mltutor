@@ -230,3 +230,33 @@ def test_long_code_and_table_expand_to_full_height(window, application):
     application.processEvents()
     table = table_box.findChild(DataTable)
     assert table.verticalScrollBar().maximum() == 0
+
+
+def test_multiple_choices_wrap_and_enforce_limit(window, application):
+    from mltutor.desktop.widgets import MultiSelect
+
+    choices = MultiSelect(
+        [
+            "alcohol",
+            "malic_acid",
+            "ash",
+            "alcalinity_of_ash",
+            "magnesium",
+            "total_phenols",
+        ],
+        ["alcohol"],
+        2,
+    )
+    window.content.setWidget(choices)
+    changes = []
+    choices.changed.connect(changes.append)
+    application.processEvents()
+    QTest.mouseClick(choices.buttons[1], Qt.MouseButton.LeftButton)
+    assert changes[-1] == ["alcohol", "malic_acid"]
+    assert not choices.buttons[2].isEnabled()
+    QTest.mouseClick(choices.buttons[0], Qt.MouseButton.LeftButton)
+    assert changes[-1] == ["malic_acid"]
+    assert choices.buttons[2].isEnabled()
+    assert "1 de 6" in choices.summary.text()
+    assert choices.columns > 1
+    assert all(button.isVisible() for button in choices.buttons)

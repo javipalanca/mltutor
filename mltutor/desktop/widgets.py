@@ -5,7 +5,7 @@ import io
 import keyword
 import tokenize
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import (
     QColor,
     QFontDatabase,
@@ -16,6 +16,12 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import (
     QApplication,
     QDoubleSpinBox,
+    QGridLayout,
+    QLabel,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+    QSizePolicy,
     QHeaderView,
     QPlainTextEdit,
     QTableView,
@@ -208,3 +214,86 @@ class DecimalSpinBox(QDoubleSpinBox):
         if separator in text:
             return text.rstrip("0").removesuffix(separator)
         return text
+
+
+class MultiSelect(QWidget):
+    """Full-height, wrapping choice buttons with explicit selected states."""
+
+    changed = Signal(object)
+
+    def __init__(self, options, selected, limit=None):
+        super().__init__()
+        self.setObjectName("multiSelect")
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        self.options = list(options)
+        self.limit = limit
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(14, 12, 14, 14)
+        layout.setSpacing(12)
+        self.summary = QLabel()
+        self.summary.setObjectName("selectionSummary")
+        layout.addWidget(self.summary)
+        self.grid = QGridLayout()
+        self.grid.setSpacing(8)
+        layout.addLayout(self.grid)
+        self.buttons = []
+        self.columns = 0
+        for option in self.options:
+            button = QPushButton(str(option))
+            button.setObjectName("choiceChip")
+            button.setCheckable(True)
+            button.setChecked(option in selected)
+            button.setMinimumWidth(0)
+            button.setToolTip(str(option))
+            button.toggled.connect(self._changed)
+            self.buttons.append(button)
+        self._refresh()
+        self._reflow()
+
+    def _refresh(self):
+        count = sum(button.isChecked() for button in self.buttons)
+        limit = f" · Máximo {self.limit}" if self.limit else ""
+        self.summary.setText(f"{count} de {len(self.options)} seleccionadas{limit}")
+        for option, button in zip(self.options, self.buttons):
+            button.setText(("✓  " if button.isChecked() else "+  ") + str(option))
+            button.setEnabled(
+                not self.limit or count < self.limit or button.isChecked()
+            )
+
+    def _changed(self):
+        self._refresh()
+        self.changed.emit(
+            [
+                option
+                for option, button in zip(self.options, self.buttons)
+                if button.isChecked()
+            ]
+        )
+
+    def _reflow(self):
+        width = max(
+            [190]
+            + [
+                min(340, self.fontMetrics().horizontalAdvance(str(x)) + 64)
+                for x in self.options
+            ]
+        )
+        columns = max(1, (self.width() - 28 + 8) // (width + 8))
+        columns = min(columns, max(1, len(self.buttons)))
+        if columns == self.columns:
+            return
+        old_columns = self.columns
+        self.columns = columns
+        while self.grid.count():
+            self.grid.takeAt(0)
+        for col in range(max(old_columns, columns)):
+            self.grid.setColumnStretch(col, 1 if col < columns else 0)
+        for index, button in enumerate(self.buttons):
+            self.grid.addWidget(button, index // columns, index % columns)
+        self.grid.invalidate()
+        self.layout().activate()
+        self.updateGeometry()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._reflow()

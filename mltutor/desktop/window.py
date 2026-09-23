@@ -31,8 +31,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QListView,
-    QListWidget,
-    QListWidgetItem,
     QMainWindow,
     QMessageBox,
     QProgressBar,
@@ -49,7 +47,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 from . import ui
-from .widgets import CodeEditor, DataTable, DecimalSpinBox
+from .widgets import CodeEditor, DataTable, DecimalSpinBox, MultiSelect
 
 
 STYLE = """
@@ -103,6 +101,14 @@ QSlider::handle:horizontal:pressed { background: #dbeafe; }
 QSlider::handle:horizontal:focus { border-color: #1e40af; }
 QSlider::sub-page:horizontal:disabled { background: #cbd5e1; }
 QSlider::handle:horizontal:disabled { border-color: #b8c5d6; background: #f1f5f9; }
+QWidget#multiSelect { background: #f8fafd; border: 1px solid #dce6f3; border-radius: 12px; }
+QLabel#selectionSummary { color: #64748b; font-size: 12px; }
+QPushButton#choiceChip { text-align: left; background: #ffffff; color: #52647d;
+    border: 1px solid #dce5f0; border-radius: 8px; padding: 10px 12px; min-height: 22px; }
+QPushButton#choiceChip:hover { border-color: #93baf0; background: #eff6ff; }
+QPushButton#choiceChip:checked { color: #175fc1; background: #e6f0ff; border-color: #84b2ef; font-weight: bold; }
+QPushButton#choiceChip:focus { border: 2px solid #3b82f6; }
+QPushButton#choiceChip:disabled { color: #a1afc0; background: #f1f4f8; border-color: #e5ebf3; }
 QTableView { background: white; alternate-background-color: #f5f8fd;
     border: 1px solid #dce5f0; border-radius: 8px;
     selection-background-color: #dbeafe; selection-color: #163d71; }
@@ -686,33 +692,11 @@ class MainWindow(QMainWindow):
             return box
         if kind == "multiselect":
             box, layout = self._labelled(node)
-            listing = self._register(node, QListWidget())
-            listing.setFixedHeight(min(220, max(80, len(p["options"]) * 28)))
-            for option in p["options"]:
-                item = QListWidgetItem(str(option), listing)
-                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-                item.setCheckState(
-                    Qt.CheckState.Checked
-                    if option in p["value"]
-                    else Qt.CheckState.Unchecked
-                )
-
-            def changed(item):
-                selected = [
-                    p["options"][i]
-                    for i in range(listing.count())
-                    if listing.item(i).checkState() == Qt.CheckState.Checked
-                ]
-                limit = p.get("max_selections")
-                if limit and len(selected) > limit:
-                    listing.blockSignals(True)
-                    item.setCheckState(Qt.CheckState.Unchecked)
-                    listing.blockSignals(False)
-                    return
-                self.action(node, selected)
-
-            listing.itemChanged.connect(changed)
-            layout.addWidget(listing)
+            control = self._register(
+                node, MultiSelect(p["options"], p["value"], p.get("max_selections"))
+            )
+            control.changed.connect(lambda selected: self.action(node, selected))
+            layout.addWidget(control)
             return box
         if kind in ("slider", "number"):
             box, layout = self._labelled(node)

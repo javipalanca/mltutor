@@ -7,6 +7,15 @@ import pandas as pd
 from sklearn.inspection import permutation_importance
 
 
+def compute_permutation_importance(model, X_test, y_test):
+    # Lessons already run in a Qt worker thread. Process-based joblib workers
+    # re-launch the frozen GUI executable and can fail before receiving work.
+    # Serial evaluation avoids child processes and extra copies of the dataset.
+    return permutation_importance(
+        model, X_test, y_test, n_repeats=10, random_state=42, n_jobs=1
+    )
+
+
 def display_feature_importance(model, feature_names, X_test=None, y_test=None, task_type="Clasificación"):
     """
     Muestra la importancia de las características de forma inteligente según el modelo.
@@ -31,12 +40,7 @@ def display_feature_importance(model, feature_names, X_test=None, y_test=None, t
 
             # Calcular permutation importance
             with st.spinner("Calculando importancia por permutación..."):
-                perm_imp = permutation_importance(
-                    model, X_test, y_test,
-                    n_repeats=10,
-                    random_state=42,
-                    n_jobs=-1  # Usar todos los cores disponibles
-                )
+                perm_imp = compute_permutation_importance(model, X_test, y_test)
 
             importances = perm_imp.importances_mean
             importances_std = perm_imp.importances_std

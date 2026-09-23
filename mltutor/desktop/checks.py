@@ -35,6 +35,11 @@ def verify_models():
     onnx.checker.check_model(onnx.load_from_string(encoded))
     knn = KNeighborsClassifier(n_neighbors=3).fit(X, y)
     assert knn.predict(X[:2]).shape == (2,)
+    from mltutor.viz.features import compute_permutation_importance
+
+    importance = compute_permutation_importance(knn, X, y)
+    assert importance.importances.shape == (4, 10)
+    assert np.isfinite(importance.importances).all()
     diabetes = load_diabetes()
     regression = LinearRegression().fit(diabetes.data, diabetes.target)
     assert np.isfinite(regression.predict(diabetes.data[:2])).all()
