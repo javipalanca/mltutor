@@ -15,6 +15,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QApplication,
+    QDoubleSpinBox,
     QHeaderView,
     QPlainTextEdit,
     QTableView,
@@ -198,3 +199,14 @@ class CodeEditor(QPlainTextEdit):
         )
         if language in (None, "python", "py", "python3"):
             self.highlighter = PythonHighlighter(self.document(), source)
+
+
+class DecimalSpinBox(QDoubleSpinBox):
+    """Keep precise numeric input without displaying distracting trailing zeros."""
+
+    def textFromValue(self, value):
+        text = super().textFromValue(value)
+        separator = self.locale().decimalPoint()
+        if separator in text:
+            return text.rstrip("0").removesuffix(separator)
+        return text

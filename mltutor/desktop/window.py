@@ -26,11 +26,11 @@ from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
     QComboBox,
-    QDoubleSpinBox,
     QFileDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
+    QListView,
     QListWidget,
     QListWidgetItem,
     QMainWindow,
@@ -49,7 +49,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 from . import ui
-from .widgets import CodeEditor, DataTable
+from .widgets import CodeEditor, DataTable, DecimalSpinBox
 
 
 STYLE = """
@@ -67,9 +67,42 @@ QPushButton:focus { border: 2px solid #60a5fa; }
 QPushButton[primary="true"]:hover { background: #1572c4; }
 QPushButton:pressed { background: #dbeafe; }
 QPushButton:disabled { color: #9aa3ac; background: #f4f5f7; }
-QComboBox, QSpinBox, QDoubleSpinBox, QListWidget { background: #f6f8fb;
-    border: 1px solid #d5dce5; border-radius: 5px; padding: 7px; min-height: 22px; }
-QComboBox QAbstractItemView { background: white; selection-background-color: #e3f2fd; }
+QComboBox, QSpinBox, QDoubleSpinBox, QListWidget { background: #f8fafd;
+    border: 1px solid #d7e2f0; border-radius: 10px; padding: 10px 14px; min-height: 24px; }
+QComboBox, QSpinBox, QDoubleSpinBox { padding-right: 42px; selection-background-color: #dbeafe;
+    selection-color: #163d71; }
+QComboBox:hover, QSpinBox:hover, QDoubleSpinBox:hover { background: #f2f7ff; border-color: #a3bde0; }
+QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus { background: #ffffff; border-color: #3b82f6; }
+QComboBox:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled { background: #f1f4f8; color: #94a3b8; border-color: #e2e8f0; }
+QComboBox::drop-down { subcontrol-origin: padding; subcontrol-position: top right;
+    width: 36px; border: none; background: transparent; }
+QComboBox::down-arrow { image: url("__CONTROLS__/chevron-down.svg"); width: 16px; height: 16px; }
+QComboBox QAbstractItemView { background: #ffffff; color: #243247; border: 1px solid #d7e2f0;
+    border-radius: 10px; padding: 6px; outline: 0;
+    selection-background-color: #e8f1ff; selection-color: #175fc1; }
+QComboBox QAbstractItemView::item { min-height: 36px; padding: 3px 12px; border-radius: 6px; }
+QComboBox QAbstractItemView::item:hover { background: #f0f6ff; }
+QComboBox QAbstractItemView::item:selected { background: #e8f1ff; color: #175fc1; }
+QSpinBox::up-button, QDoubleSpinBox::up-button { subcontrol-origin: border;
+    subcontrol-position: top right; width: 32px; margin: 3px 4px 0 0;
+    border: none; border-top-right-radius: 7px; background: #edf3fb; }
+QSpinBox::down-button, QDoubleSpinBox::down-button { subcontrol-origin: border;
+    subcontrol-position: bottom right; width: 32px; margin: 0 4px 3px 0;
+    border: none; border-bottom-right-radius: 7px; background: #edf3fb; }
+QSpinBox::up-button:hover, QSpinBox::down-button:hover,
+QDoubleSpinBox::up-button:hover, QDoubleSpinBox::down-button:hover { background: #dceafb; }
+QSpinBox::up-arrow, QDoubleSpinBox::up-arrow { image: url("__CONTROLS__/chevron-up.svg"); width: 14px; height: 14px; }
+QSpinBox::down-arrow, QDoubleSpinBox::down-arrow { image: url("__CONTROLS__/chevron-down.svg"); width: 14px; height: 14px; }
+QSlider:horizontal { min-height: 28px; }
+QSlider::groove:horizontal { height: 6px; background: #e5edf7; border-radius: 3px; }
+QSlider::sub-page:horizontal { background: #60a5fa; border-radius: 3px; }
+QSlider::handle:horizontal { background: #ffffff; border: 2px solid #3b82f6;
+    width: 16px; height: 16px; margin: -7px 0; border-radius: 10px; }
+QSlider::handle:horizontal:hover { background: #eff6ff; border-color: #1d4ed8; }
+QSlider::handle:horizontal:pressed { background: #dbeafe; }
+QSlider::handle:horizontal:focus { border-color: #1e40af; }
+QSlider::sub-page:horizontal:disabled { background: #cbd5e1; }
+QSlider::handle:horizontal:disabled { border-color: #b8c5d6; background: #f1f5f9; }
 QTableView { background: white; alternate-background-color: #f5f8fd;
     border: 1px solid #dce5f0; border-radius: 8px;
     selection-background-color: #dbeafe; selection-color: #163d71; }
@@ -303,7 +336,12 @@ class MainWindow(QMainWindow):
         self.statusBar().addWidget(self.status, 1)
         self.statusBar().addPermanentWidget(self.bar)
         self.statusBar().addPermanentWidget(self.cancel_button)
-        self.setStyleSheet(STYLE)
+        self.setStyleSheet(
+            STYLE.replace(
+                "__CONTROLS__",
+                (Path(__file__).parents[1] / "assets" / "controls").as_posix(),
+            )
+        )
         if autostart:
             QTimer.singleShot(0, self.evaluate)
 
@@ -622,6 +660,8 @@ class MainWindow(QMainWindow):
             box, layout = self._labelled(node)
             if kind == "select":
                 combo = self._register(node, QComboBox())
+                combo.setView(QListView(combo))
+                combo.setMaxVisibleItems(8)
                 combo.addItems(p["display"])
                 combo.setCurrentIndex(
                     p["options"].index(p["value"]) if p["value"] in p["options"] else -1
@@ -680,7 +720,7 @@ class MainWindow(QMainWindow):
             low = p.get("min_value") if p.get("min_value") is not None else -1e9
             high = p.get("max_value") if p.get("max_value") is not None else 1e9
             step = p.get("step") or (1 if integer else 0.01)
-            spin = QSpinBox() if integer else QDoubleSpinBox()
+            spin = QSpinBox() if integer else DecimalSpinBox()
             if not integer:
                 spin.setDecimals(6)
             spin.setRange(
