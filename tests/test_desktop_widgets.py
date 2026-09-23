@@ -108,3 +108,76 @@ def test_plotly_is_local_and_javascript_renders(window, application):
         time.sleep(0.02)
     assert results == [True]
     assert view.url().isLocalFile()
+
+
+def test_table_headers_values_and_resizing(window, application):
+    import pandas as pd
+    from mltutor.desktop.widgets import DataTable
+
+    frame = pd.DataFrame(
+        {
+            name: [0.123456789, 2300.25]
+            for name in [
+                "carat",
+                "cut",
+                "color",
+                "clarity",
+                "depth",
+                "table",
+                "x",
+                "y",
+                "z",
+                "target",
+            ]
+        }
+    )
+    panel = window.build(ui.Node("table", {"data": frame}))
+    window.content.setWidget(panel)
+    application.processEvents()
+    table = panel.findChild(DataTable)
+    header = table.horizontalHeader()
+    for column in range(10):
+        assert (
+            table.columnWidth(column)
+            >= header.fontMetrics().horizontalAdvance(frame.columns[column]) + 24
+        )
+    assert table.columnWidth(9) < table.columnWidth(0) * 1.5
+    window.resize(1850, 920)
+    application.processEvents()
+    assert (
+        abs(sum(table.columnWidth(c) for c in range(10)) - table.viewport().width())
+        <= 10
+    )
+    model = table.model()
+    assert model.data(model.index(0, 0), Qt.ItemDataRole.ToolTipRole) == "0.123456789"
+    table.selectAll()
+    from PySide6.QtGui import QKeySequence
+
+    table.setFocus()
+    QTest.keySequence(table, QKeySequence(QKeySequence.StandardKey.Copy))
+    assert "0.123456789" in application.clipboard().text()
+    assert application.clipboard().text().startswith("carat\tcut\tcolor")
+
+
+def test_python_syntax_multiline_and_copy(window, application):
+    from mltutor.desktop.widgets import CodeEditor
+    from PySide6.QtWidgets import QPushButton
+
+    source = 'def entrenar(x):\n    """Primera línea\n    segunda línea"""\n    # Comentario\n    return len(x) + 42\n'
+    panel = window.build(ui.Node("code", {"text": source, "language": "python"}))
+    window.content.setWidget(panel)
+    application.processEvents()
+    editor = panel.findChild(CodeEditor)
+    document = editor.document()
+    assert document.firstBlock().layout().formats()
+    assert document.findBlockByNumber(2).layout().formats()  # multiline string
+    assert document.findBlockByNumber(3).layout().formats()[0].format.fontItalic()
+    colors = {
+        f.format.foreground().color().name()
+        for f in document.findBlockByNumber(4).layout().formats()
+    }
+    assert len(colors) >= 3  # keyword, builtin and numeric literal
+    QTest.mouseClick(
+        panel.findChild(QPushButton, "copyCode"), Qt.MouseButton.LeftButton
+    )
+    assert application.clipboard().text() == source

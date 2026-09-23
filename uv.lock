@@ -542,7 +542,7 @@ wheels = [
 
 [[package]]
 name = "mltutor"
-version = "0.3.0rc1"
+version = "0.3.0rc2"
 source = { editable = "." }
 dependencies = [
     { name = "graphviz" },

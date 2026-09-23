@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import numbers
 from html.parser import HTMLParser
 from pathlib import Path
 import re
@@ -20,7 +21,7 @@ from PySide6.QtCore import (
     QUrl,
     Signal,
 )
-from PySide6.QtGui import QDesktopServices, QFont, QIcon, QPixmap
+from PySide6.QtGui import QDesktopServices, QIcon, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -34,7 +35,6 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMainWindow,
     QMessageBox,
-    QPlainTextEdit,
     QProgressBar,
     QPushButton,
     QRadioButton,
@@ -43,34 +43,59 @@ from PySide6.QtWidgets import (
     QSlider,
     QSpinBox,
     QSplitter,
-    QTableView,
     QTabWidget,
     QTextBrowser,
     QVBoxLayout,
     QWidget,
-    QAbstractItemView,
 )
 from . import ui
+from .widgets import CodeEditor, DataTable
 
 
 STYLE = """
-QWidget { font-family: "Arial"; font-size: 14px; color: #263238; }
+QWidget { font-family: "Inter", "Segoe UI", "Arial"; font-size: 14px; color: #243247; }
 QMainWindow, QScrollArea, QWidget#page { background: #ffffff; }
-QWidget#sidebar { background: #f0f2f6; }
+QWidget#sidebar { background: #f3f6fb; }
 QLabel#title { color: #1e88e5; font-size: 30px; font-weight: bold; }
 QLabel#heading { color: #0d47a1; font-size: 23px; font-weight: bold; }
 QLabel#subheading { color: #0d47a1; font-size: 19px; font-weight: bold; }
-QPushButton { background: white; border: 1px solid #d5dce5; border-radius: 6px;
-             padding: 9px 12px; min-height: 20px; }
+QPushButton { background: white; border: 1px solid #d5dce5; border-radius: 8px;
+             padding: 10px 14px; min-height: 20px; }
 QPushButton:hover { background: #e3f2fd; border-color: #90caf9; }
 QPushButton[primary="true"] { background: #1e88e5; color: white; border-color: #1e88e5; }
+QPushButton:focus { border: 2px solid #60a5fa; }
+QPushButton[primary="true"]:hover { background: #1572c4; }
+QPushButton:pressed { background: #dbeafe; }
 QPushButton:disabled { color: #9aa3ac; background: #f4f5f7; }
 QComboBox, QSpinBox, QDoubleSpinBox, QListWidget { background: #f6f8fb;
     border: 1px solid #d5dce5; border-radius: 5px; padding: 7px; min-height: 22px; }
 QComboBox QAbstractItemView { background: white; selection-background-color: #e3f2fd; }
-QTableView { background: white; alternate-background-color: #f5f8fc;
-    gridline-color: #e4e8ed; border: 1px solid #dce2ea; }
-QHeaderView::section { background: #eef3f9; padding: 7px; border: none; }
+QTableView { background: white; alternate-background-color: #f5f8fd;
+    border: 1px solid #dce5f0; border-radius: 8px;
+    selection-background-color: #dbeafe; selection-color: #163d71; }
+QTableView::item { padding: 6px 12px; border-bottom: 1px solid #edf1f7; }
+QTableView::item:selected { background: #dbeafe; color: #163d71; }
+QHeaderView::section { background: #eaf0f9; color: #355174;
+    padding: 10px 12px; border: none; border-right: 1px solid #dce5f0;
+    border-bottom: 1px solid #dce5f0; font-weight: bold; }
+QHeaderView::section:vertical { background: #f3f6fb; color: #64748b; font-weight: normal; }
+QTableCornerButton::section { background: #eaf0f9; border: none; }
+QWidget#codePanel { background: #152238; border: 1px solid #263954; border-radius: 10px; }
+QLabel#codeLanguage { color: #b8c9e0; font-size: 12px; font-weight: bold; }
+QPlainTextEdit#codeEditor { background: #152238; color: #e4edf8; border: none;
+    font-family: "Menlo", "Consolas", monospace; font-size: 14px;
+    selection-background-color: #34527c; selection-color: white; }
+QPushButton#copyCode { background: #243750; color: #e4edf8; border: 1px solid #466080;
+    padding: 4px 12px; font-size: 12px; }
+QPushButton#copyCode:hover { background: #334e70; }
+QStatusBar { background: #f3f6fb; color: #64748b; border-top: 1px solid #e1e8f2; }
+QSplitter::handle { background: #e6edf6; }
+QScrollBar:vertical { background: #f3f6fb; width: 12px; border: none; }
+QScrollBar::handle:vertical { background: #b9c8db; border-radius: 5px; min-height: 30px; }
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; }
+QScrollBar:horizontal { background: #f3f6fb; height: 12px; border: none; }
+QScrollBar::handle:horizontal { background: #b9c8db; border-radius: 5px; min-width: 30px; }
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0px; }
 QTabWidget::pane { border: 1px solid #e0e6ed; }
 QTabBar::tab { background: #f0f2f6; padding: 12px; }
 QTabBar::tab:selected { background: #e3f2fd; color: #0d47a1; }
@@ -168,13 +193,28 @@ class TableModel(QAbstractTableModel):
         return 0 if parent.isValid() else len(self.frame.columns)
 
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
-        if index.isValid() and role == Qt.ItemDataRole.DisplayRole:
+        if index.isValid():
             value = self.frame.iat[index.row(), index.column()]
-            return f"{value:.5g}" if isinstance(value, float) else str(value)
+            if role == Qt.ItemDataRole.DisplayRole:
+                return (
+                    f"{value:.6g}"
+                    if isinstance(value, numbers.Real)
+                    and not isinstance(value, numbers.Integral)
+                    else str(value)
+                )
+            if role == Qt.ItemDataRole.ToolTipRole:
+                return str(value)
+            if role == Qt.ItemDataRole.TextAlignmentRole:
+                horizontal = (
+                    Qt.AlignmentFlag.AlignRight
+                    if isinstance(value, numbers.Number)
+                    else Qt.AlignmentFlag.AlignLeft
+                )
+                return horizontal | Qt.AlignmentFlag.AlignVCenter
         return None
 
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
-        if role == Qt.ItemDataRole.DisplayRole:
+        if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ToolTipRole):
             source = (
                 self.frame.columns
                 if orientation == Qt.Orientation.Horizontal
@@ -516,7 +556,11 @@ class MainWindow(QMainWindow):
             return box
         if kind == "metric":
             box, layout = self._box()
-            box.setStyleSheet("background: #f3f7fc; border-radius: 7px;")
+            box.setObjectName("metricCard")
+            box.setStyleSheet(
+                "QWidget#metricCard { background: #f3f7fc; border: 1px solid #e1e9f5; border-radius: 10px; }"
+            )
+            layout.setContentsMargins(18, 14, 18, 14)
             label = QLabel(p["label"])
             label.setWordWrap(True)
             value = QLabel(p["value"])
@@ -530,15 +574,24 @@ class MainWindow(QMainWindow):
             return box
         if kind == "code":
             box, layout = self._box()
-            editor = QPlainTextEdit(p["text"])
-            editor.setReadOnly(True)
-            editor.setFont(QFont("Menlo", 11))
-            editor.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
-            editor.setFixedHeight(min(440, max(100, (p["text"].count("\n") + 2) * 18)))
+            box.setObjectName("codePanel")
+            layout.setContentsMargins(12, 10, 12, 12)
+            toolbar = QHBoxLayout()
+            language = QLabel((p.get("language") or "python").upper())
+            language.setObjectName("codeLanguage")
+            toolbar.addWidget(language)
+            toolbar.addStretch()
             copy = QPushButton("Copiar código")
-            copy.clicked.connect(lambda: QApplication.clipboard().setText(p["text"]))
-            layout.addWidget(copy)
-            layout.addWidget(editor)
+            copy.setObjectName("copyCode")
+
+            def copy_code():
+                QApplication.clipboard().setText(p["text"])
+                copy.setText("✓ Copiado")
+
+            copy.clicked.connect(copy_code)
+            toolbar.addWidget(copy)
+            layout.addLayout(toolbar)
+            layout.addWidget(CodeEditor(p["text"], p.get("language")))
             return box
         if kind == "button":
             button = self._register(node, QPushButton(p["label"]))
@@ -661,15 +714,16 @@ class MainWindow(QMainWindow):
             layout.addWidget(spin)
             return box
         if kind == "table":
-            table = QTableView()
-            table.setModel(TableModel(p["data"], table))
-            table.setAlternatingRowColors(True)
-            table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-            table.verticalHeader().setVisible(not p.get("hide_index", False))
-            table.setFixedHeight(p.get("height", min(350, 55 + len(p["data"]) * 30)))
-            table.resizeColumnsToContents()
-            table.horizontalHeader().setStretchLastSection(True)
-            return table
+            box, layout = self._box()
+            model = TableModel(p["data"], box)
+            table = DataTable(model, p.get("hide_index", False), p.get("height"))
+            layout.addWidget(table)
+            caption = QLabel(
+                f"{len(p['data']):,} filas · {len(p['data'].columns)} columnas  ·  Selecciona y copia con Ctrl+C / ⌘C"
+            )
+            caption.setStyleSheet("color: #64748b; font-size: 12px; padding: 3px 2px;")
+            layout.addWidget(caption)
+            return box
         if kind == "image":
             box, layout = self._box()
             layout.addWidget(Picture(p["data"]))
