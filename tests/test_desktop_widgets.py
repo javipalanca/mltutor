@@ -207,12 +207,19 @@ def test_html_fits_dynamic_content_without_inner_scroll(window, application):
         "document.getElementById('content').style.height = '300px'"
     )
     until(lambda: 330 < view.height() < first)
+    # Qt's native height changes before Chromium finishes its resize/layout.
+    # Poll the rendered document rather than asserting on the first stale frame.
     sizes = []
-    view.page().runJavaScript(
-        "document.documentElement.scrollHeight <= window.innerHeight", sizes.append
-    )
-    until(lambda: bool(sizes))
-    assert sizes == [True]
+    deadline = time.monotonic() + 15
+    while time.monotonic() < deadline:
+        application.processEvents()
+        time.sleep(0.05)
+        if sizes and sizes[-1] is True:
+            break
+        view.page().runJavaScript(
+            "document.documentElement.scrollHeight <= window.innerHeight", sizes.append
+        )
+    assert sizes and sizes[-1] is True
 
 
 def test_long_code_and_table_expand_to_full_height(window, application):
