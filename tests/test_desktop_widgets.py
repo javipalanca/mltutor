@@ -181,3 +181,52 @@ def test_python_syntax_multiline_and_copy(window, application):
         panel.findChild(QPushButton, "copyCode"), Qt.MouseButton.LeftButton
     )
     assert application.clipboard().text() == source
+
+
+def test_html_fits_dynamic_content_without_inner_scroll(window, application):
+    view = window.html_view(
+        '<html><body style="margin:8px"><div id="content" style="height:900px">Gráfico</div><footer>Leyenda y estadísticas</footer></body></html>',
+        200,
+    )
+    window.content.setWidget(view)
+
+    def until(predicate):
+        deadline = time.monotonic() + 15
+        while not predicate() and time.monotonic() < deadline:
+            application.processEvents()
+            time.sleep(0.02)
+        assert predicate()
+
+    until(lambda: view.height() > 930)
+    first = view.height()
+    view.page().runJavaScript(
+        "document.getElementById('content').style.height = '1400px'"
+    )
+    until(lambda: view.height() > 1430)
+    view.page().runJavaScript(
+        "document.getElementById('content').style.height = '300px'"
+    )
+    until(lambda: 330 < view.height() < first)
+    sizes = []
+    view.page().runJavaScript(
+        "document.documentElement.scrollHeight <= window.innerHeight", sizes.append
+    )
+    until(lambda: bool(sizes))
+    assert sizes == [True]
+
+
+def test_long_code_and_table_expand_to_full_height(window, application):
+    import pandas as pd
+    from mltutor.desktop.widgets import CodeEditor, DataTable
+
+    code = CodeEditor("\n".join(f"print({i})" for i in range(100)), "python")
+    window.content.setWidget(code)
+    application.processEvents()
+    assert code.verticalScrollBar().maximum() == 0
+    table_box = window.build(
+        ui.Node("table", {"data": pd.DataFrame({"dato": range(40)}), "height": 100})
+    )
+    window.content.setWidget(table_box)
+    application.processEvents()
+    table = table_box.findChild(DataTable)
+    assert table.verticalScrollBar().maximum() == 0

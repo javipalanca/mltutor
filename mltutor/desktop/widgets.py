@@ -69,8 +69,11 @@ class DataTable(QTableView):
                 + [min(320, metrics.horizontalAdvance(value) + 32) for value in samples]
             )
             self._minimums.append(width)
-        rows = min(10, max(1, model.rowCount()))
-        self.setFixedHeight(height if isinstance(height, int) else 46 + rows * 36 + 18)
+        rows = max(1, model.rowCount())
+        self.setFixedHeight(
+            max(height if isinstance(height, int) else 0, 46 + rows * 36 + 18)
+        )
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setToolTip(
             "Selecciona celdas y usa Ctrl+C (⌘C en Mac) para copiarlas. Arrastra los bordes de las columnas para ajustar su ancho."
         )
@@ -188,14 +191,9 @@ class CodeEditor(QPlainTextEdit):
         self.setTabStopDistance(self.fontMetrics().horizontalAdvance(" ") * 4)
         self.document().setDocumentMargin(18)
         self.setPlainText(source)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setFixedHeight(
-            min(
-                500,
-                max(
-                    140,
-                    (source.count("\n") + 2) * self.fontMetrics().lineSpacing() + 44,
-                ),
-            )
+            max(140, (source.count("\n") + 2) * self.fontMetrics().lineSpacing() + 44)
         )
         if language in (None, "python", "py", "python3"):
             self.highlighter = PythonHighlighter(self.document(), source)

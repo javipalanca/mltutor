@@ -816,10 +816,68 @@ class MainWindow(QMainWindow):
 
             js.write_text(get_plotlyjs(), encoding="utf-8")
         path = self.html_dir / (hashlib.sha256(body.encode()).hexdigest() + ".html")
-        path.write_text(body, encoding="utf-8")
+        document = (
+            body if re.search(r"<!doctype", body, re.I) else "<!DOCTYPE html>\n" + body
+        )
+        path.write_text(document, encoding="utf-8")
         view = QWebEngineView()
         view.setPage(QWebEnginePage(self.web_profile, view))
         view.setFixedHeight(int(height))
+        # Measure the rendered document, not the old Streamlit iframe hint.
+        # The timer also catches delayed graphs, animation panels and resizing.
+        view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        timer = QTimer(view)
+        timer.setInterval(400)
+        pending = [False]
+
+        def measured(value):
+            pending[0] = False
+            from shiboken6 import isValid
+
+            if isValid(view) and isinstance(value, (int, float)) and value > 0:
+                target = max(int(height), int(value) + 2)
+                if target != view.height():
+                    view.setFixedHeight(target)
+
+        def measure():
+            if pending[0]:
+                return
+            pending[0] = True
+            view.page().runJavaScript(
+                """(() => {
+                    const body = document.body;
+                    if (!body) return 0;
+                    document.documentElement.style.setProperty('overflow-y', 'hidden', 'important');
+                    body.style.setProperty('height', 'auto', 'important');
+                    body.style.setProperty('min-height', '0', 'important');
+                    body.style.setProperty('overflow-y', 'hidden', 'important');
+                    if (!document.getElementById('mltutor-fit-style')) {
+                        const fit = document.createElement('style');
+                        fit.id = 'mltutor-fit-style';
+                        fit.textContent = '*, *::before, *::after { box-sizing: border-box; }';
+                        document.head.appendChild(fit);
+                    }
+                    const style = getComputedStyle(body);
+                    return Math.ceil(body.getBoundingClientRect().height
+                        + parseFloat(style.marginTop || 0) + parseFloat(style.marginBottom || 0));
+                })()""",
+                measured,
+            )
+
+        def loaded(ok):
+            if ok:
+                # Plotly's default 100% height otherwise follows its growing
+                # host viewport. Give the chart a stable canvas, fit around it.
+                view.page().runJavaScript(
+                    "document.querySelectorAll('.plotly-graph-div').forEach(el => {"
+                    f"if (!el.style.height || el.style.height === '100%') el.style.height = '{int(height)}px';"
+                    "});",
+                    lambda _: measure(),
+                )
+                timer.start()
+
+        timer.timeout.connect(measure)
+        view.loadFinished.connect(loaded)
         view.load(QUrl.fromLocalFile(str(path)))
         self.webviews.append(view)
         return view
