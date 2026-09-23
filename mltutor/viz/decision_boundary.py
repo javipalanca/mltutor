@@ -1,13 +1,13 @@
 import pandas as pd
-import streamlit as st
+from mltutor.desktop import ui as st
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from sklearn.inspection import DecisionBoundaryDisplay
 
-from utils import get_image_download_link, show_code_with_download
-from algorithms.code_examples import generate_decision_boundary_code
+from mltutor.utils import get_image_download_link, show_code_with_download
+from mltutor.algorithms.code_examples import generate_decision_boundary_code
 
 
 def plot_decision_boundary(model_2d, X, y, feature_names, class_names):

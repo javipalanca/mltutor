@@ -1,5 +1,5 @@
-import streamlit as st
-import streamlit.components.v1 as components
+from mltutor.desktop import ui as st
+from mltutor.desktop import ui as components
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -10,18 +10,18 @@ from plotly.subplots import make_subplots
 
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 
-from dataset.dataset_manager import create_dataset_selector, load_data, preprocess_data
-from algorithms.model_training import train_knn_model
-from algorithms.model_evaluation import evaluate_classification_model, evaluate_regression_model, show_detailed_evaluation
-from algorithms.export import display_model_export_options
-from ui import create_prediction_interface, create_button_panel
-from dataset.dataset_tab import run_dataset_tab
-from utils import create_info_box, get_image_download_link, show_code_with_download
-from viz.roc import plot_roc_curve, plot_threshold_analysis
-from viz.decision_boundary import plot_decision_surface, plot_decision_boundary
-from viz.residual import plot_predictions, plot_residuals
-from viz.features import display_feature_importance
-from apps.navbar import navbar
+from mltutor.dataset.dataset_manager import create_dataset_selector, load_data, preprocess_data
+from mltutor.algorithms.model_training import train_knn_model
+from mltutor.algorithms.model_evaluation import evaluate_classification_model, evaluate_regression_model, show_detailed_evaluation
+from mltutor.algorithms.export import display_model_export_options
+from mltutor.ui import create_prediction_interface, create_button_panel
+from mltutor.dataset.dataset_tab import run_dataset_tab
+from mltutor.utils import create_info_box, get_image_download_link, show_code_with_download
+from mltutor.viz.roc import plot_roc_curve, plot_threshold_analysis
+from mltutor.viz.decision_boundary import plot_decision_surface, plot_decision_boundary
+from mltutor.viz.residual import plot_predictions, plot_residuals
+from mltutor.viz.features import display_feature_importance
+from mltutor.apps.navbar import navbar
 
 
 def run_knn_app():
@@ -166,7 +166,7 @@ def run_knn_app():
 
                 # Mostrar información del dataset
                 st.markdown("### Información del Dataset")
-                from utils import create_info_box
+                from mltutor.utils import create_info_box
                 st.markdown(create_info_box(info), unsafe_allow_html=True)
 
             except Exception as e:

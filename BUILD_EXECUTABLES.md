@@ -1,143 +1,86 @@
-# Generar ejecutables de MLTutor
+# MLTutor portable con Qt
 
-MLTutor se empaqueta con [PyInstaller](https://pyinstaller.org) en un
-ejecutable autocontenido (modo *onedir*) que incluye Python, Streamlit,
-TensorFlow y todas las dependencias. Los estudiantes solo tienen que
-descargar, descomprimir y hacer doble clic — no necesitan instalar nada.
+La aplicación de escritorio utiliza PySide6 (Qt Widgets). Los controles son
+nativos y los gráficos interactivos se muestran en Qt WebEngine con JavaScript
+local. No hay servidor HTTP, navegador externo, Streamlit ni instalador.
 
-Desde la versión de escritorio, MLTutor se abre como una **app con ventana
-propia** (no en el navegador): la UI de Streamlit se empotra en una ventana
-nativa mediante [pywebview](https://pywebview.flowrl.com/):
+## Para estudiantes
 
-| Plataforma | Motor de la ventana |
-|---|---|
-| macOS | WKWebView (WebKit del sistema, vía pyobjc) |
-| Windows | WebView2 (Edge/Chromium, preinstalado en Windows 10/11) |
-| Linux | Qt WebEngine (PySide6, empaquetado dentro del ejecutable) |
+- **Windows x86_64:** descargar `mltutor-windows-x86_64.exe` y abrirlo.
+- **macOS Apple Silicon:** descargar `mltutor-macos-arm64.zip`, descomprimir y
+  abrir `MLTutor.app` desde esa misma carpeta. No hace falta copiar a Aplicaciones.
+- **Linux x86_64:** descargar `mltutor-linux-x86_64`, marcarlo como ejecutable en
+  las propiedades del archivo y abrirlo. La compatibilidad se valida sobre
+  Ubuntu 22.04 y sistemas compatibles; no es un binario universal para toda
+  distribución de Linux.
 
-Si no hay backend gráfico disponible (p. ej. WebView2 ausente o un Linux
-sin display), el launcher cae automáticamente al modo clásico: arranca el
-servidor y abre el navegador. El flag `--browser` fuerza ese modo.
+No se necesita instalar Python, Qt, TensorFlow ni usar permisos de administrador.
+Cada descarga contiene su propio entorno. Windows y Linux extraen componentes a
+una carpeta temporal del usuario al abrirse: el primer arranque puede tardar y
+necesita espacio libre. macOS utiliza un bundle de aplicación autocontenido.
 
-## Cómo funciona
+Los equipos deben permitir ejecutar aplicaciones descargadas. El empaquetado
+portable no evita políticas institucionales que bloqueen ejecutables, ni las
+comprobaciones de confianza del sistema. La firma Developer ID y notarización de
+macOS siguen pendientes de credenciales; no se promete apertura sin avisos hasta
+completar esa fase. TensorFlow sigue siendo la parte más pesada de la descarga.
 
-- [launcher_rich.py](launcher_rich.py) es el punto de entrada: arranca el
-  servidor Streamlit y abre la ventana nativa (o el navegador como
-  fallback). En modo congelado el launcher se relanza a sí mismo con
-  `--server-mode` y ejecuta Streamlit *in-process* (en un ejecutable
-  PyInstaller no existe un intérprete Python externo).
-- En Windows el ejecutable es *windowed* (sin consola); la salida se
-  registra en `~/.mltutor/mltutor.log`. En macOS se genera un bundle
-  `MLTutor.app` con doble clic nativo.
-- Para pruebas automatizadas, `MLTUTOR_WINDOW_TIMEOUT=N` cierra la ventana
-  a los N segundos.
-- [pyinstaller.spec](pyinstaller.spec) define el empaquetado. El paquete
-  `mltutor/` se incluye como **datos** (Streamlit necesita el `.py` real
-  para ejecutarlo), por lo que todas las librerías que usa la app se
-  fuerzan con `collect_all`.
-- Si añades una dependencia nueva a la app, añádela también a la lista de
-  `collect_all` del spec.
+## Desarrollo
 
-## Build local
+```sh
+uv sync --locked --extra dev
+uv run python launcher_qt.py
+uv run pytest -q
+uv run python launcher_qt.py --smoke-test
+uv run python launcher_qt.py --verify-models
+```
 
-Requiere Python 3.12 (fijado en `.python-version`; TensorFlow 2.16 no
-soporta 3.13+) y [uv](https://docs.astral.sh/uv/).
+También se puede iniciar con `uv run mltutor` o `python -m mltutor.desktop`.
+Python 3.11 o 3.12. La versión original Streamlit permanece en `main`; la
+migración se desarrolla en `codex/desktop-migration-study`.
 
-```bash
-uv sync --extra dev
+## Empaquetado
+
+```sh
 uv run pyinstaller pyinstaller.spec --noconfirm
 ```
 
-El resultado queda en `dist/mltutor/` (el binario es `dist/mltutor/mltutor`,
-o `mltutor.exe` en Windows). El directorio completo es lo que se distribuye.
+Salida: `dist/MLTutor.exe` en Windows, `dist/MLTutor` en Linux y
+`dist/MLTutor.app` en macOS. Construir por separado en cada plataforma.
+Para trabajar en paralelo con builds anteriores se puede usar
+`--distpath dist/qt --workpath build/qt`.
 
-PyInstaller **no cross-compila**: cada ejecutable debe generarse en su
-propio sistema operativo.
+El workflow `.github/workflows/build-executables.yml` ejecuta pruebas de las
+lecciones, construye y abre el ejecutable portable en las tres plataformas. Se
+puede lanzar manualmente, desde una PR o mediante un tag `v*`. Solo los tags
+publican una release. Los tags con sufijo (por ejemplo `v0.3.0-rc.1`) publican
+una versión preliminar sin reemplazar la estable. Se exige la presencia de las
+tres descargas y se adjunta `SHA256SUMS.txt`.
 
-## Build automática (GitHub Actions)
+Para publicar desde la rama de migración: `./release.sh 0.3.0-rc.1`.
+El script necesita GitHub CLI autenticado y mantiene `main` intacta. No utiliza Inno Setup ni genera instaladores.
 
-El workflow [build-executables.yml](.github/workflows/build-executables.yml)
-compila en paralelo para:
+## Arquitectura
 
-| Plataforma | Runner | Artefacto | Contenido |
-|---|---|---|---|
-| Linux x86_64 | ubuntu-22.04 | `mltutor-linux-x86_64.tar.gz` | carpeta `mltutor/` |
-| Windows x86_64 | windows-latest | `mltutor-windows-x86_64-setup.exe` | instalador (Inno Setup) |
-| Windows x86_64 | windows-latest | `mltutor-windows-x86_64-portable.zip` | carpeta `mltutor/` (portable) |
-| macOS arm64 (Apple Silicon) | macos-latest | `mltutor-macos-arm64.tar.gz` | bundle `MLTutor.app` |
+- `mltutor/desktop/ui.py`: descripción de controles y estado independiente de Qt.
+- `mltutor/desktop/window.py`: controles Qt, formularios, tablas, gráficos y
+  diálogos de archivos. Los cálculos se ejecutan en un QThread y la ventana solo
+  recibe resultados mediante señales. La cancelación es cooperativa.
+- `mltutor/desktop/__main__.py`: arranque y prueba de apertura.
+- Las lecciones de `apps`, `dataset`, `viz` y `algorithms` conservan sus textos,
+  cálculos y orden de navegación, utilizando ahora la capa de presentación local.
+  El alias `st` en esos módulos es únicamente un nombre histórico; importa
+  `mltutor.desktop.ui`, nunca Streamlit.
+- Matplotlib se convierte en imágenes en el trabajador. Plotly y las animaciones
+  HTML usan archivos locales, incluyendo Plotly JS; no necesitan CDN.
+- Los datasets ya incluidos funcionan sin conexión. Los datasets que requieren
+  descarga mantienen esa necesidad hasta que se distribuyan también sus datos.
 
-En Windows se distribuye un **instalador** además de un zip portable. El
-instalador **no requiere permisos de administrador**: instala por-usuario
-en `%LOCALAPPDATA%\Programs\MLTutor` (sin UAC; un admin puede forzar la
-instalación global con `/ALLUSERS`), crea el acceso directo del Menú
-Inicio con el icono y añade desinstalador (el usuario nunca ve el
-directorio `_internal` de PyInstaller). El script del instalador es
-[installers/windows/mltutor.iss](installers/windows/mltutor.iss).
-El **zip portable** no instala nada: descomprimir y ejecutar
-`mltutor\mltutor.exe` — útil en equipos con políticas restrictivas
-(laboratorios docentes).
-
-Además del test de servidor, el CI comprueba en Windows y Linux (con
-xvfb) que la **ventana nativa** abre de verdad (`MLTUTOR_REQUIRE_WINDOW=1`
-desactiva el fallback a navegador y hace fallar el build si no hay
-ventana).
-
-Se dispara:
-
-- **Manualmente**: pestaña *Actions* → *Build executables* → *Run workflow*.
-  Los ejecutables quedan como artefactos del workflow (14 días).
-- **Con un tag** `v*` (p. ej. `git tag v1.0.0 && git push --tags`):
-  además publica una **GitHub Release** con los tres ficheros adjuntos,
-  lista para compartir el enlace de descarga con los estudiantes.
-
-## Publicar una release (script)
-
-Todo el ciclo está automatizado en [release.sh](release.sh):
-
-```bash
-./release.sh 0.3.0
-```
-
-El script actualiza la versión en `pyproject.toml` (única fuente de
-versión: el bundle de macOS y el instalador de Windows la leen de ahí),
-hace commit, crea y pushea el tag `v0.3.0`, espera a que el CI compile
-las tres plataformas y verifica que la release queda publicada con todos
-los artefactos. Requiere `gh` (GitHub CLI) autenticado.
-
-Incluye un *smoke test* en Linux/macOS que arranca el binario y comprueba
-que el servidor responde.
-
-Nota: macOS Intel no está soportado (no hay wheels de TensorFlow recientes
-para esa plataforma).
-
-### Firma y notarización en macOS (pendiente)
-
-El bundle va firmado *ad-hoc* (lo hace PyInstaller), pero **no notarizado**:
-macOS moderno lo bloquea en la primera apertura y el estudiante tiene que
-autorizarlo en Ajustes (ver instrucciones más abajo). La solución
-definitiva es firmar con un certificado *Developer ID Application* y
-notarizar con `notarytool`, lo que requiere una cuenta de pago del Apple
-Developer Program. Cuando se disponga de ella, se puede automatizar en el
-workflow con los secrets del certificado y `xcrun notarytool submit`.
-
-## Instrucciones para estudiantes
-
-1. Descargar el fichero de su sistema operativo desde la página de Releases.
-2. Instalar / ejecutar:
-   - **Windows**: doble clic en `mltutor-windows-x86_64-setup.exe` y seguir
-     el asistente; después, abrir *MLTutor* desde el Menú Inicio. Si
-     SmartScreen avisa, pulsar *Más información* → *Ejecutar de todas
-     formas*.
-   - **macOS**: descomprimir e intentar abrir `MLTutor.app` (fallará con
-     *"no se puede abrir"* o error -47: el bundle no está notarizado y
-     Gatekeeper lo bloquea; desde macOS Sequoia el clic derecho → *Abrir*
-     ya no sirve). Después, ir a **Ajustes del Sistema → Privacidad y
-     seguridad**, bajar hasta el aviso sobre MLTutor y pulsar **Abrir de
-     todos modos**. Alternativa por terminal (sin pasar por Ajustes):
-     `xattr -dr com.apple.quarantine MLTutor.app` y abrir normalmente.
-   - **Linux**: descomprimir y ejecutar `./mltutor/mltutor` desde una
-     terminal.
-3. Se abrirá MLTutor en su propia ventana. Al cerrar la ventana, la app
-   se detiene sola. Con `--browser` se usa el modo clásico (navegador).
-
-El ejecutable ocupa en torno a 1–2 GB descomprimido (TensorFlow incluido).
+Las pruebas cubren navegación, estado, CSV, entrenamiento real de los cuatro
+algoritmos, evaluación y renderizado de las pestañas. La prueba del binario
+comprueba la apertura de las secciones sin depender de Python instalado fuera
+del paquete. `--verify-models` comprueba dentro del ejecutable entrenamiento real,
+predicción y exportaciones Pickle, ONNX, Keras, SavedModel y TensorFlow Lite,
+incluyendo equivalencia numérica de predicciones. Es recomendable
+validar también las descargas en equipos limpios
+con cuentas sin privilegios antes de publicarlas a estudiantes.

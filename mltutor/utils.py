@@ -8,7 +8,7 @@ import io
 import pickle
 import matplotlib.pyplot as plt
 import numpy as np
-import streamlit as st
+from mltutor.desktop import ui as st
 # Función para generar enlace de descarga de imagen
 
 

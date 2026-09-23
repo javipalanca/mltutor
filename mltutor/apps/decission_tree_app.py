@@ -2,7 +2,7 @@ import base64
 import pickle
 import io
 
-import streamlit as st
+from mltutor.desktop import ui as st
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -10,30 +10,30 @@ import seaborn as sns
 from sklearn.inspection import DecisionBoundaryDisplay
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor, plot_tree, export_text
 
-from dataset.dataset_manager import load_data, preprocess_data
-from algorithms.model_training import train_decision_tree
-from algorithms.model_evaluation import (
+from mltutor.dataset.dataset_manager import load_data, preprocess_data
+from mltutor.algorithms.model_training import train_decision_tree
+from mltutor.algorithms.model_evaluation import (
     evaluate_classification_model,
     evaluate_regression_model,
     show_detailed_evaluation,
 )
-from utils import create_info_box, get_image_download_link, show_code_with_download
-from dataset.dataset_tab import run_dataset_tab, run_select_dataset
-from algorithms.code_examples import (
+from mltutor.utils import create_info_box, get_image_download_link, show_code_with_download
+from mltutor.dataset.dataset_tab import run_dataset_tab, run_select_dataset
+from mltutor.algorithms.code_examples import (
     DECISION_BOUNDARY_CODE,
     VIZ_TREE_CODE,
     TEXT_TREE_CODE,
     generate_decision_boundary_code,
     generate_tree_model_export_code,
 )
-from algorithms.export import display_tree_export_options, display_model_export_options
-from viz.tree_visualizer import get_tree_text
-from viz.decision_boundary import plot_decision_boundary, plot_decision_surface
-from viz.roc import plot_roc_curve
-from viz.residual import plot_predictions, plot_residuals
-from viz.features import display_feature_importance
-from ui import create_button_panel, create_prediction_interface
-from apps.navbar import navbar
+from mltutor.algorithms.export import display_tree_export_options, display_model_export_options
+from mltutor.viz.tree_visualizer import get_tree_text
+from mltutor.viz.decision_boundary import plot_decision_boundary, plot_decision_surface
+from mltutor.viz.roc import plot_roc_curve
+from mltutor.viz.residual import plot_predictions, plot_residuals
+from mltutor.viz.features import display_feature_importance
+from mltutor.ui import create_button_panel, create_prediction_interface
+from mltutor.apps.navbar import navbar
 
 
 def run_decision_trees_app():

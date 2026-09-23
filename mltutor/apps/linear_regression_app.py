@@ -1,4 +1,4 @@
-import streamlit as st
+from mltutor.desktop import ui as st
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -6,17 +6,17 @@ import seaborn as sns
 
 from sklearn.linear_model import LogisticRegression, LinearRegression
 
-from dataset.dataset_manager import load_data, preprocess_data
-from dataset.dataset_tab import run_dataset_tab
-from utils import create_info_box, get_image_download_link, show_code_with_download
-from algorithms.model_training import train_linear_model
-from algorithms.model_evaluation import show_detailed_evaluation
-from algorithms.export import display_model_export_options
-from viz.roc import plot_roc_curve, plot_threshold_analysis
-from viz.residual import plot_predictions, plot_residuals
-from viz.decision_boundary import plot_decision_boundary, plot_decision_surface
-from ui import create_button_panel, create_prediction_interface
-from apps.navbar import navbar
+from mltutor.dataset.dataset_manager import load_data, preprocess_data
+from mltutor.dataset.dataset_tab import run_dataset_tab
+from mltutor.utils import create_info_box, get_image_download_link, show_code_with_download
+from mltutor.algorithms.model_training import train_linear_model
+from mltutor.algorithms.model_evaluation import show_detailed_evaluation
+from mltutor.algorithms.export import display_model_export_options
+from mltutor.viz.roc import plot_roc_curve, plot_threshold_analysis
+from mltutor.viz.residual import plot_predictions, plot_residuals
+from mltutor.viz.decision_boundary import plot_decision_boundary, plot_decision_surface
+from mltutor.ui import create_button_panel, create_prediction_interface
+from mltutor.apps.navbar import navbar
 
 
 def run_linear_regression_app():

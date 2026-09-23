@@ -6,7 +6,7 @@ Incluye funciones para cargar conjuntos de datos integrados, cargar archivos CSV
 import pandas as pd
 import numpy as np
 import seaborn as sns
-import streamlit as st
+from mltutor.desktop import ui as st
 import os
 import datetime
 
@@ -14,7 +14,7 @@ from sklearn.datasets import load_iris, load_wine, load_breast_cancer, load_digi
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 
-from dataset.additional_datasets import load_additional_dataset
+from mltutor.dataset.additional_datasets import load_additional_dataset
 
 
 def reset_moons_dataset(n_samples=500, noise=0.2):
@@ -404,7 +404,7 @@ def load_data(dataset_option):
     }
 
     # Comprobar si es un dataset CSV personalizado cargado
-    import streamlit as st
+    from mltutor.desktop import ui as st
     if hasattr(st, 'session_state') and 'csv_datasets' in st.session_state and dataset_option in st.session_state.csv_datasets:
         csv_info = st.session_state.csv_datasets[dataset_option]
         return load_dataset_from_file(
@@ -577,11 +577,7 @@ def create_dataset_selector(show_predefined=True):
                                     f"• {val}: {count} ({count/len(df)*100:.1f}%)")
 
                 # Guardar en archivo temporal
-                import tempfile
-                temp_file = tempfile.NamedTemporaryFile(
-                    mode='w+', delete=False, suffix='.csv')
-                df.to_csv(temp_file.name, index=False)
-                temp_file.close()
+                csv_path = st.store_csv(df)
 
                 # Añadir dataset a la lista de datasets disponibles en session_state
                 dataset_name = f"📄 {uploaded_file.name}"
@@ -589,7 +585,7 @@ def create_dataset_selector(show_predefined=True):
                     st.session_state.csv_datasets = {}
 
                 st.session_state.csv_datasets[dataset_name] = {
-                    'file_path': temp_file.name,
+                    'file_path': csv_path,
                     'target_col': target_col,
                     'task_type': task_type,
                     'original_name': uploaded_file.name
@@ -597,11 +593,12 @@ def create_dataset_selector(show_predefined=True):
 
                 # Actualizar el dataset seleccionado para usar el nuevo CSV
                 st.session_state.selected_dataset = dataset_name
+                st.session_state.unified_dataset_selector = dataset_name
 
                 st.success(
                     f"✅ Dataset '{uploaded_file.name}' añadido a la lista de datasets disponibles")
 
-                return temp_file.name, target_col, task_type
+                return csv_path, target_col, task_type
 
             except Exception as e:
                 st.error(f"❌ Error al procesar el archivo: {str(e)}")

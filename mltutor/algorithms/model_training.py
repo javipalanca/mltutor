@@ -3,7 +3,7 @@ Este módulo contiene funciones para entrenar modelos de árboles de decisión, 
 Incluye funciones para crear, entrenar y evaluar modelos de clasificación y regresión.
 """
 
-import streamlit as st
+from mltutor.desktop import ui as st
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
@@ -24,9 +24,9 @@ if not USE_GPU:
     # Usar CPU (más estable en macOS)
     tf.config.set_visible_devices([], 'GPU')
 
-from dataset.dataset_manager import preprocess_data
-from algorithms.model_evaluation import evaluate_classification_model, evaluate_regression_model
-from viz.nn import safe_get_output_size
+from mltutor.dataset.dataset_manager import preprocess_data
+from mltutor.algorithms.model_evaluation import evaluate_classification_model, evaluate_regression_model
+from mltutor.viz.nn import safe_get_output_size
 
 
 def train_decision_tree_classifier(X, y, max_depth, min_samples_split, criterion):
@@ -527,7 +527,7 @@ def train_neural_network(df, target_col, config, learning_rate, epochs, validati
 
         if reduce_lr:
             reduce_lr_callback = keras.callbacks.ReduceLROnPlateau(
-                monitor='val_loss', factor=lr_factor, patience=patience//2, min_lr=1e-7
+                monitor='val_loss', factor=lr_factor, patience=max(1, (patience or 10)//2), min_lr=1e-7
             )
             callbacks.append(reduce_lr_callback)
 
@@ -536,6 +536,19 @@ def train_neural_network(df, target_col, config, learning_rate, epochs, validati
             progress_callback(
                 4, f"Entrenando red neuronal ({epochs} épocas máximo)... ¡Puede tardar unos minutos!")
         time.sleep(1.0)  # Pausa más larga antes del entrenamiento
+
+        # Progreso y cancelación cooperativa sin bloquear la ventana Qt.
+        class DesktopProgress(keras.callbacks.Callback):
+            def on_epoch_end(self, epoch, logs=None):
+                st.report_progress(
+                    f"Época {epoch + 1}/{epochs} · pérdida: {(logs or {}).get('loss', 0):.4f}",
+                    (epoch + 1) / epochs * 100,
+                )
+
+            def on_train_batch_end(self, batch, logs=None):
+                st.check_cancelled()
+
+        callbacks.append(DesktopProgress())
 
         # Entrenar modelo
         history = model.fit(

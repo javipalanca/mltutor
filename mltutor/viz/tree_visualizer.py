@@ -3,12 +3,12 @@ Este módulo contiene funciones para visualizar árboles de decisión en diferen
 Incluye funciones para renderizar diferentes tipos de visualizaciones en la aplicación MLTutor.
 """
 
-import streamlit as st
+from mltutor.desktop import ui as st
 import numpy as np
 import base64
 from sklearn.tree import plot_tree, export_text, DecisionTreeClassifier, DecisionTreeRegressor
 import matplotlib.pyplot as plt
-from utils import get_image_download_link, get_code_download_link, show_code_with_download
+from mltutor.utils import get_image_download_link, get_code_download_link, show_code_with_download
 
 # Verificar disponibilidad de módulos de visualización
 

@@ -1,19 +1,19 @@
 import base64
 import pickle
 import io
-import streamlit as st
+from mltutor.desktop import ui as st
 
 from sklearn.tree import export_text
 
-from utils import show_code_with_download, export_model_pickle
-from algorithms.code_examples import (
+from mltutor.utils import show_code_with_download, export_model_pickle
+from mltutor.algorithms.code_examples import (
     generate_tree_model_export_code,
     generate_regression_code,
     generate_neural_network_code,
     LOAD_NN,
 )
-from viz.nn import calculate_network_parameters
-from ui import create_button_panel
+from mltutor.viz.nn import calculate_network_parameters
+from mltutor.ui import create_button_panel
 import traceback
 import tempfile
 import zipfile
@@ -36,20 +36,19 @@ def _zip_dir(src_dir: str) -> bytes:
 def convert_keras_to_tflite(model) -> bytes:
     """Convierte un modelo Keras a TFLite.
 
-    Con Keras 3 (TF >= 2.16) TFLiteConverter.from_keras_model falla con
-    "Functional object has no attribute _get_save_spec"; en ese caso se
-    exporta primero a SavedModel y se convierte desde el directorio.
+    Con Keras 3 y TF 2.16 la conversión directa puede abortar el proceso
+    dentro de LLVM (no es una excepción Python). Exportar primero como
+    SavedModel evita ese camino y conserva la aplicación de escritorio.
     """
     import tensorflow as tf
 
-    try:
-        converter = tf.lite.TFLiteConverter.from_keras_model(model)
-        return converter.convert()
-    except AttributeError:
+    if hasattr(model, 'export'):
         with tempfile.TemporaryDirectory() as tmpdir:
             model.export(tmpdir)
             converter = tf.lite.TFLiteConverter.from_saved_model(tmpdir)
             return converter.convert()
+    converter = tf.lite.TFLiteConverter.from_keras_model(model)
+    return converter.convert()
 
 
 def export_saved_model_as_zip(model, safe_mode: bool):

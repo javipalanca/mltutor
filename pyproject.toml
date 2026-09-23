@@ -4,10 +4,10 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mltutor"
-version = "0.2.8"
-description = "Interactive ML tutor built with Streamlit."
+version = "0.3.0rc1"
+description = "Portable desktop ML tutor built with Qt."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11,<3.13"
 authors = [
   { name = "Javier Palanca" }
 ]
@@ -19,7 +19,6 @@ dependencies = [
   "seaborn>=0.11.0",
   "pillow>=8.0.0",
   "pydot>=1.4.0",
-  "streamlit>=1.30.0",
   "skl2onnx==1.19.1",
   # onnx 1.18+ requiere ml_dtypes>=0.5, incompatible con tensorflow 2.16 (ml-dtypes~=0.3)
   "onnx>=1.13.0,<1.18",
@@ -30,16 +29,8 @@ dependencies = [
   "plotly>=5.14.0",
   "joblib>=1.2.0",
   "rich>=13.0.0",
-  # Ventana nativa de escritorio que empotra la UI de Streamlit.
-  # En macOS usa WKWebView (pyobjc); pywebview instala esas dependencias
-  # automáticamente según plataforma.
-  "pywebview>=5.1",
-  # Backend Qt para pywebview en Linux y Windows: autocontenido y
-  # empaquetable con PyInstaller (el backend WinForms/.NET de pywebview
-  # crashea bajo PyInstaller: excepción CLR 0xE0434352).
-  "qtpy>=2.4; platform_system == 'Linux' or platform_system == 'Windows'",
-  # launcher.py también utiliza PySide6 en macOS.
-  "PySide6>=6.6",
+  "PySide6>=6.6,<6.11",
+  "markdown>=3.5",
   # TensorFlow (plataforma específica)
   # - Linux/Windows: tensorflow oficial
   # - macOS ARM64: tensorflow-macos + aceleración con tensorflow-metal
@@ -64,3 +55,9 @@ dev = [
 
 #[tool.uv]
 # uv reads dependencies from [project]
+
+[project.gui-scripts]
+mltutor = "mltutor.desktop.__main__:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

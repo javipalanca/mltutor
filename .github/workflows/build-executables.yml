@@ -4,34 +4,44 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+  pull_request:
+    paths:
+      - 'mltutor/**'
+      - 'tests/**'
+      - 'launcher_qt.py'
+      - 'pyinstaller.spec'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.github/workflows/build-executables.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: portable-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build:
-    name: Build (${{ matrix.platform }})
+    name: Portable Qt (${{ matrix.platform }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: ubuntu-22.04
             platform: linux-x86_64
-            archive: tar
           - os: windows-latest
             platform: windows-x86_64
-            archive: installer
           - os: macos-latest
             platform: macos-arm64
-            archive: tar
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.12"
-
-      - name: Install Qt system libraries (Linux)
+          python-version: '3.12'
+      - name: Build machine libraries (Linux only)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
@@ -41,148 +51,75 @@ jobs:
             libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 \
             libxcb-render-util0 libxcb-shape0 libxcb-shm0 libxcb-sync1 \
             libxcb-xfixes0 libxcb-xinerama0 libxcb-xkb1
-
-      - name: Install dependencies
-        run: uv sync --extra dev
-
-      # Diagnóstico: ¿funciona la ventana nativa desde el venv (sin
-      # PyInstaller)? Si esto pasa y el test del congelado falla, el
-      # problema es de empaquetado; si ambos fallan, es del entorno CI.
-      - name: Smoke test (native window from venv, Windows)
-        if: matrix.os == 'windows-latest'
-        continue-on-error: true
-        timeout-minutes: 8
-        shell: pwsh
-        run: |
-          $env:MLTUTOR_WINDOW_TIMEOUT = "30"
-          $env:MLTUTOR_REQUIRE_WINDOW = "1"
-          uv run python launcher_rich.py
-          if ($LASTEXITCODE -ne 0) { Write-Error "venv window failed ($LASTEXITCODE)"; exit 1 }
-          Write-Host "venv window OK"
-
-      - name: Build with PyInstaller
+      - name: Install build dependencies
+        run: uv sync --locked --extra dev
+      - name: Test lessons and native controls
+        run: uv run pytest -q
+        env:
+          QT_QPA_PLATFORM: offscreen
+          MPLBACKEND: Agg
+          TF_CPP_MIN_LOG_LEVEL: '3'
+      - name: Build portable application
         run: uv run pyinstaller pyinstaller.spec --noconfirm
-
-      - name: Check bundled libraries
-        shell: bash
-        run: |
-          # tensorflow debe ir dentro del paquete (en Windows llega vía
-          # tensorflow-intel; sin él la app de redes neuronales no funciona)
-          for lib in tensorflow streamlit sklearn webview; do
-            if [ ! -d "dist/mltutor/_internal/$lib" ]; then
-              echo "FALTA $lib en el paquete" >&2
-              exit 1
-            fi
-          done
-          echo "Librerías críticas presentes"
-
-      - name: Smoke test (binary starts)
-        if: matrix.os != 'windows-latest'
-        shell: bash
-        run: |
-          ./dist/mltutor/mltutor --server-mode 8765 &
-          PID=$!
-          for i in $(seq 1 60); do
-            if curl -sf http://127.0.0.1:8765 > /dev/null; then
-              echo "Server responded OK"
-              kill $PID
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "Server did not start" >&2
-          kill $PID || true
-          exit 1
-
-      - name: Smoke test (binary starts, Windows)
-        if: matrix.os == 'windows-latest'
-        shell: pwsh
-        run: |
-          $proc = Start-Process -FilePath "dist/mltutor/mltutor.exe" `
-            -ArgumentList "--server-mode","8765" -PassThru
-          $ok = $false
-          for ($i = 0; $i -lt 60; $i++) {
-            try {
-              Invoke-WebRequest -Uri "http://127.0.0.1:8765" -UseBasicParsing -TimeoutSec 2 | Out-Null
-              $ok = $true
-              break
-            } catch { Start-Sleep -Seconds 2 }
-          }
-          Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
-          if ($ok) { Write-Host "Server responded OK" } else { Write-Error "Server did not start"; exit 1 }
-
-      - name: Smoke test (native window, Linux)
+      - name: Verify models and exports inside the executable (Linux)
         if: runner.os == 'Linux'
-        timeout-minutes: 10
-        run: |
-          export MLTUTOR_WINDOW_TIMEOUT=45
-          export MLTUTOR_REQUIRE_WINDOW=1
-          xvfb-run -a ./dist/mltutor/mltutor
-          echo "Native window OK"
-
-      - name: Smoke test (native window, Windows)
-        if: matrix.os == 'windows-latest'
+        timeout-minutes: 8
+        run: ./dist/MLTutor --verify-models
+      - name: Verify models and exports inside the executable (macOS)
+        if: runner.os == 'macOS'
+        timeout-minutes: 8
+        run: ./dist/MLTutor.app/Contents/MacOS/MLTutor --verify-models
+      - name: Verify models and exports inside the executable (Windows)
+        if: runner.os == 'Windows'
         timeout-minutes: 8
         shell: pwsh
         run: |
-          $env:MLTUTOR_WINDOW_TIMEOUT = "30"
-          $env:MLTUTOR_REQUIRE_WINDOW = "1"
-          $p = Start-Process -FilePath "dist/mltutor/mltutor.exe" -PassThru
-          # Margen: arranque del servidor (~1-2 min con TF) + ventana + cierre
-          $exited = $p.WaitForExit(300000)
-          Write-Host "--- ~/.mltutor/mltutor.log ---"
-          Get-Content "$env:USERPROFILE\.mltutor\mltutor.log" -Tail 80 -ErrorAction SilentlyContinue
-          Write-Host "------------------------------"
-          if (-not $exited) {
-            Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
-            Write-Error "La app no terminó (colgada tras 5 min)"
-            exit 1
+          $p = Start-Process -FilePath "dist/MLTutor.exe" -ArgumentList "--verify-models" -PassThru
+          if (-not $p.WaitForExit(420000)) {
+            Stop-Process -Id $p.Id -Force
+            throw "La comprobación de modelos no terminó"
           }
           if ($p.ExitCode -ne 0) {
-            Write-Error "Native window test failed (exit $($p.ExitCode))"
-            exit 1
+            Get-Content "$env:USERPROFILE\.mltutor\mltutor.log" -Tail 100 -ErrorAction SilentlyContinue
+            throw "Modelos o exportaciones fallidos: $($p.ExitCode)"
           }
-          Write-Host "Native window OK"
-
-      - name: Package (tar.gz)
-        if: matrix.archive == 'tar'
+      - name: Smoke test portable application (Linux)
+        if: runner.os == 'Linux'
+        timeout-minutes: 8
+        run: xvfb-run -a ./dist/MLTutor --smoke-test
+      - name: Smoke test portable application (macOS)
+        if: runner.os == 'macOS'
+        timeout-minutes: 8
+        run: ./dist/MLTutor.app/Contents/MacOS/MLTutor --smoke-test
+      - name: Smoke test portable application (Windows)
+        if: runner.os == 'Windows'
+        timeout-minutes: 8
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath "dist/MLTutor.exe" -ArgumentList "--smoke-test" -PassThru
+          if (-not $p.WaitForExit(420000)) {
+            Stop-Process -Id $p.Id -Force
+            throw "MLTutor no terminó la prueba de arranque"
+          }
+          if ($p.ExitCode -ne 0) {
+            Get-Content "$env:USERPROFILE\.mltutor\mltutor.log" -Tail 100 -ErrorAction SilentlyContinue
+            throw "Prueba de aplicación fallida: $($p.ExitCode)"
+          }
+      - name: Package portable downloads
         shell: bash
         run: |
-          if [ "$RUNNER_OS" = "macOS" ]; then
-            # En macOS se distribuye el bundle .app (doble clic nativo)
-            tar -czf mltutor-${{ matrix.platform }}.tar.gz -C dist MLTutor.app
-          else
-            tar -czf mltutor-${{ matrix.platform }}.tar.gz -C dist mltutor
-          fi
-
-      - name: Package (Windows installer)
-        if: matrix.archive == 'installer'
-        shell: pwsh
-        run: |
-          $version = uv run python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])"
-          Write-Host "Building installer for version $version"
-          iscc /DAppVersion=$version installers\windows\mltutor.iss
-          if (-not (Test-Path "mltutor-windows-x86_64-setup.exe")) {
-            Write-Error "Installer not generated"; exit 1
-          }
-
-      - name: Package (Windows portable zip)
-        if: matrix.archive == 'installer'
-        shell: pwsh
-        run: |
-          # Alternativa sin instalación para equipos con políticas
-          # restrictivas (laboratorios): descomprimir y ejecutar mltutor.exe
-          Compress-Archive -Path dist/mltutor -DestinationPath mltutor-windows-x86_64-portable.zip
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+          case "$RUNNER_OS" in
+            Windows) cp dist/MLTutor.exe mltutor-${{ matrix.platform }}.exe ;;
+            macOS) ditto -c -k --sequesterRsrc --keepParent dist/MLTutor.app mltutor-${{ matrix.platform }}.zip ;;
+            Linux) cp dist/MLTutor mltutor-${{ matrix.platform }}; chmod +x mltutor-${{ matrix.platform }} ;;
+          esac
+      - uses: actions/upload-artifact@v4
         with:
           name: mltutor-${{ matrix.platform }}
           path: mltutor-${{ matrix.platform }}*
           retention-days: 14
-
+          if-no-files-found: error
   release:
-    name: Publish release
     needs: build
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
@@ -192,12 +129,30 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           merge-multiple: true
-
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
+      - name: Verify all three downloads and generate checksums
+        run: |
+          test -s mltutor-windows-x86_64.exe
+          test -s mltutor-linux-x86_64
+          test -s mltutor-macos-arm64.zip
+          sha256sum mltutor-windows-x86_64.exe mltutor-linux-x86_64 mltutor-macos-arm64.zip > SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v2
         with:
           files: |
-            mltutor-*.tar.gz
-            mltutor-*-setup.exe
-            mltutor-*-portable.zip
+            mltutor-windows-x86_64.exe
+            mltutor-linux-x86_64
+            mltutor-macos-arm64.zip
+            SHA256SUMS.txt
+          fail_on_unmatched_files: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          make_latest: ${{ !contains(github.ref_name, '-') }}
           generate_release_notes: true
+          body: |
+            MLTutor de escritorio con Qt. Descargas portables, sin instalador ni Python/Qt externos.
+
+            - Windows x86_64: abrir el archivo `.exe`.
+            - macOS Apple Silicon: descomprimir el ZIP y abrir `MLTutor.app` desde esa carpeta.
+            - Linux x86_64 (Ubuntu 22.04 o compatible): dar permiso de ejecución al archivo y abrirlo.
+
+            Esta compilación supera las pruebas de lecciones, arranque y exportación de modelos en los tres sistemas.
+            macOS aún no dispone de firma Developer ID ni notarización, por lo que puede mostrar avisos de confianza.
+            Los equipos deben permitir ejecutar aplicaciones descargadas. No se necesitan permisos de instalación.

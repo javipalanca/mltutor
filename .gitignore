@@ -79,3 +79,5 @@ env/
 # Logs
 *.log
 olds/
+# Isolated desktop migration environment
+.venv-qt/

@@ -3,7 +3,7 @@ Este módulo contiene funciones para visualizar árboles de decisión.
 Integra diferentes tipos de visualizaciones disponibles en el proyecto.
 """
 
-import streamlit as st
+from mltutor.desktop import ui as st
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.tree import plot_tree, export_text

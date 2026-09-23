@@ -13,7 +13,7 @@
 set -euo pipefail
 
 VERSION="${1:-}"
-if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]]; then
   echo "Uso: ./release.sh X.Y.Z   (p. ej. ./release.sh 0.3.0)" >&2
   exit 1
 fi
@@ -25,15 +25,17 @@ REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
 
 # --- Comprobaciones previas ---------------------------------------------
 branch=$(git rev-parse --abbrev-ref HEAD)
-if [[ "$branch" != "main" ]]; then
-  echo "❌ Debes estar en main (estás en '$branch')" >&2
+if [[ "$branch" != "main" && "$VERSION" != *-rc.* ]]; then
+  echo "❌ Las versiones estables requieren main; en '$branch' usa X.Y.Z-rc.N" >&2
   exit 1
 fi
 if ! git diff --quiet || ! git diff --cached --quiet; then
   echo "❌ Hay cambios sin commitear; haz commit o stash antes de publicar" >&2
   exit 1
 fi
-git pull --ff-only
+if [[ "$branch" == "main" ]]; then
+  git pull --ff-only
+fi
 if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
   echo "❌ El tag $TAG ya existe" >&2
   exit 1
@@ -42,7 +44,7 @@ fi
 # --- Versionar ------------------------------------------------------------
 python3 - "$VERSION" <<'EOF'
 import re, sys
-version = sys.argv[1]
+version = sys.argv[1].replace("-rc.", "rc")
 path = "pyproject.toml"
 content = open(path).read()
 updated = re.sub(r'(?m)^version = "[^"]+"$', f'version = "{version}"', content, count=1)
@@ -57,7 +59,7 @@ if ! git diff --cached --quiet; then
   git commit -m "Release $TAG"
 fi
 git tag -a "$TAG" -m "MLTutor $TAG"
-git push origin main "$TAG"
+git push --atomic origin "$branch" "$TAG"
 echo "✓ Tag $TAG pusheado; el CI está compilando los ejecutables"
 
 # --- Esperar al workflow ---------------------------------------------------
@@ -80,7 +82,7 @@ gh run watch "$run_id" --exit-status
 echo
 n_assets=$(gh release view "$TAG" --json assets -q '.assets | length')
 if [[ "$n_assets" -lt 4 ]]; then
-  echo "❌ La release solo tiene $n_assets artefactos (se esperaban 4)" >&2
+  echo "❌ La release solo tiene $n_assets artefactos (se esperaban 3 ejecutables y sus checksums)" >&2
   exit 1
 fi
 echo "✓ Release $TAG publicada con $n_assets artefactos:"

@@ -1,11 +1,11 @@
-import streamlit as st
-import streamlit.components.v1 as components
+from mltutor.desktop import ui as st
+from mltutor.desktop import ui as components
 
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import numpy as np
 
-from viz.decision_boundary import plot_decision_surface
+from mltutor.viz.decision_boundary import plot_decision_surface
 
 
 def safe_get_output_size(config):
@@ -317,7 +317,7 @@ def plot_training_history(history, task_type):
     try:
         import plotly.graph_objects as go
         from plotly.subplots import make_subplots
-        import streamlit as st
+        from mltutor.desktop import ui as st
 
         # Crear subplots
         if task_type == 'Clasificación':

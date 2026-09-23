@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Legacy command name; MLTutor now opens directly in Qt."""
+"""Portable MLTutor entry point (no browser, server or installer)."""
 
 import multiprocessing
 
