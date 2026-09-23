@@ -260,3 +260,38 @@ def test_multiple_choices_wrap_and_enforce_limit(window, application):
     assert "1 de 6" in choices.summary.text()
     assert choices.columns > 1
     assert all(button.isVisible() for button in choices.buttons)
+
+
+def test_neural_architecture_canvas_and_legend_fit_after_resize(window, application):
+    from mltutor.viz.nn import create_neural_network_visualization
+
+    session = ui.Session()
+    root, _ = session.render(
+        lambda: create_neural_network_visualization(
+            [13, 16, 12, 8, 3], "relu", "softmax", "Clasificación"
+        )
+    )
+    node = next(n for n in walk(root) if n.kind == "html")
+    view = window.build(node)
+    window.content.setWidget(view)
+    for width in (650, 1100, 800):
+        view.setFixedWidth(width)
+        deadline = time.monotonic() + 15
+        fits = []
+        while time.monotonic() < deadline:
+            application.processEvents()
+            time.sleep(0.05)
+            if fits and fits[-1] is True:
+                break
+            view.page().runJavaScript(
+                """(() => {
+                const canvas = document.getElementById('nnCanvas');
+                const legend = document.querySelector('.layer-info');
+                return !!canvas && !!legend &&
+                    canvas.width > 0 &&
+                    legend.getBoundingClientRect().bottom <= innerHeight &&
+                    document.documentElement.scrollHeight <= innerHeight;
+            })()""",
+                fits.append,
+            )
+        assert fits and fits[-1] is True, f"Architecture clipped at width {width}"
