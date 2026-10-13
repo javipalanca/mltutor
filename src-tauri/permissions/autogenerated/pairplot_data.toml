@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-pairplot-data"
+description = "Enables the pairplot_data command without any pre-configured scope."
+commands.allow = ["pairplot_data"]
+
+[[permission]]
+identifier = "deny-pairplot-data"
+description = "Denies the pairplot_data command without any pre-configured scope."
+commands.deny = ["pairplot_data"]

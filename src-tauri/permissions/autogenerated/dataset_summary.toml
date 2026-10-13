@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-dataset-summary"
+description = "Enables the dataset_summary command without any pre-configured scope."
+commands.allow = ["dataset_summary"]
+
+[[permission]]
+identifier = "deny-dataset-summary"
+description = "Denies the dataset_summary command without any pre-configured scope."
+commands.deny = ["dataset_summary"]

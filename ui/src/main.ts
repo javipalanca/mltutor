@@ -1,4 +1,5 @@
 import "@fontsource-variable/inter/wght.css";
+import "katex/dist/katex.min.css";
 import "./styles/theme.css";
 
 import { mount } from "svelte";

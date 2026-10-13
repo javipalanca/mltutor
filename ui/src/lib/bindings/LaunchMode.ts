@@ -3,4 +3,4 @@
 /**
  * How the frontend should behave after mounting.
  */
-export type LaunchMode = { "kind": "normal" } | { "kind": "smoke_test", routes: Array<string>, } | { "kind": "screenshot" };
+export type LaunchMode = { "kind": "normal" } | { "kind": "smoke_test", routes: Array<string>, checks: Array<string>, } | { "kind": "screenshot", scenario: string | null, full_page: boolean, };

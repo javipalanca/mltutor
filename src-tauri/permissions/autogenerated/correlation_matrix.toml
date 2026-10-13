@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-correlation-matrix"
+description = "Enables the correlation_matrix command without any pre-configured scope."
+commands.allow = ["correlation_matrix"]
+
+[[permission]]
+identifier = "deny-correlation-matrix"
+description = "Denies the correlation_matrix command without any pre-configured scope."
+commands.deny = ["correlation_matrix"]

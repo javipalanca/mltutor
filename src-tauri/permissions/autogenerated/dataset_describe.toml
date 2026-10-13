@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-dataset-describe"
+description = "Enables the dataset_describe command without any pre-configured scope."
+commands.allow = ["dataset_describe"]
+
+[[permission]]
+identifier = "deny-dataset-describe"
+description = "Denies the dataset_describe command without any pre-configured scope."
+commands.deny = ["dataset_describe"]

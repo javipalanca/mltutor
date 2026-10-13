@@ -14,51 +14,51 @@ Leyenda: 🐍 = origen en Python · ⚠️ = requiere decisión o implementació
 
 ## 0. Estructura común
 
-- [ ] Barra lateral: "Navegación" con 🏠 Inicio, 🌲 Árboles de Decisión, 📊 Regresión,
+- [x] Barra lateral: "Navegación" con 🏠 Inicio, 🌲 Árboles de Decisión, 📊 Regresión,
       🔍 K-Nearest Neighbors y 🧠 Redes Neuronales; "🔧 Herramientas" con 📁 Cargar CSV
       Personalizado. El botón activo aparece resaltado. 🐍 `app.py`
-- [ ] Página de inicio: bienvenida, tarjetas "📚 Algoritmos disponibles" con los botones
+- [x] Página de inicio: bienvenida, tarjetas "📚 Algoritmos disponibles" con los botones
       "✨ Explorar …", "📝 Cómo usar MLTutor" y pie de página. 🐍 `ui.py`
       (`show_welcome_page`, `show_footer`)
-- [ ] Cada lección tiene pestañas en secuencia, con botones "Volver a …" y
+- [x] Cada lección tiene pestañas en secuencia, con botones "Volver a …" y *(F1: estructura; contenido de cada pestaña en F2–F5)*
       "Continuar a …" (`navbar`). Se conserva la pestaña activa por lección. 🐍 `apps/navbar.py`
-- [ ] Panel de botones para elegir subvista (`create_button_panel`). 🐍 `ui.py`
-- [ ] Avisos (info, warning, error, success), métricas, expanders, columnas, tablas
+- [x] Panel de botones para elegir subvista (`create_button_panel`). 🐍 `ui.py`
+- [x] Avisos (info, warning, error, success), métricas, expanders, columnas, tablas
       (en Qt no se pueden ordenar; ordenarlas es una mejora opcional) y bloques de código Python con resaltado, botón de copiar y descarga.
-- [ ] Los cálculos se hacen en segundo plano, con progreso y cancelación; la interfaz
+- [ ] Los cálculos se hacen en segundo plano, con progreso y cancelación; la interfaz *(F1: segundo plano y estado; falta el botón Cancelar)*
       nunca se bloquea.
-- [ ] Diálogos nativos para guardar las exportaciones y abrir CSV.
-- [ ] Funciona sin conexión: datasets, gráficos y fuentes van incluidos.
+- [ ] Diálogos nativos para guardar las exportaciones y abrir CSV. *(F1: abrir CSV y guardar PNG/código; exportaciones en F2–F6)*
+- [x] Funciona sin conexión: datasets, gráficos y fuentes van incluidos.
 
 ## 1. Datos (pestaña "📊 Datos", común a las cuatro lecciones) 🐍 `dataset/`
 
-- [ ] Selector de 11 datasets incluidos: 🌸 Iris, 🍷 Vino, 🔬 Cáncer, 🔢 Dígitos, 🩺 Diabetes,
+- [x] Selector de 11 datasets incluidos: 🌸 Iris, 🍷 Vino, 🔬 Cáncer, 🔢 Dígitos, 🩺 Diabetes,
       💎 Diamantes (muestreo), ⛽ MPG, 🚢 Titanic, 💰 Propinas, 🏠 Viviendas California y
       🐧 Pingüinos. También 🌙 Moons sintético, sin controles en Python (500 muestras,
       ruido 0.2). En Rust se genera una vez por sesión con semilla 42 (D9). En MPG, `name` se muestra en la exploración pero no es
       característica del modelo (D8).
       ⚠️ California y Diamantes se descargan hoy de internet: hay que incluirlos.
-- [ ] Carga de CSV propio: elegir la columna objetivo, detectar automáticamente si es
+- [x] Carga de CSV propio: elegir la columna objetivo, detectar automáticamente si es
       clasificación o regresión, codificar etiquetas y nombrar las clases.
-- [ ] Información del dataset: muestras, características y clases. La descripción aparece en
+- [ ] Información del dataset: muestras, características y clases. La descripción aparece en *(F1: parte de Datos hecha)*
       la pestaña Entrenamiento, que también muestra el selector en árboles, regresión y KNN.
-- [ ] El dataset seleccionado es **global**: lo comparten las 4 lecciones y la página CSV.
-- [ ] Vista previa de los datos y estadísticas descriptivas (`describe`).
-- [ ] Distribución del objetivo: barras en clasificación, histograma en regresión.
-- [ ] Análisis avanzado: matriz de correlación (heatmap) y matriz de dispersión
+- [x] El dataset seleccionado es **global**: lo comparten las 4 lecciones y la página CSV.
+- [x] Vista previa de los datos y estadísticas descriptivas (`describe`).
+- [x] Distribución del objetivo: barras en clasificación, histograma en regresión.
+- [x] Análisis avanzado: matriz de correlación (heatmap) y matriz de dispersión
       (pairplot), con diagonal histograma o KDE, nº máximo de características y
       multiselección.
-- [ ] Preprocesado: división train/test con `test_size` y `random_state=42`. La versión
+- [x] Preprocesado: división train/test con `test_size` y `random_state=42`. La versión *(core: split.rs)*
       Python **no estratifica**; Rust lo reproduce exactamente (decisión D7).
-- [ ] Metadatos por dataset para el formulario de predicción: rangos, valores
+- [x] Metadatos por dataset para el formulario de predicción: rangos, valores *(datos en content/datasets; formulario en F2)*
       categóricos y nombres legibles. 🐍 `dataset/dataset_metadata.py`
 
 ## 2. Página "📁 Cargar CSV Personalizado" 🐍 `app.py::run_csv_loader_app`
 
-- [ ] Expander de ayuda, carga de CSV y métricas (filas, columnas, objetivo, tipo de tarea).
-- [ ] Estadísticas descriptivas y distribución del objetivo, con barras e histograma y
+- [x] Expander de ayuda, carga de CSV y métricas (filas, columnas, objetivo, tipo de tarea).
+- [x] Estadísticas descriptivas y distribución del objetivo, con barras e histograma y
       el mín/máx/media/mediana/desviación típica.
-- [ ] Ejemplos de datasets cuando todavía no hay ninguno cargado.
+- [x] Ejemplos de datasets cuando todavía no hay ninguno cargado.
 
 ## 3. 🌲 Árboles de Decisión 🐍 `apps/decission_tree_app.py`
 

@@ -1,6 +1,6 @@
 # Plan de migración de MLTutor a Rust
 
-Rama: `feature/rust-migration` · Inicio: 2026-10-13 · Estado: **Fase 0 completada (2026-10-13), Fase 1 en curso**
+Rama: `feature/rust-migration` · Inicio: 2026-10-13 · Estado: **Fases 0 y 1 completadas (2026-10-13), Fase 2 pendiente**
 
 ## Objetivo
 
@@ -64,6 +64,7 @@ La UI dibuja con Plotly o SVG. Nunca se envían imágenes rasterizadas.
 | D5 | Código muerto de Python (sección 8 del inventario) | No portarlo |
 | D6 | Paridad de árboles y regresión logística | Tolerancia, no igualdad: aceptar diferencias por desempates y solver, siempre documentadas |
 | D7 | Split train/test | ✅ Aprobada: **idéntico al de Python**, sin estratificar, con `rand_mt` (MT19937) para reproducir `RandomState(42).permutation`. Mismos datos de train y test que la versión actual. La estratificación queda como mejora futura opcional |
+| D18 | `freezePrototype: false` en Tauri (con `true`, Plotly falla con "readonly property") | Aplicado. Riesgo bajo: no se carga contenido remoto y `script-src 'self'` sigue estricto. Revisable |
 | D9–D17 | Detalles de la Fase 1 (Moons fijo por sesión, CSV más tolerante, pairplot de regresión legible, correlación de -1 a 1, estado de subvistas por lección, CSV resaltado en la barra lateral, días de Propinas corregidos, consejos del pairplot, CSV embebidos desde `tests/parity`) | Recomendaciones aplicadas por defecto (2026-10-13). Detalle en [fase1-shell-datos.md §9](fase1-shell-datos.md). Revisables por el usuario |
 | D8 | MPG: columna `name` | ✅ Aprobada: **no se usa como característica** del modelo (301 modelos de coche codificados como número no tienen sentido). Se conserva en la exploración de datos: vista previa, tooltip en el pairplot y gráficos de dispersión |
 
@@ -110,21 +111,21 @@ Agentes: `packaging-release-engineer` (CI y releases), `tauri-ui-engineer` (esqu
 Plan detallado, contrato IPC y reparto: [fase1-shell-datos.md](fase1-shell-datos.md).
 Capturas de referencia: `docs/migration/capturas/qt/`.
 
-- [ ] Shell: barra lateral, página de inicio y pie, sistema de pestañas por lección con
+- [x] Shell: barra lateral, página de inicio y pie, sistema de pestañas por lección con
       navbar, panel de subvistas, avisos, métricas, expanders, tablas y bloques de
       código. Tema claro/oscuro fiel a los colores actuales.
-- [ ] Renderizado de `content/*.md` con Markdown, KaTeX y resaltado de Python.
-- [ ] `mltutor-core::dataset`: los 11 datasets embebidos más Moons, con los ficheros de
+- [x] Renderizado de `content/*.md` con Markdown, KaTeX y resaltado de Python.
+- [x] `mltutor-core::dataset`: los 11 datasets embebidos más Moons, con los ficheros de
       California y Diamantes incluidos. Cargador de CSV con inferencia de tipos,
       detección de la tarea y codificación de etiquetas. Split sin estratificar (D7) y
       estadísticas descriptivas, correlación y KDE (fixtures en `tests/parity/stats`).
-- [ ] Pestaña 📊 Datos común y página 📁 Cargar CSV Personalizado (inventario §1–2),
+- [x] Pestaña 📊 Datos común y página 📁 Cargar CSV Personalizado (inventario §1–2),
       con heatmap de correlación y pairplot en Plotly.
 - [x] Metadatos de datasets portados como datos (`content/datasets/*.toml`).
 - [x] D8: ajustar `tools/export_golden.py` para que en MPG `name` sea una columna de
       etiqueta y no una característica (el fixture de datos sigue incluyéndola en el CSV).
-- [ ] D7: split con `rand_mt`, verificado exactamente contra `tests/parity/split/*.json`.
-- [ ] Fixtures de paridad: splits, estadísticas y codificaciones.
+- [x] D7: split con `rand_mt`, verificado exactamente contra `tests/parity/split/*.json`.
+- [x] Fixtures de paridad: splits, estadísticas y codificaciones (todo exacto o ≤ 4e-13).
 
 Agentes: `migration-porter`, luego `rust-ml-engineer` y `tauri-ui-engineer` en
 paralelo, y `ml-lesson-author` (contenido).

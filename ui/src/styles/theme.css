@@ -1,7 +1,7 @@
 /*
  * Design tokens taken from the Qt version (`mltutor/desktop/window.py`, STYLE) and the
  * Streamlit navigation buttons (`mltutor/app.py`: hover #E3F2FD, border #90CAF9).
- * Light theme only for now; dark mode arrives with the Phase 1 shell.
+ * The light theme is the reference; the dark theme keeps the same hues on dark surfaces.
  */
 :root {
   --font-sans: "Inter Variable", "Inter", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
@@ -11,10 +11,14 @@
 
   --color-text: #243247;
   --color-text-muted: #64748b;
+  --color-footer: #888888;
   --color-bg: #ffffff;
   --color-sidebar-bg: #f3f6fb;
   --color-border: #d5dce5;
   --color-divider: #e1e8f2;
+  --color-rule: #243247;
+  --color-link: #1976d2;
+  --color-code-inline-bg: #eceff1;
 
   --color-title: #1e88e5;
   --color-heading: #0d47a1;
@@ -26,18 +30,158 @@
   --color-hover-border: #90caf9;
   --color-pressed-bg: #dbeafe;
   --color-focus: #60a5fa;
+  --color-disabled-text: #9aa3ac;
+  --color-disabled-bg: #f4f5f7;
 
+  /* Inputs (QComboBox / QSpinBox) */
+  --color-input-bg: #f8fafd;
+  --color-input-border: #d7e2f0;
+  --color-input-hover-bg: #f2f7ff;
+  --color-input-hover-border: #a3bde0;
+  --color-input-focus-border: #3b82f6;
+  --color-slider-groove: #e5edf7;
+  --color-slider-fill: #60a5fa;
+  --color-slider-handle: #3b82f6;
+
+  /* Multiselect chips */
+  --color-chip-bg: #ffffff;
+  --color-chip-text: #52647d;
+  --color-chip-border: #dce5f0;
+  --color-chip-on-bg: #e6f0ff;
+  --color-chip-on-text: #175fc1;
+  --color-chip-on-border: #84b2ef;
+
+  /* Tables */
+  --color-table-border: #dce5f0;
+  --color-table-row-border: #edf1f7;
+  --color-table-alt: #f5f8fd;
+  --color-table-head-bg: #eaf0f9;
+  --color-table-head-text: #355174;
+  --color-table-index-bg: #f3f6fb;
+  --color-table-selected: #dbeafe;
+  --color-table-selected-text: #163d71;
+
+  /* Notices (st.info / warning / error / success) */
   --color-info-bg: #e3f2fd;
   --color-info-border: #90caf9;
+  --color-warning-bg: #fff8e1;
+  --color-warning-border: #ffe082;
+  --color-error-bg: #ffebee;
+  --color-error-border: #ef9a9a;
+  --color-success-bg: #e8f5e9;
+  --color-success-border: #a5d6a7;
+
+  /* Metrics */
+  --color-metric-bg: #f3f7fc;
+  --color-metric-border: #e1e9f5;
+  --color-metric-value: #0d47a1;
+
+  /* Code panel (always dark, as in Qt) */
+  --color-code-bg: #152238;
+  --color-code-border: #263954;
+  --color-code-text: #e4edf8;
+  --color-code-label: #b8c9e0;
+  --color-code-button-bg: #243750;
+  --color-code-button-border: #466080;
+  --color-code-button-hover: #334e70;
+
+  --color-statusbar-bg: #f3f6fb;
+  --color-statusbar-text: #64748b;
+  --color-tooltip-bg: #fff8e1;
+  --color-tooltip-border: #ffe082;
 
   --color-scrollbar-track: #f3f6fb;
   --color-scrollbar-thumb: #b9c8db;
 
+  /* Charts (read by lib/charts.ts) */
+  --chart-text: #243247;
+  --chart-grid: #e5eaf1;
+  --chart-axis: #8a99ad;
+  --chart-bg: #ffffff;
+
   --radius-button: 8px;
   --radius-box: 10px;
+  --radius-notice: 6px;
   --sidebar-width: 260px;
+  --content-max-width: 1180px;
 
   color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-text: #dbe4f0;
+    --color-text-muted: #94a3b8;
+    --color-footer: #8b97a8;
+    --color-bg: #0f1724;
+    --color-sidebar-bg: #141f30;
+    --color-border: #2c3b52;
+    --color-divider: #23324a;
+    --color-rule: #3a4a63;
+    --color-link: #7cb8ff;
+    --color-code-inline-bg: #1f2c40;
+
+    --color-title: #5aaaf5;
+    --color-heading: #8cc0ff;
+
+    --color-primary: #2f8ee8;
+    --color-primary-hover: #4aa0f0;
+    --color-hover-bg: #1b2d47;
+    --color-hover-border: #3b6ea8;
+    --color-pressed-bg: #20385a;
+    --color-disabled-text: #66758a;
+    --color-disabled-bg: #182234;
+
+    --color-input-bg: #162235;
+    --color-input-border: #2c3d57;
+    --color-input-hover-bg: #1a2a42;
+    --color-input-hover-border: #44618a;
+    --color-slider-groove: #24344d;
+
+    --color-chip-bg: #162235;
+    --color-chip-text: #a9b8cc;
+    --color-chip-border: #2c3d57;
+    --color-chip-on-bg: #1d3557;
+    --color-chip-on-text: #9ccaff;
+    --color-chip-on-border: #3f6fae;
+
+    --color-table-border: #26364e;
+    --color-table-row-border: #1e2b3f;
+    --color-table-alt: #131e2e;
+    --color-table-head-bg: #1a2a42;
+    --color-table-head-text: #a9c4e6;
+    --color-table-index-bg: #141f30;
+    --color-table-selected: #1f3a60;
+    --color-table-selected-text: #dbeafe;
+
+    --color-info-bg: #13283f;
+    --color-info-border: #24507e;
+    --color-warning-bg: #2d2513;
+    --color-warning-border: #6b5520;
+    --color-error-bg: #2f1719;
+    --color-error-border: #7a3036;
+    --color-success-bg: #13291b;
+    --color-success-border: #2d6440;
+
+    --color-metric-bg: #152235;
+    --color-metric-border: #24344d;
+    --color-metric-value: #8cc0ff;
+
+    --color-statusbar-bg: #141f30;
+    --color-statusbar-text: #94a3b8;
+    --color-tooltip-bg: #2d2513;
+    --color-tooltip-border: #6b5520;
+
+    --color-scrollbar-track: #141f30;
+    --color-scrollbar-thumb: #33445e;
+
+    --chart-text: #dbe4f0;
+    --chart-grid: #26364e;
+    --chart-axis: #6b7c94;
+    --chart-bg: #0f1724;
+
+    color-scheme: dark;
+  }
 }
 
 *,
@@ -68,14 +212,139 @@ body {
 
 h1,
 h2,
-h3 {
+h3,
+h4,
+h5 {
   margin: 0;
   line-height: 1.25;
 }
 
-button {
+button,
+input,
+select {
   font: inherit;
   color: inherit;
+}
+
+a {
+  color: var(--color-link);
+}
+
+hr {
+  border: none;
+  border-top: 1px solid var(--color-rule);
+  margin: 28px 8px;
+}
+
+/* Shared button look (QPushButton). */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 42px;
+  padding: 10px 14px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-button);
+  cursor: pointer;
+  text-align: center;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--color-hover-bg);
+  border-color: var(--color-hover-border);
+}
+
+.btn:active:not(:disabled) {
+  background: var(--color-pressed-bg);
+}
+
+.btn:focus-visible {
+  outline: none;
+  border: 2px solid var(--color-focus);
+  padding: 9px 13px;
+}
+
+.btn.primary {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary);
+  font-weight: 600;
+}
+
+.btn.primary:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+}
+
+.btn:disabled {
+  color: var(--color-disabled-text);
+  background: var(--color-disabled-bg);
+  cursor: default;
+}
+
+.btn.block {
+  display: flex;
+  width: 100%;
+}
+
+/* Rendered Markdown (content/*.md). */
+.md > :first-child {
+  margin-top: 0;
+}
+
+.md > :last-child {
+  margin-bottom: 0;
+}
+
+.md p {
+  margin: 0 0 10px;
+}
+
+.md ul,
+.md ol {
+  margin: 4px 0 10px;
+  padding-left: 26px;
+}
+
+.md li + li {
+  margin-top: 4px;
+}
+
+.md h2 {
+  margin: 24px 0 12px;
+  color: var(--color-heading);
+  font-size: 23px;
+}
+
+.md h3 {
+  margin: 18px 0 10px;
+  color: var(--color-heading);
+  font-size: 19px;
+}
+
+.md h4 {
+  margin: 16px 0 8px;
+  color: var(--color-heading);
+  font-size: 16px;
+}
+
+.md h5 {
+  margin: 14px 0 8px;
+  color: var(--color-heading);
+  font-size: 14px;
+}
+
+.md code {
+  padding: 1px 5px;
+  background: var(--color-code-inline-bg);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.92em;
 }
 
 ::-webkit-scrollbar {
@@ -88,4 +357,11 @@ button {
   background: var(--color-scrollbar-thumb);
   border-radius: 5px;
   border: 2px solid var(--color-scrollbar-track);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
 }

@@ -638,6 +638,38 @@ demanda. Presupuesto: < 100 ms con California (20 640 × 8).
 | `sampling` | `RandomState(seed).permutation` con rand_mt (compartido con el split D7), `DataFrame.sample` y `groupby().sample` | pairplot, split |
 | `split` (D7) | `train_test_split` sin estratificar, exacto | F2+, pero se hace en F1 (PLAN) |
 
+#### 5.5.1 API implementada y desviaciones (`rust-ml-engineer`, 2026-10-13)
+
+La lista estable de funciones está en el doc-comment de `crates/mltutor-core/src/lib.rs`.
+Diferencias con §5.1–5.3 que debe absorber la conversión a DTO en `src-tauri`:
+
+- **Sin conceptos de sesión en core:** `DatasetRef`, `CsvId`, `draft_id` y `file_name` (de
+  `CsvPreview`) los añade `src-tauri`. `DatasetEntry` lleva `id: DatasetId` en lugar de
+  `dataset: DatasetRef`, y `DatasetSummary` no lleva `dataset`. `CsvLoaded` no existe en
+  core: se compone con `RawTable::to_dataset` (con `resolved_task = Dataset::task()`),
+  `RawTable::describe` y `RawTable::target_stats`.
+- **Matrices:** `ndarray::Array2<f64>` con NaN (`DescribeTable.values`,
+  `CorrelationMatrix.values`, `PairplotData.points`). El DTO las pasa a `Matrix` con `None`.
+- **Recuentos y tamaños** en `usize` (el DTO los convierte a `u32`).
+- **Campos añadidos:** `CorrelationMatrix.nan_columns`; `PairplotData.rows` (filas
+  posicionales de la muestra); `KdeCurve.scott_factor: Option<f64>`. En un nivel omitido,
+  `grid_min`/`grid_max` valen el mínimo y el máximo de sus datos (0 si no hay).
+- **Función nueva:** `explore::pairplot_defaults(&Dataset) -> PairplotDefaults`
+  (`n_features`, `slider: Option<{min, max, default}>`, `default_selected`).
+- **Errores:** `CsvError::{Empty, TooFewColumns { found }, Encoding, Malformed { line,
+  found, expected }, TooLarge { bytes, limit }, Io { message }, UnknownColumn { column }}`
+  y `DatasetError::{UnknownDataset, UnknownColumn, InvalidSelection { reason }, Metadata,
+  Data, Csv}`. Su `Display` ya está en español, sin el prefijo "❌ ".
+- **Avisos del CSV:** `CsvPreview.notices: Vec<CsvNotice>` (`Windows1252`, `Separator`,
+  `DecimalComma { columns }`) con `CsvNotice::message()` en español, en lugar de `Vec<String>`.
+- **Comportamiento:** una fila con menos campos que la cabecera también es `Malformed` (pandas
+  rellena con NaN). Con separador `;` se acepta la coma decimal (D10). Un objetivo de texto
+  o booleano siempre da `CsvTargetStats::Classes`, aunque la tarea sea "auto" o Regresión
+  (Python fallaba). `pairplot_data` acepta de 1 a 6 características, distintas y existentes.
+- **Moons:** `load_builtin(DatasetId::Moons)` es el CSV embebido (semilla 42, D9). Para
+  `regenerate_moons`, `moons_dataset(seed)`; `make_moons(500, 0.2, 42)` reproduce el CSV
+  bit a bit.
+
 ---
 
 ## 6. Fixtures de paridad

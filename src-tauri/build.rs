@@ -4,10 +4,24 @@ fn main() {
     let manifest = tauri_build::AppManifest::new().commands(&[
         "launch_mode",
         "frontend_ready",
+        "screenshot_ready",
         "smoke_route_rendered",
+        "smoke_check_passed",
         "smoke_failed",
         "smoke_panic_probe",
         "log_message",
+        "list_datasets",
+        "get_selected_dataset",
+        "select_dataset",
+        "dataset_summary",
+        "dataset_preview",
+        "dataset_describe",
+        "target_distribution",
+        "correlation_matrix",
+        "pairplot_data",
+        "load_csv",
+        "csv_target_info",
+        "set_csv_target",
     ]);
     if let Err(error) =
         tauri_build::try_build(tauri_build::Attributes::new().app_manifest(manifest))

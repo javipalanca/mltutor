@@ -9,15 +9,22 @@ export interface SmokeDeps {
   /** Heading currently rendered for `id`, or `null` if that page is not on screen. */
   renderedTitle(id: RouteId): string | null;
   report(id: RouteId, title: string): Promise<void>;
+  /** Runs a data check (`SMOKE_CHECKS` of `src-tauri/src/state.rs`); rejects on failure. */
+  runCheck(name: string): Promise<void>;
+  reportCheck(name: string): Promise<void>;
   fail(message: string): Promise<void>;
 }
 
 /**
  * Visits every route requested by the backend (`--smoke-test`) and reports each one
- * once its heading is rendered. The backend exits with 0 when all have been reported.
- * Returns `false` (after calling `deps.fail`) on the first problem.
+ * once its heading is rendered, then runs the data checks. The backend exits with 0 when
+ * everything has been reported. Returns `false` (after calling `deps.fail`) on the first problem.
  */
-export async function runSmokeTest(requested: readonly string[], deps: SmokeDeps): Promise<boolean> {
+export async function runSmokeTest(
+  requested: readonly string[],
+  checks: readonly string[],
+  deps: SmokeDeps,
+): Promise<boolean> {
   try {
     const unknown = requested.filter((id) => !isRouteId(id));
     if (unknown.length > 0) {
@@ -39,6 +46,14 @@ export async function runSmokeTest(requested: readonly string[], deps: SmokeDeps
         throw new Error(`La ruta «${id}» no se ha renderizado (título: ${rendered ?? "ninguno"})`);
       }
       await deps.report(id, rendered);
+    }
+    for (const check of checks) {
+      try {
+        await deps.runCheck(check);
+      } catch (error) {
+        throw new Error(`Comprobación «${check}»: ${error instanceof Error ? error.message : String(error)}`);
+      }
+      await deps.reportCheck(check);
     }
     return true;
   } catch (error) {

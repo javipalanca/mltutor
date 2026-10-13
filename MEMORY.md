@@ -154,6 +154,46 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
   - KDE del pairplot: `gaussian_kde` con Scott, rejilla `linspace(min-3bw, max+3bw, 200)` por
     nivel, `common_norm` y omite los niveles con n<2 o varianza 0. Se muestrea con más de
     2000 filas (`sample(2000, random_state=42)`; en clasificación, por grupo).
+- **mltutor-core F1 (2026-10-13), paridad casi exacta con NumPy, pandas y SciPy copiando sus
+  algoritmos:** la suma por pares de NumPy (8 acumuladores, bloques de 128) en
+  mean/std/describe; Welford de pandas `nancorr`; `np.percentile` lineal con el `_lerp` de
+  dos lados; `linspace` como `i*step+start` con el último punto en `stop`; KDE de SciPy con
+  Cholesky `sqrt(cov)·factor`. Errores ≤ 1.4e-15 en describe y correlación y 3.8e-13 en la
+  KDE; histogramas y muestras exactos. El pipeline de California completo tarda 22 ms.
+- **`make_moons` es reproducible bit a bit** con el `RandomState` legacy: `gauss` polar con
+  el segundo valor en caché, `random_sample` = (a>>5, b>>6)/2^53, más el shuffle. Aun así,
+  para la semilla 42 se embebe `moons.csv`, por si la libm de otro sistema difiere.
+- **Muestreo por grupo del pairplot:** `groupby().apply(sample(random_state=42))` usa un
+  `RandomState(42)` nuevo por grupo, en orden de clave. Con uno compartido salen filas distintas.
+- **serde_json necesita la feature `float_roundtrip`** en los tests contra fixtures; sin ella
+  algunos floats salen a 1 ulp.
+- **Titanic:** `adult_male` y `alone` son bool en pandas, pero el CSV guarda 0/1, así que
+  van fijos en `DatasetId::bool_columns()` (describe los excluye).
+- **CSV en Rust (D10):** los bytes NUL dan `CsvError::Encoding` (UTF-16 o binario); si no es
+  UTF-8 se lee como Windows-1252, que nunca falla. `;` y tabulador se detectan en la primera
+  línea, fuera de comillas. La coma decimal solo se acepta con `;`. Una fila con menos
+  campos que la cabecera es `Malformed`, mientras pandas la rellena con NaN. Fuzzing con
+  proptest sin panics.
+- **Plotly y CSP (2026-10-13):** se usa `plotly.js-strict-dist-min`. El bundle normal usa
+  `Function` en regl (scattergl) y obligaría a poner `unsafe-eval`; el strict trae los shaders
+  precompilados, así que basta con `script-src 'self'`. Se carga con `import()` dinámico.
+  **`freezePrototype: true` rompe Plotly** ("Attempted to assign to readonly property"), así
+  que está a `false` (D18). Si no hay WebGL, el pairplot se dibuja en SVG.
+- **Svelte 5:** no leer y escribir `$state` en el mismo `$effect` (`effect_update_depth_exceeded`);
+  el contador `busy` del IPC usa `untrack`.
+- **IPC:** Tauri pasa los argumentos de snake_case a camelCase en JS (`draftId`).
+  `CoreFacade` tiene dos implementaciones: `RealFacade` (core) en la app y `FixtureFacade`
+  en los tests (o en debug con `MLTUTOR_FACADE=fixture`).
+- **Capturas Rust:** `--scenario <nombre>[:ruta.csv]` y `--full-page` (macOS: agranda el
+  WKWebView más allá de la pantalla; `takeSnapshot` renderiza también lo que queda fuera).
+  Salida en `docs/migration/capturas/rust/`; comparación en `capturas/comparacion-fase1.md`.
+- **Iterar rápido:** `npm --prefix ui run tauri build -- --debug --no-bundle` tarda unos 25 s,
+  frente a varios minutos de la release con LTO fat.
+- **Formato de números:** `toFixed` de JS no redondea los empates exactos como Python;
+  `ui/src/lib/fmt.ts` lo corrige.
+- **Medidas F1:** `.app` de 13,4 MiB (zip de 7,4 MB) y unos 0,6 s hasta la interfaz lista.
+  Lo que más ocupa es Plotly (4,7 MB), seguido de los CSV (3 MB) y KaTeX (1 MB; sobran
+  los .ttf/.woff).
 - **Capturas Qt:** `uv run python tools/capture_qt.py` genera las de todas las pantallas en
   `docs/migration/capturas/qt/`. No funciona en modo offscreen y no captura las vistas
   Plotly/WebEngine. Se cuantizan a 256 colores con Pillow antes del commit (de 9,7 MB a 3,9 MB).

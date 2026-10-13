@@ -1,20 +1,37 @@
 //! `--screenshot <png>`: captures the main webview and exits.
 //!
+//! With `--full-page` the web view (not the window, which macOS keeps within the screen)
+//! grows to the height of the page reported by the frontend, so the PNG holds the whole
+//! page; WebKit renders the off-screen part for the snapshot.
+//!
 //! Implemented natively on macOS (`WKWebView.takeSnapshot`). Windows (WebView2
 //! `CapturePreview`) and Linux (`webkit_web_view_get_snapshot`) are not implemented yet:
 //! there the command exits with code 1 and a clear message.
 
 use std::path::PathBuf;
+use std::time::Duration;
 
 use tauri::{AppHandle, Manager};
 
 use crate::state::{AppState, EXIT_FAILURE};
 
-pub fn capture_main_window(app: &AppHandle, path: PathBuf) {
+/// Time for the page (and Plotly's responsive charts) to lay out after a resize.
+const RESIZE_SETTLE: Duration = Duration::from_millis(900);
+/// Upper bound of a full-page capture, in CSS pixels.
+const MAX_FULL_PAGE_HEIGHT: f64 = 16_000.0;
+
+pub async fn capture_main_window(app: &AppHandle, path: PathBuf, full_height: Option<f64>) {
     let Some(window) = app.get_webview_window("main") else {
         fail(app, "no existe la ventana principal");
         return;
     };
+    if let Some(height) = full_height {
+        let height = height.clamp(200.0, MAX_FULL_PAGE_HEIGHT).ceil();
+        if let Err(error) = platform::grow_webview(&window, height) {
+            log::warn!("no se pudo ampliar la vista para la captura: {error}");
+        }
+        let _ = tauri::async_runtime::spawn_blocking(|| std::thread::sleep(RESIZE_SETTLE)).await;
+    }
     if let Err(error) = platform::capture(app.clone(), &window, path) {
         fail(app, &error);
     }
@@ -49,6 +66,28 @@ mod platform {
     use objc2_foundation::{NSDictionary, NSError};
     use objc2_web_kit::{WKSnapshotConfiguration, WKWebView};
     use tauri::{AppHandle, WebviewWindow};
+
+    /// Makes the web view `height` CSS px tall (plus the title-bar inset), beyond the window.
+    pub fn grow_webview(window: &WebviewWindow, height: f64) -> Result<(), String> {
+        window
+            .with_webview(move |webview| {
+                let ptr = webview.inner().cast::<WKWebView>();
+                // SAFETY: as in `capture`, the WKWebView owned by wry, on the main thread.
+                let Some(wk) = (unsafe { ptr.as_ref() }) else {
+                    return;
+                };
+                let mut frame = wk.frame();
+                let inset = wk.safeAreaInsets().top;
+                let grow = height + inset - frame.size.height;
+                if grow > 0.0 {
+                    frame.size.height += grow;
+                    // AppKit's y axis points up: keep the top edge where it was.
+                    frame.origin.y -= grow;
+                    wk.setFrame(frame);
+                }
+            })
+            .map_err(|error| error.to_string())
+    }
 
     pub fn capture(app: AppHandle, window: &WebviewWindow, path: PathBuf) -> Result<(), String> {
         window
@@ -120,6 +159,10 @@ mod platform {
     use std::path::PathBuf;
 
     use tauri::{AppHandle, WebviewWindow};
+
+    pub fn grow_webview(_window: &WebviewWindow, _height: f64) -> Result<(), String> {
+        Err("no disponible en esta plataforma".into())
+    }
 
     pub fn capture(_app: AppHandle, _window: &WebviewWindow, _path: PathBuf) -> Result<(), String> {
         Err(format!(

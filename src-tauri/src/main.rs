@@ -5,8 +5,15 @@
 
 mod cli;
 mod commands;
+mod core_facade;
+mod data;
+#[cfg(any(test, debug_assertions))]
+mod fixture_facade;
+mod ipc;
 mod logging;
+mod real_facade;
 mod screenshot;
+mod session;
 mod state;
 
 use std::process::ExitCode;
@@ -67,14 +74,31 @@ fn main() -> ExitCode {
 fn run(mode: Mode, started: Instant) -> i32 {
     let automated = !matches!(mode, Mode::Normal);
     let app = tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .manage(AppState::new(mode, started))
+        .manage(data::DataState::new(facade()))
         .invoke_handler(tauri::generate_handler![
             commands::launch_mode,
             commands::frontend_ready,
+            commands::screenshot_ready,
             commands::smoke_route_rendered,
+            commands::smoke_check_passed,
             commands::smoke_failed,
             commands::smoke_panic_probe,
             commands::log_message,
+            data::list_datasets,
+            data::get_selected_dataset,
+            data::select_dataset,
+            data::dataset_summary,
+            data::dataset_preview,
+            data::dataset_describe,
+            data::target_distribution,
+            data::correlation_matrix,
+            data::pairplot_data,
+            data::load_csv,
+            data::csv_target_info,
+            data::set_csv_target,
         ])
         .setup(move |app| {
             if automated {
@@ -92,6 +116,17 @@ fn run(mode: Mode, started: Instant) -> i32 {
             EXIT_FAILURE
         }
     }
+}
+
+/// The computation backend of the data commands: `mltutor-core`. Debug builds can use
+/// the golden fixtures instead with `MLTUTOR_FACADE=fixture` (to tell UI bugs from
+/// core bugs).
+fn facade() -> std::sync::Arc<dyn core_facade::CoreFacade> {
+    #[cfg(debug_assertions)]
+    if std::env::var("MLTUTOR_FACADE").is_ok_and(|v| v == "fixture") {
+        return std::sync::Arc::new(fixture_facade::FixtureFacade::from_checkout());
+    }
+    std::sync::Arc::new(real_facade::RealFacade)
 }
 
 /// Kills an automation run (`--smoke-test`, `--screenshot`) that hangs.

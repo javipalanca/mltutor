@@ -20,6 +20,11 @@ pub const AUTOMATION_TIMEOUT: Duration = Duration::from_secs(180);
 /// Must match `ui/src/lib/routes.ts` (the frontend fails the test if they differ).
 pub const SMOKE_ROUTES: [&str; 6] = ["inicio", "arboles", "regresion", "knn", "redes", "csv"];
 
+/// Extra checks of `--smoke-test` after the routes (fase1-shell-datos.md §8.2.5): the
+/// 📊 Datos tab of a lesson renders its views, and the Iris correlation heatmap and
+/// pairplot are drawn by Plotly.
+pub const SMOKE_CHECKS: [&str; 3] = ["datos_vistas", "datos_correlacion", "datos_pairplot"];
+
 pub struct AppState {
     pub mode: Mode,
     pub started: Instant,
@@ -55,6 +60,13 @@ impl AppState {
             .record(route, title)
     }
 
+    pub fn record_smoke_check(&self, check: &str) -> Result<bool, String> {
+        self.smoke
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .record_check(check)
+    }
+
     /// Ends an automation run with `code`. Only the first call has an effect.
     pub fn finish(&self, app: &AppHandle, code: i32, message: &str) {
         if self.finished.swap(true, Ordering::SeqCst) {
@@ -72,10 +84,11 @@ impl AppState {
     }
 }
 
-/// Routes already reported by the frontend during `--smoke-test`.
+/// Routes and checks already reported by the frontend during `--smoke-test`.
 #[derive(Debug, Default)]
 pub struct SmokeProgress {
     seen: BTreeSet<String>,
+    checks: BTreeSet<String>,
 }
 
 impl SmokeProgress {
@@ -88,7 +101,22 @@ impl SmokeProgress {
             return Err(format!("la ruta {route} se ha renderizado sin título"));
         }
         self.seen.insert(route.to_owned());
-        Ok(self.seen.len() == SMOKE_ROUTES.len())
+        Ok(self.is_complete())
+    }
+
+    /// Records a passed check. Returns `Ok(true)` once every route and check is done.
+    pub fn record_check(&mut self, check: &str) -> Result<bool, String> {
+        if !SMOKE_CHECKS.contains(&check) {
+            return Err(format!(
+                "comprobación desconocida en el smoke test: {check}"
+            ));
+        }
+        self.checks.insert(check.to_owned());
+        Ok(self.is_complete())
+    }
+
+    fn is_complete(&self) -> bool {
+        self.seen.len() == SMOKE_ROUTES.len() && self.checks.len() == SMOKE_CHECKS.len()
     }
 }
 
@@ -97,12 +125,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn smoke_progress_completes_after_every_route() {
+    fn smoke_progress_completes_after_every_route_and_check() {
         let mut progress = SmokeProgress::default();
-        for (index, route) in SMOKE_ROUTES.iter().enumerate() {
-            let done = progress.record(route, "Título").unwrap();
-            assert_eq!(done, index + 1 == SMOKE_ROUTES.len());
+        for route in SMOKE_ROUTES {
+            assert!(!progress.record(route, "Título").unwrap());
         }
+        for (index, check) in SMOKE_CHECKS.iter().enumerate() {
+            let done = progress.record_check(check).unwrap();
+            assert_eq!(done, index + 1 == SMOKE_CHECKS.len());
+        }
+        assert!(progress.record_check("otra").is_err());
     }
 
     #[test]
@@ -116,11 +148,13 @@ mod tests {
 
     #[test]
     fn smoke_routes_match_the_frontend_routes() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../ui/src/lib/routes.ts");
+        // The frontend builds its routes from content/inicio/navegacion.toml.
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../content/inicio/navegacion.toml");
         let source = std::fs::read_to_string(path).unwrap();
         let ids: Vec<&str> = source
-            .lines()
-            .filter_map(|line| line.trim().strip_prefix("id: \""))
+            .split("id = \"")
+            .skip(1)
             .filter_map(|rest| rest.split('"').next())
             .collect();
         assert_eq!(ids, SMOKE_ROUTES);
