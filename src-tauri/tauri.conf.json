@@ -1,0 +1,63 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "MLTutor",
+  "mainBinaryName": "mltutor",
+  "version": "0.4.0-rc.1",
+  "identifier": "es.upv.mltutor",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "../ui/dist"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "label": "main",
+        "title": "MLTutor — Aprende Machine Learning",
+        "width": 1400,
+        "height": 920,
+        "minWidth": 1000,
+        "minHeight": 700,
+        "center": true,
+        "resizable": true,
+        "backgroundColor": "#ffffff"
+      }
+    ],
+    "security": {
+      "csp": {
+        "default-src": "'self'",
+        "script-src": "'self'",
+        "style-src": "'self'",
+        "img-src": "'self' data: blob:",
+        "font-src": "'self'",
+        "connect-src": "ipc: http://ipc.localhost",
+        "object-src": "'none'",
+        "base-uri": "'none'",
+        "form-action": "'none'",
+        "frame-ancestors": "'none'"
+      },
+      "freezePrototype": true,
+      "capabilities": ["default"]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [],
+    "publisher": "Javier Palanca",
+    "category": "Education",
+    "shortDescription": "Aprende Machine Learning de forma interactiva",
+    "longDescription": "MLTutor es una aplicación educativa para aprender Machine Learning en español: árboles de decisión, regresión, KNN y redes neuronales.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "11.0"
+    }
+  }
+}

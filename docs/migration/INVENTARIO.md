@@ -34,7 +34,9 @@ Leyenda: 🐍 = origen en Python · ⚠️ = requiere decisión o implementació
 
 - [ ] Selector de 11 datasets incluidos: 🌸 Iris, 🍷 Vino, 🔬 Cáncer, 🔢 Dígitos, 🩺 Diabetes,
       💎 Diamantes (muestreo), ⛽ MPG, 🚢 Titanic, 💰 Propinas, 🏠 Viviendas California y
-      🐧 Pingüinos. También 🌙 Moons sintético, con nº de muestras y ruido.
+      🐧 Pingüinos. También 🌙 Moons sintético, con nº de muestras y ruido (semilla
+      explícita en Rust). En MPG, `name` se muestra en la exploración pero no es
+      característica del modelo (D8).
       ⚠️ California y Diamantes se descargan hoy de internet: hay que incluirlos.
 - [ ] Carga de CSV propio: elegir la columna objetivo, detectar automáticamente si es
       clasificación o regresión, codificar etiquetas y nombrar las clases.
@@ -44,8 +46,8 @@ Leyenda: 🐍 = origen en Python · ⚠️ = requiere decisión o implementació
 - [ ] Análisis avanzado: matriz de correlación (heatmap) y matriz de dispersión
       (pairplot), con diagonal histograma o KDE, nº máximo de características y
       multiselección.
-- [ ] Preprocesado: división train/test con `test_size` y `random_state=42`, y
-      estratificación cuando corresponde.
+- [ ] Preprocesado: división train/test con `test_size` y `random_state=42`. La versión
+      Python **no estratifica**; Rust lo reproduce exactamente (decisión D7).
 - [ ] Metadatos por dataset para el formulario de predicción: rangos, valores
       categóricos y nombres legibles. 🐍 `dataset/dataset_metadata.py`
 

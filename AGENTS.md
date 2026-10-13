@@ -29,8 +29,8 @@ velocidad, tamaño y estabilidad.
 |---|---|---|
 | Aplicación | **Tauri 2** | Binario pequeño y rápido; interfaz web local que permite reutilizar Plotly, Markdown y el estilo actual |
 | Interfaz | **Svelte 5 + TypeScript + Vite**, Plotly.js y KaTeX empaquetados en local | Componentes reactivos ligeros; gráficos interactivos y fórmulas sin CDN |
-| ML clásico | **linfa** (`linfa-trees`, `linfa-linear`, `linfa-logistic`, `linfa-nn`) sobre `ndarray` | API tipo scikit-learn |
-| Redes neuronales | **burn** con backend `ndarray` (CPU) | Entrenamiento nativo, portátiles de laboratorio sin GPU |
+| ML clásico | **linfa 0.8** (`linfa-linear`, `linfa-logistic`) sobre `ndarray 0.16`; CART y KNN propios | API tipo scikit-learn; linfa-trees y KdTree descartados (ver MEMORY.md) |
+| Redes neuronales | **burn 0.22** con backend `flex` + autodiff (CPU, Rust puro) | Entrenamiento nativo, portátiles de laboratorio sin GPU |
 | Lo que falte | Implementación propia en `mltutor-core` | Árboles de regresión, permutation importance, fronteras de decisión, curvas ROC, etc. |
 
 Principio: **se calcula en Rust y se enseña scikit-learn/PyTorch/Keras.** El código
@@ -62,14 +62,20 @@ mltutor/, tests/*.py       versión Python de referencia: congelada salvo bugs g
 # Rust
 cargo fmt --all
 cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
-cargo tauri dev                  # app en desarrollo (frontend con recarga)
-cargo tauri build                # instalables/portables de la plataforma actual
+cargo test --workspace           # también regenera ui/src/lib/bindings (ts-rs)
 
-# Frontend
+# Frontend (la CLI de Tauri es una devDependency de ui/; no hace falta cargo-tauri)
 npm --prefix ui ci
 npm --prefix ui run check        # svelte-check + tsc
-npm --prefix ui run test         # vitest
+npm --prefix ui run test -- --run  # vitest (sin --run se queda en modo watch)
+
+# App
+npm --prefix ui run tauri dev    # app en desarrollo (Vite con recarga en :5173)
+npm --prefix ui run tauri build  # release: .app (macOS), AppImage (Linux), mltutor.exe sin instalador (Windows)
+target/release/mltutor --smoke-test          # recorre todas las rutas; 0 ok, 1 fallo, 2 timeout (180 s)
+target/release/mltutor --screenshot out.png  # captura de la ventana inicial (solo macOS por ahora)
+# Ojo: `cargo build --release` a secas no empaqueta el frontend (carga devUrl); usa `tauri build`.
+# Registro: ~/.mltutor/mltutor.log (MLTUTOR_LOG_DIR lo cambia, útil en CI)
 
 # Referencia Python (para comparar y generar fixtures)
 uv sync --locked --extra dev

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-smoke-panic-probe"
+description = "Enables the smoke_panic_probe command without any pre-configured scope."
+commands.allow = ["smoke_panic_probe"]
+
+[[permission]]
+identifier = "deny-smoke-panic-probe"
+description = "Denies the smoke_panic_probe command without any pre-configured scope."
+commands.deny = ["smoke_panic_probe"]

@@ -1,0 +1,173 @@
+{
+  "meta": {
+    "format_version": 1,
+    "generator": "tools/export_golden.py",
+    "generated": "2026-10-13",
+    "versions": {
+      "python": "3.11.14",
+      "numpy": "1.26.4",
+      "pandas": "2.3.3",
+      "scipy": "1.16.3",
+      "scikit-learn": "1.7.2",
+      "seaborn": "0.13.2",
+      "platform": "Darwin-arm64"
+    },
+    "seed": 42,
+    "tolerance": {
+      "data_abs": 0.0,
+      "hash": "exact"
+    },
+    "tolerance_rationale": "Static data: the embedded CSV must reproduce the matrix exactly. CSV floats use Python's shortest round-trip repr, so parsing them as f64 is lossless and data_sha256_f64 must match bit for bit."
+  },
+  "input": {
+    "app_label": "🚢 Titanic - Supervivencia",
+    "source": "mltutor/dataset/data/sample_datasets/titanic.csv via load_titanic_dataset()"
+  },
+  "expected": {
+    "csv": "data/titanic.csv",
+    "csv_sha256": "1dc0941dd20e411a55aef986f8b125632816818234d8acf23c10790f295d09c2",
+    "csv_bytes": 27778,
+    "data_sha256_f64": "399eace335a732945d652dcd8e0a0279a4984d32e342c8e489febc1f5f52b7cf",
+    "data_sha256_f64_definition": "sha256 of row-major little-endian f64 values, each row = feature columns in 'columns' order followed by the target",
+    "shape": [
+      891,
+      11
+    ],
+    "columns": [
+      "pclass",
+      "age",
+      "sibsp",
+      "parch",
+      "fare",
+      "sex_encoded",
+      "embarked_encoded",
+      "class_encoded",
+      "who_encoded",
+      "adult_male",
+      "alone"
+    ],
+    "dtypes": {
+      "pclass": "int64",
+      "age": "float64",
+      "sibsp": "int64",
+      "parch": "int64",
+      "fare": "float64",
+      "sex_encoded": "int64",
+      "embarked_encoded": "int64",
+      "class_encoded": "int64",
+      "who_encoded": "int64",
+      "adult_male": "bool",
+      "alone": "bool"
+    },
+    "feature_names": [
+      "Clase_Pasajero",
+      "Edad",
+      "Hermanos_Conyuges",
+      "Padres_Hijos",
+      "Tarifa",
+      "Sexo",
+      "Puerto_Embarque",
+      "Clase_Social",
+      "Categoria_Persona",
+      "Hombre_Adulto",
+      "Solo"
+    ],
+    "target_name": "survived",
+    "target_dtype": "int64",
+    "class_names": [
+      "No_Sobrevivió",
+      "Sobrevivió"
+    ],
+    "task_type": "Clasificación",
+    "dataset_info": "Dataset Titanic: 891 pasajeros, 11 características, supervivencia (binario)",
+    "target_summary": {
+      "class_counts": {
+        "0": 549,
+        "1": 342
+      }
+    },
+    "index_is_range": true,
+    "head": [
+      {
+        "features": [
+          3,
+          22.0,
+          1,
+          0,
+          7.25,
+          1,
+          2,
+          2,
+          1,
+          1,
+          0
+        ],
+        "target": 0
+      },
+      {
+        "features": [
+          1,
+          38.0,
+          1,
+          0,
+          71.2833,
+          0,
+          0,
+          0,
+          2,
+          0,
+          0
+        ],
+        "target": 1
+      },
+      {
+        "features": [
+          3,
+          26.0,
+          0,
+          0,
+          7.925,
+          0,
+          2,
+          2,
+          2,
+          0,
+          1
+        ],
+        "target": 1
+      },
+      {
+        "features": [
+          1,
+          35.0,
+          1,
+          0,
+          53.1,
+          0,
+          2,
+          0,
+          2,
+          0,
+          0
+        ],
+        "target": 1
+      },
+      {
+        "features": [
+          3,
+          35.0,
+          0,
+          0,
+          8.05,
+          1,
+          2,
+          2,
+          1,
+          1,
+          1
+        ],
+        "target": 0
+      }
+    ]
+  }
+}

@@ -37,7 +37,7 @@ Frontend (ui/):
 Verificación:
 - `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`,
   `npm --prefix ui run check` y `npm --prefix ui run test`.
-- Abre la app con `cargo tauri dev` y compárala con la versión Qt; describe las
+- Abre la app con `npm --prefix ui run tauri dev` y compárala con la versión Qt; describe las
   diferencias visuales que queden.
 
 Entrega: cambios, cómo se ha verificado y cualquier diferencia de comportamiento con la

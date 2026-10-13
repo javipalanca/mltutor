@@ -1,0 +1,14 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Permissions of the main window: only MLTutor's own commands. No filesystem, shell, HTTP or dialog access yet (they will be added per feature).",
+  "windows": ["main"],
+  "permissions": [
+    "allow-launch-mode",
+    "allow-frontend-ready",
+    "allow-smoke-route-rendered",
+    "allow-smoke-failed",
+    "allow-smoke-panic-probe",
+    "allow-log-message"
+  ]
+}

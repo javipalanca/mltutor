@@ -1,0 +1,126 @@
+{
+  "meta": {
+    "format_version": 1,
+    "generator": "tools/export_golden.py",
+    "generated": "2026-10-13",
+    "versions": {
+      "python": "3.11.14",
+      "numpy": "1.26.4",
+      "pandas": "2.3.3",
+      "scipy": "1.16.3",
+      "scikit-learn": "1.7.2",
+      "seaborn": "0.13.2",
+      "platform": "Darwin-arm64"
+    },
+    "seed": 42,
+    "tolerance": {
+      "data_abs": 0.0,
+      "hash": "exact"
+    },
+    "tolerance_rationale": "Static data: the embedded CSV must reproduce the matrix exactly. CSV floats use Python's shortest round-trip repr, so parsing them as f64 is lossless and data_sha256_f64 must match bit for bit."
+  },
+  "input": {
+    "app_label": "🌸 Iris - Clasificación de flores",
+    "source": "sklearn.datasets.load_iris (bundled with scikit-learn)"
+  },
+  "expected": {
+    "csv": "data/iris.csv",
+    "csv_sha256": "b6354ddc844092af7f63edb9e8be69cbbdbda3cc3fc80760b6483102df0ab9f2",
+    "csv_bytes": 2778,
+    "data_sha256_f64": "6e592aace77bce225cd6af938de731a5798c8c30ee9cc5f1cd6abdea81e3bb25",
+    "data_sha256_f64_definition": "sha256 of row-major little-endian f64 values, each row = feature columns in 'columns' order followed by the target",
+    "shape": [
+      150,
+      4
+    ],
+    "columns": [
+      "sepal length (cm)",
+      "sepal width (cm)",
+      "petal length (cm)",
+      "petal width (cm)"
+    ],
+    "dtypes": {
+      "sepal length (cm)": "float64",
+      "sepal width (cm)": "float64",
+      "petal length (cm)": "float64",
+      "petal width (cm)": "float64"
+    },
+    "feature_names": [
+      "sepal length (cm)",
+      "sepal width (cm)",
+      "petal length (cm)",
+      "petal width (cm)"
+    ],
+    "target_name": "species",
+    "target_dtype": "int64",
+    "class_names": [
+      "setosa",
+      "versicolor",
+      "virginica"
+    ],
+    "task_type": "Clasificación",
+    "dataset_info": {
+      "description": "Dataset Iris: 150 muestras, 4 características, 3 clases de flores",
+      "target": "species",
+      "task_type": "Clasificación",
+      "samples": 150,
+      "features": 4,
+      "classes": 3
+    },
+    "target_summary": {
+      "class_counts": {
+        "0": 50,
+        "1": 50,
+        "2": 50
+      }
+    },
+    "index_is_range": true,
+    "head": [
+      {
+        "features": [
+          5.1,
+          3.5,
+          1.4,
+          0.2
+        ],
+        "target": 0
+      },
+      {
+        "features": [
+          4.9,
+          3.0,
+          1.4,
+          0.2
+        ],
+        "target": 0
+      },
+      {
+        "features": [
+          4.7,
+          3.2,
+          1.3,
+          0.2
+        ],
+        "target": 0
+      },
+      {
+        "features": [
+          4.6,
+          3.1,
+          1.5,
+          0.2
+        ],
+        "target": 0
+      },
+      {
+        "features": [
+          5.0,
+          3.6,
+          1.4,
+          0.2
+        ],
+        "target": 0
+      }
+    ]
+  }
+}

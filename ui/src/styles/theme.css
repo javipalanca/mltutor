@@ -1,0 +1,91 @@
+/*
+ * Design tokens taken from the Qt version (`mltutor/desktop/window.py`, STYLE) and the
+ * Streamlit navigation buttons (`mltutor/app.py`: hover #E3F2FD, border #90CAF9).
+ * Light theme only for now; dark mode arrives with the Phase 1 shell.
+ */
+:root {
+  --font-sans: "Inter Variable", "Inter", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+  --font-mono: "Menlo", "Consolas", "DejaVu Sans Mono", monospace;
+  --font-emoji: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji";
+  --font-size: 14px;
+
+  --color-text: #243247;
+  --color-text-muted: #64748b;
+  --color-bg: #ffffff;
+  --color-sidebar-bg: #f3f6fb;
+  --color-border: #d5dce5;
+  --color-divider: #e1e8f2;
+
+  --color-title: #1e88e5;
+  --color-heading: #0d47a1;
+
+  --color-primary: #1e88e5;
+  --color-primary-hover: #1572c4;
+  --color-on-primary: #ffffff;
+  --color-hover-bg: #e3f2fd;
+  --color-hover-border: #90caf9;
+  --color-pressed-bg: #dbeafe;
+  --color-focus: #60a5fa;
+
+  --color-info-bg: #e3f2fd;
+  --color-info-border: #90caf9;
+
+  --color-scrollbar-track: #f3f6fb;
+  --color-scrollbar-thumb: #b9c8db;
+
+  --radius-button: 8px;
+  --radius-box: 10px;
+  --sidebar-width: 260px;
+
+  color-scheme: light;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-sans), var(--font-emoji);
+  font-size: var(--font-size);
+  line-height: 1.5;
+  color: var(--color-text);
+  background: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  /* Desktop app: no accidental text selection of chrome, no rubber-band overscroll. */
+  user-select: none;
+  overscroll-behavior: none;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  line-height: 1.25;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+  background: var(--color-scrollbar-track);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-scrollbar-thumb);
+  border-radius: 5px;
+  border: 2px solid var(--color-scrollbar-track);
+}

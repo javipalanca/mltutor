@@ -36,6 +36,94 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
 - **Código muerto en Python:** varias pestañas de `viz/nn_extra.py` y funciones de
   `ui.py`, `tree_visualization.py` y `knn_app.py` no son alcanzables; no se portan
   (INVENTARIO §8).
+- **Spike de crates (2026-10-13). Versiones fijadas:** linfa, linfa-linear, linfa-logistic
+  y linfa-nn 0.8.1 (exigen ndarray 0.16 y rand 0.8); burn `=0.22.0` con backend `flex` +
+  `autodiff` (el backend `ndarray` está deprecado en 0.22); rand y rand_chacha 0.10;
+  rand_mt 6.1; prost 0.14. El ndarray de linfa (0.16) y el de burn-ndarray (0.17) son
+  incompatibles: mltutor-core usa ndarray 0.16 y mltutor-nn intercambia `Vec<f32>` o
+  slices. Sin BLAS, openssl, cc ni protoc: compila para mac arm64, win x64 y linux x64.
+- **linfa-trees no sirve:** solo clasifica, no guarda n_samples/impurity/value por nodo, no
+  tiene predict_proba, poda subárboles y calcula en f32. En Iris (depth 3) da 5 nodos
+  frente a 9 de sklearn y falla 6/150 predicciones. **CART propio** para clasificación y
+  regresión, con los umbrales como punto medio en f32 (sklearn convierte X a float32) e
+  importancia ponderada por muestras.
+- **linfa-logistic ≈ sklearn:** misma función objetivo con α = 1/C (sin penalizar el
+  intercepto). sklearn por defecto se detiene antes del óptimo: 1.6e-3 de diferencia en
+  las probabilidades de Iris, y 5e-6 frente a sklearn convergido. Tolerancia de paridad:
+  2e-3. **Trampa:** en binaria, la clase "positiva" de linfa es la más frecuente, no la
+  clase 1; hay que remapear las probabilidades y el signo de los coeficientes.
+- **linfa-linear OLS = sklearn** (1e-12 en Diabetes).
+- **KNN:** linfa-nn no trae clasificador ni regresor y `k_nearest` no devuelve distancias.
+  KdTree y BallTree con L1 dan vecinos incorrectos, y KdTree hace panic con NaN. **Usar
+  fuerza bruta propia**, que coincide con sklearn (error de 0 a 2e-16). Con distancia 0
+  se aplica la regla de sklearn: si algún vecino está a distancia 0, solo cuentan esos.
+- **burn 0.22:** la API ya no es genérica (`Tensor<D>`, `Device::flex().autodiff()`); la
+  documentación antigua con `B: Backend` no vale. El RNG del backend es un static global:
+  hay que serializar los entrenamientos con un Mutex para que sean deterministas. Valores
+  por defecto distintos de Keras que hay que fijar a mano: Adam eps 1e-7; RmsProp rho .9,
+  momentum 0 y eps 1e-7; bias a cero (XavierUniform también lo inicializa). El LR va en
+  cada `step`, así que ReduceLROnPlateau se implementa a mano. Iris, 100 épocas: unos
+  90 ms. Añade unos 4 MB al binario. En `[profile.dev.package."*"]` hace falta opt-level
+  2–3 o `tauri dev` entrenará muy lento.
+- **ONNX desde Rust:** prost con los structs de onnx.proto escritos a mano (sin protoc),
+  ir_version 8, opset 15 y ai.onnx.ml 3. Pasan el checker y onnxruntime con
+  LinearRegressor, LinearClassifier, TreeEnsemble* y Gemm+activaciones, con errores
+  ≤ 3e-7. onnxruntime rechaza nombres de nodo repetidos y el checker no lo detecta:
+  validar siempre con ORT.
+- **Splits iguales que sklearn:** rand_mt `Mt::new(42)` con Fisher-Yates y rechazo por
+  máscara reproduce exactamente `RandomState(42).permutation(n)` y, por tanto,
+  `train_test_split` sin estratificar.
+- **uv en este Mac:** el Python gestionado por defecto es x86_64 y falla con `--no-project`.
+  Hay que usar `--python .venv/bin/python`. onnxruntime no está en el entorno del repo;
+  para validar: `uv run --no-project --python .venv/bin/python --with onnx==1.17.0 --with onnxruntime ...`.
+- **Decisiones D7 y D8 (2026-10-13, usuario):** el split se reproduce exactamente como en
+  Python (sin estratificar, con rand_mt), y en MPG `name` deja de ser característica pero
+  se mantiene para visualizar (tooltips y vista previa).
+- **Esqueleto Tauri (2026-10-13):** la CLI de Tauri es una devDependency de `ui/`;
+  `npm --prefix ui run tauri <cmd>` ejecuta `cd .. && tauri`. `beforeDevCommand` y
+  `beforeBuildCommand` son `npm run dev`/`build`, sin `--prefix`, porque Tauri ya ejecuta en
+  `ui/`. Flags al binario en dev: `npm --prefix ui run tauri dev -- -- -- --smoke-test`.
+  `cargo build --release` a secas no empaqueta el frontend: hay que usar `tauri build`.
+- **Panics:** los comandos Tauri síncronos se ejecutan en el hilo principal, y un panic ahí
+  aborta la app. Todos los comandos son `async` y el trabajo pesado va en `spawn_blocking`.
+  `smoke_panic_probe` comprueba en el smoke test que la app sobrevive a un panic de un worker.
+- **Comandos permitidos:** cada comando nuevo se declara en `src-tauri/build.rs`
+  (`AppManifest::commands`) y en `capabilities/default.json` (`allow-<cmd>`).
+- **Tipos compartidos:** se usa ts-rs. `cargo test` regenera `ui/src/lib/bindings/*.ts`, que
+  van versionados; la CI comprueba `git diff --exit-code`.
+- **CSP y estilos en línea:** con `style-src 'self'` Tauri inyecta nonces y bloquea los
+  atributos `style=`. Para Plotly y KaTeX (F1/F2) habrá que poner `'unsafe-inline'` en
+  `style-src` y `dangerousDisableAssetCspModification: ["style-src"]`. Hasta entonces, nada de
+  `style=` estáticos.
+- **Captura:** `--screenshot` es nativa solo en macOS (`WKWebView.takeSnapshot`, recortando
+  la barra de título). En Windows (`CapturePreview`) y Linux (`webkit_web_view_get_snapshot`)
+  sale con 1 por ahora.
+- **Exit codes:** `App::run_return` + `AppHandle::exit(code)`; el watchdog usa
+  `process::exit(2)`. En Windows el binario es `windows_subsystem="windows"`, así que el CI
+  necesita `Start-Process -Wait -PassThru` para leer el código.
+- **`.gitignore`:** la regla Python `lib/` ignoraba `ui/src/lib/`; se ha añadido `!ui/src/lib/`.
+- **Medidas F0 (Mac arm64):** `.app` de 6,65 MiB (zip de 3,8 MB) y unos 0,6 s hasta la
+  interfaz lista. TypeScript fijado a ~6.0 (svelte-check 4.7 no admite el 7).
+- **Fixtures golden (2026-10-13):** se generan con `uv run python tools/export_golden.py` y
+  se verifican con `--check` (exit 1 si algo cambiaría). Son deterministas y pesan unos
+  3 MB de CSV en `tests/parity/datasets/data/` (California ocupa 1,9 MB). Tolerancias:
+  datos y splits exactos, OLS 1e-8 relativo, logística 1e-3 en coeficientes y 1e-4 en
+  probabilidades.
+- **El split de Python NO estratifica (2026-10-13):** `preprocess_data` es
+  `train_test_split(test_size, random_state=42)`, con `test = perm[:ceil(t·n)]` de
+  `RandomState(42)` (MT19937). En Iris el test queda 19/13/13. Los tests de paridad de
+  modelos deben usar los índices del fixture, no reproducir el RNG de numpy.
+- **Moons usa el timestamp como semilla** en la app Python, así que no es reproducible.
+  El fixture usa `random_state=42`.
+- **MPG también necesita red en Python:** se carga con `sns.load_dataset("mpg")`, no con
+  el CSV incluido, y codifica `name` (el modelo de coche, 301 valores) como característica.
+  Diamantes codifica cut/color/clarity en orden alfabético, no ordinal, y hace
+  `sample(8000, random_state=42)`.
+- **`X.columns` frente a `feature_names`:** difieren en Titanic, Propinas, Pingüinos,
+  California y Dígitos (p0..p63). Los CSV de parity usan `X.columns`; la UI muestra
+  `feature_names`.
+- **Cáncer:** 0 = malignant y 1 = benign, en el orden de sklearn. Titanic rellena la edad y
+  la tarifa con la mediana y embarked con 'S'. Pingüinos: 333 filas tras dropna; MPG: 392.
 - Rama de trabajo: `feature/rust-migration`, creada el 2026-10-13 a partir de `codex/desktop-migration-study`, que tiene la versión Qt de referencia.
 
 ## Decisiones de diseño (versión Python/Qt)

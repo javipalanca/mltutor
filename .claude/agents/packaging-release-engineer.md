@@ -12,7 +12,7 @@ y la parte de `docs/migration/INVENTARIO.md` que te toque. Al terminar aplica la
 "Definición de terminado" de AGENTS.md y marca en el inventario lo que has completado.
 
 Versión Rust (prioridad):
-- `cargo tauri build` por plataforma. Objetivo: el estudiante descarga y abre, sin
+- `npm --prefix ui run tauri build` por plataforma. Objetivo: el estudiante descarga y abre, sin
   instalar nada ni necesitar permisos de administrador. Windows: `.exe` portable (WebView2
   ya incluido en Win10/11; documenta el plan B). macOS arm64: `.app` en un `.zip`/`.dmg`.
   Linux: AppImage validado en Ubuntu 22.04.

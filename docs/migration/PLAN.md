@@ -34,7 +34,7 @@ crates/
   mltutor-core/     datasets embebidos, CSV, preprocesado, split, estadísticas,
                     árboles, lineal/logística, KNN, métricas, ROC/PR, importancia,
                     rejillas para fronteras y superficies, generación de código Python
-  mltutor-nn/       MLP con burn (ndarray CPU): capas, activaciones, dropout,
+  mltutor-nn/       MLP con burn 0.22 (backend flex, CPU): capas, activaciones, dropout,
                     optimizadores, early stopping, reducción del LR, historial,
                     pesos y activaciones, diagnóstico del entrenamiento
   mltutor-export/   ONNX nativo (protobuf ai.onnx/ai.onnx.ml) y paquetes de exportación
@@ -63,6 +63,8 @@ La UI dibuja con Plotly o SVG. Nunca se envían imágenes rasterizadas.
 | D4 | Versionado | La primera versión Rust será la **0.4.0**, con prereleases `0.4.0-rc.N` desde la rama de migración. La versión vive en `Cargo.toml` del workspace, sincronizada con `tauri.conf.json`. |
 | D5 | Código muerto de Python (sección 8 del inventario) | No portarlo |
 | D6 | Paridad de árboles y regresión logística | Tolerancia, no igualdad: aceptar diferencias por desempates y solver, siempre documentadas |
+| D7 | Split train/test | ✅ Aprobada: **idéntico al de Python**, sin estratificar, con `rand_mt` (MT19937) para reproducir `RandomState(42).permutation`. Mismos datos de train y test que la versión actual. La estratificación queda como mejora futura opcional |
+| D8 | MPG: columna `name` | ✅ Aprobada: **no se usa como característica** del modelo (301 modelos de coche codificados como número no tienen sentido). Se conserva en la exploración de datos: vista previa, tooltip en el pairplot y gráficos de dispersión |
 
 ## Fases
 
@@ -75,13 +77,13 @@ validar en equipos reales desde el principio. El orden reduce primero el riesgo
 Objetivo: una app Tauri vacía que se compila, se prueba y **se publica en las tres
 plataformas** antes de escribir lógica.
 
-- [ ] `rust-toolchain.toml` (stable, rustfmt, clippy) y el workspace con los crates vacíos.
-- [ ] Spike de dependencias: versiones de `linfa-*`, `burn` y `tauri`, y qué cubre
+- [x] `rust-toolchain.toml` (stable, rustfmt, clippy) y el workspace con los crates vacíos.
+- [x] Spike de dependencias (resultados en MEMORY.md): versiones de `linfa-*`, `burn` y `tauri`, y qué cubre
       cada una (¿linfa-trees hace regresión? ¿linfa-logistic hace multinomial?). Se
       anota en MEMORY.md.
-- [ ] Esqueleto de Tauri 2 + Svelte 5 + Vite + TS, con CSP estricta, sin red,
+- [x] Esqueleto de Tauri 2 + Svelte 5 + Vite + TS, con CSP estricta, sin red,
       `tauri-plugin-dialog`/`fs` y el icono actual (`assets/`).
-- [ ] Flags del binario: `--smoke-test`, que navega por todas las rutas y sale con 0, y
+- [x] Flags del binario (la captura de Windows y Linux, pendiente): `--smoke-test`, que navega por todas las rutas y sale con 0, y
       `--screenshot <png>`. Además, registro en `~/.mltutor/mltutor.log` y hook de panic.
 - [ ] Workflow `.github/workflows/rust.yml`: fmt, clippy, test, npm check/test, build
       Tauri, smoke test (xvfb en Linux) y empaquetado
@@ -90,7 +92,7 @@ plataformas** antes de escribir lógica.
       misma lógica de prerelease que el workflow actual.
 - [ ] `release.sh` adaptado para leer y escribir la versión en Cargo.toml y
       tauri.conf.json, conservando las reglas de main y de `-rc`.
-- [ ] `tools/export_golden.py`, con la infraestructura y un primer fixture (Iris).
+- [x] `tools/export_golden.py`, con la infraestructura y un primer fixture (Iris). También están los 12 datasets, el split y los fixtures de lineal y logística.
 - [ ] **Hito:** `v0.4.0-rc.1` publicada, con una app que muestra la navegación vacía
       y se abre en los 3 sistemas.
 
@@ -111,6 +113,9 @@ Agentes: `packaging-release-engineer` (CI y releases), `tauri-ui-engineer` (esqu
 - [ ] Pestaña 📊 Datos común y página 📁 Cargar CSV Personalizado (inventario §1–2),
       con heatmap de correlación y pairplot en Plotly.
 - [ ] Metadatos de datasets portados como datos (`content/datasets/*.toml`).
+- [ ] D8: ajustar `tools/export_golden.py` para que en MPG `name` sea una columna de
+      etiqueta y no una característica (el fixture de datos sigue incluyéndola en el CSV).
+- [ ] D7: split con `rand_mt`, verificado exactamente contra `tests/parity/split/*.json`.
 - [ ] Fixtures de paridad: splits, estadísticas y codificaciones.
 
 Agentes: `migration-porter`, luego `rust-ml-engineer` y `tauri-ui-engineer` en

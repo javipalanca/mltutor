@@ -1,0 +1,38 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/mltutor-core",
+    "crates/mltutor-nn",
+    "crates/mltutor-export",
+    "src-tauri",
+]
+
+[workspace.package]
+version = "0.4.0-rc.1"
+edition = "2021"
+rust-version = "1.85"
+authors = ["Javier Palanca"]
+repository = "https://github.com/javipalanca/mltutor"
+publish = false
+
+[workspace.dependencies]
+mltutor-core = { path = "crates/mltutor-core" }
+mltutor-nn = { path = "crates/mltutor-nn" }
+mltutor-export = { path = "crates/mltutor-export" }
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+
+[workspace.lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"
+
+# Release builds favour runtime speed (ML code) and a small download:
+# fat LTO + a single codegen unit + stripped symbols.
+# `panic = "unwind"` is required so the panic hook can log and the app keeps running.
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = true
+panic = "unwind"

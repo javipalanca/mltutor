@@ -1,0 +1,40 @@
+[package]
+name = "mltutor"
+description = "MLTutor: aplicación educativa para aprender Machine Learning"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish.workspace = true
+default-run = "mltutor"
+
+[[bin]]
+name = "mltutor"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2.7", features = [] }
+
+[dependencies]
+tauri = { version = "2.12", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+log = { version = "0.4", features = ["std"] }
+humantime = "2"
+dirs = "6"
+ts-rs = "11"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSData", "NSDictionary", "NSError", "NSGeometry", "NSString"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "objc2-core-foundation", "NSBitmapImageRep", "NSGraphics", "NSImage", "NSImageRep", "NSResponder", "NSView"] }
+objc2-web-kit = { version = "0.3", default-features = false, features = ["std", "block2", "objc2-app-kit", "objc2-core-foundation", "WKWebView", "WKSnapshotConfiguration"] }
+block2 = "0.6"
+objc2-core-foundation = { version = "0.3", default-features = false, features = ["std", "CFCGTypes"] }
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true
