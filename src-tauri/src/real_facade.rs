@@ -1,6 +1,7 @@
 //! [`CoreFacade`] over `mltutor-core` (the implementation the app uses). It only converts
 //! core types into the IPC DTOs and core errors into Spanish `CommandError`s.
 
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use mltutor_core as core;
@@ -10,8 +11,8 @@ use crate::core_facade::{
     CoreFacade, CsvDraft, CsvDraftHandle, CsvFinal, DatasetHandle, DatasetView,
 };
 use crate::ipc::{
-    self, to_u32, CommandError, CorrelationMatrix, CsvPreview, DatasetEntry, DatasetId, DatasetRef,
-    DatasetSummary, DescribeTable, DiagKind, Matrix, PairplotData, TablePreview,
+    self, finite, to_u32, CommandError, CorrelationMatrix, CsvPreview, DatasetEntry, DatasetId,
+    DatasetRef, DatasetSummary, DescribeTable, DiagKind, Matrix, PairplotData, TablePreview,
     TargetDistribution, TargetInfo, TaskChoice, TaskType,
 };
 
@@ -154,9 +155,11 @@ fn pairplot(plot: explore::PairplotData) -> PairplotData {
         points: matrix(&plot.points),
         hue: match plot.hue {
             explore::Hue::Categorical { levels, codes } => ipc::Hue::Categorical { levels, codes },
-            explore::Hue::Continuous { values, min, max } => {
-                ipc::Hue::Continuous { values, min, max }
-            }
+            explore::Hue::Continuous { values, min, max } => ipc::Hue::Continuous {
+                values: values.into_iter().map(finite).collect(),
+                min: finite(min),
+                max: finite(max),
+            },
         },
         tooltips: plot.tooltips,
         diagonal: plot
@@ -198,6 +201,7 @@ pub fn csv_error(error: core::CsvError) -> CommandError {
         core::CsvError::TooLarge { bytes, limit } => CommandError::csv_too_large(bytes, limit),
         core::CsvError::Io { message } => CommandError::csv_io(message),
         core::CsvError::UnknownColumn { column } => CommandError::unknown_column(&column),
+        core::CsvError::Cancelled => CommandError::cancelled(),
     }
 }
 
@@ -209,6 +213,7 @@ pub fn dataset_error(error: core::DatasetError) -> CommandError {
             CommandError::invalid_selection(format!("Selección no válida: {reason}"))
         }
         core::DatasetError::Csv(error) => csv_error(error),
+        core::DatasetError::Cancelled => CommandError::cancelled(),
         other @ (core::DatasetError::Metadata { .. } | core::DatasetError::Data { .. }) => {
             CommandError::internal(other)
         }
@@ -242,7 +247,7 @@ impl DatasetView for CoreDataset {
             } => TargetDistribution::Bar {
                 labels,
                 counts,
-                balance_ratio,
+                balance_ratio: finite(balance_ratio),
                 balanced,
             },
             explore::TargetDistribution::Histogram {
@@ -255,22 +260,26 @@ impl DatasetView for CoreDataset {
             } => TargetDistribution::Histogram {
                 edges,
                 counts,
-                mean,
-                std,
-                min,
-                max,
+                mean: finite(mean),
+                std: finite(std),
+                min: finite(min),
+                max: finite(max),
             },
         }
     }
 
-    fn correlation(&self) -> CorrelationMatrix {
-        let corr = explore::correlation_matrix(&self.0);
-        CorrelationMatrix {
+    fn correlation(&self, cancel: &AtomicBool) -> Result<CorrelationMatrix, CommandError> {
+        let corr =
+            explore::correlation_matrix_cancellable(&self.0, cancel).map_err(dataset_error)?;
+        Ok(CorrelationMatrix {
+            truncation_message: corr.truncation_message(),
             values: matrix(&corr.values),
             labels: corr.labels,
             visible_min: corr.visible_min,
             visible_max: corr.visible_max,
-        }
+            truncated: corr.truncated,
+            total_columns: to_u32(corr.total_columns),
+        })
     }
 
     fn pairplot(&self, features: &[String], diag: DiagKind) -> Result<PairplotData, CommandError> {
@@ -290,6 +299,10 @@ struct CoreCsvDraft {
 }
 
 impl CsvDraft for CoreCsvDraft {
+    fn file_name(&self) -> &str {
+        &self.file_name
+    }
+
     fn preview(&self) -> CsvPreview {
         match self.table.preview() {
             Ok(preview) => CsvPreview {
@@ -349,11 +362,16 @@ impl CsvDraft for CoreCsvDraft {
             .map_err(csv_error)
     }
 
-    fn finalize(&self, target: &str, choice: TaskChoice) -> Result<CsvFinal, CommandError> {
+    fn finalize(
+        &self,
+        target: &str,
+        choice: TaskChoice,
+        cancel: &AtomicBool,
+    ) -> Result<CsvFinal, CommandError> {
         let choice = task_choice(choice);
         let dataset = self
             .table
-            .to_dataset(target, choice, &self.file_name)
+            .to_dataset_cancellable(target, choice, &self.file_name, cancel)
             .map_err(csv_error)?;
         let stats = match self.table.target_stats(target, choice).map_err(csv_error)? {
             core::csv::CsvTargetStats::Classes { value_counts } => {
@@ -368,11 +386,11 @@ impl CsvDraft for CoreCsvDraft {
                 hist_edges,
                 hist_counts,
             } => ipc::CsvTargetStats::Numeric {
-                min,
-                max,
-                mean,
-                median,
-                std,
+                min: finite(min),
+                max: finite(max),
+                mean: finite(mean),
+                median: finite(median),
+                std: finite(std),
                 hist_edges,
                 hist_counts,
             },
@@ -393,25 +411,22 @@ impl CoreFacade for RealFacade {
         "RealFacade (mltutor-core)"
     }
 
-    fn builtin_catalog(&self) -> Vec<DatasetEntry> {
-        match core::dataset::list_builtin() {
-            Ok(entries) => entries
-                .into_iter()
-                .map(|e| DatasetEntry {
-                    dataset: DatasetRef::Builtin {
-                        id: ipc_dataset_id(e.id),
-                    },
-                    label: e.label,
-                    blurb: e.blurb,
-                    task: task(e.task),
-                    synthetic: e.synthetic,
-                })
-                .collect(),
-            Err(error) => {
-                log::error!("no se pudo leer el catálogo de datasets: {error}");
-                Vec::new()
-            }
-        }
+    fn builtin_catalog(&self) -> Result<Vec<DatasetEntry>, CommandError> {
+        let entries = core::dataset::list_builtin().map_err(|error| {
+            CommandError::internal(format!("no se pudo leer el catálogo de datasets: {error}"))
+        })?;
+        Ok(entries
+            .into_iter()
+            .map(|e| DatasetEntry {
+                dataset: DatasetRef::Builtin {
+                    id: ipc_dataset_id(e.id),
+                },
+                label: e.label,
+                blurb: e.blurb,
+                task: task(e.task),
+                synthetic: e.synthetic,
+            })
+            .collect())
     }
 
     fn load_builtin(&self, id: DatasetId) -> Result<DatasetHandle, CommandError> {
@@ -423,8 +438,13 @@ impl CoreFacade for RealFacade {
         Ok(Arc::new(CoreDataset(dataset)))
     }
 
-    fn read_csv(&self, file_name: &str, bytes: &[u8]) -> Result<CsvDraftHandle, CommandError> {
-        let table = core::csv::read_csv(bytes).map_err(csv_error)?;
+    fn read_csv(
+        &self,
+        file_name: &str,
+        bytes: &[u8],
+        cancel: &AtomicBool,
+    ) -> Result<CsvDraftHandle, CommandError> {
+        let table = core::csv::read_csv_cancellable(bytes, cancel).map_err(csv_error)?;
         Ok(Arc::new(CoreCsvDraft {
             file_name: file_name.to_owned(),
             table,
@@ -442,8 +462,12 @@ mod tests {
     fn real_facade_matches_the_fixtures() {
         let real = RealFacade;
         let fixture = FixtureFacade::from_checkout();
-        assert_eq!(real.builtin_catalog(), fixture.builtin_catalog());
-        for entry in fixture.builtin_catalog() {
+        assert_eq!(
+            real.builtin_catalog().unwrap(),
+            fixture.builtin_catalog().unwrap()
+        );
+        let go = AtomicBool::new(false);
+        for entry in fixture.builtin_catalog().unwrap() {
             let DatasetRef::Builtin { id } = entry.dataset else {
                 unreachable!()
             };
@@ -468,7 +492,11 @@ mod tests {
             assert_eq!(sa.class_names, sb.class_names, "{id:?}");
             assert_eq!(a.preview(10).columns, b.preview(10).columns, "{id:?}");
             assert_eq!(a.describe().columns, b.describe().columns, "{id:?}");
-            assert_eq!(a.correlation().labels, b.correlation().labels, "{id:?}");
+            assert_eq!(
+                a.correlation(&go).unwrap().labels,
+                b.correlation(&go).unwrap().labels,
+                "{id:?}"
+            );
             let features: Vec<String> = sa.feature_display.iter().take(3).cloned().collect();
             let pa = a.pairplot(&features, DiagKind::Kde).unwrap();
             let pb = b.pairplot(&features, DiagKind::Kde).unwrap();
@@ -481,9 +509,42 @@ mod tests {
     }
 
     #[test]
+    fn wide_correlations_are_truncated_with_a_notice() {
+        let go = AtomicBool::new(false);
+        let width = explore::CORRELATION_MAX_COLUMNS + 5;
+        let header: Vec<String> = (0..width).map(|c| format!("c{c}")).collect();
+        let mut csv = header.join(",") + "\n";
+        for r in 0..4 {
+            let row: Vec<String> = (0..width)
+                .map(|c| ((r * 7 + c * 3) % 11).to_string())
+                .collect();
+            csv += &(row.join(",") + "\n");
+        }
+        let draft = RealFacade
+            .read_csv("ancho.csv", csv.as_bytes(), &go)
+            .unwrap();
+        let done = draft
+            .finalize(&format!("c{}", width - 1), TaskChoice::Regression, &go)
+            .unwrap();
+        let corr = done.dataset.correlation(&go).unwrap();
+        assert!(corr.truncated);
+        assert_eq!(corr.total_columns as usize, width);
+        assert_eq!(corr.labels.len(), explore::CORRELATION_MAX_COLUMNS);
+        assert!(corr
+            .truncation_message
+            .unwrap()
+            .contains(&width.to_string()));
+        assert!(matches!(
+            done.dataset.correlation(&AtomicBool::new(true)),
+            Err(CommandError::Cancelled { .. })
+        ));
+    }
+
+    #[test]
     fn csv_errors_keep_the_python_messages() {
         let real = RealFacade;
-        let err = |bytes: &[u8]| real.read_csv("x.csv", bytes).err().unwrap();
+        let go = AtomicBool::new(false);
+        let err = |bytes: &[u8]| real.read_csv("x.csv", bytes, &go).err().unwrap();
         assert_eq!(err(b"").message(), "❌ El archivo está vacío");
         assert!(matches!(
             err(b"a\n1\n"),
@@ -493,12 +554,17 @@ mod tests {
             err(b"a,b\n1,2\n1,2,3\n"),
             CommandError::CsvMalformed { .. }
         ));
-        let draft = real.read_csv("t.csv", b"a,b,c\n1,2,x\n3,4,y\n").unwrap();
+        let draft = real
+            .read_csv("t.csv", b"a,b,c\n1,2,x\n3,4,y\n", &go)
+            .unwrap();
+        assert_eq!(draft.file_name(), "t.csv");
         assert!(matches!(
             draft.target_info("zz"),
             Err(CommandError::UnknownColumn { .. })
         ));
-        let done = draft.finalize("c", TaskChoice::Classification).unwrap();
+        let done = draft
+            .finalize("c", TaskChoice::Classification, &go)
+            .unwrap();
         assert_eq!(done.resolved_task, TaskType::Classification);
         assert_eq!(
             done.dataset.summary().class_names,

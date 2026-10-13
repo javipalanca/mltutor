@@ -1,6 +1,7 @@
 <script lang="ts">
   import { datosText } from "../lib/content";
-  import { PYTHON_FILTER, saveText } from "../lib/download";
+  import { errorMessage } from "../lib/backend";
+  import { saveText } from "../lib/download";
   import { highlightPython } from "../lib/markdown";
   import { status } from "../lib/status.svelte";
   import Expander from "./Expander.svelte";
@@ -34,9 +35,13 @@
     if (!downloadName) {
       return;
     }
-    const saved = await saveText(downloadName, code, PYTHON_FILTER);
-    if (saved) {
-      status.flash(`Guardado: ${saved}`);
+    try {
+      const saved = await saveText(downloadName, code, "python");
+      if (saved) {
+        status.flash(`Guardado: ${saved}`);
+      }
+    } catch (error) {
+      status.flash(errorMessage(error), 8000);
     }
   }
 </script>

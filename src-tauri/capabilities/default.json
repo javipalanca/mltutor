@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permissions of the main window: MLTutor's own commands, the native open/save dialogs and writing only the files the user picks in the save dialog (no static filesystem scope).",
+  "description": "Permissions of the main window: only MLTutor's own commands. The open/save dialogs and the file access happen in Rust (pick_and_load_csv, save_file), so the frontend gets no dialog or filesystem permission.",
   "windows": ["main"],
   "permissions": [
     "allow-launch-mode",
@@ -21,11 +21,12 @@
     "allow-target-distribution",
     "allow-correlation-matrix",
     "allow-pairplot-data",
-    "allow-load-csv",
+    "allow-cancel-task",
+    "allow-pick-and-load-csv",
+    "allow-load-scenario-csv",
     "allow-csv-target-info",
     "allow-set-csv-target",
-    "dialog:allow-open",
-    "dialog:allow-save",
-    "fs:allow-write-file"
+    "allow-discard-csv",
+    "allow-save-file"
   ]
 }

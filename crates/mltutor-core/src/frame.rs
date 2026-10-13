@@ -68,11 +68,20 @@ impl DescribeTable {
             names.push(name);
             stats_per_col.push(describe_column(values));
         }
-        let values = Array2::from_shape_fn((DESCRIBE_STATS.len(), names.len()), |(s, c)| {
-            stats_per_col[c][s]
-        });
+        Self::from_stats(names, &stats_per_col, excluded_columns)
+    }
+
+    /// Builds the table from the already computed [`describe_column`] of each
+    /// column (`stats_per_col[c]`, same order as `columns`).
+    pub fn from_stats(
+        columns: Vec<String>,
+        stats_per_col: &[[f64; 8]],
+        excluded_columns: Vec<String>,
+    ) -> Self {
+        let n = columns.len().min(stats_per_col.len());
+        let values = Array2::from_shape_fn((DESCRIBE_STATS.len(), n), |(s, c)| stats_per_col[c][s]);
         Self {
-            columns: names,
+            columns,
             stats: DESCRIBE_STATS.iter().map(|s| (*s).to_owned()).collect(),
             values,
             excluded_columns,

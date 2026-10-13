@@ -2,6 +2,10 @@
  * Plotly figures of the 📊 Datos tab and the CSV page. Pure functions (data → figure) so
  * they can be unit-tested without a browser; `PlotlyChart.svelte` draws them.
  * Colours follow the Python version (fase1-shell-datos.md §2.4–§2.6).
+ *
+ * Plotly reads pseudo-HTML (`<a href>`, `<b>`…) in every label, so strings that come from
+ * data (column names, class values, car names) go through `escapePlotly`, and hover
+ * templates refer to them with `%{…}` instead of embedding them.
  */
 import type { Annotations, Data, Layout } from "plotly.js";
 import type { CorrelationMatrix } from "./bindings/CorrelationMatrix";
@@ -9,6 +13,9 @@ import type { CsvTargetStats } from "./bindings/CsvTargetStats";
 import type { DiagPanel } from "./bindings/DiagPanel";
 import type { PairplotData } from "./bindings/PairplotData";
 import type { TargetDistribution } from "./bindings/TargetDistribution";
+import { escapePlotly } from "./escape";
+
+const esc = (values: readonly string[]): string[] => values.map(escapePlotly);
 
 export interface Figure {
   data: Data[];
@@ -135,7 +142,7 @@ export function targetDistributionFigure(dist: TargetDistribution, theme: ChartT
       data: [
         {
           type: "bar",
-          x: dist.labels,
+          x: esc(dist.labels),
           y: dist.counts,
           marker: { color: BAR_COLOR },
           hovertemplate: "%{x}: %{y}<extra></extra>",
@@ -180,16 +187,17 @@ export function histogramFigure(
 
 /** CSV page: "Distribución de {col}" bars (pandas `plot.bar`, C0) or histogram. */
 export function csvTargetFigure(column: string, stats: CsvTargetStats, theme: ChartTheme = LIGHT_THEME): Figure {
-  const title = `Distribución de ${column}`;
+  const name = escapePlotly(column);
+  const title = `Distribución de ${name}`;
   if (stats.kind === "classes") {
     const layout = baseLayout(theme, title);
-    layout.xaxis = { ...axis(theme, column), type: "category", tickangle: -45 };
+    layout.xaxis = { ...axis(theme, name), type: "category", tickangle: -45 };
     layout.yaxis = axis(theme, "Cantidad");
     return {
       data: [
         {
           type: "bar",
-          x: stats.value_counts.map(([label]) => label),
+          x: stats.value_counts.map(([label]) => escapePlotly(label)),
           y: stats.value_counts.map(([, count]) => count),
           marker: { color: HIST_COLOR },
           hovertemplate: "%{x}: %{y}<extra></extra>",
@@ -198,7 +206,7 @@ export function csvTargetFigure(column: string, stats: CsvTargetStats, theme: Ch
       layout,
     };
   }
-  return histogramFigure(stats.hist_edges, stats.hist_counts, title, column, "Frecuencia", theme);
+  return histogramFigure(stats.hist_edges, stats.hist_counts, title, name, "Frecuencia", theme);
 }
 
 /** Heatmap of the strict lower triangle (Python's `np.triu` mask), scale fixed to [-1, 1] (D12). */
@@ -236,8 +244,8 @@ export function correlationFigure(corr: CorrelationMatrix, theme: ChartTheme = L
     data: [
       {
         type: "heatmap",
-        x: corr.labels,
-        y: corr.labels,
+        x: esc(corr.labels),
+        y: esc(corr.labels),
         z,
         zmin: -1,
         zmax: 1,
@@ -303,8 +311,8 @@ function diagonalTraces(panel: DiagPanel, levels: readonly string[], xa: string,
           line: { color, width: 1.5 },
           legendgroup: curve.level,
           showlegend: false,
-          name: curve.level,
-          hovertemplate: `${continuous ? "" : `${curve.level}<br>`}%{x:.3g}: %{y:.3g}<extra></extra>`,
+          name: escapePlotly(curve.level),
+          hovertemplate: `${continuous ? "" : "%{fullData.name}<br>"}%{x:.3g}: %{y:.3g}<extra></extra>`,
         } as Data;
       });
   }
@@ -322,8 +330,8 @@ function diagonalTraces(panel: DiagPanel, levels: readonly string[], xa: string,
       marker: { color: withAlpha(color, alpha), line: { color: withAlpha(color, 1), width: 0.6 } },
       legendgroup: series.level,
       showlegend: false,
-      name: series.level,
-      hovertemplate: `${continuous ? "" : `${series.level}<br>`}%{x:.3g}: %{y}<extra></extra>`,
+      name: escapePlotly(series.level),
+      hovertemplate: `${continuous ? "" : "%{fullData.name}<br>"}%{x:.3g}: %{y}<extra></extra>`,
     } as Data;
   });
 }
@@ -355,9 +363,10 @@ export function pairplotFigure(plot: PairplotData, theme: ChartTheme = LIGHT_THE
   const markerSize = plot.high_quality ? 7 : 5;
   const markerLine = plot.high_quality ? { color: "#ffffff", width: 0.5 } : { width: 0 };
   const diagAlpha = plot.high_quality ? 0.8 : 0.6;
-  const tooltips = plot.tooltips;
+  const tooltips = plot.tooltips ? esc(plot.tooltips) : null;
+  const features = esc(plot.features);
 
-  const layout = baseLayout(theme, plot.title);
+  const layout = baseLayout(theme, escapePlotly(plot.title));
   layout.showlegend = categorical;
   layout.legend = {
     title: { text: "target" },
@@ -383,8 +392,8 @@ export function pairplotFigure(plot: PairplotData, theme: ChartTheme = LIGHT_THE
       const xKey = layoutAxisKey("x", index);
       const yKey = layoutAxisKey("y", index);
       const isDiagonal = row === col;
-      const xTitle = row === k - 1 ? (plot.features[col] ?? "") : "";
-      const yTitle = col === 0 ? (plot.features[row] ?? "") : "";
+      const xTitle = row === k - 1 ? (features[col] ?? "") : "";
+      const yTitle = col === 0 ? (features[row] ?? "") : "";
       (layout as Record<string, unknown>)[xKey] = {
         ...axis(theme, xTitle),
         domain: [start(col), start(col) + size],
@@ -439,12 +448,12 @@ export function pairplotFigure(plot: PairplotData, theme: ChartTheme = LIGHT_THE
             y: py,
             xaxis: xa,
             yaxis: ya,
-            name: level,
+            name: escapePlotly(level),
             legendgroup: level,
             showlegend: index === 1 || (k === 1 && index === 0),
             marker: { color: levelColor(levelIndex, levels.length), size: markerSize, opacity: alpha, line: markerLine },
             ...(tooltips ? { text: pt } : {}),
-            hovertemplate: `${tooltips ? "%{text}<br>" : ""}${level}<br>%{x:.4g}, %{y:.4g}<extra></extra>`,
+            hovertemplate: `${tooltips ? "%{text}<br>" : ""}%{fullData.name}<br>%{x:.4g}, %{y:.4g}<extra></extra>`,
           } as Data);
         });
       } else {
@@ -460,8 +469,8 @@ export function pairplotFigure(plot: PairplotData, theme: ChartTheme = LIGHT_THE
           showlegend: false,
           marker: {
             color: hue.values,
-            cmin: hue.min,
-            cmax: hue.max,
+            cmin: hue.min ?? undefined,
+            cmax: hue.max ?? undefined,
             colorscale: CUBEHELIX,
             size: markerSize,
             opacity: alpha,

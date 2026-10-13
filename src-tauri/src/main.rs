@@ -7,14 +7,17 @@ mod cli;
 mod commands;
 mod core_facade;
 mod data;
+mod files;
 #[cfg(any(test, debug_assertions))]
 mod fixture_facade;
 mod ipc;
 mod logging;
+mod navigation;
 mod real_facade;
 mod screenshot;
 mod session;
 mod state;
+mod tasks;
 
 use std::process::ExitCode;
 use std::time::Instant;
@@ -74,8 +77,9 @@ fn main() -> ExitCode {
 fn run(mode: Mode, started: Instant) -> i32 {
     let automated = !matches!(mode, Mode::Normal);
     let app = tauri::Builder::default()
+        // The dialogs are only opened from Rust (no `dialog:` permission for JS).
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_fs::init())
+        .plugin(navigation::plugin())
         .manage(AppState::new(mode, started))
         .manage(data::DataState::new(facade()))
         .invoke_handler(tauri::generate_handler![
@@ -96,9 +100,13 @@ fn run(mode: Mode, started: Instant) -> i32 {
             data::target_distribution,
             data::correlation_matrix,
             data::pairplot_data,
-            data::load_csv,
+            data::cancel_task,
+            data::pick_and_load_csv,
+            data::load_scenario_csv,
             data::csv_target_info,
             data::set_csv_target,
+            data::discard_csv,
+            files::save_file,
         ])
         .setup(move |app| {
             if automated {

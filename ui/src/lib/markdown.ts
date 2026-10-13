@@ -1,22 +1,16 @@
 /**
  * Markdown → HTML for `content/*.md`, with KaTeX formulas (`$…$`, `$$…$$`) and Python
  * highlighting. Everything is bundled locally; the content is ours, so raw HTML is allowed
- * except comments (they document where each text comes from).
+ * except comments (they document where each text comes from). Values from data must be
+ * escaped before reaching here (`fmt` does it, or `escapeMarkdown` for a whole message).
  */
 import hljs from "highlight.js/lib/core";
 import python from "highlight.js/lib/languages/python";
 import katex from "katex";
 import { Marked, type TokenizerAndRendererExtension } from "marked";
+import { escapeHtml } from "./escape";
 
 hljs.registerLanguage("python", python);
-
-function escapeHtml(text: string): string {
-  return text
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-}
 
 export function highlightPython(code: string): string {
   try {

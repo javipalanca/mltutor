@@ -11,15 +11,16 @@ pub mod frame;
 pub mod stats;
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use serde::Deserialize;
 use serde_json::Value;
 
 use self::frame::{Frame, Target};
-use crate::core_facade::{CoreFacade, CsvDraftHandle, DatasetHandle, DatasetView};
+use crate::core_facade::{check_cancelled, CoreFacade, CsvDraftHandle, DatasetHandle, DatasetView};
 use crate::ipc::{
-    to_u32, Cell, CommandError, CorrelationMatrix, DatasetEntry, DatasetId, DatasetRef,
+    finite, to_u32, Cell, CommandError, CorrelationMatrix, DatasetEntry, DatasetId, DatasetRef,
     DatasetSummary, DescribeTable, DiagKind, Matrix, PairplotData, TablePreview,
     TargetDistribution, TaskType,
 };
@@ -141,8 +142,8 @@ impl CoreFacade for FixtureFacade {
         "FixtureFacade"
     }
 
-    fn builtin_catalog(&self) -> Vec<DatasetEntry> {
-        builtin_catalog()
+    fn builtin_catalog(&self) -> Result<Vec<DatasetEntry>, CommandError> {
+        Ok(builtin_catalog())
     }
 
     fn load_builtin(&self, id: DatasetId) -> Result<DatasetHandle, CommandError> {
@@ -162,7 +163,13 @@ impl CoreFacade for FixtureFacade {
         Ok(Arc::new(dataset))
     }
 
-    fn read_csv(&self, file_name: &str, bytes: &[u8]) -> Result<CsvDraftHandle, CommandError> {
+    fn read_csv(
+        &self,
+        file_name: &str,
+        bytes: &[u8],
+        cancel: &AtomicBool,
+    ) -> Result<CsvDraftHandle, CommandError> {
+        check_cancelled(cancel)?;
         Ok(Arc::new(csv::read(file_name, bytes)?))
     }
 }
@@ -374,31 +381,35 @@ impl DatasetView for FixtureDataset {
             TargetDistribution::Bar {
                 labels: strings(&t["labels"]),
                 counts: counts(&t["counts"]),
-                balance_ratio: t["balance_ratio"].as_f64().unwrap_or(f64::NAN),
+                balance_ratio: t["balance_ratio"].as_f64().and_then(finite),
                 balanced: t["balanced"].as_bool().unwrap_or(true),
             }
         } else {
             TargetDistribution::Histogram {
                 edges: floats(&t["edges"]),
                 counts: counts(&t["counts"]),
-                mean: t["mean"].as_f64().unwrap_or(f64::NAN),
-                std: t["std_ddof1"].as_f64().unwrap_or(f64::NAN),
-                min: t["min"].as_f64().unwrap_or(f64::NAN),
-                max: t["max"].as_f64().unwrap_or(f64::NAN),
+                mean: t["mean"].as_f64().and_then(finite),
+                std: t["std_ddof1"].as_f64().and_then(finite),
+                min: t["min"].as_f64().and_then(finite),
+                max: t["max"].as_f64().and_then(finite),
             }
         }
     }
 
-    fn correlation(&self) -> CorrelationMatrix {
+    fn correlation(&self, cancel: &AtomicBool) -> Result<CorrelationMatrix, CommandError> {
+        check_cancelled(cancel)?;
         let c = &self.expected()["correlation"];
         let labels = strings(&c["columns"]);
         let n = labels.len();
-        CorrelationMatrix {
+        Ok(CorrelationMatrix {
             values: Matrix::from_f64(n, n, floats(&c["values"])),
             labels,
             visible_min: c["visible_min"].as_f64(),
             visible_max: c["visible_max"].as_f64(),
-        }
+            truncated: false,
+            total_columns: to_u32(n),
+            truncation_message: None,
+        })
     }
 
     fn pairplot(&self, features: &[String], diag: DiagKind) -> Result<PairplotData, CommandError> {

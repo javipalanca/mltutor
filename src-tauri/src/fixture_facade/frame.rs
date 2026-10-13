@@ -3,8 +3,8 @@
 
 use super::stats;
 use crate::ipc::{
-    to_u32, Cell, CorrelationMatrix, DiagKind, DiagPanel, HistSeries, Hue, Matrix, PairplotData,
-    TablePreview, TargetDistribution,
+    finite, to_u32, Cell, CorrelationMatrix, DiagKind, DiagPanel, HistSeries, Hue, Matrix,
+    PairplotData, TablePreview, TargetDistribution,
 };
 
 pub const PAIRPLOT_MAX_POINTS: usize = 2000;
@@ -144,20 +144,21 @@ impl Frame {
                 TargetDistribution::Bar {
                     labels: counts.iter().map(|c| c.0.clone()).collect(),
                     counts: counts.iter().map(|c| c.1).collect(),
-                    balance_ratio: ratio,
+                    balance_ratio: finite(ratio),
                     balanced: ratio <= BALANCE_LIMIT,
                 }
             }
             Target::Numeric(values) => {
                 let (edges, counts) = stats::histogram(values, TARGET_BINS);
-                let finite: Vec<f64> = values.iter().copied().filter(|v| v.is_finite()).collect();
+                let values_ok: Vec<f64> =
+                    values.iter().copied().filter(|v| v.is_finite()).collect();
                 TargetDistribution::Histogram {
                     edges,
                     counts,
-                    mean: stats::mean(&finite),
-                    std: stats::std(&finite),
-                    min: finite.iter().copied().fold(f64::INFINITY, f64::min),
-                    max: finite.iter().copied().fold(f64::NEG_INFINITY, f64::max),
+                    mean: finite(stats::mean(&values_ok)),
+                    std: finite(stats::std(&values_ok)),
+                    min: finite(values_ok.iter().copied().fold(f64::INFINITY, f64::min)),
+                    max: finite(values_ok.iter().copied().fold(f64::NEG_INFINITY, f64::max)),
                 }
             }
         }
@@ -188,6 +189,9 @@ impl Frame {
             values: Matrix::from_f64(n, n, values),
             visible_min: lo,
             visible_max: hi,
+            truncated: false,
+            total_columns: to_u32(n),
+            truncation_message: None,
         }
     }
 
@@ -278,14 +282,14 @@ impl Frame {
             }
             Target::Numeric(values) => {
                 let picked: Vec<f64> = rows.iter().map(|r| values[*r]).collect();
-                let finite = picked.iter().copied().filter(|v| v.is_finite());
-                let min = finite.clone().fold(f64::INFINITY, f64::min);
-                let max = finite.fold(f64::NEG_INFINITY, f64::max);
+                let values_ok = picked.iter().copied().filter(|v| v.is_finite());
+                let min = values_ok.clone().fold(f64::INFINITY, f64::min);
+                let max = values_ok.fold(f64::NEG_INFINITY, f64::max);
                 (
                     Hue::Continuous {
-                        values: picked,
-                        min,
-                        max,
+                        values: picked.into_iter().map(finite).collect(),
+                        min: finite(min),
+                        max: finite(max),
                     },
                     vec![0; n_points],
                     vec![ALL_LEVEL.to_owned()],

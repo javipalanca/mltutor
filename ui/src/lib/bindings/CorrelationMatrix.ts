@@ -13,4 +13,16 @@ values: Matrix,
 /**
  * Range of the strict lower triangle.
  */
-visible_min: number | null, visible_max: number | null, };
+visible_min: number | null, visible_max: number | null, 
+/**
+ * More columns than the heatmap shows: only the first features and the target.
+ */
+truncated: boolean, 
+/**
+ * Columns of the dataset (features + target), shown or not.
+ */
+total_columns: number, 
+/**
+ * Spanish notice for the UI when `truncated`.
+ */
+truncation_message: string | null, };

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { cancelAll } from "../lib/backend";
   import { busy } from "../lib/busy.svelte";
   import { status } from "../lib/status.svelte";
 </script>
@@ -6,7 +7,14 @@
 <footer class="statusbar" aria-live="polite">
   <span class="text">{status.text}</span>
   {#if busy.active}
-    <span class="progress" role="progressbar" aria-label="Actualizando"><span class="bar"></span></span>
+    <span class="activity">
+      {#if busy.canCancel}
+        <button type="button" class="cancel" title="Detiene la lectura o el cálculo en curso" onclick={cancelAll}>
+          Cancelar
+        </button>
+      {/if}
+      <span class="progress" role="progressbar" aria-label="Actualizando"><span class="bar"></span></span>
+    </span>
   {/if}
 </footer>
 
@@ -22,6 +30,34 @@
     color: var(--color-statusbar-text);
     border-top: 1px solid var(--color-divider);
     font-size: 13px;
+  }
+
+  .activity {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .cancel {
+    height: 22px;
+    padding: 0 10px;
+    border: 1px solid var(--color-divider);
+    border-radius: 4px;
+    background: var(--color-bg);
+    color: inherit;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  .cancel:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+  }
+
+  .cancel:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 1px;
   }
 
   .progress {

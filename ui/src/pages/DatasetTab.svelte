@@ -29,9 +29,11 @@
   import type { TargetDistribution } from "../lib/bindings/TargetDistribution";
   import { correlationFigure, correlationHeight, hasWebGL, pairplotFigure, pairplotHeight, targetDistributionFigure } from "../lib/charts";
   import { codeTemplate, datosList, datosText, headingText, md, type LessonId } from "../lib/content";
-  import { fmt } from "../lib/fmt";
+  import { escapeMarkdown } from "../lib/escape";
+  import { fmt, fmtText, MISSING } from "../lib/fmt";
   import { fixed } from "../lib/format";
   import type { DataBlock } from "../lib/lessons";
+  import { chooseDataset } from "../lib/selection";
   import { datasetKey, session, type Analysis } from "../lib/session.svelte";
   import { matrixCells } from "../lib/table";
   import { theme } from "../lib/theme.svelte";
@@ -97,13 +99,17 @@
     if (datasetKey(dataset) === key) {
       return;
     }
-    session.selected = dataset;
     try {
-      await backend.selectDataset(dataset);
+      await chooseDataset(dataset);
     } catch (error) {
-      loadError = backend.errorMessage(error);
+      // Only if it is still the selected dataset (older answers are discarded).
+      if (datasetKey(session.selected) === datasetKey(dataset)) {
+        loadError = backend.errorMessage(error);
+      }
     }
   }
+
+  const stat = (value: number | null): string => (value === null ? MISSING : fixed(value, 2));
 
   // --- Advanced analysis ---
 
@@ -113,8 +119,12 @@
 
   let correlation = $state<{ key: string; data: CorrelationMatrix } | null>(null);
   let correlationError = $state<string | null>(null);
+  let correlationCancelled = $state(false);
+  /** Bumped by "Calcular de nuevo" after a cancellation. */
+  let correlationAttempt = $state(0);
 
   $effect(() => {
+    void correlationAttempt;
     if (block !== "full" || tabState.analysis !== "correlation" || untrack(() => correlation?.key) === key) {
       return;
     }
@@ -122,20 +132,28 @@
     const requested = key;
     let stale = false;
     correlationError = null;
-    void backend
-      .correlationMatrix(dataset)
+    correlationCancelled = false;
+    const request = backend.correlationMatrix(dataset);
+    request.promise
       .then((data) => {
         if (!stale) {
           correlation = { key: requested, data };
         }
       })
       .catch((error: unknown) => {
-        if (!stale) {
+        if (stale) {
+          return;
+        }
+        if (backend.isCancelled(error)) {
+          correlationCancelled = true;
+        } else {
           correlationError = backend.errorMessage(error);
         }
       });
     return () => {
+      // Another dataset or analysis: the old computation is not needed any more.
       stale = true;
+      request.cancel();
     };
   });
 
@@ -157,7 +175,7 @@
   const notices = $derived(summary ? pairplotNotices(plotFeatures.length, summary.n_rows) : []);
 
   let pairplot = $state<{ request: string; data: PairplotData; ms: number } | null>(null);
-  let pairplotError = $state<string | null>(null);
+  let pairplotError = $state<{ message: string; invalidSelection: boolean } | null>(null);
   let pairplotLoading = $state(false);
   const pairplotRequest = $derived(JSON.stringify([key, plotFeatures, tabState.diag]));
 
@@ -189,7 +207,10 @@
         .catch((error: unknown) => {
           if (!stale) {
             pairplotLoading = false;
-            pairplotError = backend.errorMessage(error);
+            pairplotError = {
+              message: backend.errorMessage(error),
+              invalidSelection: backend.isCommandError(error) && error.kind === "invalid_selection",
+            };
           }
         });
     }, 150);
@@ -260,7 +281,7 @@
           <Metric label={t("info", "metric_filas")} value={summary.n_rows} help={t("info", "metric_filas_help")} />
           <Metric label={t("info", "metric_columnas")} value={summary.n_features + 1} help={t("info", "metric_columnas_help")} />
           <Metric label={t("info", "metric_objetivo")} value={summary.target_column} help={t("info", "metric_objetivo_help")} />
-          <Metric label={fmt(t("info", "metric_tarea"), { icon: taskIcon })} value={taskLabel} help={t("info", "metric_tarea_help")} />
+          <Metric label={fmtText(t("info", "metric_tarea"), { icon: taskIcon })} value={taskLabel} help={t("info", "metric_tarea_help")} />
         </div>
 
         <h2 class="exploration">{t("exploracion", "header")}</h2>
@@ -294,10 +315,10 @@
           {:else}
             <Expander id="datos-estadisticas-objetivo-{lesson}" label={t("distribucion", "expander_estadisticas")}>
               <div class="metrics four">
-                <Metric label={t("distribucion", "metric_media")} value={fixed(distribution.mean, 2)} />
-                <Metric label={t("distribucion", "metric_std")} value={fixed(distribution.std, 2)} />
-                <Metric label={t("distribucion", "metric_min")} value={fixed(distribution.min, 2)} />
-                <Metric label={t("distribucion", "metric_max")} value={fixed(distribution.max, 2)} />
+                <Metric label={t("distribucion", "metric_media")} value={stat(distribution.mean)} />
+                <Metric label={t("distribucion", "metric_std")} value={stat(distribution.std)} />
+                <Metric label={t("distribucion", "metric_min")} value={stat(distribution.min)} />
+                <Metric label={t("distribucion", "metric_max")} value={stat(distribution.max)} />
               </div>
             </Expander>
           {/if}
@@ -330,10 +351,16 @@
             <h4>{headingText(t("correlacion", "titulo"))}</h4>
             <Notice severity="info" markdown={md("datos/correlacion.md")} />
             {#if correlationError}
-              <Notice severity="error" markdown={correlationError} />
+              <Notice severity="error" markdown={escapeMarkdown(correlationError)} />
+            {:else if correlationCancelled}
+              <Notice severity="info" markdown="Cálculo de la correlación cancelado." />
+              <button type="button" class="btn" onclick={() => (correlationAttempt += 1)}>Calcular de nuevo</button>
             {:else if correlation?.key === key}
               {@const figure = correlationFigure(correlation.data, theme.chart)}
               {@const n = correlation.data.labels.length}
+              {#if correlation.data.truncation_message}
+                <Notice severity="warning" markdown={escapeMarkdown(correlation.data.truncation_message)} />
+              {/if}
               <PlotlyChart
                 data={figure.data}
                 layout={figure.layout}
@@ -382,7 +409,7 @@
             <h5>{headingText(t("pairplot", "selecciona"))}</h5>
             <MultiSelect
               label={t("pairplot", "multiselect_label")}
-              help={fmt(t("pairplot", "multiselect_help"), { max: maxFeatures })}
+              help={fmtText(t("pairplot", "multiselect_help"), { max: maxFeatures })}
               options={summary.feature_display}
               value={chosen}
               max={maxFeatures}
@@ -405,8 +432,10 @@
               <Expander id="pairplot-consejos-{lesson}" label={t("pairplot", "expander_consejos")}>
                 <Markdown source={md("datos/pairplot-consejos.md")} />
               </Expander>
+            {:else if pairplotError?.invalidSelection}
+              <Notice severity="warning" markdown={escapeMarkdown(pairplotError.message)} />
             {:else if pairplotError}
-              <Notice severity="error" markdown={fmt(t("pairplot", "error"), { error: pairplotError })} />
+              <Notice severity="error" markdown={fmt(t("pairplot", "error"), { error: pairplotError.message })} />
               <Notice severity="info" markdown={t("pairplot", "error_info")} />
             {:else if pairplot}
               {#if pairplot.data.sampled}

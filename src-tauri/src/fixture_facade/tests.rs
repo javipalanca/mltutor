@@ -51,7 +51,9 @@ fn computed_views_match_the_golden_stats() {
         assert_values(&computed_describe.values.values, &golden, 1e-9, slug);
 
         let computed_corr = dataset.frame.correlation();
-        let golden_corr = dataset.correlation();
+        let golden_corr = dataset
+            .correlation(&std::sync::atomic::AtomicBool::new(false))
+            .unwrap();
         assert_eq!(computed_corr.labels, golden_corr.labels, "{slug}");
         let golden: Vec<f64> = golden_corr
             .values
@@ -294,7 +296,13 @@ fn csv_cases_match_python() {
             (TaskChoice::Regression, "Regresión"),
         ] {
             let golden = &expected["load_dataset_from_file"][key];
-            let done = table.finalize(&preview.default_target, choice).unwrap();
+            let done = table
+                .finalize(
+                    &preview.default_target,
+                    choice,
+                    &std::sync::atomic::AtomicBool::new(false),
+                )
+                .unwrap();
             let task = if golden["task_type"] == "Clasificación" {
                 TaskType::Classification
             } else {
@@ -314,7 +322,7 @@ fn csv_cases_match_python() {
                 }
             }
             if let CsvTargetStats::Numeric { min, max, .. } = done.target_stats {
-                assert!(min <= max);
+                assert!(min.unwrap() <= max.unwrap());
             }
         }
     }

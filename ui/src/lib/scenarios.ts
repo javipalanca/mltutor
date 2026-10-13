@@ -2,14 +2,16 @@
  * Screens prepared by `--screenshot <png> --scenario <name>` (and the smoke test), named
  * after the Qt reference captures of `docs/migration/capturas/qt/` (fase1 §0).
  * CSV scenarios take the file path after a colon: `csv_cargado_clasificacion:/ruta/tips.csv`.
+ * The backend reads that path from its own command line (`load_scenario_csv`): the
+ * frontend never sends file paths.
  */
-import * as backend from "./backend";
 import type { DatasetId } from "./bindings/DatasetId";
 import type { DatasetRef } from "./bindings/DatasetRef";
 import type { DiagKind } from "./bindings/DiagKind";
 import type { LessonId } from "./content";
-import { loadCsvPath, setTarget } from "./csvFlow";
+import { loadScenarioCsv, setTarget } from "./csvFlow";
 import { router } from "./router.svelte";
+import { chooseDataset } from "./selection";
 import { session, type Analysis } from "./session.svelte";
 
 interface DatosOptions {
@@ -22,15 +24,10 @@ interface DatosOptions {
   expanders?: (lesson: LessonId) => string[];
 }
 
-async function select(dataset: DatasetRef): Promise<void> {
-  session.selected = dataset;
-  await backend.selectDataset(dataset);
-}
-
 async function datos(options: DatosOptions): Promise<void> {
   const lesson = options.lesson ?? "regresion";
   const dataset: DatasetRef = { kind: "builtin", id: options.dataset ?? "iris" };
-  await select(dataset);
+  await chooseDataset(dataset);
   session.activeTab[lesson] = options.tab ?? 0;
   const state = session.datasetTab(lesson, dataset);
   state.analysis = options.analysis ?? null;
@@ -69,28 +66,31 @@ const SCENARIOS: Readonly<Record<string, (arg: string | undefined) => Promise<vo
   csv_vacio: () => Promise.resolve(router.go("csv")),
   csv_cargado_clasificacion: async (path) => {
     router.go("csv");
-    await loadCsvPath(requirePath(path));
+    await loadCsv(path);
   },
   csv_cargado_clasificacion_expandido: async (path) => {
     router.go("csv");
-    await loadCsvPath(requirePath(path));
+    await loadCsv(path);
     session.setExpander("csv-estadisticas", true);
     session.setExpander("csv-distribucion", true);
   },
   csv_cargado_regresion_expandido: async (path) => {
     router.go("csv");
-    await loadCsvPath(requirePath(path));
+    await loadCsv(path);
     await setTarget("tip");
     session.setExpander("csv-estadisticas", true);
     session.setExpander("csv-distribucion", true);
   },
 };
 
-function requirePath(path: string | undefined): string {
+async function loadCsv(path: string | undefined): Promise<void> {
   if (!path) {
     throw new Error("Este escenario necesita la ruta del CSV: <nombre>:<ruta.csv>");
   }
-  return path;
+  await loadScenarioCsv();
+  if (session.csv.error) {
+    throw new Error(session.csv.error);
+  }
 }
 
 export const SCENARIO_NAMES = Object.keys(SCENARIOS);

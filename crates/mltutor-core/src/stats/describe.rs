@@ -1,51 +1,58 @@
 //! `pandas.Series.describe()` for numeric columns.
 
-use super::sum::pairwise_sum;
+use super::sum::pairwise_sum_by;
 
 /// Row labels of `describe()`, in pandas order.
 pub const DESCRIBE_STATS: [&str; 8] = ["count", "mean", "std", "min", "25%", "50%", "75%", "max"];
 
-/// Mean ignoring NaN, as `pandas.Series.mean()`: NaN are replaced by 0, the whole
-/// array is summed pairwise and divided by the number of valid values.
-/// Returns NaN when there are no valid values.
+/// Mean ignoring missing values, as `pandas.Series.mean()`: missing values are
+/// replaced by 0, the whole array is summed pairwise and divided by the number of
+/// valid values. Returns NaN when there are no valid values.
+///
+/// "Missing" is NaN **and ±inf** (non-finite values are left out of every
+/// statistic; `csv` module docs). pandas only skips NaN and would return ±inf or
+/// NaN; no fixture has infinite values.
 pub fn mean(values: &[f64]) -> f64 {
-    let count = values.iter().filter(|v| !v.is_nan()).count();
+    let count = values.iter().filter(|v| v.is_finite()).count();
     if count == 0 {
         return f64::NAN;
     }
-    let filled: Vec<f64> = values
-        .iter()
-        .map(|&v| if v.is_nan() { 0.0 } else { v })
-        .collect();
-    pairwise_sum(&filled) / count as f64
+    pairwise_sum_by(values.len(), |i| finite_or_zero(values[i])) / count as f64
 }
 
-/// Sample standard deviation (ddof = 1) ignoring NaN, as `pandas.Series.std()`
-/// (`nanops.nanvar`: mean, squared deviations with NaN set to 0, pairwise sum).
-/// NaN with fewer than 2 valid values.
+fn finite_or_zero(v: f64) -> f64 {
+    if v.is_finite() {
+        v
+    } else {
+        0.0
+    }
+}
+
+/// Sample standard deviation (ddof = 1) ignoring missing values (NaN and ±inf, see
+/// [`mean`]), as `pandas.Series.std()` (`nanops.nanvar`: mean, squared deviations
+/// with missing values set to 0, pairwise sum). NaN with fewer than 2 valid values.
 pub fn std_ddof1(values: &[f64]) -> f64 {
     variance_ddof1(values).sqrt()
 }
 
-/// Sample variance (ddof = 1) ignoring NaN, as `pandas.Series.var()`.
+/// Sample variance (ddof = 1) ignoring missing values (NaN and ±inf), as
+/// `pandas.Series.var()`.
 pub fn variance_ddof1(values: &[f64]) -> f64 {
-    let count = values.iter().filter(|v| !v.is_nan()).count();
+    let count = values.iter().filter(|v| v.is_finite()).count();
     if count < 2 {
         return f64::NAN;
     }
     let avg = mean(values);
-    let sqr: Vec<f64> = values
-        .iter()
-        .map(|&v| {
-            if v.is_nan() {
-                0.0
-            } else {
-                let d = avg - v;
-                d * d
-            }
-        })
-        .collect();
-    pairwise_sum(&sqr) / (count - 1) as f64
+    let sqr = |i: usize| {
+        let v = values[i];
+        if v.is_finite() {
+            let d = avg - v;
+            d * d
+        } else {
+            0.0
+        }
+    };
+    pairwise_sum_by(values.len(), sqr) / (count - 1) as f64
 }
 
 /// Quantile `q` of an ascending, NaN-free slice with NumPy's default `linear`
@@ -76,9 +83,12 @@ pub fn quantile_linear(sorted: &[f64], q: f64) -> f64 {
 }
 
 /// The eight values of `describe()` for one column (see [`DESCRIBE_STATS`]),
-/// ignoring NaN. Count is 0 and the rest NaN when there are no valid values.
+/// ignoring missing values (NaN and ±inf, see [`mean`]). Count is 0 and the rest
+/// NaN when there are no valid values.
 pub fn describe_column(values: &[f64]) -> [f64; 8] {
-    let mut sorted: Vec<f64> = values.iter().copied().filter(|v| !v.is_nan()).collect();
+    // Reserved up front: a growing `Vec` would briefly need 3× the column.
+    let mut sorted: Vec<f64> = Vec::with_capacity(values.len());
+    sorted.extend(values.iter().copied().filter(|v| v.is_finite()));
     sorted.sort_by(f64::total_cmp);
     let count = sorted.len();
     if count == 0 {
@@ -116,6 +126,16 @@ mod tests {
         assert_eq!(d[1], 2.5);
         assert!((d[2] - 1.290_994_448_735_805_6).abs() < 1e-15);
         assert_eq!(&d[3..], &[1.0, 1.75, 2.5, 3.25, 4.0]);
+    }
+
+    #[test]
+    fn describe_ignores_infinities() {
+        let d = describe_column(&[1.0, f64::INFINITY, 2.0, f64::NEG_INFINITY, 3.0, 4.0]);
+        assert_eq!(d[0], 4.0);
+        assert_eq!(d[1], 2.5);
+        assert!((d[2] - 1.290_994_448_735_805_6).abs() < 1e-15);
+        assert_eq!(&d[3..], &[1.0, 1.75, 2.5, 3.25, 4.0]);
+        assert!(describe_column(&[f64::INFINITY])[1].is_nan());
     }
 
     #[test]

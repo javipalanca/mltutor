@@ -9,6 +9,7 @@
 //! `spawn_blocking`, never on the main thread. Implementations return IPC DTOs directly
 //! so that the conversion from core types lives in one place per implementation.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use crate::ipc::{
@@ -27,7 +28,8 @@ pub trait DatasetView: Send + Sync {
     fn preview(&self, rows: usize) -> TablePreview;
     fn describe(&self) -> DescribeTable;
     fn target_distribution(&self) -> TargetDistribution;
-    fn correlation(&self) -> CorrelationMatrix;
+    /// Checks `cancel` cooperatively (`CommandError::Cancelled` when set).
+    fn correlation(&self, cancel: &AtomicBool) -> Result<CorrelationMatrix, CommandError>;
     /// `features` are friendly names; already validated as non-empty, ≤ 6 and unique.
     fn pairplot(&self, features: &[String], diag: DiagKind) -> Result<PairplotData, CommandError>;
 }
@@ -46,10 +48,18 @@ pub struct CsvFinal {
 
 /// A CSV that has been read but whose target is not confirmed yet.
 pub trait CsvDraft: Send + Sync {
+    /// Name of the file it was read from (without directories).
+    fn file_name(&self) -> &str;
     /// `draft_id` is filled in by the caller.
     fn preview(&self) -> CsvPreview;
     fn target_info(&self, target: &str) -> Result<TargetInfo, CommandError>;
-    fn finalize(&self, target: &str, task: TaskChoice) -> Result<CsvFinal, CommandError>;
+    /// Checks `cancel` cooperatively (`CommandError::Cancelled` when set).
+    fn finalize(
+        &self,
+        target: &str,
+        task: TaskChoice,
+        cancel: &AtomicBool,
+    ) -> Result<CsvFinal, CommandError>;
 }
 
 pub type CsvDraftHandle = Arc<dyn CsvDraft>;
@@ -57,13 +67,29 @@ pub type CsvDraftHandle = Arc<dyn CsvDraft>;
 pub trait CoreFacade: Send + Sync {
     /// Implementation name, for the log.
     fn name(&self) -> &'static str;
-    /// The 12 built-in datasets, in selector order.
-    fn builtin_catalog(&self) -> Vec<DatasetEntry>;
+    /// The 12 built-in datasets, in selector order. Callers cache it (`DataState`).
+    fn builtin_catalog(&self) -> Result<Vec<DatasetEntry>, CommandError>;
     /// Parses a built-in dataset. Moons is generated with seed 42 (D9); the session caches
     /// the result, so it stays fixed for the whole session.
     fn load_builtin(&self, id: DatasetId) -> Result<DatasetHandle, CommandError>;
-    /// Reads a user CSV (`bytes` = whole file; size already checked).
-    fn read_csv(&self, file_name: &str, bytes: &[u8]) -> Result<CsvDraftHandle, CommandError>;
+    /// Reads a user CSV (`bytes` = whole file; size already checked). Checks `cancel`
+    /// cooperatively (`CommandError::Cancelled` when set).
+    fn read_csv(
+        &self,
+        file_name: &str,
+        bytes: &[u8],
+        cancel: &AtomicBool,
+    ) -> Result<CsvDraftHandle, CommandError>;
+}
+
+/// `Err(Cancelled)` once `cancel` is set; for the checkpoints of the operations whose
+/// core functions are not cancellable themselves.
+pub fn check_cancelled(cancel: &AtomicBool) -> Result<(), CommandError> {
+    if cancel.load(Ordering::Relaxed) {
+        Err(CommandError::cancelled())
+    } else {
+        Ok(())
+    }
 }
 
 /// Checks a pairplot selection against the dataset's friendly names.

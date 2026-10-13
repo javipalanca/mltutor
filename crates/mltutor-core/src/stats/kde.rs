@@ -42,13 +42,13 @@ impl Kde {
     }
 }
 
-/// seaborn's univariate KDE of `values` (NaN dropped) with Scott's rule, scaled by
+/// seaborn's univariate KDE of `values` (NaN and ±inf dropped) with Scott's rule, scaled by
 /// `weight` (`common_norm`: `n_level / n_total`).
 ///
 /// Returns `None` when seaborn skips the curve: fewer than 2 values or zero
 /// variance (Digits `p0`).
 pub fn gaussian_kde_scott(values: &[f64], weight: f64) -> Option<Kde> {
-    let x: Vec<f64> = values.iter().copied().filter(|v| !v.is_nan()).collect();
+    let x: Vec<f64> = values.iter().copied().filter(|v| v.is_finite()).collect();
     let n = x.len();
     if n < 2 {
         return None;

@@ -4,6 +4,15 @@ use serde::{Deserialize, Serialize};
 
 use super::describe::quantile_linear;
 
+/// Largest number of bins [`histogram_bin_edges_auto`] returns.
+///
+/// numpy has no limit: with 1999 values around 1.0 and one outlier at 1e9 the
+/// Freedman–Diaconis width is tiny and `"auto"` asks for millions of bins, which
+/// nobody can draw. Above this limit we use Sturges' rule alone (numpy's other
+/// estimator, `ceil(log2(n)) + 1` bins). The largest histogram of the fixtures has
+/// 542 bins (California, `AveBedrms`), so the limit does not change them.
+pub const HIST_AUTO_MAX_BINS: usize = 1000;
+
 /// Bin edges and counts of a histogram (`counts.len() == edges.len() - 1`).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Histogram {
@@ -69,7 +78,8 @@ pub fn histogram_counts(values: &[f64], edges: &[f64]) -> Vec<u32> {
 }
 
 /// `np.histogram(values, bins)` with `bins` equal-width bins between the minimum
-/// and the maximum (NaN ignored). Empty edges and counts if there are no values.
+/// and the maximum (NaN and ±inf ignored; numpy raises on infinite values). Empty
+/// edges and counts if there are no finite values.
 pub fn histogram(values: &[f64], bins: usize) -> Histogram {
     let Some((lo, hi)) = outer_edges(values) else {
         return Histogram {
@@ -82,13 +92,16 @@ pub fn histogram(values: &[f64], bins: usize) -> Histogram {
     Histogram { edges, counts }
 }
 
-/// `np.histogram_bin_edges(values, bins="auto")` for float data (NaN ignored).
+/// `np.histogram_bin_edges(values, bins="auto")` for float data (NaN and ±inf
+/// ignored; numpy raises on infinite values).
 ///
 /// Bin width = min(Freedman–Diaconis, Sturges), or Sturges alone when the FD width
 /// is 0 (IQR = 0); number of bins = `ceil(range / width)`, and a single bin when
-/// both widths are 0.
+/// both widths are 0. **Deviation from numpy:** if that gives more than
+/// [`HIST_AUTO_MAX_BINS`] bins, Sturges' width alone is used.
 pub fn histogram_bin_edges_auto(values: &[f64]) -> Vec<f64> {
-    let mut sorted: Vec<f64> = values.iter().copied().filter(|v| !v.is_nan()).collect();
+    let mut sorted: Vec<f64> = Vec::with_capacity(values.len());
+    sorted.extend(values.iter().copied().filter(|v| v.is_finite()));
     sorted.sort_by(f64::total_cmp);
     let Some((first, last)) = outer_edges(&sorted) else {
         return Vec::new();
@@ -98,18 +111,23 @@ pub fn histogram_bin_edges_auto(values: &[f64]) -> Vec<f64> {
     let sturges = ptp / (n.log2() + 1.0);
     let iqr = quantile_linear(&sorted, 0.75) - quantile_linear(&sorted, 0.25);
     let fd = 2.0 * iqr * n.powf(-1.0 / 3.0);
-    let width = if fd != 0.0 { fd.min(sturges) } else { sturges };
-    let n_bins = if width != 0.0 {
-        let bins = ((last - first) / width).ceil();
-        if bins.is_finite() && bins >= 1.0 {
-            // Bounded by the data: even 1e6 bins is far beyond the fixtures (max 542).
-            bins.min(1.0e6) as usize
-        } else {
-            1
+    let bins_for = |width: f64| -> Option<usize> {
+        if width == 0.0 {
+            return Some(1);
         }
-    } else {
-        1
+        let bins = ((last - first) / width).ceil();
+        if !bins.is_finite() || bins < 1.0 {
+            Some(1)
+        } else if bins <= HIST_AUTO_MAX_BINS as f64 {
+            Some(bins as usize)
+        } else {
+            None
+        }
     };
+    let width = if fd != 0.0 { fd.min(sturges) } else { sturges };
+    let n_bins = bins_for(width)
+        .or_else(|| bins_for(sturges))
+        .unwrap_or(HIST_AUTO_MAX_BINS);
     linspace(first, last, n_bins + 1)
 }
 
@@ -129,6 +147,31 @@ mod tests {
     fn last_bin_is_closed() {
         let h = histogram(&[0.0, 1.0, 2.0, 3.0, f64::NAN], 3);
         assert_eq!(h.counts, vec![1, 1, 2]);
+    }
+
+    #[test]
+    fn auto_bins_are_bounded_with_an_outlier() {
+        // Review finding: 1999 values around 1.0 and an outlier at 1e9 used to give
+        // 1 000 001 edges. Now: Sturges, ceil(log2(2000) + 1) = 12 bins.
+        let mut v: Vec<f64> = (0..1999).map(|i| 1.0 + f64::from(i) * 1e-6).collect();
+        v.push(1.0e9);
+        let edges = histogram_bin_edges_auto(&v);
+        assert_eq!(edges.len(), 13);
+        assert_eq!(edges[0], 1.0);
+        assert_eq!(edges[12], 1.0e9);
+        let counts = histogram_counts(&v, &edges);
+        assert_eq!(counts.iter().sum::<u32>(), 2000);
+    }
+
+    #[test]
+    fn infinities_are_ignored() {
+        let h = histogram(&[0.0, 1.0, f64::INFINITY, 2.0, f64::NEG_INFINITY], 2);
+        assert_eq!(h.edges, vec![0.0, 1.0, 2.0]);
+        assert_eq!(h.counts, vec![1, 2]);
+        let e = histogram_bin_edges_auto(&[1.0, f64::INFINITY, 3.0]);
+        assert_eq!(e.first(), Some(&1.0));
+        assert_eq!(e.last(), Some(&3.0));
+        assert!(histogram(&[f64::INFINITY], 3).edges.is_empty());
     }
 
     #[test]

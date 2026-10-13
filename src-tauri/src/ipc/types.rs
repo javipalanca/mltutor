@@ -115,6 +115,12 @@ impl Matrix {
     }
 }
 
+/// `Some(v)` only for finite values: serde_json writes NaN and ±inf as `null` anyway, so
+/// the DTOs say so in their type (`number | null` in TypeScript) and the UI shows "—".
+pub fn finite(value: f64) -> Option<f64> {
+    value.is_finite().then_some(value)
+}
+
 /// Saturating `usize` → `u32` for counts sent over IPC (datasets are far below 4 G rows).
 pub fn to_u32(value: usize) -> u32 {
     u32::try_from(value).unwrap_or(u32::MAX)
@@ -206,16 +212,18 @@ pub enum TargetDistribution {
     Bar {
         labels: Vec<String>,
         counts: Vec<u32>,
-        balance_ratio: f64,
+        /// Largest / smallest class count; `None` if it is not finite.
+        balance_ratio: Option<f64>,
         balanced: bool,
     },
     Histogram {
         edges: Vec<f64>,
         counts: Vec<u32>,
-        mean: f64,
-        std: f64,
-        min: f64,
-        max: f64,
+        /// `None` when not finite (no finite target values).
+        mean: Option<f64>,
+        std: Option<f64>,
+        min: Option<f64>,
+        max: Option<f64>,
     },
 }
 
@@ -229,6 +237,12 @@ pub struct CorrelationMatrix {
     /// Range of the strict lower triangle.
     pub visible_min: Option<f64>,
     pub visible_max: Option<f64>,
+    /// More columns than the heatmap shows: only the first features and the target.
+    pub truncated: bool,
+    /// Columns of the dataset (features + target), shown or not.
+    pub total_columns: u32,
+    /// Spanish notice for the UI when `truncated`.
+    pub truncation_message: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -259,9 +273,10 @@ pub enum Hue {
     },
     /// Regression (D11): continuous colour.
     Continuous {
-        values: Vec<f64>,
-        min: f64,
-        max: f64,
+        /// `None` for a missing or non-finite target value.
+        values: Vec<Option<f64>>,
+        min: Option<f64>,
+        max: Option<f64>,
     },
 }
 
@@ -365,12 +380,13 @@ pub enum CsvTargetStats {
     /// By frequency (table + bars).
     Classes { value_counts: Vec<(String, u32)> },
     /// 30 bins.
+    /// The statistics are `None` when not finite (e.g. no numeric values).
     Numeric {
-        min: f64,
-        max: f64,
-        mean: f64,
-        median: f64,
-        std: f64,
+        min: Option<f64>,
+        max: Option<f64>,
+        mean: Option<f64>,
+        median: Option<f64>,
+        std: Option<f64>,
         hist_edges: Vec<f64>,
         hist_counts: Vec<u32>,
     },
@@ -433,6 +449,31 @@ mod tests {
         assert_eq!(
             serde_json::to_string(&m).unwrap(),
             r#"{"rows":1,"cols":3,"values":[1.0,null,null]}"#
+        );
+    }
+
+    #[test]
+    fn non_finite_statistics_are_null() {
+        let dist = TargetDistribution::Histogram {
+            edges: vec![0.0, 1.0],
+            counts: vec![0],
+            mean: finite(f64::NAN),
+            std: finite(f64::INFINITY),
+            min: finite(1.5),
+            max: None,
+        };
+        let json = serde_json::to_value(dist).unwrap();
+        assert_eq!(json["mean"], serde_json::Value::Null);
+        assert_eq!(json["std"], serde_json::Value::Null);
+        assert_eq!(json["min"], 1.5);
+        let hue = Hue::Continuous {
+            values: [1.0, f64::NAN].into_iter().map(finite).collect(),
+            min: finite(1.0),
+            max: finite(f64::NEG_INFINITY),
+        };
+        assert_eq!(
+            serde_json::to_value(hue).unwrap(),
+            serde_json::json!({ "kind": "continuous", "values": [1.0, null], "min": 1.0, "max": null })
         );
     }
 

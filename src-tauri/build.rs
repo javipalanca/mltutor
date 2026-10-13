@@ -19,9 +19,13 @@ fn main() {
         "target_distribution",
         "correlation_matrix",
         "pairplot_data",
-        "load_csv",
+        "cancel_task",
+        "pick_and_load_csv",
+        "load_scenario_csv",
         "csv_target_info",
         "set_csv_target",
+        "discard_csv",
+        "save_file",
     ]);
     if let Err(error) =
         tauri_build::try_build(tauri_build::Attributes::new().app_manifest(manifest))

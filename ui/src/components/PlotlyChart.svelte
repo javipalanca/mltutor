@@ -1,8 +1,8 @@
 <script lang="ts">
   import type { Config, Data, Layout } from "plotly.js";
   import { onDestroy } from "svelte";
-  import { isTauri, logToBackend } from "../lib/backend";
-  import { dataUrlToBytes, PNG_FILTER, saveBytes } from "../lib/download";
+  import { errorMessage, isTauri, logToBackend } from "../lib/backend";
+  import { dataUrlToBytes, saveBytes } from "../lib/download";
   import { loadPlotly, type PlotlyModule } from "../lib/plotly";
   import { status } from "../lib/status.svelte";
   import Spinner from "./Spinner.svelte";
@@ -107,9 +107,13 @@
       height,
       scale: 2,
     });
-    const saved = await saveBytes(downloadName, dataUrlToBytes(url), PNG_FILTER);
-    if (saved) {
-      status.flash(`Guardado: ${saved}`);
+    try {
+      const saved = await saveBytes(downloadName, dataUrlToBytes(url), "png");
+      if (saved) {
+        status.flash(`Guardado: ${saved}`);
+      }
+    } catch (error) {
+      status.flash(errorMessage(error), 8000);
     }
   }
 </script>

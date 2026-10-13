@@ -25,7 +25,6 @@ humantime = "2"
 dirs = "6"
 ts-rs = "11"
 tauri-plugin-dialog = "2"
-tauri-plugin-fs = "2"
 indexmap = "2"
 csv = "1"
 toml = { version = "0.8", default-features = false, features = ["parse"] }

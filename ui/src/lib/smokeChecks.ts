@@ -7,14 +7,14 @@ import { busy } from "./busy.svelte";
 import { hasWebGL } from "./charts";
 import { waitFor, waitForIdle } from "./dom";
 import { router } from "./router.svelte";
+import { chooseDataset } from "./selection";
 import { session } from "./session.svelte";
 
 const LESSON = "regresion";
 const IRIS = { kind: "builtin", id: "iris" } as const;
 
 async function datosVistas(): Promise<void> {
-  session.selected = IRIS;
-  await backend.selectDataset(IRIS);
+  await chooseDataset(IRIS);
   session.activeTab[LESSON] = 0;
   router.go(LESSON);
   await waitFor(`[data-dataset-tab="${LESSON}"][data-ready="true"]`, 30000, "la pestaña 📊 Datos");

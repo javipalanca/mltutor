@@ -147,6 +147,9 @@ describe("charts", () => {
       values: { rows: 3, cols: 3, values: [1, 0.5, -0.2, 0.5, 1, null, -0.2, null, 1] },
       visible_min: -0.2,
       visible_max: 0.5,
+      truncated: false,
+      total_columns: 3,
+      truncation_message: null,
     });
     const trace = figure.data[0] as unknown as { z: (number | null)[][]; zmin: number; zmax: number };
     expect(trace.z).toEqual([

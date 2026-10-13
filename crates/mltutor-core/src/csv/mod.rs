@@ -7,17 +7,34 @@
 //! `load_dataset_from_file` (LabelEncoder per text column, task rules, class
 //! names, `dataset_info`), except that text classes keep their original names (D10).
 
+//!
+//! **Non-finite values.** `inf`/`-Infinity` are read as `float64`, as pandas does,
+//! so dtype, `isnull()` (they are *not* missing) and `nunique()` match pandas. Every
+//! statistic and chart computed afterwards — `describe`, target statistics and
+//! histograms, correlation, KDE, the continuous hue of the pairplot — ignores them
+//! as if they were missing (pandas would give `inf`/NaN, and `np.histogram` raises),
+//! because the UI cannot draw them either (`Matrix`/`Cell` show them as missing).
+//! [`CsvNotice::NonFinite`] tells the student which columns have them.
+
 mod reader;
 
+use std::collections::HashSet;
+use std::hash::Hash;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
-pub use reader::{read_csv, read_csv_file, MAX_CSV_BYTES};
+pub use reader::{
+    read_csv, read_csv_cancellable, read_csv_file, read_csv_file_cancellable, CANCEL_CHECK_ROWS,
+    MAX_CSV_BYTES,
+};
 
 use crate::dataset::{ColumnKind, Dataset, LabelColumn, Target, TaskChoice, TaskType};
 use crate::error::CsvError;
 use crate::frame::{Cell, DescribeTable, TablePreview};
 use crate::pyfmt::py_float_repr;
-use crate::stats::{self, value_counts_by_frequency};
+use crate::stats::{self, describe_column};
 
 /// Rows of the "👀 Vista previa del dataset" table (`df.head()`).
 pub const CSV_PREVIEW_ROWS: usize = 5;
@@ -37,6 +54,9 @@ pub enum CsvNotice {
     Separator { separator: char },
     /// These columns used a decimal comma (`1,5`), accepted because the separator is `;`.
     DecimalComma { columns: Vec<String> },
+    /// These float columns contain ±infinity: kept in the data (as pandas does) but
+    /// left out of statistics and charts (module docs).
+    NonFinite { columns: Vec<String> },
 }
 
 impl CsvNotice {
@@ -54,6 +74,11 @@ impl CsvNotice {
             }
             CsvNotice::DecimalComma { columns } => format!(
                 "Se ha interpretado la coma como separador decimal en: {}",
+                columns.join(", ")
+            ),
+            CsvNotice::NonFinite { columns } => format!(
+                "Hay valores infinitos (inf) en: {}. Se conservan en los datos, pero no se \
+                 tienen en cuenta en las estadísticas ni en los gráficos",
                 columns.join(", ")
             ),
         }
@@ -131,12 +156,48 @@ impl ColumnData {
         }
     }
 
-    /// Distinct non-missing values (`nunique()`).
+    /// Distinct non-missing values (`nunique()`), hashing the values themselves
+    /// (floats by [`float_key`], so `-0.0` and `0.0` are one value, as in pandas).
     pub fn nunique(&self) -> usize {
-        let labels = self.labels();
-        let set: std::collections::HashSet<&str> =
-            labels.iter().flatten().map(String::as_str).collect();
-        set.len()
+        match self {
+            ColumnData::Int(v) => count_distinct(v.iter().copied()),
+            ColumnData::Float(v) => {
+                count_distinct(v.iter().filter(|x| !x.is_nan()).map(|&x| float_key(x)))
+            }
+            ColumnData::Bool(v) => {
+                usize::from(v.iter().any(|&b| b)) + usize::from(v.iter().any(|&b| !b))
+            }
+            ColumnData::Text(v) => count_distinct(v.iter().flatten().map(String::as_str)),
+        }
+    }
+
+    /// `value_counts()` (missing values dropped): most frequent first, ties in order
+    /// of first appearance, keys formatted with Python's `str()`. Counts are taken
+    /// over the values, and only the distinct ones are formatted.
+    pub fn value_counts_by_frequency(&self) -> Vec<(String, u32)> {
+        match self {
+            ColumnData::Int(v) => counts_by_frequency(v.iter().copied(), |i| i.to_string()),
+            ColumnData::Float(v) => counts_by_frequency(
+                v.iter().filter(|x| !x.is_nan()).map(|&x| float_key(x)),
+                |&k| py_float_repr(f64::from_bits(k)),
+            ),
+            ColumnData::Bool(v) => {
+                counts_by_frequency(v.iter().copied(), |&b| py_bool(b).to_owned())
+            }
+            ColumnData::Text(v) => {
+                counts_by_frequency(v.iter().flatten().map(String::as_str), |s| (*s).to_owned())
+            }
+        }
+    }
+
+    /// Writes the values as `f64` (text columns: nothing).
+    fn write_f64<'a>(&self, out: impl Iterator<Item = &'a mut f64>) {
+        match self {
+            ColumnData::Int(v) => out.zip(v).for_each(|(o, &x)| *o = x as f64),
+            ColumnData::Float(v) => out.zip(v).for_each(|(o, &x)| *o = x),
+            ColumnData::Bool(v) => out.zip(v).for_each(|(o, &b)| *o = f64::from(u8::from(b))),
+            ColumnData::Text(_) => {}
+        }
     }
 
     fn cell(&self, row: usize) -> Cell {
@@ -152,6 +213,49 @@ impl ColumnData {
             },
         }
     }
+}
+
+/// Hash key of a float value: its bits, with `-0.0` folded into `0.0` and every
+/// NaN into one canonical NaN (pandas' float hash table treats them as equal).
+pub fn float_key(v: f64) -> u64 {
+    normalize_float(v).to_bits()
+}
+
+/// `-0.0` → `0.0`, any NaN → the canonical `f64::NAN`; other values unchanged.
+fn normalize_float(v: f64) -> f64 {
+    if v.is_nan() {
+        f64::NAN
+    } else if v == 0.0 {
+        0.0
+    } else {
+        v
+    }
+}
+
+/// Number of distinct keys. The set grows with the distinct values only:
+/// `collect()` would reserve room for every row (`size_hint`), e.g. 144 MiB for a
+/// column of 10 M integers with 900 distinct values.
+fn count_distinct<K: Hash + Eq>(keys: impl Iterator<Item = K>) -> usize {
+    let mut set = HashSet::new();
+    for k in keys {
+        set.insert(k);
+    }
+    set.len()
+}
+
+/// Counts in order of first appearance, then sorted by count (stable).
+fn counts_by_frequency<K: Hash + Eq>(
+    keys: impl Iterator<Item = K>,
+    label: impl Fn(&K) -> String,
+) -> Vec<(String, u32)> {
+    let mut counts: IndexMap<K, u32> = IndexMap::new();
+    for k in keys {
+        *counts.entry(k).or_insert(0) += 1;
+    }
+    let mut out: Vec<(String, u32)> = counts.iter().map(|(k, &c)| (label(k), c)).collect();
+    // `sort_by_key` is stable, so ties stay in order of appearance.
+    out.sort_by_key(|entry| std::cmp::Reverse(entry.1));
+    out
 }
 
 fn py_bool(b: bool) -> &'static str {
@@ -275,26 +379,25 @@ fn label_encode(values: &[Option<String>]) -> (Vec<u32>, Vec<String>) {
     (codes, classes.into_iter().map(str::to_owned).collect())
 }
 
-/// Sorted distinct values of a numeric slice, NaN last (as one value).
+/// `sorted(y.unique())`: sorted distinct values, `-0.0` and `0.0` as one value
+/// (`0.0`) and NaN last as one value. With these normalizations `total_cmp` is a
+/// total order in which the canonical NaN sorts after `+inf`.
 fn sorted_unique(values: &[f64]) -> Vec<f64> {
-    let mut u: Vec<f64> = values.to_vec();
-    u.sort_by(f64::total_cmp);
-    u.dedup_by(|a, b| a.total_cmp(b).is_eq() || (a.is_nan() && b.is_nan()));
-    // total_cmp puts negative NaN first; move every NaN to the end.
-    let (mut finite, nan): (Vec<f64>, Vec<f64>) = u.into_iter().partition(|v| !v.is_nan());
-    if !nan.is_empty() {
-        finite.push(f64::NAN);
-    }
-    finite
+    let mut u: Vec<f64> = values.iter().map(|&v| normalize_float(v)).collect();
+    u.sort_unstable_by(f64::total_cmp);
+    u.dedup_by(|a, b| a.total_cmp(b).is_eq());
+    // It becomes `class_values`: do not keep the capacity of the whole column.
+    u.shrink_to_fit();
+    u
 }
 
+/// Position of `v` in `classes` (the output of [`sorted_unique`]) by binary
+/// search: O(log k) per row instead of a linear scan.
 fn class_index(classes: &[f64], v: f64) -> u32 {
-    let pos = if v.is_nan() {
-        classes.iter().position(|c| c.is_nan())
-    } else {
-        classes.iter().position(|&c| c == v)
-    };
-    pos.map_or(0, |i| i as u32)
+    let v = normalize_float(v);
+    classes
+        .binary_search_by(|c| c.total_cmp(&v))
+        .map_or(0, |i| u32::try_from(i).unwrap_or(u32::MAX))
 }
 
 impl RawTable {
@@ -350,34 +453,35 @@ impl RawTable {
         }
     }
 
-    /// `df.describe()`: the int and float columns (bool and text excluded).
+    /// `df.describe()`: the int and float columns (bool and text excluded), one
+    /// column at a time so that only one temporary copy is alive.
     pub fn describe(&self) -> DescribeTable {
-        let numeric: Vec<(String, Vec<f64>)> = self
-            .columns
-            .iter()
-            .filter(|c| c.data.kind().is_numeric())
-            .filter_map(|c| c.data.to_f64().map(|v| (c.name.clone(), v)))
-            .collect();
-        let excluded = self
-            .columns
-            .iter()
-            .filter(|c| !c.data.kind().is_numeric())
-            .map(|c| c.name.clone())
-            .collect();
-        DescribeTable::from_columns(
-            numeric.iter().map(|(n, v)| (n.clone(), v.as_slice())),
-            excluded,
-        )
+        let mut names = Vec::new();
+        let mut stats = Vec::new();
+        let mut excluded = Vec::new();
+        for c in &self.columns {
+            match &c.data {
+                ColumnData::Float(v) => stats.push(describe_column(v)),
+                ColumnData::Int(v) => {
+                    let values: Vec<f64> = v.iter().map(|&x| x as f64).collect();
+                    stats.push(describe_column(&values));
+                }
+                ColumnData::Bool(_) | ColumnData::Text(_) => {
+                    excluded.push(c.name.clone());
+                    continue;
+                }
+            }
+            names.push(c.name.clone());
+        }
+        DescribeTable::from_stats(names, &stats, excluded)
     }
 
     /// "🎯 Información de la Variable Objetivo" for `target`.
     pub fn target_info(&self, target: &str) -> Result<TargetInfo, CsvError> {
         let col = self.column_or_err(target)?;
         let nunique = col.data.nunique();
-        let value_counts = (nunique <= CSV_VALUE_COUNTS_MAX).then(|| {
-            let labels = col.data.labels();
-            value_counts_by_frequency(labels.iter().flatten().map(String::as_str))
-        });
+        let value_counts =
+            (nunique <= CSV_VALUE_COUNTS_MAX).then(|| col.data.value_counts_by_frequency());
         Ok(TargetInfo {
             column: col.name.clone(),
             nunique,
@@ -409,20 +513,13 @@ impl RawTable {
         let col = self.column_or_err(target)?;
         let numeric = col.data.kind().is_numeric();
         if task == TaskChoice::Classification || !numeric {
-            let labels = col.data.labels();
             return Ok(CsvTargetStats::Classes {
-                value_counts: value_counts_by_frequency(
-                    labels.iter().flatten().map(String::as_str),
-                ),
+                value_counts: col.data.value_counts_by_frequency(),
             });
         }
-        let values: Vec<f64> = col
-            .data
-            .to_f64()
-            .unwrap_or_default()
-            .into_iter()
-            .filter(|v| !v.is_nan())
-            .collect();
+        // Missing and ±inf values are left out (module docs).
+        let mut values: Vec<f64> = col.data.to_f64().unwrap_or_default();
+        values.retain(|v| v.is_finite());
         let d = stats::describe_column(&values);
         let hist = stats::histogram(&values, CSV_TARGET_BINS);
         Ok(CsvTargetStats::Numeric {
@@ -448,30 +545,55 @@ impl RawTable {
         task: TaskChoice,
         file_name: &str,
     ) -> Result<Dataset, CsvError> {
+        self.to_dataset_cancellable(target, task, file_name, &AtomicBool::new(false))
+    }
+
+    /// [`RawTable::to_dataset`] with cooperative cancellation: `cancel` is checked
+    /// before each column, and [`CsvError::Cancelled`] is returned once it is set.
+    pub fn to_dataset_cancellable(
+        &self,
+        target: &str,
+        task: TaskChoice,
+        file_name: &str,
+        cancel: &AtomicBool,
+    ) -> Result<Dataset, CsvError> {
+        let check = || {
+            if cancel.load(Ordering::Relaxed) {
+                Err(CsvError::Cancelled)
+            } else {
+                Ok(())
+            }
+        };
         let target_col = self.column_or_err(target)?;
         let n = self.n_rows;
 
-        let mut feature_columns = Vec::new();
-        let mut feature_kinds = Vec::new();
-        let mut feature_values: Vec<Vec<f64>> = Vec::new();
-        for col in self.columns.iter().filter(|c| c.name != target_col.name) {
+        // Each column is written straight into the matrix (no intermediate copies).
+        let feature_cols: Vec<&RawColumn> = self
+            .columns
+            .iter()
+            .filter(|c| c.name != target_col.name)
+            .collect();
+        let n_features = feature_cols.len();
+        let mut features = ndarray::Array2::from_elem((n, n_features), f64::NAN);
+        let mut feature_columns = Vec::with_capacity(n_features);
+        let mut feature_kinds = Vec::with_capacity(n_features);
+        for (j, col) in feature_cols.iter().enumerate() {
+            check()?;
             feature_columns.push(col.name.clone());
+            let out = features.column_mut(j).into_iter();
             match &col.data {
                 ColumnData::Text(values) => {
                     let (codes, _) = label_encode(values);
-                    feature_values.push(codes.into_iter().map(f64::from).collect());
+                    out.zip(codes).for_each(|(o, c)| *o = f64::from(c));
                     feature_kinds.push(ColumnKind::Int);
                 }
                 other => {
-                    feature_values.push(other.to_f64().unwrap_or_default());
+                    other.write_f64(out);
                     feature_kinds.push(other.kind());
                 }
             }
         }
-        let n_features = feature_columns.len();
-        let features = ndarray::Array2::from_shape_fn((n, n_features), |(r, c)| {
-            feature_values[c].get(r).copied().unwrap_or(f64::NAN)
-        });
+        check()?;
 
         // y as Python keeps it: codes for text, the values otherwise.
         let (y, text_classes): (Vec<f64>, Option<Vec<String>>) = match &target_col.data {

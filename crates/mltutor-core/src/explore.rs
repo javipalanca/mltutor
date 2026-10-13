@@ -4,6 +4,8 @@
 //! columns (D8) and `target` (class names for classification). Unlike Python,
 //! features and target are aligned by position (Penguins bug, §11).
 
+use std::sync::atomic::AtomicBool;
+
 use ndarray::Array2;
 use serde::{Deserialize, Serialize};
 
@@ -31,6 +33,11 @@ pub const PAIRPLOT_SEED: u32 = 42;
 pub const ALL_LEVEL: &str = "(todos)";
 /// Name of the target column in the display frame.
 pub const TARGET_COLUMN: &str = "target";
+/// Most columns (features + target) of the correlation heatmap. Above it, only the
+/// first `CORRELATION_MAX_COLUMNS - 1` features and the target are used: a wider
+/// heatmap is unreadable and costs O(k²·n). The widest built-in dataset (Digits)
+/// has 65 columns.
+pub const CORRELATION_MAX_COLUMNS: usize = 100;
 
 /// `df_display.head(rows)`.
 pub fn preview(ds: &Dataset, rows: usize) -> TablePreview {
@@ -104,7 +111,7 @@ pub fn describe(ds: &Dataset) -> DescribeTable {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum TargetDistribution {
     /// Classification: `value_counts().sort_index()` over the class names
-    /// (alphabetical), with the max/min ratio.
+    /// (alphabetical), with the max/min ratio (always finite: 1.0 without rows).
     Bar {
         labels: Vec<String>,
         counts: Vec<u32>,
@@ -112,7 +119,8 @@ pub enum TargetDistribution {
         /// `balance_ratio <= 3`.
         balanced: bool,
     },
-    /// Regression: `np.histogram(y, 30)` and the statistics of the expander.
+    /// Regression: `np.histogram(y, 30)` and the statistics of the expander, over
+    /// the finite values of `y` (NaN and ±inf left out; `csv` module docs).
     Histogram {
         edges: Vec<f64>,
         counts: Vec<u32>,
@@ -133,7 +141,7 @@ pub fn target_distribution(ds: &Dataset) -> TargetDistribution {
             let max = vc.iter().map(|(_, c)| *c).max().unwrap_or(0);
             let min = vc.iter().map(|(_, c)| *c).min().unwrap_or(0);
             let balance_ratio = if min == 0 {
-                f64::NAN
+                1.0
             } else {
                 f64::from(max) / f64::from(min)
             };
@@ -145,7 +153,7 @@ pub fn target_distribution(ds: &Dataset) -> TargetDistribution {
             }
         }
         Target::Values { values } => {
-            let y: Vec<f64> = values.iter().copied().filter(|v| !v.is_nan()).collect();
+            let y: Vec<f64> = values.iter().copied().filter(|v| v.is_finite()).collect();
             let d = stats::describe_column(&y);
             let h = stats::histogram(&y, TARGET_HIST_BINS);
             TargetDistribution::Histogram {
@@ -173,12 +181,55 @@ pub struct CorrelationMatrix {
     pub visible_max: Option<f64>,
     /// Columns whose whole row/column is NaN (constant columns: Digits 0, 32, 39).
     pub nan_columns: Vec<String>,
+    /// Whether the dataset had more than [`CORRELATION_MAX_COLUMNS`] columns and only
+    /// the first features and the target are shown.
+    pub truncated: bool,
+    /// Columns of the dataset (features + target), shown or not.
+    pub total_columns: usize,
 }
 
-/// `pd.concat([X, y_codes], axis=1).corr()` (Pearson).
+impl CorrelationMatrix {
+    /// Notice for the UI when the matrix is truncated.
+    pub fn truncation_message(&self) -> Option<String> {
+        self.truncated.then(|| {
+            format!(
+                "El dataset tiene {} columnas: la matriz de correlación muestra solo las \
+                 {} primeras características y el objetivo",
+                self.total_columns,
+                self.labels.len().saturating_sub(1)
+            )
+        })
+    }
+}
+
+/// `pd.concat([X, y_codes], axis=1).corr()` (Pearson), limited to
+/// [`CORRELATION_MAX_COLUMNS`] columns.
 pub fn correlation_matrix(ds: &Dataset) -> CorrelationMatrix {
+    match correlation_matrix_cancellable(ds, &AtomicBool::new(false)) {
+        Ok(m) => m,
+        // Unreachable: the flag above is never set.
+        Err(_) => CorrelationMatrix {
+            labels: Vec::new(),
+            values: Array2::zeros((0, 0)),
+            visible_min: None,
+            visible_max: None,
+            nan_columns: Vec::new(),
+            truncated: false,
+            total_columns: 0,
+        },
+    }
+}
+
+/// [`correlation_matrix`] with cooperative cancellation: `cancel` is checked once
+/// per column of the matrix, and [`DatasetError::Cancelled`] is returned once set.
+pub fn correlation_matrix_cancellable(
+    ds: &Dataset,
+    cancel: &AtomicBool,
+) -> Result<CorrelationMatrix, DatasetError> {
     let n = ds.n_rows();
-    let k = ds.n_features();
+    let total_columns = ds.n_features() + 1;
+    let truncated = total_columns > CORRELATION_MAX_COLUMNS;
+    let k = ds.n_features().min(CORRELATION_MAX_COLUMNS - 1);
     let target = ds.target_numeric();
     let data = Array2::from_shape_fn((n, k + 1), |(r, c)| {
         if c < k {
@@ -187,8 +238,9 @@ pub fn correlation_matrix(ds: &Dataset) -> CorrelationMatrix {
             target[r]
         }
     });
-    let values = stats::pearson_matrix(data.view());
-    let mut labels = ds.feature_columns.clone();
+    let values =
+        stats::pearson_matrix_cancellable(data.view(), cancel).ok_or(DatasetError::Cancelled)?;
+    let mut labels = ds.feature_columns[..k].to_vec();
     labels.push(TARGET_COLUMN.to_owned());
 
     let mut visible_min: Option<f64> = None;
@@ -206,13 +258,15 @@ pub fn correlation_matrix(ds: &Dataset) -> CorrelationMatrix {
         .filter(|&c| values.column(c).iter().all(|v| v.is_nan()))
         .map(|c| labels[c].clone())
         .collect();
-    CorrelationMatrix {
+    Ok(CorrelationMatrix {
         labels,
         values,
         visible_min,
         visible_max,
         nan_columns,
-    }
+        truncated,
+        total_columns,
+    })
 }
 
 /// Diagonal of the pairplot.
@@ -266,7 +320,8 @@ pub enum Hue {
         levels: Vec<String>,
         codes: Vec<u16>,
     },
-    /// Regression (D11): the target value of each point.
+    /// Regression (D11): the target value of each point (NaN for missing and ±inf),
+    /// and the range of the finite ones (`0, 0` if there is none).
     Continuous {
         values: Vec<f64>,
         min: f64,
@@ -340,20 +395,37 @@ pub struct PairplotData {
 /// Rows kept by the pairplot (§2.6): all if `n <= 2000`; otherwise
 /// `groupby(target).sample(min(len, 2000 // n_classes), random_state=42)` for
 /// classification and `sample(n=2000, random_state=42)` for regression.
+///
+/// Empty when there are more than 2000 rows and more than 2000 classes (`2000 //
+/// n_classes == 0`; [`pairplot_data`] reports it as an error).
 pub fn pairplot_rows(ds: &Dataset) -> Vec<usize> {
+    pairplot_rows_checked(ds).unwrap_or_default()
+}
+
+fn pairplot_rows_checked(ds: &Dataset) -> Result<Vec<usize>, DatasetError> {
     let n = ds.n_rows();
     if n <= PAIRPLOT_MAX_POINTS {
-        return (0..n).collect();
+        return Ok((0..n).collect());
     }
     match ds.target_labels() {
         Some(labels) => {
             let mut distinct: Vec<&str> = labels.clone();
             distinct.sort_unstable();
             distinct.dedup();
-            let per_class = PAIRPLOT_MAX_POINTS / distinct.len().max(1);
-            groupby_sample(&labels, per_class, PAIRPLOT_SEED)
+            let n_classes = distinct.len().max(1);
+            let per_class = PAIRPLOT_MAX_POINTS / n_classes;
+            if per_class == 0 {
+                return Err(DatasetError::InvalidSelection {
+                    reason: format!(
+                        "el objetivo tiene {n_classes} clases y la matriz de dispersión \
+                         muestra como mucho {PAIRPLOT_MAX_POINTS} puntos, menos de uno por \
+                         clase. Elige otra columna objetivo o trátala como regresión"
+                    ),
+                });
+            }
+            Ok(groupby_sample(&labels, per_class, PAIRPLOT_SEED))
         }
-        None => sample_rows(n, PAIRPLOT_MAX_POINTS, PAIRPLOT_SEED),
+        None => Ok(sample_rows(n, PAIRPLOT_MAX_POINTS, PAIRPLOT_SEED)),
     }
 }
 
@@ -396,7 +468,7 @@ fn kde_curve(level: &str, values: &[f64], weight: f64) -> KdeCurve {
             density: k.density,
         },
         None => {
-            let finite: Vec<f64> = values.iter().copied().filter(|v| !v.is_nan()).collect();
+            let finite: Vec<f64> = values.iter().copied().filter(|v| v.is_finite()).collect();
             let lo = finite.iter().copied().fold(f64::INFINITY, f64::min);
             let hi = finite.iter().copied().fold(f64::NEG_INFINITY, f64::max);
             KdeCurve {
@@ -422,7 +494,7 @@ pub fn pairplot_data(
     diag: DiagKind,
 ) -> Result<PairplotData, DatasetError> {
     let idx = feature_indices(ds, features)?;
-    let rows = pairplot_rows(ds);
+    let rows = pairplot_rows_checked(ds)?;
     let n_points = rows.len();
     let n_total = ds.n_rows();
     let sampled = n_points < n_total;
@@ -468,17 +540,16 @@ pub fn pairplot_data(
         }
         TaskType::Regression => {
             let target = ds.target_numeric();
-            let values: Vec<f64> = rows.iter().map(|&r| target[r]).collect();
-            let min = values
+            let values: Vec<f64> = rows
                 .iter()
-                .copied()
-                .filter(|v| !v.is_nan())
-                .fold(f64::INFINITY, f64::min);
-            let max = values
-                .iter()
-                .copied()
-                .filter(|v| !v.is_nan())
-                .fold(f64::NEG_INFINITY, f64::max);
+                .map(|&r| target[r])
+                .map(|v| if v.is_finite() { v } else { f64::NAN })
+                .collect();
+            let mut finite = values.iter().copied().filter(|v| v.is_finite());
+            let (min, max) = match finite.next() {
+                Some(first) => finite.fold((first, first), |(lo, hi), v| (lo.min(v), hi.max(v))),
+                None => (0.0, 0.0),
+            };
             (
                 Hue::Continuous { values, min, max },
                 vec![(ALL_LEVEL.to_owned(), vec![true; n_points])],

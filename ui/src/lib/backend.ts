@@ -48,6 +48,11 @@ export function errorMessage(error: unknown): string {
   return GENERIC_ERROR;
 }
 
+/** The user cancelled, or a newer request superseded this one: not an error to show. */
+export function isCancelled(error: unknown): boolean {
+  return isCommandError(error) && error.kind === "cancelled";
+}
+
 /** `invoke` that shows the busy indicator of the status bar while it runs. */
 async function call<T>(command: string, args?: Record<string, unknown>): Promise<T> {
   busy.start();
@@ -56,6 +61,49 @@ async function call<T>(command: string, args?: Record<string, unknown>): Promise
   } finally {
     busy.end();
   }
+}
+
+/** A request that can be cancelled while it runs (status bar button or a newer request). */
+export interface Cancellable<T> {
+  promise: Promise<T>;
+  /** Asks the backend to stop; the promise then rejects with a `cancelled` error. */
+  cancel(): void;
+}
+
+let nextTaskId = 0;
+
+/** `call` with a `taskId` registered in the backend (`src-tauri/src/tasks.rs`). */
+function cancellable<T>(command: string, args: Record<string, unknown> = {}): Cancellable<T> {
+  nextTaskId = (nextTaskId + 1) % 0x7fffffff;
+  const taskId = nextTaskId;
+  busy.start(taskId);
+  const promise = invoke<T>(command, { ...args, taskId }).finally(() => busy.end(taskId));
+  return { promise, cancel: () => void cancelTask(taskId) };
+}
+
+export function cancelTask(taskId: number): Promise<boolean> {
+  return invoke<boolean>("cancel_task", { taskId }).catch(() => false);
+}
+
+/** Cancels every cancellable request in flight ("Cancelar" of the status bar). */
+export function cancelAll(): void {
+  for (const taskId of busy.cancellable) {
+    void cancelTask(taskId);
+  }
+}
+
+// Requests that change the selection carry an increasing `seq`: the backend applies the
+// newest one even if an older one finishes later. Seeded with the clock so that a reload
+// of the page (the backend keeps its session) keeps increasing.
+let requestSeq = Date.now() * 1000;
+
+export function nextSeq(): number {
+  requestSeq += 1;
+  return requestSeq;
+}
+
+export function currentSeq(): number {
+  return requestSeq;
 }
 
 export function launchMode(): Promise<LaunchMode> {
@@ -103,8 +151,8 @@ export function getSelectedDataset(): Promise<DatasetRef> {
   return call("get_selected_dataset");
 }
 
-export function selectDataset(dataset: DatasetRef): Promise<DatasetSummary> {
-  return call("select_dataset", { dataset });
+export function selectDataset(dataset: DatasetRef, seq: number = nextSeq()): Promise<DatasetSummary> {
+  return call("select_dataset", { dataset, seq });
 }
 
 export function datasetSummary(dataset: DatasetRef): Promise<DatasetSummary> {
@@ -123,22 +171,46 @@ export function targetDistribution(dataset: DatasetRef): Promise<TargetDistribut
   return call("target_distribution", { dataset });
 }
 
-export function correlationMatrix(dataset: DatasetRef): Promise<CorrelationMatrix> {
-  return call("correlation_matrix", { dataset });
+export function correlationMatrix(dataset: DatasetRef): Cancellable<CorrelationMatrix> {
+  return cancellable("correlation_matrix", { dataset });
 }
 
 export function pairplotData(req: PairplotRequest): Promise<PairplotData> {
   return call("pairplot_data", { req });
 }
 
-export function loadCsv(path: string): Promise<CsvPreview> {
-  return call("load_csv", { path });
+/** Native "Abrir" dialog + reading, all in Rust: the path never goes through JS. */
+export function pickAndLoadCsv(filterName: string): Cancellable<CsvPreview | null> {
+  return cancellable("pick_and_load_csv", { filterName });
+}
+
+/** `--screenshot --scenario csv_…:<ruta.csv>`: the backend reads the path of its command line. */
+export function loadScenarioCsv(): Cancellable<CsvPreview> {
+  return cancellable("load_scenario_csv");
+}
+
+/** "Quitar archivo": releases the draft in the backend. */
+export function discardCsv(draftId: number): Promise<boolean> {
+  return call("discard_csv", { draftId });
 }
 
 export function csvTargetInfo(draftId: number, target: string): Promise<TargetInfo> {
   return call("csv_target_info", { draftId, target });
 }
 
-export function setCsvTarget(draftId: number, target: string, task: TaskChoice): Promise<CsvLoaded> {
-  return call("set_csv_target", { draftId, target, task });
+/** Confirms the target and registers the CSV (cancellable: big files take a while). */
+export function setCsvTarget(draftId: number, target: string, task: TaskChoice, seq: number): Cancellable<CsvLoaded> {
+  return cancellable("set_csv_target", { draftId, target, task, seq });
+}
+
+export type SaveKind = "png" | "python";
+
+/**
+ * Native save dialog + writing, in Rust (`save_file`). The bytes go as the raw IPC body;
+ * the suggested name and the kind as headers. Resolves the saved name, or `null`.
+ */
+export function saveFile(name: string, kind: SaveKind, bytes: Uint8Array): Promise<string | null> {
+  return invoke<string | null>("save_file", bytes, {
+    headers: { "x-mltutor-file-name": encodeURIComponent(name), "x-mltutor-file-kind": kind },
+  });
 }

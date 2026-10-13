@@ -194,6 +194,45 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
 - **Medidas F1:** `.app` de 13,4 MiB (zip de 7,4 MB) y unos 0,6 s hasta la interfaz lista.
   Lo que más ocupa es Plotly (4,7 MB), seguido de los CSV (3 MB) y KaTeX (1 MB; sobran
   los .ttf/.woff).
+- **CSV en streaming (2026-10-13, revisión F1):** el tipo de cada columna se decide al leer
+  (vacía → int → float → bool → texto) y el texto se lee en una segunda pasada para conservar
+  la cadena original. Con un CSV numérico de 95 MiB, el pico pasa de 1,5 GiB a 324 MiB
+  (`tests/csv_memory.rs`, ignorado, en release). Trampas: `HashSet` con `collect()` reserva
+  según el `size_hint` (144 MiB con 900 valores distintos); a `sorted_unique` le hace falta
+  `shrink_to_fit`; una copia filtrada sin `with_capacity` llega a 3× por el crecimiento del Vec.
+- **No finitos:** `inf`/`-Infinity` son float64 como en pandas, pero las estadísticas y
+  gráficos del core los excluyen (aviso `CsvNotice::NonFinite`). `"NAN"`/`"Nan"` son texto,
+  como en pandas. Diferencia conocida: `1e999` es texto en pandas e inf en Rust.
+- **Cabeceras repetidas:** se sigue el algoritmo exacto de pandas 2 (`a,a,a.1` → `a, a.2, a.1`).
+- **Histograma "auto":** máximo de 1000 intervalos, con Sturges si se supera; numpy no
+  limita. El máximo en los fixtures es 542 (California). La correlación usa como máximo
+  100 columnas (`truncated`). -0.0 y 0.0 son el mismo valor (`float_key`).
+- **Cancelación en el core:** variantes `*_cancellable` con `&AtomicBool`, comprobadas cada
+  16.384 filas al leer el CSV y por fila en la correlación.
+- **Rutas de archivo nunca desde JS (2026-10-13, revisión F1):** `pick_and_load_csv` y
+  `save_file` abren el diálogo desde Rust (`blocking_*` dentro de `spawn_blocking`). Sin
+  `tauri-plugin-fs` y sin permisos `dialog:`/`fs:` para JS. `--scenario csv_…:<ruta>` solo lo
+  lee `load_scenario_csv` en modo captura. Un FIFO bloquea `File::open`: se comprueba
+  `is_file()` antes y después de abrir, y se lee con `take(MAX+1)`.
+- **Binario por IPC:** `invoke(cmd, Uint8Array, { headers })` llega como `InvokeBody::Raw`; las
+  cabeceras deben ser ASCII (el nombre va con `encodeURIComponent`).
+- **Inyección desde datos:** `fmt` escapa HTML y Markdown en los valores interpolados;
+  `fmtText` es solo para nodos de texto de Svelte. Plotly interpreta pseudo-HTML (`<a href>`,
+  `<b>`) en títulos, leyendas, ticks y hover: hay que escapar y usar `%{fullData.name}`.
+  `on_navigation` se instala como plugin (`plugin::Builder::on_navigation`) para que cubra
+  las ventanas de `tauri.conf.json`; permite solo el origen propio de la app.
+- **Orden de peticiones:** las selecciones y los registros de CSV llevan un `seq` de la UI (que
+  empieza en `Date.now()*1000`), y gana el más alto aunque termine antes. Los comandos async no
+  se ejecutan en orden de llegada.
+- **Memoria de sesión:** se guarda un solo CSV registrado. El borrador vive mientras la página
+  CSV lo usa y se libera al cargar otro archivo o con `discard_csv`.
+- **Cancelación:** `tasks.rs` guarda un `Arc<AtomicBool>` por `task_id`; `cancel_task` y el
+  botón "Cancelar" de la barra de estado cubren la lectura del CSV, `set_csv_target` y la
+  correlación. Un `Cancelled` no se muestra como error.
+- **Doctests en Windows (2026-10-13):** con `cargo test --workspace`, cargo pasa a rustdoc las
+  rutas nativas de TODOS los build scripts. En Windows, el `msvcrt.lib` que deja el build de
+  Tauri rompe el enlace de los doctests de mltutor-core (`__CxxFrameHandler3`). En CI se usa
+  `cargo test --workspace --all-targets`, más `cargo test --doc -p mltutor-core -p mltutor-nn -p mltutor-export`.
 - **Capturas Qt:** `uv run python tools/capture_qt.py` genera las de todas las pantallas en
   `docs/migration/capturas/qt/`. No funciona en modo offscreen y no captura las vistas
   Plotly/WebEngine. Se cuantizan a 256 colores con Pillow antes del commit (de 9,7 MB a 3,9 MB).

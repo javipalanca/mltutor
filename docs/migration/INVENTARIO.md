@@ -25,7 +25,7 @@ Leyenda: 🐍 = origen en Python · ⚠️ = requiere decisión o implementació
 - [x] Panel de botones para elegir subvista (`create_button_panel`). 🐍 `ui.py`
 - [x] Avisos (info, warning, error, success), métricas, expanders, columnas, tablas
       (en Qt no se pueden ordenar; ordenarlas es una mejora opcional) y bloques de código Python con resaltado, botón de copiar y descarga.
-- [ ] Los cálculos se hacen en segundo plano, con progreso y cancelación; la interfaz *(F1: segundo plano y estado; falta el botón Cancelar)*
+- [x] Los cálculos se hacen en segundo plano, con progreso y cancelación; la interfaz *(F1: Cancelar en la lectura de CSV y la correlación; el entrenamiento se añade en F2–F5)*
       nunca se bloquea.
 - [ ] Diálogos nativos para guardar las exportaciones y abrir CSV. *(F1: abrir CSV y guardar PNG/código; exportaciones en F2–F6)*
 - [x] Funciona sin conexión: datasets, gráficos y fuentes van incluidos.

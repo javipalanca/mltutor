@@ -3,15 +3,16 @@
 //! `mltutor-core::csv`; this one is enough to drive the UI and is checked against
 //! `tests/parity/csv`.
 
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use super::frame::{Frame, Target};
 use super::stats;
-use crate::core_facade::{CsvDraft, CsvFinal, DatasetView};
+use crate::core_facade::{check_cancelled, CsvDraft, CsvFinal, DatasetView};
 use crate::ipc::{
-    to_u32, Cell, CommandError, CorrelationMatrix, CsvColumnInfo, CsvPreview, CsvTargetStats,
-    DatasetRef, DatasetSummary, DescribeTable, DiagKind, PairplotData, TablePreview,
-    TargetDistribution, TargetInfo, TaskChoice, TaskType,
+    finite, to_u32, Cell, CommandError, CorrelationMatrix, CsvColumnInfo, CsvPreview,
+    CsvTargetStats, DatasetRef, DatasetSummary, DescribeTable, DiagKind, PairplotData,
+    TablePreview, TargetDistribution, TargetInfo, TaskChoice, TaskType,
 };
 
 /// pandas `read_csv` default NA tokens.
@@ -339,6 +340,10 @@ impl CsvTable {
 }
 
 impl CsvDraft for CsvTable {
+    fn file_name(&self) -> &str {
+        &self.file_name
+    }
+
     fn preview(&self) -> CsvPreview {
         let rows = PREVIEW_ROWS.min(self.n_rows);
         let default_target = self
@@ -407,7 +412,13 @@ impl CsvDraft for CsvTable {
         })
     }
 
-    fn finalize(&self, target: &str, task: TaskChoice) -> Result<CsvFinal, CommandError> {
+    fn finalize(
+        &self,
+        target: &str,
+        task: TaskChoice,
+        cancel: &AtomicBool,
+    ) -> Result<CsvFinal, CommandError> {
+        check_cancelled(cancel)?;
         let target_column = self.column(target)?;
         let resolved = match task {
             TaskChoice::Auto => self.auto_task(target_column),
@@ -474,11 +485,11 @@ impl CsvDraft for CsvTable {
             let (hist_edges, hist_counts) = stats::histogram(values, 30);
             let d = stats::describe_column(values);
             CsvTargetStats::Numeric {
-                min: d[3],
-                max: d[7],
-                mean: d[1],
-                median: d[5],
-                std: d[2],
+                min: finite(d[3]),
+                max: finite(d[7]),
+                mean: finite(d[1]),
+                median: finite(d[5]),
+                std: finite(d[2]),
                 hist_edges,
                 hist_counts,
             }
@@ -526,8 +537,9 @@ impl DatasetView for ComputedDataset {
     fn target_distribution(&self) -> TargetDistribution {
         self.frame.target_distribution()
     }
-    fn correlation(&self) -> CorrelationMatrix {
-        self.frame.correlation()
+    fn correlation(&self, cancel: &AtomicBool) -> Result<CorrelationMatrix, CommandError> {
+        check_cancelled(cancel)?;
+        Ok(self.frame.correlation())
     }
     fn pairplot(&self, features: &[String], diag: DiagKind) -> Result<PairplotData, CommandError> {
         Ok(self

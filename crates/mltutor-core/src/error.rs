@@ -35,6 +35,9 @@ pub enum CsvError {
     /// The requested target column does not exist.
     #[error("Columna objetivo '{column}' no encontrada en el dataset")]
     UnknownColumn { column: String },
+    /// The cancellation flag was set (`*_cancellable` functions).
+    #[error("Operación cancelada")]
+    Cancelled,
 }
 
 /// Errors while loading or exploring a dataset.
@@ -59,4 +62,7 @@ pub enum DatasetError {
     /// Reading a CSV failed.
     #[error(transparent)]
     Csv(#[from] CsvError),
+    /// The cancellation flag was set (`*_cancellable` functions).
+    #[error("Operación cancelada")]
+    Cancelled,
 }

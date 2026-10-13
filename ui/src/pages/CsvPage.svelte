@@ -11,9 +11,10 @@
   import type { TaskChoice } from "../lib/bindings/TaskChoice";
   import { csvTargetFigure } from "../lib/charts";
   import { CSV_EXAMPLES, csvList, csvText, headingText, md } from "../lib/content";
-  import { clearCsv, loadCsvPath, setTarget, setTask } from "../lib/csvFlow";
-  import { pickCsvFile } from "../lib/download";
-  import { fmt } from "../lib/fmt";
+  import { clearCsv, pickCsv, setTarget, setTask } from "../lib/csvFlow";
+  import { escapeMarkdown } from "../lib/escape";
+  import { fmt, fmtText } from "../lib/fmt";
+  import { isTauri } from "../lib/backend";
   import { session } from "../lib/session.svelte";
   import { matrixCells } from "../lib/table";
   import { theme } from "../lib/theme.svelte";
@@ -28,12 +29,12 @@
   let picking = $state(false);
 
   async function pick(): Promise<void> {
+    if (!isTauri()) {
+      return;
+    }
     picking = true;
     try {
-      const path = await pickCsvFile(t("selector", "dialogo_filtro").replace(/\s*\(.*\)$/, ""));
-      if (path) {
-        await loadCsvPath(path);
-      }
+      await pickCsv(t("selector", "dialogo_filtro").replace(/\s*\(.*\)$/, ""));
     } finally {
       picking = false;
     }
@@ -71,7 +72,7 @@
   />
 
   {#if csv.error}
-    <Notice severity="error" markdown={csv.error} />
+    <Notice severity="error" markdown={escapeMarkdown(csv.error)} />
   {/if}
 
   {#if !preview}
@@ -89,7 +90,7 @@
     </div>
   {:else}
     {#each preview.notices as notice (notice)}
-      <Notice severity="info" markdown={`ℹ️ ${notice}`} />
+      <Notice severity="info" markdown={`ℹ️ ${escapeMarkdown(notice)}`} />
     {/each}
     <Notice severity="success" markdown={fmt(t("selector", "cargado"), { filas: preview.n_rows, columnas: preview.n_cols })} />
     <Expander id="csv-vista-previa" open label={t("selector", "expander_vista_previa")}>
@@ -132,7 +133,7 @@
         <div>
           <Markdown source={t("selector", "distribucion_valores")} />
           {#each preview.target.value_counts as [value, count] (value)}
-            <p class="count-line">{fmt(t("selector", "valor_linea"), { valor: value, n: count, pct: (100 * count) / Math.max(1, total) })}</p>
+            <p class="count-line">{fmtText(t("selector", "valor_linea"), { valor: value, n: count, pct: (100 * count) / Math.max(1, total) })}</p>
           {/each}
         </div>
       {/if}
@@ -149,7 +150,7 @@
           <Metric label={t("resultado", "metric_columnas")} value={loaded.n_cols} />
           <Metric label={t("resultado", "metric_objetivo")} value={loaded.target} />
           <Metric
-            label={fmt(t("resultado", "metric_tarea"), { icon: loaded.task_choice === "classification" ? "🏷️" : "📈" })}
+            label={fmtText(t("resultado", "metric_tarea"), { icon: loaded.task_choice === "classification" ? "🏷️" : "📈" })}
             value={taskName(loaded.task_choice)}
           />
         </div>
@@ -178,11 +179,11 @@
             <div class="columns">
               <div>
                 <Markdown source={t("resultado", "estadisticas")} />
-                <p class="count-line">{fmt(t("resultado", "minimo"), { v: s.min })}</p>
-                <p class="count-line">{fmt(t("resultado", "maximo"), { v: s.max })}</p>
-                <p class="count-line">{fmt(t("resultado", "media"), { v: s.mean })}</p>
-                <p class="count-line">{fmt(t("resultado", "mediana"), { v: s.median })}</p>
-                <p class="count-line">{fmt(t("resultado", "std"), { v: s.std })}</p>
+                <p class="count-line">{fmtText(t("resultado", "minimo"), { v: s.min })}</p>
+                <p class="count-line">{fmtText(t("resultado", "maximo"), { v: s.max })}</p>
+                <p class="count-line">{fmtText(t("resultado", "media"), { v: s.mean })}</p>
+                <p class="count-line">{fmtText(t("resultado", "mediana"), { v: s.median })}</p>
+                <p class="count-line">{fmtText(t("resultado", "std"), { v: s.std })}</p>
               </div>
               <PlotlyChart data={figure.data} layout={figure.layout} height={420} downloadName="distribucion_objetivo.png" />
             </div>

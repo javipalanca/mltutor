@@ -65,7 +65,15 @@ class Session {
   datasets: DatasetEntry[] = $state([]);
   /** Shared by every lesson and the CSV page, as in Python. */
   selected: DatasetRef = $state({ kind: "builtin", id: "iris" });
+  /** `seq` of the request that set `selected` (see `backend.nextSeq`). */
+  selectionSeq = 0;
   csv: CsvPageState = $state({ preview: null, target: null, task: null, loaded: null, error: null });
+
+  /** Selects `dataset` for request `seq` (the same `seq` goes to `select_dataset`). */
+  choose(dataset: DatasetRef, seq: number): void {
+    this.selected = dataset;
+    this.selectionSeq = seq;
+  }
 
   expander(id: string, defaultOpen: boolean): boolean {
     return this.expanders[id] ?? defaultOpen;

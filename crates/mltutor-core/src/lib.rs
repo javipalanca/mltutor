@@ -24,6 +24,7 @@
 //! | `load_csv` | [`csv::read_csv_file`]`(&Path) -> Result<RawTable, CsvError>` (or [`csv::read_csv`]`(&[u8])`), then [`csv::RawTable::preview`]`() -> Result<CsvPreview, CsvError>` |
 //! | `csv_target_info` | [`csv::RawTable::target_info`]`(&str) -> Result<TargetInfo, CsvError>` |
 //! | `set_csv_target` | [`csv::RawTable::to_dataset`]`(target: &str, TaskChoice, file_name: &str) -> Result<Dataset, CsvError>`, [`csv::RawTable::describe`]`() -> DescribeTable`, [`csv::RawTable::target_stats`]`(&str, TaskChoice) -> Result<CsvTargetStats, CsvError>`; the resolved task is [`Dataset::task`] |
+//! | cancellation | [`csv::read_csv_cancellable`]`(&[u8], &AtomicBool)`, [`csv::read_csv_file_cancellable`]`(&Path, &AtomicBool)`, [`csv::RawTable::to_dataset_cancellable`]`(…, &AtomicBool)` → [`CsvError::Cancelled`]; [`explore::correlation_matrix_cancellable`]`(&Dataset, &AtomicBool) -> Result<CorrelationMatrix, DatasetError>` → [`DatasetError::Cancelled`] |
 //! | F2+ (D7) | [`split::train_test_split`]`(n_rows, test_size: f64, seed: u32) -> Result<TrainTestSplit, DatasetError>` |
 //!
 //! Other public modules: [`sampling`] (NumPy `RandomState`, `DataFrame.sample`),

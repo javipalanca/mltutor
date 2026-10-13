@@ -45,6 +45,15 @@ pub enum CommandError {
     InvalidSelection {
         message: String,
     },
+    /// The user cancelled the operation, or a newer request superseded it. The UI does
+    /// not show it as an error.
+    Cancelled {
+        message: String,
+    },
+    /// Writing a file chosen in the save dialog failed.
+    FileSave {
+        message: String,
+    },
     Internal {
         message: String,
     },
@@ -114,6 +123,18 @@ impl CommandError {
         }
     }
 
+    pub fn cancelled() -> Self {
+        Self::Cancelled {
+            message: "Operación cancelada".into(),
+        }
+    }
+
+    pub fn file_save(error: impl std::fmt::Display) -> Self {
+        Self::FileSave {
+            message: format!("❌ No se pudo guardar el archivo: {error}"),
+        }
+    }
+
     /// Unexpected failure: logs the technical detail and returns the generic message.
     pub fn internal(detail: impl std::fmt::Display) -> Self {
         log::error!("error interno en un comando: {detail}");
@@ -133,6 +154,8 @@ impl CommandError {
             | Self::CsvIo { message }
             | Self::UnknownColumn { message, .. }
             | Self::InvalidSelection { message }
+            | Self::Cancelled { message }
+            | Self::FileSave { message }
             | Self::Internal { message } => message,
         }
     }
