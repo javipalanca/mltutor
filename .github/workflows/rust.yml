@@ -184,6 +184,14 @@ jobs:
                      ditto -c -k --sequesterRsrc --keepParent "$src" "$out" ;;
             Linux)   out=mltutor-${{ matrix.platform }}.AppImage; cp "$src" "$out"; chmod +x "$out" ;;
           esac
+          if [[ "$RUNNER_OS" == macOS ]]; then
+            # The download must carry a sealed bundle signature (ad-hoc, signingIdentity "-");
+            # a linker-only signature makes Gatekeeper report the quarantined app as damaged.
+            check=$(mktemp -d)
+            ditto -x -k "$out" "$check"
+            codesign --verify --deep --strict --verbose=2 "$check/MLTutor.app"
+            "$check/MLTutor.app/Contents/MacOS/mltutor" --smoke-test
+          fi
           ls -la "$out"
           echo "### ${{ matrix.platform }}: \`$out\` ($(du -h "$out" | cut -f1))" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
@@ -247,7 +255,7 @@ jobs:
             MLTutor de escritorio, nueva versión escrita en Rust (Tauri). Descargas portables: sin instalador, sin Python y sin permisos de administrador. Los modelos se entrenan en el propio programa, sin TensorFlow, por lo que la descarga es mucho más pequeña y arranca más rápido.
 
             - **Windows x86_64**: abrir `mltutor-windows-x86_64.exe`. Usa Microsoft Edge WebView2, que ya viene de serie con Windows 10 y 11. Si un equipo no lo tuviera, hay que instalar el *WebView2 Runtime Evergreen* de Microsoft (https://developer.microsoft.com/microsoft-edge/webview2/), que se puede instalar sin permisos de administrador.
-            - **macOS Apple Silicon**: descomprimir el ZIP y abrir `MLTutor.app` desde esa carpeta. Todavía no tiene firma Developer ID ni notarización: la primera vez macOS puede bloquearla; se permite en *Ajustes del Sistema → Privacidad y seguridad → Abrir igualmente*.
+            - **macOS Apple Silicon**: descomprimir el ZIP y abrir `MLTutor.app` desde esa carpeta. Todavía no tiene firma Developer ID ni notarización: la primera vez macOS puede bloquearla; se permite en *Ajustes del Sistema → Privacidad y seguridad → Abrir igualmente*, o desde Terminal con `xattr -dr com.apple.quarantine MLTutor.app`.
             - **Linux x86_64** (Ubuntu 22.04 o compatible): AppImage. Dar permiso de ejecución (`chmod +x mltutor-linux-x86_64.AppImage`) y abrirlo. Si el sistema no tiene `libfuse2`, se puede ejecutar sin instalar nada con `./mltutor-linux-x86_64.AppImage --appimage-extract-and-run`.
 
             Esta compilación supera las pruebas automáticas y la prueba de arranque en los tres sistemas. Las sumas de comprobación están en `SHA256SUMS.txt`.

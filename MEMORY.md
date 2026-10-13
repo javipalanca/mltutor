@@ -121,6 +121,14 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
   archivos.
 - **macOS:** el `.app` lleva firma ad-hoc; el zip hecho con ditto arranca y pasa el
   smoke test.
+- **Firma de macOS (2026-10-13):** sin `bundle.macOS.signingIdentity`, el `.app` solo lleva la
+  firma del linker del binario ("linker-signed", sin recursos sellados). Al descargarlo,
+  Gatekeeper dice que **está dañado**. Con `"signingIdentity": "-"` en
+  `tauri.macos.conf.json`, Tauri firma ad-hoc el bundle completo y queda sellado. Al
+  abrirlo, el aviso pasa a ser el normal de "no se puede verificar" (se resuelve con
+  *Abrir igualmente* o con `xattr -dr com.apple.quarantine MLTutor.app`). El CI
+  descomprime el zip y ejecuta `codesign --verify --deep --strict`. La solución
+  definitiva sigue siendo Developer ID + notarización.
 - **D3 sin implementar:** todavía no existe el aviso con enlace si falta WebView2.
 - **Sin releases intermedias (2026-10-13, usuario):** no se publica ninguna versión hasta que
   la funcionalidad esté completa o casi. Durante la migración se valida con los artefactos
