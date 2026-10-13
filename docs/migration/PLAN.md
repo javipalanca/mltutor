@@ -1,6 +1,6 @@
 # Plan de migración de MLTutor a Rust
 
-Rama: `feature/rust-migration` · Inicio: 2026-10-13 · Estado: **Fase 0 en curso**
+Rama: `feature/rust-migration` · Inicio: 2026-10-13 · Estado: **Fase 0 completada (2026-10-13), Fase 1 pendiente**
 
 ## Objetivo
 
@@ -88,7 +88,7 @@ plataformas** antes de escribir lógica.
       `tauri-plugin-dialog`/`fs` y el icono actual (`assets/`).
 - [x] Flags del binario (la captura de Windows y Linux, pendiente): `--smoke-test`, que navega por todas las rutas y sale con 0, y
       `--screenshot <png>`. Además, registro en `~/.mltutor/mltutor.log` y hook de panic.
-- [ ] (implementado; macOS verificado en local, falta la primera ejecución en CI) Workflow `.github/workflows/rust.yml`: fmt, clippy, test, npm check/test, build
+- [x] (verde en los 3 sistemas desde la ejecución 38430755760) Workflow `.github/workflows/rust.yml`: fmt, clippy, test, npm check/test, build
       Tauri, smoke test (xvfb en Linux) y empaquetado
       `mltutor-windows-x86_64.exe` / `mltutor-macos-arm64.zip` /
       `mltutor-linux-x86_64.AppImage`. Release con tags y `SHA256SUMS.txt`, con la
@@ -97,7 +97,7 @@ plataformas** antes de escribir lógica.
       tauri.conf.json, conservando las reglas de main y de `-rc`.
 - [ ] D3: aviso con enlace en Windows si falta el WebView2 Runtime (`tauri-ui-engineer`).
 - [x] `tools/export_golden.py`, con la infraestructura y un primer fixture (Iris). También están los 12 datasets, el split y los fixtures de lineal y logística.
-- [ ] **Hito:** CI en verde en los 3 sistemas, con artefactos descargables que se abren y
+- [x] **Hito:** CI en verde en los 3 sistemas, con artefactos descargables que se abren y
       pasan el smoke test. Sin release.
 
 Agentes: `packaging-release-engineer` (CI y releases), `tauri-ui-engineer` (esqueleto),
