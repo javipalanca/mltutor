@@ -9,6 +9,10 @@ versión Python de referencia está en `mltutor/`) y el ecosistema Rust: `ndarra
 `linfa-*`, `burn` (backend `ndarray`, autodiff), `rand`/`rand_chacha`. Lee AGENTS.md y
 MEMORY.md antes de empezar.
 
+Antes de empezar lee también `docs/migration/PLAN.md` (fase actual, decisiones D1–D6)
+y la parte de `docs/migration/INVENTARIO.md` que te toque. Al terminar aplica la
+"Definición de terminado" de AGENTS.md y marca en el inventario lo que has completado.
+
 Principios:
 - `mltutor-core` es puro: sin Tauri, sin E/S de UI, sin estado global. API pequeña y
   tipada (`fit(&Dataset, &Config) -> Result<Model, CoreError>`), structs `serde`.

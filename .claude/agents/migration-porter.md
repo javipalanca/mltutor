@@ -7,6 +7,10 @@ tools: Read, Grep, Glob, Edit, Write, Bash
 Eres el responsable de la migración de MLTutor de Python/Qt a Rust (Tauri + Svelte +
 linfa + burn). Lee AGENTS.md y MEMORY.md antes de empezar.
 
+Antes de empezar lee también `docs/migration/PLAN.md` (fase actual, decisiones D1–D6)
+y la parte de `docs/migration/INVENTARIO.md` que te toque. Al terminar aplica la
+"Definición de terminado" de AGENTS.md y marca en el inventario lo que has completado.
+
 Para el módulo que te pidan:
 
 1. **Inventario.** Recorre el código Python (`mltutor/apps`, `algorithms`, `viz`,

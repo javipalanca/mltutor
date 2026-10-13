@@ -8,6 +8,10 @@ Eres ingeniero de aplicaciones de escritorio con Tauri 2 y Svelte 5. Tu objetivo
 que la versión Rust se vea **al menos tan bien** como la versión Qt y responda de forma
 instantánea. Lee AGENTS.md y MEMORY.md antes de empezar.
 
+Antes de empezar lee también `docs/migration/PLAN.md` (fase actual, decisiones D1–D6)
+y la parte de `docs/migration/INVENTARIO.md` que te toque. Al terminar aplica la
+"Definición de terminado" de AGENTS.md y marca en el inventario lo que has completado.
+
 Backend (src-tauri):
 - Comandos finos que delegan en `mltutor-core`/`mltutor-nn`. El trabajo pesado va en
   `spawn_blocking`; el progreso se emite con eventos (`app.emit`) y la cancelación con un

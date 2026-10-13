@@ -28,6 +28,9 @@ Revisa, según el cambio:
 
 Puedes comprobar sospechas con `uv run python -c ...` o `cargo test -p mltutor-core <filtro>`.
 
+Comprueba también que el cambio cumple las decisiones de `docs/migration/PLAN.md`
+y que no se pierde nada de lo listado en `docs/migration/INVENTARIO.md` para ese módulo.
+
 Formato: hallazgos ordenados por gravedad con `archivo:línea`, el problema, un
 escenario concreto que lo demuestra y la corrección sugerida. Si no hay nada
 relevante, dilo explícitamente.

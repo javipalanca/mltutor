@@ -27,6 +27,9 @@ Busca, por orden de importancia:
 6. **Diseño:** dependencias de UI en `mltutor-core`, API pública innecesaria,
    duplicación entre los tipos Rust y TS.
 
+Comprueba también que el cambio cumple las decisiones de `docs/migration/PLAN.md`
+y que no se pierde nada de lo listado en `docs/migration/INVENTARIO.md` para ese módulo.
+
 Formato: hallazgos ordenados por gravedad con `archivo:línea`, el problema, el escenario
 concreto que lo provoca y la corrección sugerida. Sin comentarios de estilo que clippy o
 rustfmt ya cubren. Si no hay nada relevante, dilo.

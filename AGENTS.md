@@ -6,6 +6,11 @@ Python (PySide6 + scikit-learn + TensorFlow) es la referencia funcional y visual
 la versión Rust debe igualarla en contenido, resultados y aspecto, y superarla en
 velocidad, tamaño y estabilidad.
 
+> **Plan de migración:** [docs/migration/PLAN.md](docs/migration/PLAN.md) (fases,
+> decisiones y criterios de aceptación) e [INVENTARIO.md](docs/migration/INVENTARIO.md)
+> (lista de funciones que hay que mantener). Toda tarea de migración pertenece a una fase
+> del plan y a casillas del inventario. Al terminarla, marca las casillas.
+>
 > **Memoria del proyecto:** antes de empezar una tarea lee [MEMORY.md](MEMORY.md).
 > Contiene decisiones, trampas conocidas y lecciones aprendidas que no se deducen
 > del código. Cuando descubras algo no obvio (una diferencia numérica con
@@ -39,10 +44,13 @@ Cargo.toml                 workspace
 crates/mltutor-core/       algoritmos, métricas, preprocesado, datasets embebidos.
                            Sin Tauri ni UI; 100 % testeable con `cargo test`
 crates/mltutor-nn/         redes neuronales con burn (arquitectura, entrenamiento, historial)
+crates/mltutor-export/     ONNX nativo y "paquetes Python" (JSON + script sklearn/Keras)
 src-tauri/                 app Tauri: comandos IPC, estado, tareas en segundo plano,
                            diálogos de archivo, exportaciones
 ui/                        frontend Svelte + TS: lecciones, controles, gráficos
-content/                   textos pedagógicos en Markdown (+KaTeX), uno por lección/pestaña
+content/                   textos pedagógicos en Markdown (+KaTeX), uno por lección/pestaña,
+                           y plantillas de código Python (code/*.py.j2, minijinja)
+docs/migration/            PLAN.md, INVENTARIO.md y un plan por módulo
 tests/parity/              fixtures "golden" generados desde la versión Python
 tools/export_golden.py     genera esos fixtures con la app Python
 mltutor/, tests/*.py       versión Python de referencia: congelada salvo bugs graves
@@ -95,6 +103,16 @@ No ejecutes `release.sh`, no crees tags ni hagas push sin permiso explícito.
    colores y explicaciones de la versión Python.
 9. **Español** en toda la interfaz y en los mensajes de error. Identificadores,
    comentarios y commits en inglés.
+
+## Definición de terminado (cada tarea de migración)
+
+1. Las casillas correspondientes de `docs/migration/INVENTARIO.md` están marcadas.
+2. `cargo fmt`, clippy sin avisos, `cargo test --workspace` y `npm --prefix ui run check/test`
+   en verde. Los tests de paridad cubren el cálculo nuevo.
+3. Hay una captura Rust comparada con la captura Qt equivalente, sin pérdidas de
+   contenido ni de vistosidad.
+4. Lo aprendido que no sea obvio está en MEMORY.md.
+5. Han revisado `rust-reviewer` y, si hay ML, `ml-correctness-reviewer`.
 
 ## Convenciones
 

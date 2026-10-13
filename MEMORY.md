@@ -26,6 +26,16 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
 - **WebView del sistema:** WebView2 en Windows (ya incluido en Win10/11), WKWebView en macOS
   y WebKitGTK en Linux. Hay que validar en equipos de laboratorio y decidir el formato
   de Linux (AppImage frente a binario).
+- **Plan aprobado como borrador (2026-10-13):** `docs/migration/PLAN.md`, con 9 fases (F0–F8)
+  y las decisiones D1–D6, que tienen una opción recomendada por defecto.
+- **Toolchain local (2026-10-13):** el default de rustup en este Mac es x86_64 y falla
+  ("Bad CPU type"). `rust-toolchain.toml` fuerza `stable` = aarch64. `gh` no está
+  instalado (hace falta para release.sh).
+- **Datasets que hoy se descargan:** California (`fetch_california_housing`) y Diamantes
+  (seaborn) dependen de la red en la versión Python. En Rust se incluyen en el binario.
+- **Código muerto en Python:** varias pestañas de `viz/nn_extra.py` y funciones de
+  `ui.py`, `tree_visualization.py` y `knn_app.py` no son alcanzables; no se portan
+  (INVENTARIO §8).
 - Rama de trabajo: `feature/rust-migration`, creada el 2026-10-13 a partir de `codex/desktop-migration-study`, que tiene la versión Qt de referencia.
 
 ## Decisiones de diseño (versión Python/Qt)
