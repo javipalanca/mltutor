@@ -28,6 +28,7 @@ fn fail(app: &AppHandle, error: &str) {
     );
 }
 
+#[cfg(target_os = "macos")]
 fn succeed(app: &AppHandle, path: &std::path::Path) {
     app.state::<AppState>().finish(
         app,
