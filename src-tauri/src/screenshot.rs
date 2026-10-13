@@ -8,7 +8,7 @@ use std::path::PathBuf;
 
 use tauri::{AppHandle, Manager};
 
-use crate::state::{AppState, EXIT_FAILURE, EXIT_OK};
+use crate::state::{AppState, EXIT_FAILURE};
 
 pub fn capture_main_window(app: &AppHandle, path: PathBuf) {
     let Some(window) = app.get_webview_window("main") else {
@@ -32,7 +32,7 @@ fn fail(app: &AppHandle, error: &str) {
 fn succeed(app: &AppHandle, path: &std::path::Path) {
     app.state::<AppState>().finish(
         app,
-        EXIT_OK,
+        crate::state::EXIT_OK,
         &format!("Captura guardada en {}", path.display()),
     );
 }
