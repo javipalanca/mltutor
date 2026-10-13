@@ -81,7 +81,8 @@ target/release/mltutor --screenshot out.png  # captura de la ventana inicial (so
 uv sync --locked --extra dev
 uv run python launcher_qt.py
 uv run pytest -q
-uv run python tools/export_golden.py
+uv run python tools/export_golden.py      # --check en CI
+uv run python tools/capture_qt.py         # capturas de referencia Qt
 ```
 
 No ejecutes `release.sh`, no crees tags ni hagas push sin permiso explícito.

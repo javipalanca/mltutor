@@ -45,6 +45,20 @@
       "s5",
       "s6"
     ],
+    "label_columns": [],
+    "csv_columns": [
+      "age",
+      "sex",
+      "bmi",
+      "bp",
+      "s1",
+      "s2",
+      "s3",
+      "s4",
+      "s5",
+      "s6",
+      "disease_progression"
+    ],
     "dtypes": {
       "age": "float64",
       "sex": "float64",

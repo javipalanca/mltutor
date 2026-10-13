@@ -64,6 +64,7 @@ La UI dibuja con Plotly o SVG. Nunca se envían imágenes rasterizadas.
 | D5 | Código muerto de Python (sección 8 del inventario) | No portarlo |
 | D6 | Paridad de árboles y regresión logística | Tolerancia, no igualdad: aceptar diferencias por desempates y solver, siempre documentadas |
 | D7 | Split train/test | ✅ Aprobada: **idéntico al de Python**, sin estratificar, con `rand_mt` (MT19937) para reproducir `RandomState(42).permutation`. Mismos datos de train y test que la versión actual. La estratificación queda como mejora futura opcional |
+| D9–D17 | Detalles de la Fase 1 (Moons fijo por sesión, CSV más tolerante, pairplot de regresión legible, correlación de -1 a 1, estado de subvistas por lección, CSV resaltado en la barra lateral, días de Propinas corregidos, consejos del pairplot, CSV embebidos desde `tests/parity`) | Recomendaciones aplicadas por defecto (2026-10-13). Detalle en [fase1-shell-datos.md §9](fase1-shell-datos.md). Revisables por el usuario |
 | D8 | MPG: columna `name` | ✅ Aprobada: **no se usa como característica** del modelo (301 modelos de coche codificados como número no tienen sentido). Se conserva en la exploración de datos: vista previa, tooltip en el pairplot y gráficos de dispersión |
 
 ## Fases
@@ -106,18 +107,21 @@ Agentes: `packaging-release-engineer` (CI y releases), `tauri-ui-engineer` (esqu
 
 ### Fase 1 — Shell de la app y datos  *(riesgo: medio · tamaño: L)*
 
+Plan detallado, contrato IPC y reparto: [fase1-shell-datos.md](fase1-shell-datos.md).
+Capturas de referencia: `docs/migration/capturas/qt/`.
+
 - [ ] Shell: barra lateral, página de inicio y pie, sistema de pestañas por lección con
       navbar, panel de subvistas, avisos, métricas, expanders, tablas y bloques de
       código. Tema claro/oscuro fiel a los colores actuales.
 - [ ] Renderizado de `content/*.md` con Markdown, KaTeX y resaltado de Python.
 - [ ] `mltutor-core::dataset`: los 11 datasets embebidos más Moons, con los ficheros de
       California y Diamantes incluidos. Cargador de CSV con inferencia de tipos,
-      detección de la tarea y codificación de etiquetas. Split estratificado y
-      estadísticas descriptivas, correlación y KDE.
+      detección de la tarea y codificación de etiquetas. Split sin estratificar (D7) y
+      estadísticas descriptivas, correlación y KDE (fixtures en `tests/parity/stats`).
 - [ ] Pestaña 📊 Datos común y página 📁 Cargar CSV Personalizado (inventario §1–2),
       con heatmap de correlación y pairplot en Plotly.
-- [ ] Metadatos de datasets portados como datos (`content/datasets/*.toml`).
-- [ ] D8: ajustar `tools/export_golden.py` para que en MPG `name` sea una columna de
+- [x] Metadatos de datasets portados como datos (`content/datasets/*.toml`).
+- [x] D8: ajustar `tools/export_golden.py` para que en MPG `name` sea una columna de
       etiqueta y no una característica (el fixture de datos sigue incluyéndola en el CSV).
 - [ ] D7: split con `rand_mt`, verificado exactamente contra `tests/parity/split/*.json`.
 - [ ] Fixtures de paridad: splits, estadísticas y codificaciones.

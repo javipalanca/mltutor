@@ -24,7 +24,7 @@ Leyenda: 🐍 = origen en Python · ⚠️ = requiere decisión o implementació
       "Continuar a …" (`navbar`). Se conserva la pestaña activa por lección. 🐍 `apps/navbar.py`
 - [ ] Panel de botones para elegir subvista (`create_button_panel`). 🐍 `ui.py`
 - [ ] Avisos (info, warning, error, success), métricas, expanders, columnas, tablas
-      ordenables y bloques de código Python con resaltado, botón de copiar y descarga.
+      (en Qt no se pueden ordenar; ordenarlas es una mejora opcional) y bloques de código Python con resaltado, botón de copiar y descarga.
 - [ ] Los cálculos se hacen en segundo plano, con progreso y cancelación; la interfaz
       nunca se bloquea.
 - [ ] Diálogos nativos para guardar las exportaciones y abrir CSV.
@@ -34,13 +34,15 @@ Leyenda: 🐍 = origen en Python · ⚠️ = requiere decisión o implementació
 
 - [ ] Selector de 11 datasets incluidos: 🌸 Iris, 🍷 Vino, 🔬 Cáncer, 🔢 Dígitos, 🩺 Diabetes,
       💎 Diamantes (muestreo), ⛽ MPG, 🚢 Titanic, 💰 Propinas, 🏠 Viviendas California y
-      🐧 Pingüinos. También 🌙 Moons sintético, con nº de muestras y ruido (semilla
-      explícita en Rust). En MPG, `name` se muestra en la exploración pero no es
+      🐧 Pingüinos. También 🌙 Moons sintético, sin controles en Python (500 muestras,
+      ruido 0.2). En Rust se genera una vez por sesión con semilla 42 (D9). En MPG, `name` se muestra en la exploración pero no es
       característica del modelo (D8).
       ⚠️ California y Diamantes se descargan hoy de internet: hay que incluirlos.
 - [ ] Carga de CSV propio: elegir la columna objetivo, detectar automáticamente si es
       clasificación o regresión, codificar etiquetas y nombrar las clases.
-- [ ] Información del dataset: descripción, muestras, características y clases.
+- [ ] Información del dataset: muestras, características y clases. La descripción aparece en
+      la pestaña Entrenamiento, que también muestra el selector en árboles, regresión y KNN.
+- [ ] El dataset seleccionado es **global**: lo comparten las 4 lecciones y la página CSV.
 - [ ] Vista previa de los datos y estadísticas descriptivas (`describe`).
 - [ ] Distribución del objetivo: barras en clasificación, histograma en regresión.
 - [ ] Análisis avanzado: matriz de correlación (heatmap) y matriz de dispersión

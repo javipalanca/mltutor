@@ -41,6 +41,16 @@
       "island_encoded",
       "sex_encoded"
     ],
+    "label_columns": [],
+    "csv_columns": [
+      "bill_length_mm",
+      "bill_depth_mm",
+      "flipper_length_mm",
+      "body_mass_g",
+      "island_encoded",
+      "sex_encoded",
+      "species"
+    ],
     "dtypes": {
       "bill_length_mm": "float64",
       "bill_depth_mm": "float64",

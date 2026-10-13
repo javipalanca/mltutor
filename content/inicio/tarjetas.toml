@@ -1,0 +1,38 @@
+# ui.py::show_welcome_page — 4 columnas iguales; cada tarjeta: padding 15px, radio 10px,
+# alto 200px, borde izquierdo 5px. Debajo, un botón a todo el ancho que navega a la ruta.
+[[cards]]
+route = "arboles"
+title = "🌲 Árboles de Decisión"
+text = "Algoritmos que toman decisiones basadas en condiciones en forma de árbol."
+status = "Disponible"   # se muestra como "**Estado:** <span color=#2E7D32>Disponible</span>" (solo esta tarjeta)
+background = "#E8F5E9"
+border = "#4CAF50"
+title_color = "#2E7D32"
+button = "✨ Explorar Árboles de Decisión"
+
+[[cards]]
+route = "regresion"
+title = "📊 Regresión"
+text = "Modelos lineales para regresión y clasificación logística."
+background = "#FFF3E0"
+border = "#FF9800"
+title_color = "#E65100"
+button = "✨ Explorar Regresión"
+
+[[cards]]
+route = "knn"
+title = "🔍 K-Nearest Neighbors"
+text = "Algoritmo basado en la similitud entre ejemplos."
+background = "#E0F7FA"
+border = "#00BCD4"
+title_color = "#006064"
+button = "✨ Explorar KNN"
+
+[[cards]]
+route = "redes"
+title = "🧠 Redes Neuronales"
+text = "Modelos inspirados en el cerebro humano."
+background = "#F3E5F5"
+border = "#9C27B0"
+title_color = "#4A148C"
+button = "✨ Explorar Redes Neuronales"

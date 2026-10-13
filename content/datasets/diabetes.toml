@@ -1,0 +1,108 @@
+# Dataset metadata for the 📊 Datos tab and the prediction form.
+# Generated from mltutor/dataset/{dataset_manager,additional_datasets,dataset_metadata}.py
+# and dataset_tab.py (2026-10-13). Ranges are over the full dataset; the form
+# computes them from X_train at runtime, as Python does.
+id = "diabetes"
+label = "🩺 Diabetes - Progresión (regresión)"
+emoji = "🩺"
+name = "Diabetes"
+task = "regression"
+task_label = "Regresión"
+target = "disease_progression"
+samples = 442
+description = "Diabetes: 442 muestras, 10 características; regresión de progresión de la enfermedad"
+selector_blurb = ""
+selector_info = "442 muestras • 10 características • Progresión enfermedad • Regresión"
+source = "sklearn.datasets.load_diabetes (bundled with scikit-learn)"
+fixture = "tests/parity/datasets/diabetes.json"
+
+[[features]]
+column = "age"
+display = "age"
+kind = "continuous"
+categorical_in_metadata = false
+min = -0.1072256316073538
+max = 0.11072667545381144
+mean = -2.511816797794472e-19
+
+[[features]]
+column = "sex"
+display = "sex"
+kind = "binary"
+categorical_in_metadata = false
+min = -0.044641636506989144
+max = 0.05068011873981862
+mean = 1.2307902309192911e-17
+levels = [-0.044641636506989144, 0.05068011873981862]
+
+[[features]]
+column = "bmi"
+display = "bmi"
+kind = "continuous"
+categorical_in_metadata = false
+min = -0.09027529589850945
+max = 0.17055522598064407
+mean = -2.2455642172282577e-16
+
+[[features]]
+column = "bp"
+display = "bp"
+kind = "continuous"
+categorical_in_metadata = false
+min = -0.11239880254408448
+max = 0.13204361674121307
+mean = -4.7975700837874414e-17
+
+[[features]]
+column = "s1"
+display = "s1"
+kind = "continuous"
+categorical_in_metadata = false
+min = -0.12678066991651324
+max = 0.15391371315651542
+mean = -1.3814992387869595e-17
+
+[[features]]
+column = "s2"
+display = "s2"
+kind = "continuous"
+categorical_in_metadata = false
+min = -0.11561306597939897
+max = 0.19878798965729408
+mean = 3.918434204559376e-17
+
+[[features]]
+column = "s3"
+display = "s3"
+kind = "continuous"
+categorical_in_metadata = false
+min = -0.10230705051741597
+max = 0.18117906039727852
+mean = -5.7771786349272854e-18
+
+[[features]]
+column = "s4"
+display = "s4"
+kind = "continuous"
+categorical_in_metadata = false
+min = -0.0763945037500033
+max = 0.18523444326019867
+mean = -9.042540472060099e-18
+
+[[features]]
+column = "s5"
+display = "s5"
+kind = "continuous"
+categorical_in_metadata = false
+min = -0.12609712083330468
+max = 0.13359728192191356
+mean = 9.293722151839546e-17
+
+[[features]]
+column = "s6"
+display = "s6"
+kind = "continuous"
+categorical_in_metadata = false
+min = -0.13776722569000302
+max = 0.13561183068907107
+mean = 1.1303175590075123e-17

@@ -1,0 +1,101 @@
+# Dataset metadata for the 📊 Datos tab and the prediction form.
+# Generated from mltutor/dataset/{dataset_manager,additional_datasets,dataset_metadata}.py
+# and dataset_tab.py (2026-10-13). Ranges are over the full dataset; the form
+# computes them from X_train at runtime, as Python does.
+id = "diamonds"
+label = "💎 Diamantes - Precio (regresión)"
+emoji = "💎"
+name = "Diamantes"
+task = "regression"
+task_label = "Regresión"
+target = "price"
+samples = 8000
+description = "Diamantes (muestreo): 8000 muestras, 9 características, predicción de precio"
+selector_blurb = ""
+selector_info = "≈54k (muestreo ≤8000) • 9 características • Precio • Regresión"
+source = "seaborn.load_dataset('diamonds') -- NETWORK (cached in seaborn.get_data_home(), ~/Library/Caches/seaborn on macOS); categoricals LabelEncoded, then df.sample(8000, random_state=42)"
+fixture = "tests/parity/datasets/diamonds.json"
+
+[[features]]
+column = "carat"
+display = "carat"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0.2
+max = 4.01
+mean = 0.7974874999999999
+
+[[features]]
+column = "cut"
+display = "cut"
+kind = "categorical"
+categorical_in_metadata = false
+min = 0
+max = 4
+mean = 2.54825
+levels = [0, 1, 2, 3, 4]
+
+[[features]]
+column = "color"
+display = "color"
+kind = "categorical"
+categorical_in_metadata = false
+min = 0
+max = 6
+mean = 2.606375
+levels = [0, 1, 2, 3, 4, 5, 6]
+
+[[features]]
+column = "clarity"
+display = "clarity"
+kind = "categorical"
+categorical_in_metadata = false
+min = 0
+max = 7
+mean = 3.842
+levels = [0, 1, 2, 3, 4, 5, 6, 7]
+
+[[features]]
+column = "depth"
+display = "depth"
+kind = "continuous"
+categorical_in_metadata = false
+min = 43
+max = 71.6
+mean = 61.770125
+
+[[features]]
+column = "table"
+display = "table"
+kind = "continuous"
+categorical_in_metadata = false
+min = 49
+max = 73
+mean = 57.44364999999999
+
+[[features]]
+column = "x"
+display = "x"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 10.14
+mean = 5.726431249999999
+
+[[features]]
+column = "y"
+display = "y"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 10.1
+mean = 5.727435000000001
+
+[[features]]
+column = "z"
+display = "z"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 6.31
+mean = 3.53658

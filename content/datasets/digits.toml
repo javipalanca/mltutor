@@ -1,0 +1,600 @@
+# Dataset metadata for the 📊 Datos tab and the prediction form.
+# Generated from mltutor/dataset/{dataset_manager,additional_datasets,dataset_metadata}.py
+# and dataset_tab.py (2026-10-13). Ranges are over the full dataset; the form
+# computes them from X_train at runtime, as Python does.
+id = "digits"
+label = "🔢 Dígitos - Clasificación de dígitos"
+emoji = "🔢"
+name = "Dígitos"
+task = "classification"
+task_label = "Clasificación"
+target = "digit"
+samples = 1797
+description = "Dígitos manuscritos: 1797 muestras, 64 píxeles (8x8) aplanados, 10 clases"
+selector_blurb = ""
+selector_info = "1797 muestras • 64 píxeles • 10 clases • Clasificación"
+source = "sklearn.datasets.load_digits (bundled with scikit-learn)"
+fixture = "tests/parity/datasets/digits.json"
+classes = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
+
+[[features]]
+column = "0"
+display = "p0"
+kind = "binary"
+categorical_in_metadata = false
+min = 0
+max = 0
+mean = 0
+levels = [0]
+
+[[features]]
+column = "1"
+display = "p1"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 8
+mean = 0.3038397328881469
+
+[[features]]
+column = "2"
+display = "p2"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 5.204785754034502
+
+[[features]]
+column = "3"
+display = "p3"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 11.835837506956038
+
+[[features]]
+column = "4"
+display = "p4"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 11.848080133555927
+
+[[features]]
+column = "5"
+display = "p5"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 5.781858653311074
+
+[[features]]
+column = "6"
+display = "p6"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 1.3622704507512522
+
+[[features]]
+column = "7"
+display = "p7"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 15
+mean = 0.1296605453533667
+
+[[features]]
+column = "8"
+display = "p8"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 2
+mean = 0.005564830272676683
+
+[[features]]
+column = "9"
+display = "p9"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 1.9938786867000557
+
+[[features]]
+column = "10"
+display = "p10"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 10.382303839732888
+
+[[features]]
+column = "11"
+display = "p11"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 11.979410127991097
+
+[[features]]
+column = "12"
+display = "p12"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 10.279354479688369
+
+[[features]]
+column = "13"
+display = "p13"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 8.175848636616584
+
+[[features]]
+column = "14"
+display = "p14"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 1.8464106844741235
+
+[[features]]
+column = "15"
+display = "p15"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 12
+mean = 0.10795770728992765
+
+[[features]]
+column = "16"
+display = "p16"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 2
+mean = 0.0027824151363383415
+
+[[features]]
+column = "17"
+display = "p17"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 2.6015581524763496
+
+[[features]]
+column = "18"
+display = "p18"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 9.903171953255425
+
+[[features]]
+column = "19"
+display = "p19"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 6.9927657206455205
+
+[[features]]
+column = "20"
+display = "p20"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 7.09794101279911
+
+[[features]]
+column = "21"
+display = "p21"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 7.806343906510851
+
+[[features]]
+column = "22"
+display = "p22"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 1.788536449638286
+
+[[features]]
+column = "23"
+display = "p23"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 8
+mean = 0.05008347245409015
+
+[[features]]
+column = "24"
+display = "p24"
+kind = "binary"
+categorical_in_metadata = false
+min = 0
+max = 1
+mean = 0.0011129660545353367
+levels = [0, 1]
+
+[[features]]
+column = "25"
+display = "p25"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 15
+mean = 2.4696716750139123
+
+[[features]]
+column = "26"
+display = "p26"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 9.091263216471898
+
+[[features]]
+column = "27"
+display = "p27"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 8.821368948247079
+
+[[features]]
+column = "28"
+display = "p28"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 9.927100723427936
+
+[[features]]
+column = "29"
+display = "p29"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 7.55147468002226
+
+[[features]]
+column = "30"
+display = "p30"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 15
+mean = 2.3177518085698385
+
+[[features]]
+column = "31"
+display = "p31"
+kind = "binary"
+categorical_in_metadata = false
+min = 0
+max = 1
+mean = 0.0022259321090706734
+levels = [0, 1]
+
+[[features]]
+column = "32"
+display = "p32"
+kind = "binary"
+categorical_in_metadata = false
+min = 0
+max = 0
+mean = 0
+levels = [0]
+
+[[features]]
+column = "33"
+display = "p33"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 14
+mean = 2.3394546466332775
+
+[[features]]
+column = "34"
+display = "p34"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 7.6672231496939345
+
+[[features]]
+column = "35"
+display = "p35"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 9.07178631051753
+
+[[features]]
+column = "36"
+display = "p36"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 10.301613800779077
+
+[[features]]
+column = "37"
+display = "p37"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 8.744017807456872
+
+[[features]]
+column = "38"
+display = "p38"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 14
+mean = 2.90929326655537
+
+[[features]]
+column = "39"
+display = "p39"
+kind = "binary"
+categorical_in_metadata = false
+min = 0
+max = 0
+mean = 0
+levels = [0]
+
+[[features]]
+column = "40"
+display = "p40"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 4
+mean = 0.008903728436282694
+
+[[features]]
+column = "41"
+display = "p41"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 1.5837506956037841
+
+[[features]]
+column = "42"
+display = "p42"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 6.881469115191987
+
+[[features]]
+column = "43"
+display = "p43"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 7.228158041179744
+
+[[features]]
+column = "44"
+display = "p44"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 7.672231496939343
+
+[[features]]
+column = "45"
+display = "p45"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 8.23650528658876
+
+[[features]]
+column = "46"
+display = "p46"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 3.456316082359488
+
+[[features]]
+column = "47"
+display = "p47"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 6
+mean = 0.027267668336115748
+
+[[features]]
+column = "48"
+display = "p48"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 8
+mean = 0.007234279354479688
+
+[[features]]
+column = "49"
+display = "p49"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 0.7045075125208681
+
+[[features]]
+column = "50"
+display = "p50"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 7.506956037840846
+
+[[features]]
+column = "51"
+display = "p51"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 9.53923205342237
+
+[[features]]
+column = "52"
+display = "p52"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 9.416249304396215
+
+[[features]]
+column = "53"
+display = "p53"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 8.758486366165831
+
+[[features]]
+column = "54"
+display = "p54"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 3.725097384529772
+
+[[features]]
+column = "55"
+display = "p55"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 13
+mean = 0.20645520311630494
+
+[[features]]
+column = "56"
+display = "p56"
+kind = "binary"
+categorical_in_metadata = false
+min = 0
+max = 1
+mean = 0.0005564830272676684
+levels = [0, 1]
+
+[[features]]
+column = "57"
+display = "p57"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 9
+mean = 0.2793544796883695
+
+[[features]]
+column = "58"
+display = "p58"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 5.557595993322204
+
+[[features]]
+column = "59"
+display = "p59"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 12.089037284362828
+
+[[features]]
+column = "60"
+display = "p60"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 11.80912632164719
+
+[[features]]
+column = "61"
+display = "p61"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 6.764051196438508
+
+[[features]]
+column = "62"
+display = "p62"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 2.0678909293266554
+
+[[features]]
+column = "63"
+display = "p63"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 16
+mean = 0.36449638286032277

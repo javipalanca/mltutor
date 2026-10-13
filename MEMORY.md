@@ -133,6 +133,30 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
 - **Sin releases intermedias (2026-10-13, usuario):** no se publica ninguna versión hasta que
   la funcionalidad esté completa o casi. Durante la migración se valida con los artefactos
   del CI. `rust.yml` se ejecuta en cada push a `feature/rust-migration`.
+- **Fase 1, hallazgos de la versión Python (2026-10-13; detalle en `docs/migration/fase1-shell-datos.md` §11):**
+  - `selected_dataset` es global en session_state y lo comparten las lecciones y la página
+    CSV. Al cargar un CSV, pasa a ser `"📄 {archivo}"`.
+  - **Pingüinos se ve mal en la exploración de Python:** `X` conserva el índice de
+    `dropna()` e `y` no, así que el concat da 342 filas con 9 NaN y etiquetas desplazadas.
+    No afecta al entrenamiento. Rust alinea por posición.
+  - Moons se regenera con la hora como semilla en cada renderizado; en Rust queda fijo por
+    sesión (D9).
+  - `create_button_panel` usa una clave global `viz_type`; en Rust hay estado por lección (D13).
+  - Correlación: usa `X.columns` y el objetivo como códigos; la máscara `triu(k=0)` también
+    oculta la diagonal. En Rust la escala va de -1 a 1 (D12).
+  - Colores: el pairplot usa tab10 por orden de aparición; las barras del objetivo ordenan
+    por clase y usan `#3274a1`. `describe()` excluye las columnas bool.
+  - CSV: dos heurísticas de tarea incoherentes (el selector usa `nunique ≤ 20` y `< 10 %`;
+    "auto", `nunique < max(5, 5 %)`). Las clases de texto pasan a llamarse "Clase i", y
+    los `;` o Latin-1 fallan. Rust es más tolerante (D10).
+  - `dataset_metadata.py` etiqueta mal los días de Propinas (0=Fri, 1=Sat, 2=Sun, 3=Thur);
+    corregido en el TOML (D15). Los metadatos de Iris nunca se veían (nombres de seaborn).
+  - KDE del pairplot: `gaussian_kde` con Scott, rejilla `linspace(min-3bw, max+3bw, 200)` por
+    nivel, `common_norm` y omite los niveles con n<2 o varianza 0. Se muestrea con más de
+    2000 filas (`sample(2000, random_state=42)`; en clasificación, por grupo).
+- **Capturas Qt:** `uv run python tools/capture_qt.py` genera las de todas las pantallas en
+  `docs/migration/capturas/qt/`. No funciona en modo offscreen y no captura las vistas
+  Plotly/WebEngine. Se cuantizan a 256 colores con Pillow antes del commit (de 9,7 MB a 3,9 MB).
 - **Fixtures golden (2026-10-13):** se generan con `uv run python tools/export_golden.py` y
   se verifican con `--check` (exit 1 si algo cambiaría). Son deterministas y pesan unos
   3 MB de CSV en `tests/parity/datasets/data/` (California ocupa 1,9 MB). Tolerancias:

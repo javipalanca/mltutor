@@ -1,0 +1,293 @@
+# Dataset metadata for the 📊 Datos tab and the prediction form.
+# Generated from mltutor/dataset/{dataset_manager,additional_datasets,dataset_metadata}.py
+# and dataset_tab.py (2026-10-13). Ranges are over the full dataset; the form
+# computes them from X_train at runtime, as Python does.
+id = "breast_cancer"
+label = "🔬 Cáncer - Diagnóstico binario"
+emoji = "🔬"
+name = "Cáncer"
+task = "classification"
+task_label = "Clasificación"
+target = "malignant"
+samples = 569
+description = "Dataset Cáncer: 569 muestras, 30 características, diagnóstico binario"
+selector_blurb = "🔬 **Cáncer**: Problema binario médico con 30 características."
+selector_info = "569 muestras • 30 características • Benigno/Maligno • Clasificación"
+source = "sklearn.datasets.load_breast_cancer (bundled with scikit-learn)"
+fixture = "tests/parity/datasets/breast_cancer.json"
+classes = ["malignant", "benign"]
+
+[[features]]
+column = "mean radius"
+display = "mean radius"
+description = "Radio promedio del núcleo celular"
+kind = "continuous"
+categorical_in_metadata = false
+min = 6.981
+max = 28.11
+mean = 14.127291739894552
+
+[[features]]
+column = "mean texture"
+display = "mean texture"
+description = "Textura promedio del núcleo"
+kind = "continuous"
+categorical_in_metadata = false
+min = 9.71
+max = 39.28
+mean = 19.289648506151142
+
+[[features]]
+column = "mean perimeter"
+display = "mean perimeter"
+description = "Perímetro promedio del núcleo"
+kind = "continuous"
+categorical_in_metadata = false
+min = 43.79
+max = 188.5
+mean = 91.96903339191564
+
+[[features]]
+column = "mean area"
+display = "mean area"
+description = "Área promedio del núcleo"
+kind = "continuous"
+categorical_in_metadata = false
+min = 143.5
+max = 2501
+mean = 654.8891036906855
+
+[[features]]
+column = "mean smoothness"
+display = "mean smoothness"
+description = "Suavidad promedio del núcleo"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0.05263
+max = 0.1634
+mean = 0.0963602811950791
+
+[[features]]
+column = "mean compactness"
+display = "mean compactness"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0.01938
+max = 0.3454
+mean = 0.10434098418277679
+
+[[features]]
+column = "mean concavity"
+display = "mean concavity"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 0.4268
+mean = 0.0887993158172232
+
+[[features]]
+column = "mean concave points"
+display = "mean concave points"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 0.2012
+mean = 0.04891914586994728
+
+[[features]]
+column = "mean symmetry"
+display = "mean symmetry"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0.106
+max = 0.304
+mean = 0.18116186291739894
+
+[[features]]
+column = "mean fractal dimension"
+display = "mean fractal dimension"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0.04996
+max = 0.09744
+mean = 0.06279760984182776
+
+[[features]]
+column = "radius error"
+display = "radius error"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0.1115
+max = 2.873
+mean = 0.40517205623901575
+
+[[features]]
+column = "texture error"
+display = "texture error"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0.3602
+max = 4.885
+mean = 1.2168534270650264
+
+[[features]]
+column = "perimeter error"
+display = "perimeter error"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0.757
+max = 21.98
+mean = 2.8660592267135327
+
+[[features]]
+column = "area error"
+display = "area error"
+kind = "continuous"
+categorical_in_metadata = false
+min = 6.802
+max = 542.2
+mean = 40.337079086116
+
+[[features]]
+column = "smoothness error"
+display = "smoothness error"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0.001713
+max = 0.03113
+mean = 0.007040978910369069
+
+[[features]]
+column = "compactness error"
+display = "compactness error"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0.002252
+max = 0.1354
+mean = 0.025478138840070295
+
+[[features]]
+column = "concavity error"
+display = "concavity error"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 0.396
+mean = 0.03189371634446397
+
+[[features]]
+column = "concave points error"
+display = "concave points error"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 0.05279
+mean = 0.011796137082601054
+
+[[features]]
+column = "symmetry error"
+display = "symmetry error"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0.007882
+max = 0.07895
+mean = 0.02054229876977153
+
+[[features]]
+column = "fractal dimension error"
+display = "fractal dimension error"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0.0008948
+max = 0.02984
+mean = 0.0037949038664323374
+
+[[features]]
+column = "worst radius"
+display = "worst radius"
+kind = "continuous"
+categorical_in_metadata = false
+min = 7.93
+max = 36.04
+mean = 16.269189806678387
+
+[[features]]
+column = "worst texture"
+display = "worst texture"
+kind = "continuous"
+categorical_in_metadata = false
+min = 12.02
+max = 49.54
+mean = 25.677223198594024
+
+[[features]]
+column = "worst perimeter"
+display = "worst perimeter"
+kind = "continuous"
+categorical_in_metadata = false
+min = 50.41
+max = 251.2
+mean = 107.26121265377857
+
+[[features]]
+column = "worst area"
+display = "worst area"
+kind = "continuous"
+categorical_in_metadata = false
+min = 185.2
+max = 4254
+mean = 880.5831282952548
+
+[[features]]
+column = "worst smoothness"
+display = "worst smoothness"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0.07117
+max = 0.2226
+mean = 0.13236859402460457
+
+[[features]]
+column = "worst compactness"
+display = "worst compactness"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0.02729
+max = 1.058
+mean = 0.25426504393673116
+
+[[features]]
+column = "worst concavity"
+display = "worst concavity"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 1.252
+mean = 0.27218848330404216
+
+[[features]]
+column = "worst concave points"
+display = "worst concave points"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 0.291
+mean = 0.11460622319859401
+
+[[features]]
+column = "worst symmetry"
+display = "worst symmetry"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0.1565
+max = 0.6638
+mean = 0.2900755711775044
+
+[[features]]
+column = "worst fractal dimension"
+display = "worst fractal dimension"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0.05504
+max = 0.2075
+mean = 0.0839458172231986

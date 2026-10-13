@@ -1,0 +1,230 @@
+{
+  "meta": {
+    "format_version": 1,
+    "generator": "tools/export_golden.py",
+    "generated": "2026-10-13",
+    "versions": {
+      "python": "3.11.14",
+      "numpy": "1.26.4",
+      "pandas": "2.3.3",
+      "scipy": "1.16.3",
+      "scikit-learn": "1.7.2",
+      "seaborn": "0.13.2",
+      "platform": "Darwin-arm64"
+    },
+    "seed": 42,
+    "tolerance": {
+      "values": "exact"
+    },
+    "tolerance_rationale": "Parsing and encoding are discrete; numeric values round-trip exactly."
+  },
+  "input": {
+    "function": "pandas.read_csv(uploaded) + create_dataset_selector validations + load_dataset_from_file(path, target, task) for each task option",
+    "csv_text": "edad,ciudad,ingresos,compra\n25,Valencia,1200.5,si\n,Madrid,,no\n40,,3100,si\n33,Valencia,2000,no\n51,Bilbao,2500.25,si\n29,Madrid,1800,\n",
+    "csv_base64": "ZWRhZCxjaXVkYWQsaW5ncmVzb3MsY29tcHJhCjI1LFZhbGVuY2lhLDEyMDAuNSxzaQosTWFkcmlkLCxubwo0MCwsMzEwMCxzaQozMyxWYWxlbmNpYSwyMDAwLG5vCjUxLEJpbGJhbywyNTAwLjI1LHNpCjI5LE1hZHJpZCwxODAwLAo="
+  },
+  "expected": {
+    "shape": [
+      6,
+      4
+    ],
+    "columns": [
+      "edad",
+      "ciudad",
+      "ingresos",
+      "compra"
+    ],
+    "dtypes": {
+      "edad": "float64",
+      "ciudad": "object",
+      "ingresos": "float64",
+      "compra": "object"
+    },
+    "missing_values": 4,
+    "default_target": "compra",
+    "target_nunique": 2,
+    "target_dtype": "object",
+    "target_value_counts": {
+      "si": 3,
+      "no": 2
+    },
+    "suggested_task": "Regresión",
+    "describe": {
+      "columns": [
+        "edad",
+        "ingresos"
+      ],
+      "index": [
+        "count",
+        "mean",
+        "std",
+        "min",
+        "25%",
+        "50%",
+        "75%",
+        "max"
+      ],
+      "shape": [
+        8,
+        2
+      ],
+      "values": [
+        5.0,
+        5.0,
+        35.6,
+        2120.15,
+        10.237187113655782,
+        718.9002364723494,
+        25.0,
+        1200.5,
+        29.0,
+        1800.0,
+        33.0,
+        2000.0,
+        40.0,
+        2500.25,
+        51.0,
+        3100.0
+      ]
+    },
+    "load_dataset_from_file": {
+      "auto": {
+        "task_type": "Clasificación",
+        "feature_names": [
+          "edad",
+          "ciudad",
+          "ingresos"
+        ],
+        "class_names": [
+          "Clase 0",
+          "Clase 1",
+          "Clase 2"
+        ],
+        "dataset_info": "Dataset personalizado: 6 muestras, 3 características, 3 clases",
+        "X_dtypes": {
+          "edad": "float64",
+          "ciudad": "int64",
+          "ingresos": "float64"
+        },
+        "X": [
+          25.0,
+          2.0,
+          1200.5,
+          null,
+          1.0,
+          null,
+          40.0,
+          3.0,
+          3100.0,
+          33.0,
+          2.0,
+          2000.0,
+          51.0,
+          0.0,
+          2500.25,
+          29.0,
+          1.0,
+          1800.0
+        ],
+        "y": [
+          2.0,
+          1.0,
+          2.0,
+          1.0,
+          2.0,
+          0.0
+        ]
+      },
+      "Clasificación": {
+        "task_type": "Clasificación",
+        "feature_names": [
+          "edad",
+          "ciudad",
+          "ingresos"
+        ],
+        "class_names": [
+          "Clase 0",
+          "Clase 1",
+          "Clase 2"
+        ],
+        "dataset_info": "Dataset personalizado: 6 muestras, 3 características, 3 clases",
+        "X_dtypes": {
+          "edad": "float64",
+          "ciudad": "int64",
+          "ingresos": "float64"
+        },
+        "X": [
+          25.0,
+          2.0,
+          1200.5,
+          null,
+          1.0,
+          null,
+          40.0,
+          3.0,
+          3100.0,
+          33.0,
+          2.0,
+          2000.0,
+          51.0,
+          0.0,
+          2500.25,
+          29.0,
+          1.0,
+          1800.0
+        ],
+        "y": [
+          2.0,
+          1.0,
+          2.0,
+          1.0,
+          2.0,
+          0.0
+        ]
+      },
+      "Regresión": {
+        "task_type": "Regresión",
+        "feature_names": [
+          "edad",
+          "ciudad",
+          "ingresos"
+        ],
+        "class_names": null,
+        "dataset_info": "Dataset personalizado: 6 muestras, 3 características, regresión",
+        "X_dtypes": {
+          "edad": "float64",
+          "ciudad": "int64",
+          "ingresos": "float64"
+        },
+        "X": [
+          25.0,
+          2.0,
+          1200.5,
+          null,
+          1.0,
+          null,
+          40.0,
+          3.0,
+          3100.0,
+          33.0,
+          2.0,
+          2000.0,
+          51.0,
+          0.0,
+          2500.25,
+          29.0,
+          1.0,
+          1800.0
+        ],
+        "y": [
+          2.0,
+          1.0,
+          2.0,
+          1.0,
+          2.0,
+          0.0
+        ]
+      }
+    }
+  }
+}

@@ -43,6 +43,18 @@
       "Latitude",
       "Longitude"
     ],
+    "label_columns": [],
+    "csv_columns": [
+      "MedInc",
+      "HouseAge",
+      "AveRooms",
+      "AveBedrms",
+      "Population",
+      "AveOccup",
+      "Latitude",
+      "Longitude",
+      "price"
+    ],
     "dtypes": {
       "MedInc": "float64",
       "HouseAge": "float64",

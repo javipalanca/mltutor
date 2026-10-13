@@ -38,11 +38,13 @@ Los índices de filas son **posicionales** (0..n-1), referidos al CSV del datase
 
 | Ruta | Contenido |
 |---|---|
-| `datasets/<nombre>.json` | Columnas, dtypes, forma, nombres legibles (`feature_names`), clases, tipo de tarea, `dataset_info`, resumen del objetivo, primeras filas y hashes |
+| `datasets/<nombre>.json` | Columnas (`columns` = características; `label_columns` = columnas de etiqueta que no son característica, p. ej. `name` en MPG por D8; `csv_columns` = cabecera del CSV), dtypes, forma, nombres legibles (`feature_names`), clases, tipo de tarea, `dataset_info`, resumen del objetivo, primeras filas y hashes |
 | `datasets/data/<nombre>.csv` | Datos completos (columnas de `X` y el objetivo al final), listos para `include_bytes!` |
 | `split/iris.json` | Permutación, índices de train y test, y recuento por clase con `test_size=0.3`, `random_state=42` |
 | `regression/iris_logistic.json` | `LogisticRegression(max_iter=1000, random_state=42)`: coeficientes, intercepto, predicciones, probabilidades, `decision_function` y métricas |
 | `regression/diabetes_linear.json` | `LinearRegression()`: coeficientes, intercepto, predicciones y MSE/RMSE/MAE/R² |
+| `stats/<nombre>.json` | Pestaña 📊 Datos: vista previa, `describe`, distribución del objetivo, matriz de correlación (row-major, `null` = NaN) y pairplot: selección por defecto, muestreo, KDE de seaborn (Scott, 200 puntos, `common_norm`) e histogramas de la diagonal |
+| `csv/<caso>.json` | Cargador de CSV: archivo de entrada (texto y base64), errores, tipos, sugerencia de tarea y salida de `load_dataset_from_file` con `auto`, Clasificación y Regresión |
 
 `data_sha256_f64` es el SHA-256 de los valores en f64 little-endian, fila a fila
 (características en el orden de `columns` y después el objetivo; los booleanos valen 0/1).

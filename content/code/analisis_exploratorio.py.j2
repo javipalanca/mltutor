@@ -1,0 +1,70 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Cargar tus datos (reemplaza esto con tu método de carga)
+# df = pd.read_csv('tu_archivo.csv')
+
+# Separar características y objetivo
+X = df.iloc[:, :-1]  # Todas las columnas excepto la última
+y = df.iloc[:, -1]   # Última columna como objetivo
+
+# Estadísticas descriptivas
+print(df.describe())
+
+# Distribución del objetivo
+fig, ax = plt.subplots(figsize=(10, 6))
+
+# Para clasificación:
+if len(np.unique(y)) <= 10:  # Si hay pocas clases únicas
+    value_counts = y.value_counts().sort_index()
+    sns.barplot(x=value_counts.index, y=value_counts.values, ax=ax)
+    ax.set_title("Distribución de Clases")
+    ax.set_xlabel("Clase")
+    ax.set_ylabel("Cantidad")
+else:  # Para regresión
+    sns.histplot(y, kde=True, ax=ax)
+    ax.set_title("Distribución de Valores Objetivo")
+    ax.set_xlabel("Valor")
+    ax.set_ylabel("Frecuencia")
+
+plt.tight_layout()
+plt.show()
+
+# Matriz de correlación
+corr = X.corr()
+# Máscara para triángulo superior
+mask = np.triu(np.ones_like(corr, dtype=bool))
+
+fig, ax = plt.subplots(figsize=(12, 10))
+sns.heatmap(corr, mask=mask, annot=True, fmt=".2f", cmap="coolwarm",
+           square=True, linewidths=.5, cbar_kws={"shrink": .8}, ax=ax)
+ax.set_title("Matriz de Correlación de Características")
+
+plt.tight_layout()
+plt.show()
+
+# Matriz de dispersión (Scatterplot Matrix)
+# Seleccionar características específicas para visualizar
+# Reemplaza con tus características de interés
+selected_features = ['feature1', 'feature2', 'feature3']
+max_features = min(6, len(selected_features))
+
+# Crear el dataframe para la visualización
+plot_df = X[selected_features].copy()
+plot_df['target'] = y  # Añadir la variable objetivo para colorear
+
+# Generar el pairplot
+pair_plot = sns.pairplot(
+    plot_df,
+    hue='target',
+    diag_kind='kde',  # Opciones: 'hist' para histograma o 'kde' para densidad
+    plot_kws={'alpha': 0.6, 's': 30, 'edgecolor': 'k'},
+    diag_kws={'alpha': 0.5},
+    height=2.5
+)
+pair_plot.fig.suptitle(
+    "Matriz de Dispersión de Características", y=1.02, fontsize=16)
+plt.tight_layout()
+plt.show()

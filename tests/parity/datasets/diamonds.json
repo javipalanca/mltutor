@@ -44,6 +44,19 @@
       "y",
       "z"
     ],
+    "label_columns": [],
+    "csv_columns": [
+      "carat",
+      "cut",
+      "color",
+      "clarity",
+      "depth",
+      "table",
+      "x",
+      "y",
+      "z",
+      "price"
+    ],
     "dtypes": {
       "carat": "float64",
       "cut": "int64",

@@ -42,6 +42,12 @@
       "x1",
       "x2"
     ],
+    "label_columns": [],
+    "csv_columns": [
+      "x1",
+      "x2",
+      "label"
+    ],
     "dtypes": {
       "x1": "float64",
       "x2": "float64"

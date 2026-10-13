@@ -1,0 +1,27 @@
+# app.py::run_csv_loader_app — "### 💡 Ejemplos de Datasets que puedes cargar:" (solo sin archivo cargado).
+# Cada ejemplo: columnas [1, 10]; "## {icon}" | "**{name}** ({task})" + "_{description}_"; separador "---".
+heading = "### 💡 Ejemplos de Datasets que puedes cargar:"
+
+[[examples]]
+name = "Dataset de Ventas"
+description = "Datos de ventas con características como precio, descuento, temporada → Predictor de ventas"
+task = "Regresión"
+icon = "💰"
+
+[[examples]]
+name = "Dataset de Clientes"
+description = "Datos de clientes con edad, ingresos, historial → Clasificación de segmentos"
+task = "Clasificación"
+icon = "👥"
+
+[[examples]]
+name = "Dataset de Productos"
+description = "Características de productos con ratings → Predicción de popularidad"
+task = "Regresión"
+icon = "📦"
+
+[[examples]]
+name = "Dataset Médico"
+description = "Síntomas y características del paciente → Diagnóstico binario"
+task = "Clasificación"
+icon = "🏥"

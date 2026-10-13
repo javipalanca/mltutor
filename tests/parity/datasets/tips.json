@@ -41,6 +41,16 @@
       "day_encoded",
       "time_encoded"
     ],
+    "label_columns": [],
+    "csv_columns": [
+      "total_bill",
+      "size",
+      "sex_encoded",
+      "smoker_encoded",
+      "day_encoded",
+      "time_encoded",
+      "tip"
+    ],
     "dtypes": {
       "total_bill": "float64",
       "size": "int64",

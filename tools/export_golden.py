@@ -98,6 +98,16 @@ DATASET_SOURCES: dict[str, str] = {
 
 MOONS_PARAMS = {"n_samples": 500, "noise": 0.2, "random_state": SEED}
 
+# Decision D8 (2026-10-13): columns kept for exploration (preview, tooltips) but
+# never used as model features. They stay in the CSV, with their original text.
+LABEL_COLUMNS: dict[str, list[str]] = {"mpg": ["name"]}
+
+# Data tab (``dataset_tab.run_explore_dataset_tab``) constants.
+PREVIEW_ROWS = 10
+TARGET_HIST_BINS = 30
+PAIRPLOT_MAX_POINTS = 2000
+KDE_PARAMS = {"bw_method": "scott", "bw_adjust": 1.0, "gridsize": 200, "cut": 3.0, "clip": None}
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -150,8 +160,12 @@ def matrix_sha256(X: pd.DataFrame, y: pd.Series) -> str:
     return hashlib.sha256(np.ascontiguousarray(mat, dtype="<f8").tobytes()).hexdigest()
 
 
-def frame_to_csv_bytes(X: pd.DataFrame, y: pd.Series) -> bytes:
+def frame_to_csv_bytes(X: pd.DataFrame, y: pd.Series,
+                       labels: pd.DataFrame | None = None) -> bytes:
     df = X.copy()
+    if labels is not None:
+        for col in labels.columns:
+            df[col] = labels[col].to_numpy()
     target = y.name if y.name is not None else "target"
     if target in df.columns:
         target = f"{target}__target"
@@ -241,6 +255,36 @@ def load_reference_dataset(slug: str):
     return load_builtin_dataset(DATASETS[slug])
 
 
+def apply_d8(slug: str, X: pd.DataFrame, feature_names: list, dataset_info):
+    """Move D8 label columns out of the features, restoring their original text.
+
+    Returns ``(X_features, labels, feature_names, dataset_info)``; ``labels`` is
+    ``None`` for datasets without label columns.
+    """
+    label_cols = LABEL_COLUMNS.get(slug)
+    if not label_cols:
+        return X, None, list(feature_names), dataset_info
+    if slug != "mpg":
+        raise NotImplementedError(slug)
+    from sklearn.preprocessing import LabelEncoder
+
+    # The app reads seaborn's mpg (network/cache); the bundled CSV is identical.
+    raw = pd.read_csv(REPO_ROOT / "mltutor" / "dataset" / "data" / "sample_datasets"
+                      / "mpg.csv").dropna()
+    assert raw.index.equals(X.index), "mpg rows must align with the app's frame"
+    labels = raw[label_cols].astype(str).copy()
+    for col in label_cols:
+        codes = LabelEncoder().fit_transform(labels[col])
+        assert np.array_equal(codes, X[col].to_numpy()), f"{col}: encoding mismatch"
+    X_feat = X.drop(columns=label_cols)
+    names = [n for c, n in zip(X.columns, feature_names) if c not in label_cols]
+    info = dict(dataset_info)
+    info["features"] = X_feat.shape[1]
+    info["description"] = (f"MPG: {info['samples']} muestras limpias, {X_feat.shape[1]} "
+                           "características, consumo de combustible (regresión)")
+    return X_feat, labels, names, info
+
+
 def split_reference(X, y, test_size: float = 0.3, random_state: int = SEED):
     """Call the app's ``preprocess_data`` and recover positional indices."""
     from mltutor.dataset.dataset_manager import preprocess_data
@@ -258,8 +302,9 @@ def split_reference(X, y, test_size: float = 0.3, random_state: int = SEED):
 # ---------------------------------------------------------------------------
 def case_dataset(slug: str, writer: Writer) -> None:
     X, y, feature_names, class_names, dataset_info, task_type = load_reference_dataset(slug)
+    X, labels, feature_names, dataset_info = apply_d8(slug, X, feature_names, dataset_info)
 
-    csv_bytes = frame_to_csv_bytes(X, y)
+    csv_bytes = frame_to_csv_bytes(X, y, labels)
     csv_rel = f"data/{slug}.csv"
     writer.write_bytes(DATA_DIR / f"{slug}.csv", csv_bytes)
 
@@ -285,6 +330,14 @@ def case_dataset(slug: str, writer: Writer) -> None:
     input_ = {"app_label": DATASETS[slug], "source": DATASET_SOURCES[slug]}
     if slug == "moons":
         input_["make_moons"] = MOONS_PARAMS
+    if labels is not None:
+        input_["d8"] = (
+            "Label columns are NOT features (decision D8): the app LabelEncodes them as "
+            "features; the fixture keeps their original text in the CSV for exploration "
+            "only. 'columns', 'shape', 'feature_names', 'data_sha256_f64' and "
+            "'dataset_info.features' exclude them.")
+    csv_columns = list(X.columns) + ([] if labels is None else list(labels.columns)) + [
+        y.name if y.name not in X.columns else f"{y.name}__target"]
 
     doc = {
         "meta": make_meta(
@@ -303,6 +356,8 @@ def case_dataset(slug: str, writer: Writer) -> None:
             "each row = feature columns in 'columns' order followed by the target",
             "shape": list(X.shape),
             "columns": list(X.columns),
+            "label_columns": [] if labels is None else list(labels.columns),
+            "csv_columns": csv_columns,
             "dtypes": {str(c): str(t) for c, t in X.dtypes.items()},
             "feature_names": list(feature_names),
             "target_name": y.name,
@@ -492,10 +547,352 @@ def case_regression_diabetes_linear(writer: Writer) -> None:
     writer.write_json(PARITY_DIR / "regression" / "diabetes_linear.json", doc)
 
 
+# ---------------------------------------------------------------------------
+# Phase 1: statistics of the 📊 Datos tab and the CSV loader
+# ---------------------------------------------------------------------------
+def nan_list(values) -> list:
+    """Like ``to_jsonable`` for flat float data, but NaN/inf become ``None``."""
+    out = []
+    for v in np.asarray(values, dtype=object).ravel().tolist():
+        if isinstance(v, (float, np.floating)) and not math.isfinite(float(v)):
+            out.append(None)
+        else:
+            out.append(to_jsonable(v))
+    return out
+
+
+def frame_matrix(df: pd.DataFrame) -> dict:
+    """A DataFrame as ``{columns, index, shape, values}`` with row-major values."""
+    return {
+        "columns": [str(c) for c in df.columns],
+        "index": [str(i) for i in df.index],
+        "shape": list(df.shape),
+        "values": nan_list(df.to_numpy(dtype=np.float64)),
+    }
+
+
+def explore_frames(slug: str):
+    """Rebuild the frames of ``run_explore_dataset_tab`` for a built-in dataset.
+
+    The app concatenates ``X`` and ``y`` *by index*. For Penguins ``X`` keeps the
+    gaps left by ``dropna()`` while ``y`` is a fresh RangeIndex, so the app shows
+    342 rows, 9 of them NaN, and shifted labels (a Python bug, see the fixture
+    ``python_bug``). Here both are aligned by position, which is what Rust must do.
+    """
+    X, y, feature_names, class_names, dataset_info, task_type = load_reference_dataset(slug)
+    X, labels, feature_names, dataset_info = apply_d8(slug, X, feature_names, dataset_info)
+    misaligned = not X.index.equals(y.index)
+    X_df = X.reset_index(drop=True)
+    y_codes = pd.Series(np.asarray(y), name="target")
+    mapping = dict(zip(X_df.columns, feature_names)) if len(feature_names) == len(X_df.columns) else {}
+    y_disp = y_codes.map(dict(enumerate(class_names))) if task_type == "Clasificación" else y_codes
+    df_display = pd.concat([X_df, y_disp], axis=1).rename(columns=mapping)
+    if labels is not None:
+        lab = labels.reset_index(drop=True)
+        df_display = pd.concat([df_display.iloc[:, :-1], lab, df_display.iloc[:, -1:]], axis=1)
+    return {
+        "X_df": X_df, "y_codes": y_codes, "y_disp": y_disp, "df_display": df_display,
+        "mapping": mapping, "feature_names": feature_names, "class_names": class_names,
+        "task_type": task_type, "labels": labels, "index_misaligned_in_app": misaligned,
+        "dataset_info": dataset_info,
+    }
+
+
+def pairplot_sample(plot_df: pd.DataFrame, task_type: str) -> np.ndarray:
+    """Positional rows the app keeps for the pairplot (``len > 2000``)."""
+    if len(plot_df) <= PAIRPLOT_MAX_POINTS:
+        return np.arange(len(plot_df))
+    tagged = plot_df.assign(__row=np.arange(len(plot_df)))
+    if task_type == "Clasificación":
+        per_class = PAIRPLOT_MAX_POINTS // len(tagged["target"].unique())
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            sampled = tagged.groupby("target", group_keys=False).apply(
+                lambda x: x.sample(min(len(x), per_class), random_state=SEED))
+    else:
+        sampled = tagged.sample(n=PAIRPLOT_MAX_POINTS, random_state=SEED)
+    return sampled["__row"].to_numpy()
+
+
+def kde_curve(values: np.ndarray, weight: float) -> dict:
+    """seaborn's own univariate KDE (the one kdeplot draws), scaled by ``weight``."""
+    from seaborn._statistics import KDE
+    from scipy.stats import gaussian_kde
+
+    values = values[~np.isnan(values)]
+    variance = float(np.nan_to_num(pd.Series(values).var()))
+    if len(values) < 2 or math.isclose(variance, 0):
+        return {"n": int(len(values)), "skipped": "singular (n < 2 or variance == 0)"}
+    estimator = KDE(**KDE_PARAMS)
+    density, support = estimator(pd.Series(values))
+    fitted = gaussian_kde(values, bw_method="scott")
+    return {
+        "n": int(len(values)),
+        "scott_factor": float(fitted.factor),
+        "bandwidth": float(np.sqrt(fitted.covariance.squeeze())),
+        "grid_min": float(support[0]),
+        "grid_max": float(support[-1]),
+        "weight": weight,
+        "density": nan_list(density * weight),
+    }
+
+
+def case_stats(slug: str, writer: Writer) -> None:
+    from seaborn._base import categorical_order
+
+    f = explore_frames(slug)
+    X_df, y_codes, y_disp, df_display = f["X_df"], f["y_codes"], f["y_disp"], f["df_display"]
+    task_type, mapping = f["task_type"], f["mapping"]
+    display_features = [mapping.get(c, c) for c in X_df.columns]
+
+    # --- describe (df_display.describe(): numeric columns only, bools excluded)
+    describe = df_display.describe()
+    excluded = [str(c) for c in df_display.columns if c not in describe.columns]
+
+    # --- target distribution
+    if task_type == "Clasificación":
+        vc = y_disp.value_counts().sort_index()
+        ratio = float(vc.max() / vc.min())
+        target_dist = {
+            "kind": "bar",
+            "order_rule": "value_counts().sort_index() over the class NAMES (alphabetical)",
+            "labels": [str(i) for i in vc.index],
+            "counts": vc.to_numpy(),
+            "balance_ratio": ratio,
+            "balanced": ratio <= 3,
+        }
+    else:
+        yv = pd.to_numeric(y_disp, errors="coerce").dropna().to_numpy(dtype=np.float64)
+        counts, edges = np.histogram(yv, bins=TARGET_HIST_BINS)
+        target_dist = {
+            "kind": "histogram",
+            "bins": TARGET_HIST_BINS,
+            "edges": edges,
+            "counts": counts,
+            "mean": float(yv.mean()), "std_ddof1": float(yv.std(ddof=1)),
+            "min": float(yv.min()), "max": float(yv.max()),
+            "display_format": "{:.2f}",
+        }
+
+    # --- correlation (original column names + numeric target codes)
+    corr = pd.concat([X_df, y_codes], axis=1).corr()
+    cv = corr.to_numpy()
+    lower = np.tril(np.ones_like(cv, dtype=bool), k=-1) & np.isfinite(cv)
+    correlation = frame_matrix(corr)
+    correlation.update({
+        "method": "pearson (DataFrame.corr); NaN where a column is constant",
+        "labels_rule": "original X.columns (NOT the friendly names) + 'target' (class codes)",
+        "mask": "np.triu(ones, k=0): upper triangle AND diagonal hidden",
+        "visible_min": float(cv[lower].min()) if lower.any() else None,
+        "visible_max": float(cv[lower].max()) if lower.any() else None,
+        "nan_columns": [str(c) for c in corr.columns if corr[c].isna().all()],
+    })
+
+    # --- pairplot defaults, sampling, KDE and histogram diagonals
+    n_feat = len(display_features)
+    k = min(4, n_feat)
+    selected = display_features[:k]
+    plot_df = X_df.rename(columns=mapping)[selected].copy()
+    plot_df["target"] = y_disp.to_numpy()
+    rows = pairplot_sample(plot_df, task_type)
+    plot_df = plot_df.iloc[rows].reset_index(drop=True)
+    big = len(X_df) > PAIRPLOT_MAX_POINTS
+
+    if task_type == "Clasificación":
+        hue_order = [str(h) for h in categorical_order(plot_df["target"])]
+        levels = [(h, plot_df["target"].astype(str) == h) for h in hue_order]
+    else:
+        hue_order = None
+        levels = [("(todos)", pd.Series(True, index=plot_df.index))]
+    n_total = len(plot_df)
+    kde, hist = {}, {}
+    for feat in selected:
+        col = plot_df[feat].to_numpy(dtype=np.float64)
+        kde[feat] = {h: kde_curve(col[m.to_numpy()], float(m.sum()) / n_total) for h, m in levels}
+        edges = np.histogram_bin_edges(col[~np.isnan(col)], bins="auto")
+        hist[feat] = {"edges": edges,
+                      "counts": {h: np.histogram(col[m.to_numpy()], bins=edges)[0] for h, m in levels}}
+
+    doc = {
+        "meta": make_meta(
+            {"describe_rel": 1e-12, "correlation_abs": 1e-12, "histogram": "exact",
+             "kde_density_rel": 1e-9, "kde_bandwidth_rel": 1e-12, "sample_rows": "exact"},
+            "Closed-form statistics in f64. describe uses std with ddof=1 and linear "
+            "quantiles (numpy 'linear', pandas default); only summation order differs. "
+            "The KDE is a sum of Gaussians evaluated on a linspace grid: exact up to "
+            "exp/rounding. The pairplot sample uses pandas DataFrame.sample(random_state=42) "
+            "(RandomState(42) without replacement): reproduce it or use the stored rows.",
+        ),
+        "input": {
+            "dataset": f"datasets/{slug}.json",
+            "function": "mltutor.dataset.dataset_tab.run_explore_dataset_tab (rebuilt; "
+            "frames aligned by position)",
+            "python_bug": (
+                "Python concatenates X and y by index: this dataset's X index has gaps, so "
+                "the app's preview/describe/pairplot show NaN rows and shifted labels. "
+                "Do not reproduce." if f["index_misaligned_in_app"] else None),
+            "target_column": "target",
+            "kde_params": KDE_PARAMS,
+            "kde_rules": (
+                "seaborn 0.13 kdeplot defaults used by pairplot(diag_kind='kde'): "
+                "gaussian_kde with Scott's factor n**(-1/5); kernel sd = factor * std(ddof=1); "
+                "one KDE per hue level (common_grid=False): grid = linspace(min - 3*bw, "
+                "max + 3*bw, 200) of that level; common_norm=True: density * n_level/n_total; "
+                "levels with n < 2 or zero variance are skipped; fill=True."),
+            "regression_hue": (
+                "Python passes the numeric target as hue: seaborn draws one KDE/histogram "
+                "per unique target value (unreadable) and colours the scatter with a "
+                "continuous cubehelix map. The fixture gives the un-hued KDE/histogram "
+                "(proposal for Rust, see fase1-shell-datos.md)." if task_type != "Clasificación" else None),
+            "hist_rules": "histplot: bins = np.histogram_bin_edges(all values, 'auto') "
+            "(common_bins=True), counts per hue level, multiple='layer'",
+        },
+        "expected": {
+            "task_type": task_type,
+            "display_columns": [str(c) for c in df_display.columns],
+            "column_mapping": mapping,
+            "label_columns": [] if f["labels"] is None else list(f["labels"].columns),
+            "preview_rows": [[to_jsonable(v) if not (isinstance(v, float) and math.isnan(v))
+                              else None for v in row]
+                             for row in df_display.head(PREVIEW_ROWS).itertuples(index=False)],
+            "describe": frame_matrix(describe),
+            "describe_excluded_columns": excluded,
+            "target_distribution": target_dist,
+            "correlation": correlation,
+            "pairplot": {
+                "n_features": n_feat,
+                "slider": None if n_feat <= 2 else {"min": 2, "max": min(6, n_feat), "default": k},
+                "default_selected": selected,
+                "hue_order": hue_order,
+                "sampled": big,
+                "sample_rule": None if not big else (
+                    "classification: groupby(target).sample(min(len, 2000 // n_classes), "
+                    "random_state=42)" if task_type == "Clasificación"
+                    else "sample(n=2000, random_state=42)"),
+                "sample_rows": rows if big else None,
+                "n_points": n_total,
+                "style": {"alpha": 0.7, "s": 40, "edgecolor": "white", "linewidth": 0.5,
+                          "diag_alpha": 0.8, "height_in": 2.5} if big else
+                         {"alpha": 0.6, "s": 20, "rasterized": True, "diag_alpha": 0.6,
+                          "height_in": 2.0},
+                "kde": kde,
+                "hist": hist,
+            },
+        },
+    }
+    writer.write_json(PARITY_DIR / "stats" / f"{slug}.json", doc)
+
+
+# Small CSV files exercising the loader (create_dataset_selector + load_dataset_from_file).
+def _csv_cases() -> dict[str, bytes]:
+    rng = np.random.RandomState(SEED)
+    reg = pd.DataFrame({"x1": rng.normal(size=40).round(4), "x2": rng.uniform(0, 10, 40).round(3)})
+    reg["y"] = (2 * reg.x1 + 0.5 * reg.x2 + rng.normal(scale=0.1, size=40)).round(4)
+    cls = pd.DataFrame({"largo": rng.uniform(1, 7, 30).round(2), "ancho": rng.uniform(0, 3, 30).round(2),
+                        "especie": rng.choice(["rosa", "lirio", "tulipán"], 30)})
+    seven = pd.DataFrame({"a": np.arange(100) * 0.5, "nivel": np.arange(100) % 7})
+    many = pd.DataFrame({"a": np.arange(120) * 1.5, "id_valor": np.arange(120) % 100})
+    return {
+        "numeric_regression": reg.to_csv(index=False, lineterminator="\n").encode(),
+        "string_target": cls.to_csv(index=False, lineterminator="\n").encode("utf-8"),
+        "categorical_and_nan": (
+            "edad,ciudad,ingresos,compra\n25,Valencia,1200.5,si\n,Madrid,,no\n40,,3100,si\n"
+            "33,Valencia,2000,no\n51,Bilbao,2500.25,si\n29,Madrid,1800,\n").encode(),
+        "bool_target": "x,y,aprobado\n1,2,True\n2,3,False\n3,1,True\n4,4,False\n5,2,True\n".encode(),
+        "seven_levels_100_rows": seven.to_csv(index=False, lineterminator="\n").encode(),
+        "int_target_many_values": many.to_csv(index=False, lineterminator="\n").encode(),
+        "one_class_per_row": "a,b,clase\n1,2,x\n3,4,y\n5,6,z\n".encode(),
+        "semicolon_separator": "a;b;c\n1;2;3\n4;5;6\n".encode(),
+        "latin1_encoding": "nombre,año,valor\nPeña,2020,1.5\nNúñez,2021,2.5\n".encode("latin-1"),
+        "utf8_bom": "﻿a,b,c\n1,2,3\n4,5,6\n".encode("utf-8"),
+        "single_column": "solo\n1\n2\n3\n".encode(),
+        "header_only": "a,b,c\n".encode(),
+        "empty_file": b"",
+        "decimal_comma_quoted": 'a,b,c\n"1,5",2,x\n"2,5",3,y\n'.encode(),
+    }
+
+
+def _selector_suggestion(series: pd.Series) -> str:
+    """create_dataset_selector: suggested 'Tipo de tarea' (copied verbatim)."""
+    unique_values, total_values = series.nunique(), len(series)
+    return "Clasificación" if unique_values <= 20 and unique_values < total_values * 0.1 else "Regresión"
+
+
+def case_csv(name: str, data: bytes, writer: Writer) -> None:
+    import io
+    import tempfile
+
+    from mltutor.dataset.dataset_manager import load_dataset_from_file
+
+    expected: dict[str, Any] = {}
+    try:
+        df = pd.read_csv(io.BytesIO(data))
+    except Exception as exc:  # the app shows "❌ Error al procesar el archivo: {exc}"
+        expected["read_error"] = {"type": type(exc).__name__, "message": str(exc),
+                                  "app_message": f"❌ Error al procesar el archivo: {exc}"}
+        df = None
+    if df is not None:
+        if df.empty:
+            expected["validation_error"] = "❌ El archivo está vacío"
+        elif len(df.columns) < 2:
+            expected["validation_error"] = (
+                "❌ El archivo debe tener al menos 2 columnas (características + objetivo)")
+    if df is not None and "validation_error" not in expected:
+        target = df.columns[-1]
+        expected.update({
+            "shape": list(df.shape),
+            "columns": [str(c) for c in df.columns],
+            "dtypes": {str(c): str(t) for c, t in df.dtypes.items()},
+            "missing_values": int(df.isnull().sum().sum()),
+            "default_target": str(target),
+            "target_nunique": int(df[target].nunique()),
+            "target_dtype": str(df[target].dtype),
+            "target_value_counts": ({str(k): int(v) for k, v in df[target].value_counts().items()}
+                                    if df[target].nunique() <= 10 else None),
+            "suggested_task": _selector_suggestion(df[target]),
+            "describe": frame_matrix(df.describe()),
+        })
+        loads = {}
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "data.csv"
+            path.write_bytes(df.to_csv(index=False).encode("utf-8"))  # ui.store_csv
+            for task in ("auto", "Clasificación", "Regresión"):
+                try:
+                    X, y, fnames, cnames, info, ttype = load_dataset_from_file(str(path), target, task)
+                    loads[task] = {
+                        "task_type": ttype, "feature_names": fnames, "class_names": cnames,
+                        "dataset_info": info,
+                        "X_dtypes": {str(c): str(t) for c, t in X.dtypes.items()},
+                        "X": nan_list(X.to_numpy(dtype=np.float64)),
+                        "y": nan_list(pd.to_numeric(y, errors="coerce").to_numpy(dtype=np.float64)),
+                    }
+                except Exception as exc:
+                    loads[task] = {"error": f"{type(exc).__name__}: {exc}"}
+        expected["load_dataset_from_file"] = loads
+    doc = {
+        "meta": make_meta(
+            {"values": "exact"},
+            "Parsing and encoding are discrete; numeric values round-trip exactly.",
+        ),
+        "input": {
+            "function": "pandas.read_csv(uploaded) + create_dataset_selector validations + "
+            "load_dataset_from_file(path, target, task) for each task option",
+            "csv_text": data.decode("utf-8", errors="replace"),
+            "csv_base64": __import__("base64").b64encode(data).decode(),
+        },
+        "expected": expected,
+    }
+    writer.write_json(PARITY_DIR / "csv" / f"{name}.json", doc)
+
+
 def build_cases() -> dict[str, Callable[[Writer], None]]:
     cases: dict[str, Callable[[Writer], None]] = {}
     for slug in DATASETS:
         cases[f"datasets/{slug}"] = (lambda s: (lambda w: case_dataset(s, w)))(slug)
+    for slug in DATASETS:
+        cases[f"stats/{slug}"] = (lambda s: (lambda w: case_stats(s, w)))(slug)
+    for name, data in _csv_cases().items():
+        cases[f"csv/{name}"] = (lambda n, d: (lambda w: case_csv(n, d, w)))(name, data)
     cases["split/iris"] = case_split_iris
     cases["regression/iris_logistic"] = case_regression_iris_logistic
     cases["regression/diabetes_linear"] = case_regression_diabetes_linear

@@ -1,0 +1,46 @@
+# app.py::main — barra lateral. El botón activo es "primary" (#1e88e5, texto blanco).
+# Ojo: el botón "📁 Cargar CSV Personalizado" NUNCA se resalta en Python (no pasa type=).
+[[sections]]
+heading = "### Navegación:"
+routes = [
+  { id = "inicio", label = "🏠 Inicio", key = "nav_home" },
+  { id = "arboles", label = "🌲 Árboles de Decisión", key = "nav_trees" },
+  { id = "regresion", label = "📊 Regresión", key = "nav_linear" },
+  { id = "knn", label = "🔍 K-Nearest Neighbors", key = "nav_knn" },
+  { id = "redes", label = "🧠 Redes Neuronales", key = "nav_nn" },
+]
+
+[[sections]]
+heading = "### 🔧 Herramientas:"   # precedido de un separador "---"
+routes = [
+  { id = "csv", label = "📁 Cargar CSV Personalizado", key = "nav_csv" },
+]
+
+# Cabecera de cada lección (st.header + st.markdown), antes del expander de introducción.
+[lessons.arboles]
+title = "🌲 Árboles de Decisión"
+subtitle = "Aprende sobre los árboles de decisión de forma interactiva"
+intro_expander = "ℹ️ ¿Qué son los Árboles de Decisión?"
+tabs = ["📊 Datos", "🏋️ Entrenamiento", "📈 Evaluación", "📉 Visualización", "🔍 Características", "🔮 Predicciones", "💾 Exportar"]
+tab_state_key = "active_tab"
+
+[lessons.regresion]
+title = "📊 Regresión"
+subtitle = "Aprende sobre regresión lineal y logística de forma interactiva"
+intro_expander = "ℹ️ ¿Qué es la Regresión?"
+tabs = ["📊 Datos", "🏋️ Entrenamiento", "📈 Evaluación", "📉 Visualización", "🔍 Coeficientes", "🔮 Predicciones", "💾 Exportar"]
+tab_state_key = "active_tab_lr"
+
+[lessons.knn]
+title = "🔍 K-Nearest Neighbors (KNN)"
+subtitle = "Aprende sobre K-vecinos más cercanos de forma interactiva."
+intro_expander = "ℹ️ ¿Qué es K-Nearest Neighbors?"
+tabs = ["📊 Datos", "🏋️ Entrenamiento", "📈 Evaluación", "📉 Visualización", "🔍 Características", "🔮 Predicciones", "💾 Exportar"]
+tab_state_key = "active_tab_knn"
+
+[lessons.redes]
+title = "🧠 Redes Neuronales"
+subtitle = "Aprende sobre redes neuronales artificiales de forma visual e interactiva"
+intro_expander = "ℹ️ ¿Qué son las Redes Neuronales?"
+tabs = ["📊 Datos", "🏗️ Arquitectura", "⚙️ Entrenamiento", "📈 Evaluación", "🎯 Visualización", "🔮 Predicciones", "💾 Exportar"]
+tab_state_key = "active_tab_nn"

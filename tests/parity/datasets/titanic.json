@@ -46,6 +46,21 @@
       "adult_male",
       "alone"
     ],
+    "label_columns": [],
+    "csv_columns": [
+      "pclass",
+      "age",
+      "sibsp",
+      "parch",
+      "fare",
+      "sex_encoded",
+      "embarked_encoded",
+      "class_encoded",
+      "who_encoded",
+      "adult_male",
+      "alone",
+      "survived"
+    ],
     "dtypes": {
       "pclass": "int64",
       "age": "float64",
