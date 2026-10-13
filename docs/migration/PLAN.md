@@ -1,6 +1,6 @@
 # Plan de migración de MLTutor a Rust
 
-Rama: `feature/rust-migration` · Inicio: 2026-10-13 · Estado: **Fase 0 completada (2026-10-13), Fase 1 pendiente**
+Rama: `feature/rust-migration` · Inicio: 2026-10-13 · Estado: **Fase 0 completada (2026-10-13), Fase 1 en curso**
 
 ## Objetivo
 
@@ -187,6 +187,12 @@ reutilizarán el resto de lecciones.
 - [ ] Validación en equipos limpios con cuentas sin privilegios en los 3 sistemas, y
       en equipos de laboratorio reales.
 - [ ] Revisión completa de `ml-correctness-reviewer` y `rust-reviewer`.
+- [ ] **Firma de Windows con SignPath Foundation** (gratis para OSS, aprobado por el usuario
+      el 2026-10-13), para que SmartScreen no bloquee el `.exe`. Requisitos: repositorio
+      público (✅), **licencia OSI** (❌: hoy el repo no tiene LICENSE, y la debe elegir el
+      autor), solicitud en signpath.org, y builds reproducibles desde GitHub Actions. En CI:
+      firmar `mltutor.exe` antes de empaquetarlo y comprobar la firma con `signtool verify`.
+      Pedirlo con antelación, porque la aprobación lleva tiempo.
 
 ### Fase 8 — Cambio de versión  *(riesgo: medio · tamaño: S)*
 
