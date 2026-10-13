@@ -89,7 +89,12 @@ jobs:
       - name: cargo clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: cargo test
-        run: cargo test --workspace
+        # Doctests of the pure crates run in a separate invocation: with --workspace, cargo
+        # hands rustdoc the native link paths of every build script, and on Windows the
+        # Tauri build output (an msvcrt.lib stub) breaks linking the doctests.
+        run: |
+          cargo test --workspace --all-targets
+          cargo test --doc -p mltutor-core -p mltutor-nn -p mltutor-export
       - name: ts-rs bindings are up to date
         shell: bash
         run: |
