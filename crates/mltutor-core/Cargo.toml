@@ -24,9 +24,11 @@ serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
 sha2 = "0.10"
 base64 = "0.22"
 proptest = "1"
-# csv_memory.rs: peak memory of a large CSV in a temporary directory.
-libc = "0.2"
 tempfile = "3"
+
+[target.'cfg(unix)'.dev-dependencies]
+# csv_memory.rs: peak RSS via getrusage.
+libc = "0.2"
 
 [lints]
 workspace = true

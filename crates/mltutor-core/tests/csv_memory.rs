@@ -18,6 +18,10 @@
 //! Setting the target afterwards (`to_dataset` + `target_stats` + `describe`, table
 //! still alive) adds 624 → 382 MiB and 226 MiB (11.6 s, quadratic `class_index`) →
 //! 150 MiB (0.44 s). Process peak RSS of the first case: 2034 → 670 MiB.
+
+// `getrusage` (peak RSS) only exists on Unix; the allocator measurement is portable,
+// but the test is a manual benchmark, so it is simply skipped on Windows.
+#![cfg(unix)]
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use std::alloc::{GlobalAlloc, Layout, System};
