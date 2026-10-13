@@ -68,8 +68,11 @@ La UI dibuja con Plotly o SVG. Nunca se envían imágenes rasterizadas.
 
 ## Fases
 
-Cada fase termina con CI verde en los 3 sistemas y una prerelease `0.4.0-rc.N`, para
-validar en equipos reales desde el principio. El orden reduce primero el riesgo
+Cada fase termina con CI verde en los 3 sistemas. **No se publican releases intermedias**
+(decisión del usuario, 2026-10-13, para no generar versiones que sean ruido). Para probar
+en equipos reales se usan los artefactos de cada ejecución del CI (Actions → artifacts,
+14 días). La primera release (`v0.4.0-rc.1`) se publica cuando la funcionalidad esté
+completa o casi completa, previsiblemente tras la F6. El orden reduce primero el riesgo
 (publicación y arquitectura) y empieza por la lección más sencilla, que sirve de piloto.
 
 ### Fase 0 — Cimientos y canal de publicación  *(riesgo: alto · tamaño: M)*
@@ -94,8 +97,8 @@ plataformas** antes de escribir lógica.
       tauri.conf.json, conservando las reglas de main y de `-rc`.
 - [ ] D3: aviso con enlace en Windows si falta el WebView2 Runtime (`tauri-ui-engineer`).
 - [x] `tools/export_golden.py`, con la infraestructura y un primer fixture (Iris). También están los 12 datasets, el split y los fixtures de lineal y logística.
-- [ ] **Hito:** `v0.4.0-rc.1` publicada, con una app que muestra la navegación vacía
-      y se abre en los 3 sistemas.
+- [ ] **Hito:** CI en verde en los 3 sistemas, con artefactos descargables que se abren y
+      pasan el smoke test. Sin release.
 
 Agentes: `packaging-release-engineer` (CI y releases), `tauri-ui-engineer` (esqueleto),
 `rust-ml-engineer` (spike de crates), `migration-porter` (golden tooling),
@@ -208,7 +211,7 @@ separados, porque solo comparten componentes ya estables. Patrón por lección:
 2. `rust-ml-engineer` hace el core y la paridad, en paralelo con `tauri-ui-engineer`
    y `ml-lesson-author`, contra un contrato de tipos IPC acordado en el plan del módulo.
 3. Pasan `test-runner`, `rust-reviewer` y `ml-correctness-reviewer`.
-4. Se marca en INVENTARIO.md, se hace commit y se publica una prerelease.
+4. Se marca en INVENTARIO.md, se hace commit y el CI queda en verde (sin release).
 
 ## Riesgos principales
 

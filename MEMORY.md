@@ -122,6 +122,9 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
 - **macOS:** el `.app` lleva firma ad-hoc; el zip hecho con ditto arranca y pasa el
   smoke test.
 - **D3 sin implementar:** todavía no existe el aviso con enlace si falta WebView2.
+- **Sin releases intermedias (2026-10-13, usuario):** no se publica ninguna versión hasta que
+  la funcionalidad esté completa o casi. Durante la migración se valida con los artefactos
+  del CI. `rust.yml` se ejecuta en cada push a `feature/rust-migration`.
 - **Fixtures golden (2026-10-13):** se generan con `uv run python tools/export_golden.py` y
   se verifican con `--check` (exit 1 si algo cambiaría). Son deterministas y pesan unos
   3 MB de CSV en `tests/parity/datasets/data/` (California ocupa 1,9 MB). Tolerancias:
