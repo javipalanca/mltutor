@@ -104,6 +104,24 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
 - **`.gitignore`:** la regla Python `lib/` ignoraba `ui/src/lib/`; se ha añadido `!ui/src/lib/`.
 - **Medidas F0 (Mac arm64):** `.app` de 6,65 MiB (zip de 3,8 MB) y unos 0,6 s hasta la
   interfaz lista. TypeScript fijado a ~6.0 (svelte-check 4.7 no admite el 7).
+- **CI Rust (2026-10-13):** `.github/workflows/rust.yml` es el único workflow que publica
+  desde esta rama. A `build-executables.yml` se le quitó el disparador de tags, y su job
+  release exige `event_name == 'push'`. El job release comprueba que el tag es `v` + la
+  versión de Cargo.toml. En Windows se fija `core.autocrlf false` para que el diff de los
+  bindings de ts-rs no falle. Validado con actionlint y shellcheck (instalados con brew).
+  Solo el job de macOS está probado en local; Windows y Linux, pendientes de la primera
+  ejecución en CI.
+- **AppImage:** Ubuntu 22.04 no trae libfuse2. En CI se usa `APPIMAGE_EXTRACT_AND_RUN=1`,
+  y los estudiantes pueden usar `--appimage-extract-and-run`, que no necesita admin. El
+  smoke test en Linux corre bajo `xvfb-run dbus-run-session`, con las variables WEBKIT_*
+  de render por software.
+- **release.sh:** sincroniza la versión en Cargo.toml (`[workspace.package]`),
+  tauri.conf.json, ui/package.json y los dos lockfiles. Tiene `--dry-run` y pide
+  confirmación (y/N) antes del commit, el tag y el push; si algo falla, restaura los
+  archivos.
+- **macOS:** el `.app` lleva firma ad-hoc; el zip hecho con ditto arranca y pasa el
+  smoke test.
+- **D3 sin implementar:** todavía no existe el aviso con enlace si falta WebView2.
 - **Fixtures golden (2026-10-13):** se generan con `uv run python tools/export_golden.py` y
   se verifican con `--check` (exit 1 si algo cambiaría). Son deterministas y pesan unos
   3 MB de CSV en `tests/parity/datasets/data/` (California ocupa 1,9 MB). Tolerancias:

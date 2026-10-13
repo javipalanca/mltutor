@@ -1,0 +1,250 @@
+name: Rust app
+
+# Builds, tests and packages the Rust/Tauri version of MLTutor on the three platforms.
+# A `v*` tag also publishes the GitHub release (prerelease when the tag has a `-`, e.g.
+# v0.4.0-rc.1). This is the only workflow that publishes releases on this branch; the
+# legacy Python workflow (build-executables.yml) no longer reacts to tags.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'crates/**'
+      - 'src-tauri/**'
+      - 'ui/**'
+      - 'content/**'
+      - 'tests/parity/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - 'clippy.toml'
+      - '.cargo/**'
+      - '.github/workflows/rust.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: '0'
+
+jobs:
+  build:
+    name: Tauri (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            platform: linux-x86_64
+          - os: windows-latest
+            platform: windows-x86_64
+          - os: macos-latest
+            platform: macos-arm64
+    steps:
+      # ts-rs writes LF; keep the checkout LF too so the bindings diff is meaningful on Windows.
+      - name: Disable CRLF conversion
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+
+      - name: Install the toolchain from rust-toolchain.toml
+        shell: bash
+        run: |
+          rustup toolchain install --profile minimal
+          rustup show active-toolchain
+          rustc --version
+          cargo --version
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.platform }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: System libraries for Tauri 2 and AppImage (Linux only)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential curl wget file xdg-utils \
+            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev \
+            libxdo-dev libssl-dev patchelf libfuse2 \
+            xvfb xauth dbus-x11 libgl1-mesa-dri
+
+      - name: cargo fmt
+        run: cargo fmt --all --check
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: cargo test
+        run: cargo test --workspace
+      - name: ts-rs bindings are up to date
+        shell: bash
+        run: |
+          git diff --exit-code -- ui/src/lib/bindings
+          untracked=$(git ls-files --others --exclude-standard -- ui/src/lib/bindings)
+          if [[ -n "$untracked" ]]; then
+            echo "::error::cargo test generated bindings that are not committed:"
+            echo "$untracked"
+            exit 1
+          fi
+
+      - name: npm ci
+        run: npm --prefix ui ci
+      - name: npm run check
+        run: npm --prefix ui run check
+      - name: npm test
+        run: npm --prefix ui run test -- --run
+
+      - name: Build the Tauri app
+        run: npm --prefix ui run tauri build
+
+      - name: Locate the build output
+        id: out
+        shell: bash
+        run: |
+          case "$RUNNER_OS" in
+            Windows) path=target/release/mltutor.exe ;;
+            macOS)   path=target/release/bundle/macos/MLTutor.app ;;
+            Linux)
+              shopt -s nullglob
+              images=(target/release/bundle/appimage/*.AppImage)
+              if [[ ${#images[@]} -ne 1 ]]; then
+                echo "::error::Expected exactly one AppImage, found ${#images[@]}"
+                ls -la target/release/bundle/appimage || true
+                exit 1
+              fi
+              path=${images[0]} ;;
+          esac
+          test -e "$path"
+          du -sh "$path"
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test (Linux, AppImage under Xvfb)
+        if: runner.os == 'Linux'
+        timeout-minutes: 8
+        env:
+          # No FUSE needed on the runner; also what students without libfuse2 can do.
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+          WEBKIT_DISABLE_DMABUF_RENDERER: '1'
+          WEBKIT_DISABLE_COMPOSITING_MODE: '1'
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          chmod +x "${{ steps.out.outputs.path }}"
+          status=0
+          xvfb-run -a --server-args="-screen 0 1600x1000x24" \
+            dbus-run-session -- "${{ steps.out.outputs.path }}" --smoke-test || status=$?
+          if [[ $status -ne 0 ]]; then
+            echo "::error::Smoke test failed with exit code $status"
+            tail -n 100 ~/.mltutor/mltutor.log || true
+            exit "$status"
+          fi
+      - name: Smoke test (macOS, packaged .app)
+        if: runner.os == 'macOS'
+        timeout-minutes: 8
+        run: |
+          status=0
+          "${{ steps.out.outputs.path }}/Contents/MacOS/mltutor" --smoke-test || status=$?
+          if [[ $status -ne 0 ]]; then
+            echo "::error::Smoke test failed with exit code $status"
+            tail -n 100 ~/.mltutor/mltutor.log || true
+            exit "$status"
+          fi
+      - name: Smoke test (Windows)
+        if: runner.os == 'Windows'
+        timeout-minutes: 8
+        shell: pwsh
+        run: |
+          # GUI subsystem binary: the exit code is only visible through Start-Process.
+          $p = Start-Process -FilePath "${{ steps.out.outputs.path }}" -ArgumentList "--smoke-test" -Wait -PassThru
+          if ($p.ExitCode -ne 0) {
+            Get-Content "$env:USERPROFILE\.mltutor\mltutor.log" -Tail 100 -ErrorAction SilentlyContinue
+            throw "Smoke test failed with exit code $($p.ExitCode)"
+          }
+
+      - name: Package the portable download
+        shell: bash
+        run: |
+          src="${{ steps.out.outputs.path }}"
+          case "$RUNNER_OS" in
+            Windows) out=mltutor-${{ matrix.platform }}.exe; cp "$src" "$out" ;;
+            macOS)   out=mltutor-${{ matrix.platform }}.zip
+                     ditto -c -k --sequesterRsrc --keepParent "$src" "$out" ;;
+            Linux)   out=mltutor-${{ matrix.platform }}.AppImage; cp "$src" "$out"; chmod +x "$out" ;;
+          esac
+          ls -la "$out"
+          echo "### ${{ matrix.platform }}: \`$out\` ($(du -h "$out" | cut -f1))" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mltutor-${{ matrix.platform }}
+          path: mltutor-${{ matrix.platform }}.*
+          retention-days: 14
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: src
+      - name: Tag matches the workspace version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version=$(python3 - <<'EOF'
+          import tomllib
+          with open("src/Cargo.toml", "rb") as f:
+              print(tomllib.load(f)["workspace"]["package"]["version"])
+          EOF
+          )
+          echo "Tag: $TAG · Cargo.toml: $version"
+          if [[ "$TAG" != "v$version" ]]; then
+            echo "::error::The tag $TAG does not match the workspace version v$version"
+            exit 1
+          fi
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Verify all three downloads and generate checksums
+        working-directory: dist
+        run: |
+          files="mltutor-windows-x86_64.exe mltutor-macos-arm64.zip mltutor-linux-x86_64.AppImage"
+          for f in $files; do
+            test -s "$f" || { echo "::error::Missing download $f"; exit 1; }
+          done
+          # shellcheck disable=SC2086
+          sha256sum $files > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/mltutor-windows-x86_64.exe
+            dist/mltutor-macos-arm64.zip
+            dist/mltutor-linux-x86_64.AppImage
+            dist/SHA256SUMS.txt
+          fail_on_unmatched_files: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          make_latest: ${{ !contains(github.ref_name, '-') }}
+          generate_release_notes: true
+          body: |
+            MLTutor de escritorio, nueva versión escrita en Rust (Tauri). Descargas portables: sin instalador, sin Python y sin permisos de administrador. Los modelos se entrenan en el propio programa, sin TensorFlow, por lo que la descarga es mucho más pequeña y arranca más rápido.
+
+            - **Windows x86_64**: abrir `mltutor-windows-x86_64.exe`. Usa Microsoft Edge WebView2, que ya viene de serie con Windows 10 y 11. Si un equipo no lo tuviera, hay que instalar el *WebView2 Runtime Evergreen* de Microsoft (https://developer.microsoft.com/microsoft-edge/webview2/), que se puede instalar sin permisos de administrador.
+            - **macOS Apple Silicon**: descomprimir el ZIP y abrir `MLTutor.app` desde esa carpeta. Todavía no tiene firma Developer ID ni notarización: la primera vez macOS puede bloquearla; se permite en *Ajustes del Sistema → Privacidad y seguridad → Abrir igualmente*.
+            - **Linux x86_64** (Ubuntu 22.04 o compatible): AppImage. Dar permiso de ejecución (`chmod +x mltutor-linux-x86_64.AppImage`) y abrirlo. Si el sistema no tiene `libfuse2`, se puede ejecutar sin instalar nada con `./mltutor-linux-x86_64.AppImage --appimage-extract-and-run`.
+
+            Esta compilación supera las pruebas automáticas y la prueba de arranque en los tres sistemas. Las sumas de comprobación están en `SHA256SUMS.txt`.

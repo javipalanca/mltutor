@@ -85,13 +85,14 @@ plataformas** antes de escribir lógica.
       `tauri-plugin-dialog`/`fs` y el icono actual (`assets/`).
 - [x] Flags del binario (la captura de Windows y Linux, pendiente): `--smoke-test`, que navega por todas las rutas y sale con 0, y
       `--screenshot <png>`. Además, registro en `~/.mltutor/mltutor.log` y hook de panic.
-- [ ] Workflow `.github/workflows/rust.yml`: fmt, clippy, test, npm check/test, build
+- [ ] (implementado; macOS verificado en local, falta la primera ejecución en CI) Workflow `.github/workflows/rust.yml`: fmt, clippy, test, npm check/test, build
       Tauri, smoke test (xvfb en Linux) y empaquetado
       `mltutor-windows-x86_64.exe` / `mltutor-macos-arm64.zip` /
       `mltutor-linux-x86_64.AppImage`. Release con tags y `SHA256SUMS.txt`, con la
       misma lógica de prerelease que el workflow actual.
-- [ ] `release.sh` adaptado para leer y escribir la versión en Cargo.toml y
+- [x] `release.sh` adaptado para leer y escribir la versión en Cargo.toml y
       tauri.conf.json, conservando las reglas de main y de `-rc`.
+- [ ] D3: aviso con enlace en Windows si falta el WebView2 Runtime (`tauri-ui-engineer`).
 - [x] `tools/export_golden.py`, con la infraestructura y un primer fixture (Iris). También están los 12 datasets, el split y los fixtures de lineal y logística.
 - [ ] **Hito:** `v0.4.0-rc.1` publicada, con una app que muestra la navegación vacía
       y se abre en los 3 sistemas.

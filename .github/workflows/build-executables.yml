@@ -1,8 +1,10 @@
 name: Build executables
 
+# Legacy Python/Qt build. On feature/rust-migration releases are published by rust.yml
+# (version 0.4.0+, triggered by `v*` tags), so this workflow no longer reacts to tags:
+# a tag would otherwise publish the same release twice with different files.
+# It stays available for manual runs and Python pull requests (artifacts only).
 on:
-  push:
-    tags: ["v*"]
   workflow_dispatch:
   pull_request:
     paths:
@@ -122,7 +124,9 @@ jobs:
   release:
     needs: build
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Only a tag push may publish, and tags no longer trigger this workflow (see above).
+    # This also stops a manual run on a tag ref from publishing a Python release.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
     steps:
