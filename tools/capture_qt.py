@@ -1,8 +1,12 @@
-"""Capture reference screenshots of the Qt app for phase 1 (shell + data).
+"""Capture reference screenshots of the Qt app, per migration phase.
 
 Reuses MainWindow like ``--smoke-test`` does, driving navigation through the
 session state and dispatching control actions on the rendered node tree.
-Usage: uv run python tools/capture_qt.py docs/migration/capturas/qt
+
+Usage:
+    uv run python tools/capture_qt.py docs/migration/capturas/qt             # phase 1
+    uv run python tools/capture_qt.py docs/migration/capturas/qt/fase2 --phase 2
+    ... --quantize   # rewrite every PNG with a 256-colour palette (Pillow) before commit
 (QT_QPA_PLATFORM must NOT be offscreen: WebEngine and fonts need the real platform.)
 """
 
@@ -25,7 +29,12 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from mltutor.desktop.window import MainWindow  # noqa: E402
 
-OUT = Path(sys.argv[1])
+ARGS = [a for a in sys.argv[1:] if not a.startswith("--")]
+PHASE = int(sys.argv[sys.argv.index("--phase") + 1]) if "--phase" in sys.argv else 1
+if "--phase" in sys.argv:
+    ARGS.remove(str(PHASE))
+QUANTIZE = "--quantize" in sys.argv
+OUT = Path(ARGS[0])
 OUT.mkdir(parents=True, exist_ok=True)
 CSV = REPO / "mltutor" / "dataset" / "data" / "sample_datasets" / "tips.csv"
 
@@ -64,6 +73,17 @@ def go(page, **extra):
 
 def click(label):
     return lambda: window.action(find("button", label))
+
+
+def click_key(key):
+    return lambda: window.action(find("button", key=key))
+
+
+def set_state(**values):
+    def run():
+        state.update(values)
+        window.evaluate()
+    return run
 
 
 def choose(value, label=None, key=None, kind="select"):
@@ -117,12 +137,98 @@ STEPS = [
     (expand_all, "19_csv_cargado_regresion_expandido"),
 ]
 
+IRIS = "🌸 Iris - Clasificación de flores"
+CANCER = "🔬 Cáncer - Diagnóstico binario"
+TITANIC = "🚢 Titanic - Supervivencia"
+DIABETES = "🩺 Diabetes - Progresión (regresión)"
+LR = "📊 Regresión"
+
+
+def lr(tab, **extra):
+    return go(LR, active_tab_lr=tab, **extra)
+
+
+# Phase 2: 📊 Regresión lesson (linear and logistic). See docs/migration/fase2-regresion.md §0.
+STEPS_F2 = [
+    (go(LR, active_tab_lr=2, model_trained_lr=False, selected_dataset=IRIS,
+        unified_dataset_selector=IRIS, active_analysis=None), "00_evaluacion_sin_entrenar"),
+    (lr(3), "00b_visualizacion_sin_entrenar"),
+    (lr(1, model_type_lr="Logistic"), "01_entrenamiento_logistica_iris"),
+    (click_key("train_lr_button"), "02_entrenado_logistica_iris"),
+    (lr(2), "03_evaluacion_clasificacion_iris"),
+    (expand_all, "04_evaluacion_clasificacion_iris_expandido"),
+    (lr(3, viz_type="ROC"), "05_roc_multiclase_iris"),
+    (expand_all, "06_roc_multiclase_iris_expandido"),
+    (lambda: (window.action(find("checkbox", "Mostrar curvas por clase individual"), False)),
+     None),
+    (choose(["micro"], label="Métodos de promediado:", kind="multiselect"),
+     "07_roc_micro_sin_clases_iris"),
+    (lambda: (window.action(find("checkbox", "Mostrar curvas por clase individual"), True)),
+     None),
+    (choose(["macro", "micro"], label="Métodos de promediado:", kind="multiselect"), None),
+    (lr(3, viz_type="Frontera"), "08_frontera_multiclase_iris"),
+    (choose("petal width (cm)", key="viz_feature2"), None),
+    (choose("petal length (cm)", key="viz_feature1"), "09_frontera_petalos_iris"),
+    (choose("petal length (cm)", key="viz_feature2"), "10_frontera_misma_caracteristica"),
+    (lr(3, viz_type="Probs", viz_feature1="sepal length (cm)",
+        viz_feature2="sepal width (cm)"), "11_probabilidades_multiclase_iris"),
+    (lr(4), "12_coeficientes_logistica_iris"),
+    (expand_all, "13_coeficientes_logistica_iris_expandido"),
+    (choose(1, label="Selecciona la clase para mostrar coeficientes:"),
+     "14_coeficientes_clase_versicolor"),
+    (lr(5), "15_prediccion_formulario_iris"),
+    (click("Realizar predicción"), "16_prediccion_resultado_iris"),
+    (lr(6), "17_exportar"),
+    (click_key("generate_code_lr"), "18_exportar_codigo"),
+    (click_key("download_pickle_lr"), "19_exportar_pickle"),
+    (lr(1, selected_dataset=CANCER, unified_dataset_selector=CANCER), None),
+    (click_key("train_lr_button"), "20_entrenado_cancer"),
+    (lr(2), "21_evaluacion_binaria_cancer"),
+    (lr(3, viz_type="ROC"), "22_roc_binaria_cancer"),
+    (lr(3, viz_type="Frontera"), "23_frontera_binaria_cancer"),
+    (lr(3, viz_type="Probs"), "24_probabilidades_umbrales_cancer"),
+    (expand_all, "25_probabilidades_umbrales_cancer_expandido"),
+    (lr(1, selected_dataset=TITANIC, unified_dataset_selector=TITANIC), None),
+    (click_key("train_lr_button"), None),
+    (lr(5), "26_prediccion_formulario_titanic"),
+    (click("Realizar predicción"), "27_prediccion_resultado_titanic"),
+    (lr(4), "28_coeficientes_logistica_titanic"),
+    (lr(1, selected_dataset=DIABETES, unified_dataset_selector=DIABETES), None),
+    (click_key("btn_linear"), "29_entrenamiento_lineal_diabetes"),
+    (click_key("train_lr_button"), "30_entrenado_lineal_diabetes"),
+    (lr(2), "31_evaluacion_regresion_diabetes"),
+    (expand_all, "32_evaluacion_regresion_diabetes_expandido"),
+    (lr(3, viz_type="Residuos"), "33_residuos_diabetes"),
+    (expand_all, "34_residuos_diabetes_expandido"),
+    (lr(3, viz_type="Superficie"), "35_superficie_diabetes"),
+    (choose("s5", key="viz_feature2"), None),
+    (choose("bmi", key="viz_feature1"), "36_superficie_bmi_s5_diabetes"),
+    (lr(4), "37_coeficientes_lineal_diabetes"),
+    (expand_all, "38_coeficientes_lineal_diabetes_expandido"),
+    (lr(5), "39_prediccion_formulario_diabetes"),
+    (click("Realizar predicción"), "40_prediccion_resultado_diabetes"),
+    (lr(1, selected_dataset=IRIS, unified_dataset_selector=IRIS), None),
+    (click_key("btn_linear"), "41_aviso_lineal_en_clasificacion_iris"),
+    (lr(1, selected_dataset=DIABETES, unified_dataset_selector=DIABETES), None),
+    (click_key("btn_logistic"), "42_aviso_logistica_en_regresion_diabetes"),
+    (click_key("train_lr_button"), "43_logistica_entrenada_en_diabetes"),
+    (lr(3, viz_type="ROC"), "44_error_roc_logistica_diabetes"),
+]
+
+if PHASE == 2:
+    STEPS = STEPS_F2
+
 steps = iter(STEPS)
 pending = [None]
 
 
+# Phase 2 keeps the window capture (with the sidebar) only for a few screens.
+WINDOW_F2 = {"02_entrenado_logistica_iris", "05_roc_multiclase_iris", "33_residuos_diabetes"}
+
+
 def capture(name):
-    window.grab().save(str(OUT / f"{name}_ventana.png"))
+    if PHASE == 1 or name in WINDOW_F2:
+        window.grab().save(str(OUT / f"{name}_ventana.png"))
     widget = window.content.widget()
     if widget is not None:
         widget.grab().save(str(OUT / f"{name}.png"))
@@ -140,9 +246,19 @@ def ready():
     QTimer.singleShot(50, advance)
 
 
+def quantize_all():
+    from PIL import Image
+
+    for png in sorted(OUT.glob("*.png")):
+        img = Image.open(png).convert("RGB").quantize(colors=256)
+        img.save(png, optimize=True)
+
+
 def advance():
     step = next(steps, None)
     if step is None:
+        if QUANTIZE:
+            quantize_all()
         app.exit(0)
         return
     action, name = step

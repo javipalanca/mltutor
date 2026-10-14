@@ -1,6 +1,6 @@
 # Plan de migración de MLTutor a Rust
 
-Rama: `feature/rust-migration` · Inicio: 2026-10-13 · Estado: **Fases 0 y 1 completadas (2026-10-14, revisadas por rust-reviewer), Fase 2 pendiente**
+Rama: `feature/rust-migration` · Inicio: 2026-10-13 · Estado: **Fases 0 y 1 completadas (2026-10-14, revisadas por rust-reviewer), Fase 2 en curso**
 
 ## Objetivo
 
@@ -65,6 +65,7 @@ La UI dibuja con Plotly o SVG. Nunca se envían imágenes rasterizadas.
 | D6 | Paridad de árboles y regresión logística | Tolerancia, no igualdad: aceptar diferencias por desempates y solver, siempre documentadas |
 | D7 | Split train/test | ✅ Aprobada: **idéntico al de Python**, sin estratificar, con `rand_mt` (MT19937) para reproducir `RandomState(42).permutation`. Mismos datos de train y test que la versión actual. La estratificación queda como mejora futura opcional |
 | D18 | `freezePrototype: false` en Tauri (con `true`, Plotly falla con "readonly property") | Aplicado. Riesgo bajo: no se carga contenido remoto y `script-src 'self'` sigue estricto. Revisable |
+| D19–D35 | Detalles de la Fase 2 (paridad de la logística frente a la referencia convergida, umbrales 0,3/0,5/0,7, R² real, colores coherentes en la frontera, coeficientes corregidos, exportación con código + ONNX + paquete ZIP, script de "Generar Código" correcto, entre otros) | Recomendaciones aplicadas por defecto (2026-10-14). Detalle en [fase2-regresion.md §10](fase2-regresion.md) |
 | D9–D17 | Detalles de la Fase 1 (Moons fijo por sesión, CSV más tolerante, pairplot de regresión legible, correlación de -1 a 1, estado de subvistas por lección, CSV resaltado en la barra lateral, días de Propinas corregidos, consejos del pairplot, CSV embebidos desde `tests/parity`) | Recomendaciones aplicadas por defecto (2026-10-13). Detalle en [fase1-shell-datos.md §9](fase1-shell-datos.md). Revisables por el usuario |
 | D8 | MPG: columna `name` | ✅ Aprobada: **no se usa como característica** del modelo (301 modelos de coche codificados como número no tienen sentido). Se conserva en la exploración de datos: vista previa, tooltip en el pairplot y gráficos de dispersión |
 
@@ -132,13 +133,15 @@ paralelo, y `ml-lesson-author` (contenido).
 
 ### Fase 2 — Lección piloto: 📊 Regresión  *(riesgo: medio · tamaño: L)*
 
+Plan detallado, contrato y reparto: [fase2-regresion.md](fase2-regresion.md). Capturas: `docs/migration/capturas/qt/fase2/`.
+
 Primero porque linfa la cubre bien. Establece los **componentes compartidos** que
 reutilizarán el resto de lecciones.
 
 - [ ] Lineal (`linfa-linear`) y logística binaria y multiclase (`linfa-logistic`), con
       paridad frente a sklearn (coeficientes, predicciones y probabilidades).
 - [ ] Componentes compartidos: métricas de clasificación y regresión, matriz de
-      confusión, informe por clase, ROC/PR (macro, micro y weighted), residuos,
+      confusión, informe por clase, ROC/PR (macro y micro; weighted solo en core, D20), residuos,
       frontera de decisión y superficie 2D, formulario de predicción e importancia.
 - [ ] Coeficientes, predicciones y exportación (ONNX + paquete Python, según D1),
       junto con el código Python generado.

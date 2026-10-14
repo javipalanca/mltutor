@@ -1,0 +1,23 @@
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.metrics import classification_report
+import pandas as pd
+
+# Obtener el reporte de clasificación
+report = classification_report(y_test, y_pred, target_names=class_names, output_dict=True)
+
+# Extraer precisión por clase
+prec_by_class = {
+    class_name: report[class_name]['precision'] for class_name in class_names
+}
+
+# Crear el gráfico
+fig, ax = plt.subplots(figsize=(10, 5))
+sns.barplot(x=list(prec_by_class.keys()), y=list(prec_by_class.values()), ax=ax)
+ax.set_ylim(0, 1)
+ax.set_title('Precisión por clase')
+ax.set_ylabel('Precisión')
+ax.set_xlabel('Clase')
+
+plt.tight_layout()
+plt.show()

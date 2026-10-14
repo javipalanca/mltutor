@@ -1,0 +1,157 @@
+# Textos cortos de la lección 📊 Regresión (mltutor/apps/linear_regression_app.py), literales.
+# {llaves} = valores que se sustituyen; el formato numérico va indicado con la sintaxis de
+# Python ({x:.4f}). Cabecera, subtítulo, pestañas y navbar: content/inicio/navegacion.toml.
+# Expander de la cabecera: intro.md.
+
+[entrenamiento]
+header = "Configuración del Modelo"                          # st.header
+info_titulo = "### Información del Dataset"
+# a continuación create_info_box(dataset_info): la descripción del dataset (content/datasets/<id>.toml
+# description) o, en un CSV, "Dataset personalizado: {n} muestras, {f} características, {k} clases"
+tipo_titulo = "### Tipo de Modelo Lineal"
+btn_lineal = "📈 Regresión Lineal"                           # key btn_linear, primary si model_type_lr == "Linear"
+btn_lineal_help = "Para predecir valores numéricos continuos"
+btn_logistica = "🏷️ Regresión Logística"                     # key btn_logistic
+btn_logistica_help = "Para predecir categorías o clases"
+aviso_lineal_en_clasificacion = "Este dataset parece ser más adecuado para Regresión Logística. La selección actual podría no ofrecer resultados óptimos."   # st.warning
+aviso_logistica_en_regresion = "Este dataset parece ser más adecuado para Regresión Lineal. La selección actual podría no ofrecer resultados óptimos."   # st.warning
+error_carga = "Error al cargar el dataset: {error}"          # st.error
+parametros_titulo = "### Parámetros del Modelo"
+max_iter_label = "Máximo de Iteraciones:"                    # slider 100..2000 paso 100, 1000; solo logística
+max_iter_help = "Número máximo de iteraciones para el optimizador de regresión logística."
+lineal_sin_iteraciones = "La regresión lineal no requiere configuración adicional de iteraciones."   # st.info en lugar del slider
+test_size_label = "Tamaño del Conjunto de Prueba:"           # slider 0.1..0.5 paso 0.05, 0.3
+test_size_help = "Proporción de datos que se usará para evaluar el modelo."
+btn_entrenar = "🚀 Entrenar Modelo"                          # key train_lr_button, primary
+spinner = "Entrenando modelo..."
+exito = "¡Modelo entrenado exitosamente!"                    # st.success
+error_entrenar = "Error al entrenar el modelo: {error}"      # st.error
+error_sin_dataset = "Por favor, carga un dataset válido primero."
+
+[comun]
+sin_entrenar_evaluacion = "Primero debes entrenar un modelo en la pestaña '🏋️ Entrenamiento'."   # st.warning (Evaluación y Frontera)
+sin_entrenar_visualizacion = "Entrena un modelo primero para ver las visualizaciones."           # st.info
+sin_entrenar_coeficientes = "Entrena un modelo primero para ver los coeficientes."
+sin_entrenar_predicciones = "Entrena un modelo primero para hacer predicciones."
+sin_entrenar_exportar = "Entrena un modelo primero para exportarlo."
+
+[evaluacion]
+header = "Evaluación del Modelo"
+
+[visualizacion]
+header = "Visualizaciones"
+# Paneles de subvistas (create_button_panel): (etiqueta, valor, key)
+lineal = [["📈 Análisis de Residuos", "Residuos", "viz_residuals"], ["🌐 Superficie de Predicción", "Superficie", "viz_surface"]]
+logistica = [["📉 Curva ROC", "ROC", "viz_roc"], ["🌈 Frontera de Decisión", "Frontera", "viz_boundary"], ["📊 Distribución de Probabilidades", "Probs", "viz_prob"]]
+residuos_titulo_pred = "### 📊 Gráfico de Predicciones vs Valores Reales"
+residuos_titulo = "### 📈 Análisis de Residuos"
+probs_titulo = "### 📊 Distribución de Probabilidades"
+frontera_error = "Error al mostrar la visualización de frontera de decisión: {error}"   # st.error + st.info siguiente + st.exception
+frontera_error_info = """La frontera de decisión requiere:
+- Un modelo de clasificación entrenado
+- Exactamente 2 características para visualizar
+- Datos de entrenamiento válidos"""
+
+[coeficientes]
+header = "Coeficientes del Modelo"
+expander = "ℹ️ ¿Cómo interpretar los coeficientes?"         # coeficientes-lineal.md / coeficientes-logistica.md
+nota_multiclase = "**Nota:** Este es un modelo de clasificación multiclase con {n_clases} clases. Mostrando los coeficientes para la primera clase ({clase0})."   # st.info; {clase0} = class_names[0] o 'Clase 0'
+selector_clase = "Selecciona la clase para mostrar coeficientes:"   # selectbox, opciones = índices, se muestran los nombres; índice 0
+error_longitud = ["Error: Se encontraron {n_coef} coeficientes pero {n_feat} características.", "Forma de coef_: {shape}", "Características: {features}"]
+error_proceso = ["Error al procesar los coeficientes: {error}", "Forma de model.coef_: {shape}", "Número de características: {n_feat}"]
+tabla_titulo = "### 📊 Tabla de Coeficientes"
+efecto_positivo = "📈 Positivo"                              # coef > 0
+efecto_negativo = "📉 Negativo"                              # en otro caso (incluido 0)
+importancia_alta = "🔥 Alta"                                 # |coef| > cuantil 0.75 de |coef|
+importancia_media = "🔶 Media"                               # > cuantil 0.25
+importancia_baja = "🔹 Baja"
+fuerza_muy_fuerte = "🔥 Muy Fuerte"                          # odds ratio > 7.4
+fuerza_fuerte = "🔥 Fuerte"                                  # > 2.7
+fuerza_moderado = "🔶 Moderado"                              # > 1.6 o < 0.625
+fuerza_debil = "🔹 Débil"
+columnas_lineal = ["Característica", "Coeficiente", "Efecto", "Importancia"]          # Coeficiente {:.4f}
+columnas_logistica = ["Característica", "Coeficiente", "Odds Ratio", "Cambio en Odds", "Efecto", "Fuerza del Efecto"]   # {:.4f}, {:.3f}, {:+.1f}%
+tabla_expander = "📖 ¿Cómo leer esta tabla?"                 # tabla-lineal.md / tabla-logistica.md
+intercepto_titulo = "### 🎯 Intercepto del Modelo"
+intercepto_metric = "Intercepto"                             # {:.4f}; intercept_[0] si es un array (¡en multiclase siempre la clase 0!)
+odds_base_metric = "Odds Ratio Base"                         # {:.3f}, solo logística
+intercepto_info_logistica = "**Interpretación:** Cuando todas las características son 0, el log-odds base es {intercepto:.4f} (Odds Ratio = {odds:.3f})"
+intercepto_info_lineal = "**Interpretación:** Cuando todas las características son 0, el modelo predice un valor de {intercepto:.4f}"
+grafico_titulo = "### 📈 Visualización de Coeficientes"
+grafico_title = "Coeficientes del Modelo (ordenados por importancia)"
+grafico_xlabel = "Valor del Coeficiente"
+grafico_leyenda = ["Efecto Positivo", "Efecto Negativo"]     # colores #4ecdc4 y #ff6b6b, alpha 0.7
+analisis_titulo = "### 🔍 Análisis Detallado de Importancia"
+# Logística
+log_aumentan = "#### 🎯 **Características que MÁS aumentan la probabilidad:**"
+log_disminuyen = "#### 📉 **Características que MÁS disminuyen la probabilidad:**"
+# {n} = posición ORIGINAL de la característica + 1 (no el puesto en el ranking)
+log_item_pos = """**{n}. {caracteristica}** {intensidad}
+- Coeficiente: `{coef:.4f}`
+- Odds Ratio: `{odds:.3f}`
+- **Impacto:** Cada unidad adicional **multiplica las odds por {odds:.2f}** (aumenta {cambio:+.1f}%)"""
+log_item_neg = """**{n}. {caracteristica}** {intensidad}
+- Coeficiente: `{coef:.4f}`
+- Odds Ratio: `{odds:.3f}`
+- **Impacto:** Cada unidad adicional **reduce las odds en {reduccion:.1f}%**"""
+intensidad_fuerte = "🔥 **FUERTE**"      # logística +: OR > 3; −: OR < 0.33. Lineal: |coef| > cuantil 0.8
+intensidad_moderado = "🔶 **MODERADO**"  # logística +: OR > 1.5; −: OR < 0.67. Lineal: > cuantil 0.6
+intensidad_debil = "🔹 **DÉBIL**"
+log_sin_pos = "No hay características que aumenten significativamente la probabilidad."    # st.info
+log_sin_neg = "No hay características que disminuyan significativamente la probabilidad."
+resumen_titulo = "#### 📋 **Resumen Ejecutivo:**"
+log_impacto_pos = "multiplica las odds por {odds:.2f}"
+log_impacto_neg = "reduce las odds en {reduccion:.1f}%"
+log_resumen = """🎯 **Factor más determinante:** `{caracteristica}`
+
+Esta característica es la que mayor impacto tiene en las predicciones del modelo.
+Cada unidad adicional {impacto}."""                        # st.success
+log_todas_negativas = "⚠️ **Atención:** Todas las características reducen la probabilidad. Verifica que el modelo esté bien entrenado."   # st.warning
+log_todas_positivas = "⚠️ **Atención:** Todas las características aumentan la probabilidad. Verifica que el modelo esté bien entrenado."
+log_balance = "✅ **Balance:** {n_pos} características aumentan y {n_neg} disminuyen la probabilidad."   # st.info
+# Lineal
+lin_aumentan = "#### 📈 **Características que MÁS aumentan el valor predicho:**"
+lin_disminuyen = "#### 📉 **Características que MÁS disminuyen el valor predicho:**"
+lin_item_pos = """**{n}. {caracteristica}** {intensidad}
+- Coeficiente: `{coef:.4f}`
+- **Impacto:** Cada unidad adicional **aumenta la predicción en {coef:.3f} unidades**"""
+lin_item_neg = """**{n}. {caracteristica}** {intensidad}
+- Coeficiente: `{coef:.4f}`
+- **Impacto:** Cada unidad adicional **disminuye la predicción en {abs_coef:.3f} unidades**"""
+lin_sin_pos = "No hay características que aumenten significativamente el valor predicho."
+lin_sin_neg = "No hay características que disminuyan significativamente el valor predicho."
+lin_impacto_pos = "aumenta la predicción en {coef:.3f} unidades"
+lin_impacto_neg = "disminuye la predicción en {abs_coef:.3f} unidades"
+lin_resumen = """🎯 **Factor más determinante:** `{caracteristica}`
+
+Esta característica tiene el mayor impacto absoluto en las predicciones.
+Cada unidad adicional {impacto}."""
+# Ambos
+recomendaciones_titulo = "#### 💡 **Recomendaciones para la Acción:**"
+# Top 3 por |coef|; "{i}. " + texto. {accion} = Aumentar|Reducir; {verbo} = incrementar|decrementar;
+# {objetivo} = "probabilidad positiva" (logística) | "valor predicho" (lineal). "la valor predicho" es literal.
+recomendacion = "**{caracteristica}:** {accion} esta característica para {verbo} la {objetivo}"
+extremos = """⚠️ **Atención - Coeficientes Extremos Detectados:**
+
+Las siguientes características tienen coeficientes muy altos: {lista}
+
+Esto podría indicar:
+- Overfitting del modelo
+- Escalas muy diferentes entre características
+- Multicolinealidad entre variables
+- Outliers en los datos
+
+**Recomendación:** Considera normalizar las características o revisar la calidad de los datos."""   # st.warning si |coef| > cuantil 0.95 (lista separada por ", ")
+sin_coeficientes = "El modelo no tiene coeficientes disponibles."
+
+[predicciones]
+header = "🔮 Predicciones con Nuevos Datos"                 # el formulario: content/componentes/mensajes.toml [prediccion]
+
+[exportar]
+header = "Exportar Modelo"
+# Python: 2 columnas; a la izquierda "📄 Generar Código" (key generate_code_lr), a la derecha
+# "📥 Descargar Modelo (Pickle)" (key download_pickle_lr). Ver fase2-regresion.md §2.7 y D1.
+btn_codigo = "📄 Generar Código"
+btn_codigo_descarga = "📥 Descargar código"                  # regression_code.py (content/code/regresion_codigo.py.j2)
+btn_pickle = "📥 Descargar Modelo (Pickle)"
+btn_pickle_descarga = "Descargar modelo.pkl"                 # linear_regression_model.pkl (también en logística)

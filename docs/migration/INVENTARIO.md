@@ -93,13 +93,13 @@ Pestañas: 📊 Datos · 🏋️ Entrenamiento · 📈 Evaluación · 📉 Visua
       y tamaño de test.
 - [ ] Evaluación: métricas de regresión o de clasificación, igual que en el apartado 3.
 - [ ] Visualización lineal: 📈 residuos (predicciones frente a reales y gráfico de
-      residuos) y 🌐 superficie de predicción con 2 características.
-- [ ] Visualización logística: 📉 ROC (con curvas por clase y promediados macro, micro y
-      weighted), 🌈 frontera de decisión y 📊 distribución de probabilidades.
+      residuos) y 🌐 superficie de predicción con un modelo reentrenado con 2 características.
+- [ ] Visualización logística: 📉 ROC (con curvas por clase y promediados macro y micro;
+      D20), análisis de umbrales, 🌈 frontera de decisión y 📊 distribución de probabilidades.
 - [ ] Coeficientes: tabla y gráfico, con selección de clase en el caso multiclase,
       intercepto e interpretación textual.
 - [ ] Predicciones con formulario.
-- [ ] Exportar: Pickle (`download_pickle_lr`) y código generado (`generate_code_lr`). ⚠️ Pickle
+- [ ] Exportar: código generado, ONNX y paquete Python ZIP (que reconstruye el modelo y genera el `.pkl`; D1, D28).
 
 ## 5. 🔍 K-Nearest Neighbors 🐍 `apps/knn_app.py`
 

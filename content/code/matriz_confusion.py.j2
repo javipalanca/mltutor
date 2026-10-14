@@ -1,0 +1,17 @@
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.metrics import confusion_matrix
+
+# Calcular la matriz de confusión
+cm = confusion_matrix(y_test, y_pred)
+
+# Crear el gráfico
+fig, ax = plt.subplots(figsize=(8, 6))
+sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax,
+            xticklabels=class_names, yticklabels=class_names)
+ax.set_xlabel('Predicción')
+ax.set_ylabel('Real')
+ax.set_title('Matriz de Confusión')
+
+plt.tight_layout()
+plt.show()

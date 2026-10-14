@@ -33,6 +33,7 @@ os.environ.setdefault("TF_NUM_INTRAOP_THREADS", "1")
 os.environ.setdefault("PYTHONHASHSEED", "0")
 
 import argparse  # noqa: E402
+import contextlib  # noqa: E402
 import datetime as _dt  # noqa: E402
 import hashlib  # noqa: E402
 import json  # noqa: E402
@@ -885,6 +886,689 @@ def case_csv(name: str, data: bytes, writer: Writer) -> None:
     writer.write_json(PARITY_DIR / "csv" / f"{name}.json", doc)
 
 
+# ---------------------------------------------------------------------------
+# Phase 2: 📊 Regresión lesson (linear and logistic) and the shared components
+# (metrics, confusion matrix, ROC/PR, thresholds, residuals, boundary/surface,
+# prediction form, coefficients, export and generated code).
+#
+# Each case renders the real lesson (``run_linear_regression_app``) headlessly
+# with ``tools/golden_render.py``: it presses "🚀 Entrenar Modelo" and walks the
+# 7 tabs and their sub-views like a student. ``expected.views`` holds what the
+# app shows (texts, rounded numbers, tables, controls, figure data);
+# ``expected`` also holds the raw numbers computed with the same sklearn calls.
+# ---------------------------------------------------------------------------
+LR_MODULE = "linear_models"
+LOGISTIC_PROBA_TOL = 2e-3  # linfa-logistic vs sklearn's default (early) L-BFGS stop
+LR_CASES: dict[str, dict[str, Any]] = {
+    "iris_logistic": {"dataset": "iris", "model": "Logistic", "pair": (2, 3), "same_pair": True},
+    "breast_cancer_logistic": {"dataset": "breast_cancer", "model": "Logistic", "pair": (20, 27)},
+    "titanic_logistic": {"dataset": "titanic", "model": "Logistic", "pair": (1, 4)},
+    "diabetes_linear": {"dataset": "diabetes", "model": "Linear", "pair": (2, 8)},
+    "california_housing_linear": {"dataset": "california_housing", "model": "Linear", "pair": (0, 6)},
+    "csv_string_target_logistic": {"csv": "string_target", "model": "Logistic"},
+    "csv_numeric_regression_linear": {"csv": "numeric_regression", "model": "Linear"},
+    # Model type that does not match the task: what the app does (warnings, errors).
+    "iris_linear_mismatch": {"dataset": "iris", "model": "Linear", "mismatch": True},
+    "diabetes_logistic_mismatch": {"dataset": "diabetes", "model": "Logistic", "mismatch": True},
+}
+
+
+def _lr_page():
+    from mltutor.apps.linear_regression_app import run_linear_regression_app
+
+    return run_linear_regression_app
+
+
+def _inf_list(values) -> list:
+    """Floats where +inf/-inf become the strings "inf"/"-inf" (ROC thresholds)."""
+    out = []
+    for v in np.asarray(values, dtype=float).ravel().tolist():
+        out.append(v if math.isfinite(v) else ("inf" if v > 0 else "-inf"))
+    return out
+
+
+def _lr_classification_numbers(model, X_train, X_test, y_train, y_test, class_names) -> dict:
+    from sklearn.metrics import (auc, average_precision_score, classification_report,
+                                 confusion_matrix, precision_recall_curve, roc_auc_score,
+                                 roc_curve, accuracy_score, f1_score, precision_score,
+                                 recall_score)
+    from sklearn.preprocessing import label_binarize
+
+    y_test_a = np.asarray(y_test)
+    proba = model.predict_proba(X_test)
+    y_pred = model.predict(X_test)
+    labels = list(range(len(class_names)))
+    target_names = [str(n) for n in class_names]
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        report = classification_report(y_test_a, y_pred, labels=labels,
+                                       target_names=target_names, output_dict=True)
+    report_warnings = sorted({str(w.message).splitlines()[0] for w in caught})
+    out: dict[str, Any] = {
+        "labels": labels,
+        "target_names": target_names,
+        "classification_report": report,
+        "classification_report_warnings": report_warnings,
+        "confusion_matrix": confusion_matrix(y_test_a, y_pred, labels=labels),
+        "accuracy": accuracy_score(y_test_a, y_pred),
+    }
+
+    # ROC / PR exactly as viz/roc.py (n_classes from the TEST labels).
+    n_classes = len(np.unique(y_test_a))
+    curves: dict[str, Any] = {"n_classes_in_test": n_classes,
+                              "n_model_classes": int(len(model.classes_))}
+    if n_classes == 2:
+        s = proba[:, 1]
+        fpr, tpr, thr = roc_curve(y_test_a, s)
+        prec, rec, thr_pr = precision_recall_curve(y_test_a, s)
+        curves["binary"] = {
+            "score": "predict_proba[:, 1]",
+            "roc": {"fpr": fpr, "tpr": tpr, "thresholds": _inf_list(thr), "auc": auc(fpr, tpr)},
+            "pr": {"precision": prec, "recall": rec, "thresholds": thr_pr,
+                   "average_precision": average_precision_score(y_test_a, s)},
+            "baseline": float(np.sum(y_test_a) / len(y_test_a)),
+        }
+    else:
+        y_bin = label_binarize(y_test_a, classes=range(n_classes))
+        per_class = []
+        for i in range(n_classes):
+            fpr, tpr, thr = roc_curve(y_bin[:, i], proba[:, i])
+            prec, rec, thr_pr = precision_recall_curve(y_bin[:, i], proba[:, i])
+            per_class.append({
+                "class_index": i,
+                "class_name": class_names[i] if i < len(class_names) else f"Clase {i}",
+                "roc": {"fpr": fpr, "tpr": tpr, "thresholds": _inf_list(thr), "auc": auc(fpr, tpr)},
+                "pr": {"precision": prec, "recall": rec, "thresholds": thr_pr,
+                       "average_precision": average_precision_score(y_bin[:, i], proba[:, i])},
+            })
+        p = proba[:, :n_classes]
+        fpr_mi, tpr_mi, thr_mi = roc_curve(y_bin.ravel(), p.ravel())
+        prec_mi, rec_mi, thr_pr_mi = precision_recall_curve(y_bin.ravel(), p.ravel())
+        all_fpr = np.unique(np.concatenate([roc_curve(y_bin[:, i], proba[:, i])[0]
+                                            for i in range(n_classes)]))
+        mean_tpr = np.zeros_like(all_fpr)
+        for i in range(n_classes):
+            fpr, tpr, _ = roc_curve(y_bin[:, i], proba[:, i])
+            mean_tpr += np.interp(all_fpr, fpr, tpr)
+        mean_tpr /= n_classes
+        curves["multiclass"] = {
+            "strategy": "one-vs-rest, label_binarize(y_test, classes=range(n_classes_in_test)); "
+            "column i of predict_proba is used for class i",
+            "per_class": per_class,
+            "micro": {"roc": {"fpr": fpr_mi, "tpr": tpr_mi, "thresholds": _inf_list(thr_mi),
+                              "auc": auc(fpr_mi, tpr_mi)},
+                      "pr": {"precision": prec_mi, "recall": rec_mi, "thresholds": thr_pr_mi,
+                             "average_precision": average_precision_score(y_bin.ravel(), p.ravel())}},
+            "macro": {"roc": {"fpr": all_fpr, "tpr": mean_tpr, "auc": auc(all_fpr, mean_tpr),
+                              "rule": "union of per-class FPRs, np.interp of each TPR, mean"},
+                      "average_precision": float(np.mean([c["pr"]["average_precision"]
+                                                          for c in per_class])),
+                      "pr_rule": "the app draws the macro AP as a horizontal line (no curve)"},
+        }
+        if n_classes == len(model.classes_):
+            curves["not_in_app"] = {
+                "note": "Not shown by the Python app (it only offers macro and micro). "
+                "sklearn reference for an optional 'weighted' option (D20).",
+                "roc_auc_ovr_weighted": roc_auc_score(y_test_a, proba, multi_class="ovr",
+                                                      average="weighted"),
+                "roc_auc_ovr_macro": roc_auc_score(y_test_a, proba, multi_class="ovr",
+                                                   average="macro"),
+                "average_precision_weighted": average_precision_score(y_bin, p, average="weighted"),
+            }
+    out["curves"] = curves
+
+    # Threshold analysis (plot_threshold_analysis), binary only.
+    if n_classes == 2:
+        rows = []
+        for t in np.arange(0.1, 1.0, 0.1):
+            pred_t = (proba[:, 1] >= t).astype(int)
+            row = {"threshold": float(t), "included": bool(len(np.unique(pred_t)) > 1)}
+            if row["included"]:
+                row.update({
+                    "accuracy": accuracy_score(y_test_a, pred_t),
+                    "precision": precision_score(y_test_a, pred_t, zero_division=0),
+                    "recall": recall_score(y_test_a, pred_t, zero_division=0),
+                    "f1": f1_score(y_test_a, pred_t, zero_division=0)})
+            rows.append(row)
+        inc = [r for r in rows if r["included"]]
+        best = max(inc, key=lambda r: r["f1"]) if inc else None  # idxmax: first maximum
+        p1 = proba[:, 1]
+        neg, pos = p1[y_test_a == np.unique(y_test_a)[0]], p1[y_test_a == np.unique(y_test_a)[1]]
+        unc = int(np.sum((neg > 0.3) & (neg < 0.7)) + np.sum((pos > 0.3) & (pos < 0.7)))
+        out["threshold_analysis"] = {
+            "thresholds_rule": "np.arange(0.1, 1.0, 0.1) (0.30000000000000004 and "
+            "0.7000000000000001 are not exactly 0.3/0.7)",
+            "rows": rows,
+            "best_f1_threshold": best["threshold"] if best else None,
+            "comparison_rows_shown_by_app": [r["threshold"] for r in inc
+                                             if r["threshold"] in (0.3, 0.5, 0.7)],
+            "uncertain_0.3_0.7": unc,
+            "uncertain_fraction": unc / len(y_test_a),
+            "confident_lt_0.2_or_gt_0.8": int(np.sum((p1 < 0.2) | (p1 > 0.8))),
+            "n_test": len(y_test_a),
+        }
+    return out
+
+
+def _lr_regression_numbers(y_test, y_pred) -> dict:
+    from scipy import stats
+    from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+
+    res = pd.Series(np.asarray(y_test, dtype=float) - np.asarray(y_pred, dtype=float))
+    mse = mean_squared_error(y_test, y_pred)
+    out = {"mse": mse, "rmse": float(np.sqrt(mse)), "mae": mean_absolute_error(y_test, y_pred),
+           "r2": r2_score(y_test, y_pred)}
+    lin = stats.linregress(np.asarray(y_pred, dtype=float), res.to_numpy()) if len(res) > 10 else None
+    out["residuals"] = {
+        "definition": "y_test - y_pred",
+        "mean": float(res.mean()),
+        "std_ddof1": float(res.std()),
+        "skew_biased": float(stats.skew(res)),
+        "linregress_r": None if lin is None else float(lin.rvalue),
+        "linregress_slope": None if lin is None else float(lin.slope),
+        "mean_close_to_zero": bool(abs(res.mean()) < 0.1 * res.std()),
+        "hist_rule": "ax.hist(residuals, bins=20): 20 equal bins over [min, max]",
+    }
+    counts, edges = np.histogram(res.to_numpy(), bins=20)
+    out["residuals"]["hist20"] = {"edges": edges, "counts": counts}
+    return out
+
+
+def _lr_two_feature_model(model_type: str, X_train: pd.DataFrame, y_train, pair, max_iter):
+    """The 2-feature model that the boundary/surface views refit on X_train."""
+    from sklearn.linear_model import LinearRegression, LogisticRegression
+
+    X2 = X_train.iloc[:, list(pair)].to_numpy()
+    if model_type == "Logistic":
+        m = LogisticRegression(max_iter=max_iter, random_state=SEED)
+    else:
+        m = LinearRegression()
+    m, warns = _fit_with_warnings(m.fit, X2, y_train)
+    return {"features": list(pair), "coef": m.coef_, "intercept": m.intercept_,
+            "fit_warnings": warns}
+
+
+def _onnx_reference(model, X_test: pd.DataFrame, classifier: bool) -> dict:
+    """skl2onnx graph (structure only) and its outputs with onnx's ReferenceEvaluator.
+
+    The Python app does not export linear models to ONNX: this is the reference for
+    the new native exporter (D1). Inputs are float32, like skl2onnx.
+    """
+    from onnx.reference import ReferenceEvaluator
+    from skl2onnx import convert_sklearn
+    from skl2onnx.common.data_types import FloatTensorType
+
+    n = X_test.shape[1]
+    options = {id(model): {"zipmap": False}} if classifier else None
+    onx = convert_sklearn(model, initial_types=[("float_input", FloatTensorType([None, n]))],
+                          options=options, target_opset={"": 15, "ai.onnx.ml": 3})
+    nodes = []
+    for node in onx.graph.node:
+        attrs = {}
+        for a in node.attribute:
+            if a.type == a.FLOATS:
+                attrs[a.name] = f"<{len(a.floats)} floats>"
+            elif a.type == a.INTS:
+                attrs[a.name] = list(a.ints)
+            elif a.type == a.STRING:
+                attrs[a.name] = a.s.decode()
+            elif a.type == a.INT:
+                attrs[a.name] = a.i
+            elif a.type == a.FLOAT:
+                attrs[a.name] = a.f
+            else:
+                attrs[a.name] = f"<type {a.type}>"
+        nodes.append({"op_type": node.op_type, "domain": node.domain, "inputs": list(node.input),
+                      "outputs": list(node.output), "attributes": attrs})
+    sess = ReferenceEvaluator(onx)
+    X32 = X_test.to_numpy(dtype=np.float32)
+    outs = sess.run(None, {"float_input": X32})
+    names = [o.name for o in onx.graph.output]
+    result = {"producer": "skl2onnx (reference only; not in the Python app)",
+              "opset_import": {o.domain or "ai.onnx": o.version for o in onx.opset_import},
+              "inputs": [i.name for i in onx.graph.input], "outputs": names, "nodes": nodes}
+    out_vals = dict(zip(names, outs))
+    if classifier:
+        prob = np.asarray(out_vals.get("probabilities"), dtype=float)
+        result["label"] = np.asarray(out_vals.get("label")).astype(int)
+        result["probabilities"] = prob
+        result["max_abs_diff_vs_sklearn_proba"] = float(np.max(np.abs(prob - model.predict_proba(X_test))))
+    else:
+        var = np.asarray(out_vals.get("variable"), dtype=float).ravel()
+        result["variable"] = var
+        result["max_abs_diff_vs_sklearn"] = float(np.max(np.abs(var - model.predict(X_test))))
+    return result
+
+
+def _render_code_template(name: str, context: dict) -> str:
+    """Render ``content/code/<name>`` with jinja2 (stand-in for minijinja in Rust)."""
+    import jinja2
+
+    env = jinja2.Environment(loader=jinja2.FileSystemLoader(str(REPO_ROOT / "content" / "code")),
+                             keep_trailing_newline=True, undefined=jinja2.StrictUndefined,
+                             autoescape=False)
+    env.filters["pyrepr"] = repr
+    env.filters["tojson_compact"] = lambda v: json.dumps(v, ensure_ascii=False)
+    return env.get_template(name).render(**context)
+
+
+def _export_package(model, model_type, feature_columns, feature_names, class_names,
+                    X_test: pd.DataFrame, dataset_label: str, test_size: float,
+                    n_train: int, n_test: int) -> dict:
+    """D1 "paquete Python": modelo.json + reconstruir_modelo.py, executed for real."""
+    import subprocess
+    import tempfile
+
+    classifier = model_type == "Logistic"
+    X_check = X_test.head(5)
+    doc = {
+        "format": "mltutor-model",
+        "format_version": 1,
+        "estimator": "sklearn.linear_model.LogisticRegression" if classifier
+        else "sklearn.linear_model.LinearRegression",
+        "params": {k: v for k, v in model.get_params().items()},
+        "feature_names_in": list(feature_columns),
+        "display_names": list(feature_names),
+        "n_features_in": int(X_test.shape[1]),
+        "coef_": model.coef_,
+        "intercept_": model.intercept_ if np.ndim(model.intercept_) else float(model.intercept_),
+        "training": {"dataset": dataset_label, "test_size": test_size, "random_state": SEED,
+                     "n_train": n_train, "n_test": n_test},
+        "check": {"X": X_check.to_numpy(dtype=float),
+                  "prediction": model.predict(X_check)},
+    }
+    if classifier:
+        doc.update({"classes_": model.classes_, "class_names": list(class_names),
+                    "n_iter_": model.n_iter_})
+        doc["check"]["probabilities"] = model.predict_proba(X_check)
+    doc = to_jsonable(doc)
+    script = _render_code_template("paquete_modelo_lineal.py.j2", {
+        "estimator": doc["estimator"], "dataset": dataset_label,
+        "classifier": classifier, "json_name": "modelo.json", "pkl_name": "modelo.pkl"})
+    with tempfile.TemporaryDirectory() as tmp:
+        (Path(tmp) / "modelo.json").write_text(json.dumps(doc, ensure_ascii=False, indent=2),
+                                               encoding="utf-8")
+        (Path(tmp) / "reconstruir_modelo.py").write_text(script, encoding="utf-8")
+        proc = subprocess.run([sys.executable, "reconstruir_modelo.py"], cwd=tmp,
+                              capture_output=True, text=True, timeout=120)
+        ok = proc.returncode == 0 and (Path(tmp) / "modelo.pkl").exists()
+    if not ok:
+        raise RuntimeError(f"export package script failed: {proc.stdout}\n{proc.stderr}")
+    return {"zip_name": "modelo_regresion.zip",
+            "files": ["modelo.json", "reconstruir_modelo.py", "LEEME.txt"],
+            "model_json": doc,
+            "script": script,
+            "script_stdout": proc.stdout,
+            "verified_by_execution": ok}
+
+
+@contextlib.contextmanager
+def _record_predict(cls, sink: list):
+    """Record the X passed to ``cls.predict`` (the prediction form's real input)."""
+    own = "predict" in cls.__dict__
+    original = cls.predict
+
+    def predict(self, X, *a, **k):
+        sink.append(np.array(X, copy=True))
+        return original(self, X, *a, **k)
+
+    cls.predict = predict
+    try:
+        yield
+    finally:
+        if own:
+            cls.predict = original
+        else:
+            del cls.predict
+
+
+def _form_values(tree_node) -> list[tuple[int, str, Any, dict]]:
+    """(index, kind, value, props) of the prediction form controls (keys feature_i)."""
+    found = []
+
+    def rec(n):
+        key = n.props.get("key") if hasattr(n, "props") else None
+        if isinstance(key, str) and key.startswith("feature_"):
+            found.append((int(key.split("_")[1]), n.kind, n.props.get("value"), n.props))
+        for c in n.children:
+            rec(c)
+
+    rec(tree_node)
+    return sorted(found, key=lambda t: t[0])
+
+
+def _lr_setup(spec: dict, tmp: Path):
+    """Session state, dataset label and data access for a case."""
+    if "csv" in spec:
+        name = spec["csv"]
+        raw = pd.read_csv(__import__("io").BytesIO(_csv_cases()[name]))
+        path = tmp / f"{name}.csv"
+        path.write_bytes(raw.to_csv(index=False).encode("utf-8"))  # ui.store_csv
+        label = f"📄 {name}.csv"
+        state = {"csv_datasets": {label: {"file_path": str(path), "target_col": raw.columns[-1],
+                                          "task_type": "auto", "original_name": f"{name}.csv"}}}
+        ref = {"csv_fixture": f"csv/{name}.json", "target": raw.columns[-1], "task": "auto"}
+    else:
+        label = DATASETS[spec["dataset"]]
+        state = {}
+        ref = {"dataset": f"datasets/{spec['dataset']}.json"}
+    if spec.get("dataset") == "moons":
+        load_reference_dataset("moons")
+    state.update({"navigation": "📊 Regresión", "active_tab_lr": 1, "selected_dataset": label,
+                  "unified_dataset_selector": label, "model_type_lr": spec["model"]})
+    return state, label, ref
+
+
+def case_linear_model(name: str, spec: dict, writer: Writer) -> None:
+    import tempfile
+
+    from golden_render import LessonRenderer, strip_chrome
+
+    model_type = spec["model"]
+    views: dict[str, Any] = {}
+    with tempfile.TemporaryDirectory() as tmpdir, warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        state, label, ref = _lr_setup(spec, Path(tmpdir))
+        r = LessonRenderer(_lr_page(), state)
+        r.render()
+        views["train"] = strip_chrome(r.click(key="train_lr_button"))
+        st_state = r.session.state
+        trained = bool(st_state.get("model_trained_lr"))
+        if not trained:
+            doc = {
+                "meta": make_meta({"texts": "exact"}, "Training fails in the app; the fixture "
+                                  "records the message the student sees."),
+                "input": {**ref, "app_label": label, "model_type": model_type, "test_size": 0.3,
+                          "max_iter": 1000},
+                "expected": {"trained": False, "views": views},
+            }
+            writer.write_json(PARITY_DIR / LR_MODULE / f"{name}.json", doc)
+            return
+        model = st_state["model_lr"]
+        X_train, X_test = st_state["X_train_lr"], st_state["X_test_lr"]
+        y_train, y_test = st_state["y_train_lr"], st_state["y_test_lr"]
+        feature_names = list(st_state["feature_names_lr"])
+        class_names = st_state.get("class_names_lr")
+        task_type = st_state["task_type_lr"]
+        max_iter = st_state.get("max_iter", 1000)
+        assert X_train.index.max() < len(X_train) + len(X_test)
+
+        def view(key):
+            try:
+                views[key] = strip_chrome(r.render())
+            except Exception as exc:  # the Qt app shows its generic error page
+                views[key] = {"app_error": f"{type(exc).__name__}: {exc}"}
+
+        st_state["active_tab_lr"] = 2
+        view("evaluation")
+
+        st_state["active_tab_lr"] = 3
+        n_classes_test = len(np.unique(np.asarray(y_test)))
+        if model_type == "Logistic":
+            st_state["viz_type"] = "ROC"
+            view("viz_roc")
+            if n_classes_test > 2 and "app_error" not in views["viz_roc"]:
+                r.set("checkbox", False, label="Mostrar curvas por clase individual", render=False)
+                r.set("multiselect", ["micro"], label="Métodos de promediado:", render=False)
+                view("viz_roc_micro_only_no_individual")
+                r.set("checkbox", True, label="Mostrar curvas por clase individual", render=False)
+                r.set("multiselect", ["macro", "micro"], label="Métodos de promediado:", render=False)
+            st_state["viz_type"] = "Frontera"
+            boundary_key = "viz_boundary"
+        else:
+            st_state["viz_type"] = "Residuos"
+            view("viz_residuals")
+            st_state["viz_type"] = "Superficie"
+            boundary_key = "viz_surface"
+        view(f"{boundary_key}_default")
+        pairs = {"default": [0, 1 if len(feature_names) > 1 else 0]}
+        if spec.get("pair"):
+            a, b = spec["pair"]
+            st_state["viz_feature1"], st_state["viz_feature2"] = feature_names[a], feature_names[b]
+            view(f"{boundary_key}_pair")
+            pairs["pair"] = [a, b]
+        if spec.get("same_pair"):
+            st_state["viz_feature1"] = st_state["viz_feature2"] = feature_names[0]
+            view(f"{boundary_key}_same_feature")
+        st_state.pop("viz_feature1", None)
+        st_state.pop("viz_feature2", None)
+        if model_type == "Logistic":
+            st_state["viz_type"] = "Probs"
+            view("viz_probs")
+
+        st_state["active_tab_lr"] = 4
+        view("coefficients")
+        if model_type == "Logistic" and np.ndim(model.coef_) == 2 and model.coef_.shape[0] > 1:
+            try:
+                r.set("select", 1, label="Selecciona la clase para mostrar coeficientes:",
+                      render=False)
+                view("coefficients_class_1")
+            except LookupError:  # no class names (e.g. a regression dataset): no selector
+                pass
+
+        st_state["active_tab_lr"] = 5
+        view("prediction_form")
+        form_default = _form_values(r.root)
+        recorded: list[np.ndarray] = []
+        with _record_predict(type(model), recorded):
+            r.session.clicked = r.find("button", "Realizar predicción").props["id"]
+            view("prediction_default")
+            default_x = recorded[0] if recorded else None
+            recorded.clear()
+            custom = []
+            for i, kind, value, props in form_default:
+                if kind == "slider":
+                    v = props["max_value"]
+                elif kind == "select":
+                    v = props["options"][-1]
+                elif kind == "checkbox":
+                    v = True
+                else:
+                    v = value
+                st_state[f"feature_{i}"] = v
+                custom.append(v)
+            r.session.clicked = r.find("button", "Realizar predicción").props["id"]
+            view("prediction_custom")
+            custom_x = recorded[0] if recorded else None
+
+        st_state["active_tab_lr"] = 6
+        view("export")
+        r.session.clicked = "key:generate_code_lr"
+        view("export_code")
+        r.session.clicked = "key:download_pickle_lr"
+        view("export_pickle")
+
+        fit_warnings = sorted({f"{w.category.__name__}: {str(w.message).splitlines()[0]}"
+                               for w in caught if "Convergence" in w.category.__name__})
+
+    train_idx, test_idx = X_train.index.to_numpy(), X_test.index.to_numpy()
+    y_pred = model.predict(X_test)
+
+    def predict_vector(x):
+        if x is None:
+            return None
+        out = {"input_float32": np.asarray(x[0], dtype=float), "predict": model.predict(x)[0]}
+        if model_type == "Logistic":
+            out["predict_proba"] = model.predict_proba(x)[0]
+        return out
+
+    form = {
+        "controls": [{"index": i, "kind": k, "value": to_jsonable(v),
+                      **{p: to_jsonable(props[p]) for p in ("label", "min_value", "max_value", "step",
+                                                            "options", "display") if p in props}}
+                     for i, k, v, props in form_default],
+        "custom_choice": "sliders at max_value, selects at their last option, checkboxes on",
+        "custom_controls": [to_jsonable(v) for v in custom],
+        "default": predict_vector(default_x),
+        "custom": predict_vector(custom_x),
+        "note": "The app builds np.array(values, dtype=np.float32) and calls model.predict on "
+        "it, so inputs are rounded to f32 before the f64 dot product. In classification it "
+        "shows class_names[int(predict)]; LogisticRegression adds a predict_proba table.",
+    }
+
+    expected: dict[str, Any] = {
+        "trained": True,
+        "task_type": task_type,
+        "feature_columns": list(X_train.columns),
+        "feature_names": feature_names,
+        "class_names": class_names,
+        "train_indices": train_idx,
+        "test_indices": test_idx,
+        "y_test": np.asarray(y_test),
+        "y_pred": y_pred,
+        "fit_warnings": fit_warnings,
+    }
+    classifier = model_type == "Logistic"
+    if spec.get("mismatch"):
+        expected["model"] = {"coef_shape": list(np.shape(model.coef_)),
+                             "classes": getattr(model, "classes_", None),
+                             "n_classes": len(getattr(model, "classes_", []))}
+        expected["prediction_form"] = form
+        # Only the views that document the mismatch (warnings, errors, int() truncation).
+        keep = {"train", "evaluation", "viz_roc", "prediction_default", "prediction_custom"}
+        expected["views"] = {k: v for k, v in views.items() if k in keep
+                             and len(json.dumps(v, ensure_ascii=False)) < 200_000}
+        expected["views_omitted"] = sorted(set(views) - set(expected["views"]))
+        doc = {
+            "meta": make_meta({"texts": "exact"}, "Documents what the app does when the model "
+                              "type does not match the task (warnings, errors, int() truncation)."),
+            "input": {**ref, "app_label": label, "model_type": model_type, "test_size": 0.3,
+                      "random_state": SEED, "max_iter": max_iter if classifier else None},
+            "expected": expected,
+        }
+        writer.write_json(PARITY_DIR / LR_MODULE / f"{name}.json", doc)
+        return
+    if classifier:
+        from sklearn.linear_model import LogisticRegression
+
+        proba = model.predict_proba(X_test)
+        conv = LogisticRegression(max_iter=100000, tol=1e-12, random_state=SEED)
+        conv, conv_warn = _fit_with_warnings(conv.fit, X_train, y_train)
+        top2 = np.sort(proba, axis=1)[:, -2:]
+        expected["model"] = {"classes": model.classes_, "coef": model.coef_,
+                             "intercept": model.intercept_, "n_iter": model.n_iter_,
+                             "params": model.get_params()}
+        expected["converged_reference"] = {
+            "params": "LogisticRegression(max_iter=100000, tol=1e-12, random_state=42)",
+            "coef": conv.coef_, "intercept": conv.intercept_, "n_iter": conv.n_iter_,
+            "proba": conv.predict_proba(X_test), "fit_warnings": conv_warn,
+            "max_abs_proba_diff_vs_app": float(np.max(np.abs(conv.predict_proba(X_test) - proba))),
+        }
+        expected["proba"] = proba
+        expected["decision_function"] = model.decision_function(X_test)
+        expected["min_proba_margin"] = float(np.min(top2[:, 1] - top2[:, 0]))
+        expected["evaluation"] = _lr_classification_numbers(
+            model, X_train, X_test, y_train, y_test, class_names)
+    else:
+        expected["model"] = {"coef": model.coef_, "intercept": model.intercept_,
+                             "rank": model.rank_, "params": model.get_params()}
+        expected["evaluation"] = _lr_regression_numbers(y_test, y_pred)
+    two = {k: _lr_two_feature_model(model_type, X_train, y_train, p, max_iter)
+           for k, p in pairs.items() if p[0] != p[1]}
+    expected["two_feature_models"] = two
+    coef = np.asarray(model.coef_)
+    expected["coefficients"] = {
+        "shown_row": "coef_ (1-D) for linear; coef_[k] for logistic (row 0 by default, the "
+        "selected class in multiclass)",
+        "abs_quantiles_row0": {str(q): float(pd.Series(np.abs(coef[0] if coef.ndim == 2 else coef))
+                                             .quantile(q)) for q in (0.25, 0.6, 0.75, 0.8, 0.95)},
+    }
+    expected["prediction_form"] = form
+    expected["onnx_reference"] = _onnx_reference(model, X_test, classifier)
+    expected["export_package"] = _export_package(
+        model, model_type, list(X_train.columns), feature_names, class_names or [], X_test,
+        label, 0.3, len(train_idx), len(test_idx))
+    expected["views"] = views
+
+    tol: dict[str, Any]
+    if classifier:
+        conv_diff = expected["converged_reference"]["max_abs_proba_diff_vs_app"]
+        app_converged = not fit_warnings
+        # Rust's optimiser (linfa-logistic, L-BFGS) lands near the optimum, so it can sit
+        # as far from the app's early-stopped model as the converged reference does.
+        proba_vs_app = (max(LOGISTIC_PROBA_TOL, float(f"{1.25 * conv_diff:.1g}"))
+                        if app_converged else None)
+        expected["converged_reference"]["app_model_converged"] = app_converged
+        tol = {"coef_abs_vs_app": 1e-2 if app_converged else None,
+               "intercept_abs_vs_app": 1e-2 if app_converged else None,
+               "proba_abs_vs_app": proba_vs_app,
+               "normative_reference": "converged_reference" if not app_converged
+               else "app model within proba_abs_vs_app, and converged_reference within "
+               "proba_abs_vs_converged",
+               "proba_abs_vs_converged": 1e-5,
+               "coef_rel_vs_converged": 1e-4, "predictions": "exact unless margin < 2*proba_abs",
+               "metrics": "exact when predictions match", "curves": "exact when the score order "
+               "matches; AUC/AP abs 1e-3", "grid_axes": "exact (numpy arange/linspace rules)",
+               "texts": "exact after parsing numbers with the printed precision (±1 ulp of the "
+               "last digit)", "onnx_float32": 1e-5}
+        rationale = ("sklearn's lbfgs stops at gtol=1e-4 (default tol), so the app's model is "
+                     "not the exact optimum: ~2e-3 in probabilities against linfa-logistic on "
+                     "Iris (MEMORY.md), more on other datasets (see converged_reference."
+                     "max_abs_proba_diff_vs_app). If the app's fit did not converge "
+                     "(fit_warnings), only the converged reference is normative. Predictions, "
+                     "metrics and curves are discrete: equal unless a sample sits near a tie "
+                     "(see min_proba_margin).")
+    else:
+        tol = {"coef_rel": 1e-8, "intercept_rel": 1e-8, "pred_rel": 1e-9, "metrics_rel": 1e-8,
+               "residual_stats_rel": 1e-8, "grid_axes": "exact", "z_rel": 1e-9,
+               "texts": "exact after parsing numbers with the printed precision",
+               "onnx_float32": 1e-4}
+        rationale = ("OLS has a closed form (sklearn: scipy lstsq on centred data); f64 solvers "
+                     "agree to ~1e-10 on these well-conditioned designs. ONNX runs in float32.")
+    doc = {
+        "meta": make_meta(tol, rationale),
+        "input": {**ref, "app_label": label, "model_type": model_type, "test_size": 0.3,
+                  "random_state": SEED, "max_iter": max_iter if classifier else None,
+                  "function": "mltutor.apps.linear_regression_app.run_linear_regression_app, "
+                  "rendered headlessly by tools/golden_render.py",
+                  "boundary_pairs": pairs},
+        "expected": expected,
+    }
+    writer.write_json(PARITY_DIR / LR_MODULE / f"{name}.json", doc)
+
+
+# Generated code: content/code/*.py.j2 rendered with jinja2 must equal the app's text.
+CODE_TEMPLATES = {
+    "matriz_confusion.py.j2": ("mltutor.algorithms.code_examples.CONFUSION_MATRIX_CODE", None),
+    "precision_por_clase.py.j2": ("mltutor.algorithms.code_examples.PRECISION_CODE", None),
+    "predicciones_vs_reales.py.j2": ("mltutor.algorithms.code_examples.PRED_VS_REAL_CODE", None),
+    "distribucion_errores.py.j2": ("mltutor.algorithms.code_examples.ERROR_DISTRIBUTION_CODE", None),
+    "regresion_codigo.py.j2": ("mltutor.algorithms.code_examples.generate_regression_code", {}),
+    "frontera_decision.py.j2": ("mltutor.algorithms.code_examples.generate_decision_boundary_code",
+                                {"feature_names_boundary": ["sepal length (cm)", "sepal width (cm)",
+                                                            "petal length (cm)", "petal width (cm)"],
+                                 "class_names": ["setosa", "versicolor", "virginica"]}),
+}
+
+
+def case_code_regression(writer: Writer) -> None:
+    import importlib
+
+    out = {}
+    for template, (dotted, ctx) in CODE_TEMPLATES.items():
+        mod, attr = dotted.rsplit(".", 1)
+        obj = getattr(importlib.import_module(mod), attr)
+        app_text = obj(**ctx) if callable(obj) else obj
+        tctx = {}
+        if ctx:
+            tctx = {"feature_names": ctx.get("feature_names_boundary"),
+                    "class_names": ctx.get("class_names")}
+        rendered = _render_code_template(template, tctx)
+        same = rendered.strip("\n") == app_text.strip("\n")
+        if not same:
+            raise AssertionError(f"{template} does not reproduce {dotted}")
+        out[template] = {"source": dotted, "context": tctx, "text": app_text,
+                         "compare": "text.strip('\\n') == render(template, context).strip('\\n')"}
+    doc = {
+        "meta": make_meta({"text": "exact (ignoring leading/trailing newlines)"},
+                          "Templates are verbatim copies of the app's strings; the context uses "
+                          "Python repr() for lists (Rust needs a 'pyrepr' filter)."),
+        "input": {"engine": "jinja2 with keep_trailing_newline=True, filter pyrepr = repr()"},
+        "expected": out,
+    }
+    writer.write_json(PARITY_DIR / "code" / "regression.json", doc)
+
+
 def build_cases() -> dict[str, Callable[[Writer], None]]:
     cases: dict[str, Callable[[Writer], None]] = {}
     for slug in DATASETS:
@@ -896,6 +1580,9 @@ def build_cases() -> dict[str, Callable[[Writer], None]]:
     cases["split/iris"] = case_split_iris
     cases["regression/iris_logistic"] = case_regression_iris_logistic
     cases["regression/diabetes_linear"] = case_regression_diabetes_linear
+    for name, spec in LR_CASES.items():
+        cases[f"{LR_MODULE}/{name}"] = (lambda n, s: (lambda w: case_linear_model(n, s, w)))(name, spec)
+    cases["code/regression"] = case_code_regression
     return cases
 
 

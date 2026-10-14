@@ -45,6 +45,8 @@ Los índices de filas son **posicionales** (0..n-1), referidos al CSV del datase
 | `regression/diabetes_linear.json` | `LinearRegression()`: coeficientes, intercepto, predicciones y MSE/RMSE/MAE/R² |
 | `stats/<nombre>.json` | Pestaña 📊 Datos: vista previa, `describe`, distribución del objetivo, matriz de correlación (row-major, `null` = NaN) y pairplot: selección por defecto, muestreo, KDE de seaborn (Scott, 200 puntos, `common_norm`) e histogramas de la diagonal |
 | `csv/<caso>.json` | Cargador de CSV: archivo de entrada (texto y base64), errores, tipos, sugerencia de tarea y salida de `load_dataset_from_file` con `auto`, Clasificación y Regresión |
+| `linear_models/<caso>.json` (9) | Fase 2, lección 📊 Regresión: la lección real renderizada sin interfaz (`tools/golden_render.py`). `expected.views` = lo que ve el estudiante en cada pestaña y subvista (textos, números ya redondeados, tablas, controles y datos de cada figura: líneas, barras, puntos, rejillas de contorno, colores, títulos y ejes). Además: modelo (coeficientes, intercepto, `n_iter`), `converged_reference` (logística convergida), predicciones, probabilidades, `decision_function`, informe por clase, matriz de confusión, ROC/PR con umbrales por clase, micro y macro, análisis de umbrales, residuos, modelos de 2 características de la frontera/superficie, formulario de predicción (controles y vector float32 real), `onnx_reference` (skl2onnx + `onnx.reference`) y `export_package` (paquete Python D1 ejecutado de verdad). Casos: Iris, Cáncer y Titanic (logística), Diabetes y California (lineal), dos CSV y dos desajustes de tipo de modelo |
+| `code/regression.json` | Plantillas `content/code/*.py.j2` renderizadas con jinja2 (`pyrepr` = `repr`) frente al texto exacto de la app |
 
 `data_sha256_f64` es el SHA-256 de los valores en f64 little-endian, fila a fila
 (características en el orden de `columns` y después el objetivo; los booleanos valen 0/1).
@@ -57,12 +59,18 @@ bytes del archivo.
   y vuelta de Python, así que se parsean a f64 sin pérdida.
 - **Soluciones cerradas (OLS): relativas de 1e-8 a 1e-9.** Solo cuentan las diferencias
   de BLAS y de factorización.
-- **Optimizadores iterativos (L-BFGS de la logística): 1e-3 en coeficientes y 1e-4 en
-  probabilidades.** sklearn para con `tol=1e-4`; con otro solver el óptimo solo coincide
+- **Optimizadores iterativos (L-BFGS de la logística).** `regression/iris_logistic.json`
+  (F0) indica 1e-3 en coeficientes y 1e-4 en probabilidades, pero el spike midió 1,6e-3 entre
+  linfa y sklearn por defecto: los fixtures de `linear_models/` usan **2e-3** (o más, por caso,
+  según `converged_reference.max_abs_proba_diff_vs_app`) frente al modelo de la app y **1e-5**
+  frente a `converged_reference`. Si la app no converge (Cáncer), solo es normativa la
+  referencia convergida. sklearn para con `tol=1e-4`; con otro solver el óptimo solo coincide
   hasta esa precisión. Las predicciones deben coincidir exactamente si ninguna muestra
   está cerca de un empate (`min_proba_margin`).
 - **Métricas:** exactas (1e-12) cuando las predicciones son exactas. Si no, se derivan
   de la tolerancia de las predicciones.
+- **Textos de las vistas:** exactos salvo los números impresos, que se comparan
+  interpretándolos con la precisión mostrada (±1 en la última cifra).
 - Cada fixture indica su tolerancia en `meta.tolerance`. Si Rust no puede cumplirla (otro
   desempate, otro RNG), se documenta en MEMORY.md. La tolerancia no se relaja sin
   justificarla.

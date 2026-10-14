@@ -229,6 +229,24 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
 - **Cancelación:** `tasks.rs` guarda un `Arc<AtomicBool>` por `task_id`; `cancel_task` y el
   botón "Cancelar" de la barra de estado cubren la lectura del CSV, `set_csv_target` y la
   correlación. Un `Cancelled` no se muestra como error.
+- **Fase 2, fixtures y hallazgos (2026-10-14; detalle en `docs/migration/fase2-regresion.md` §12):**
+  - `tools/golden_render.py` renderiza las lecciones Python sin Qt y extrae lo que dibuja
+    matplotlib (líneas, puntos con color, rejillas de contourf, textos). `expected.views` en
+    los fixtures es la especificación de lo que se ve. Sirve para F3–F5.
+  - La logística de Python no converge en Cáncer (`max_iter=1000`; queda a 0,20 del óptimo) y en
+    Titanic queda a 2,6e-3. La paridad se mide frente a `converged_reference` (tol=1e-12) con
+    1e-5 en probabilidades (D19). El 1e-4 del fixture de F0 era optimista.
+  - Logística sobre un objetivo de regresión: en Diabetes entrena 192 clases y en California
+    falla. En Rust se bloquea (D26).
+  - Fallos visibles en Python: `np.arange(0.1,1,0.1)` no contiene 0,3 ni 0,7 exactos, así que la
+    tabla de umbrales solo muestra 0,5; "R² = 0.0000" siempre; el fondo de la frontera (Set3,
+    n+1 bandas) no casa con los colores de los puntos. Corregidos en Rust (D21–D23).
+  - Rejilla de la frontera: min−1..max+1 con h=0,02 (rango/200 si supera 100), con
+    `np.arange` = `min + i·((min+h)−min)`. Si pasa de 50 000 puntos, `linspace(min(200,n))`. La
+    frontera y la superficie REENTRENAN un modelo 2D sobre train; no fijan el resto.
+  - El formulario de predicción de Python usa float32; Rust usa f64 (D31).
+    `onnx.reference.ReferenceEvaluator` evalúa LinearClassifier/LinearRegressor sin onnxruntime.
+  - Capturas de F2: `uv run python tools/capture_qt.py --phase 2 --quantize`, unos 75 s.
 - **CSV de texto con diccionario (2026-10-14):** `ColumnData::Text` es un `TextColumn`: un código
   `u32` por fila (`u32::MAX` = faltante) y los valores distintos una sola vez, en orden de
   primera aparición, que es el desempate de `value_counts` en pandas. Con 94 MiB de texto, el
