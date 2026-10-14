@@ -66,3 +66,13 @@ pub enum DatasetError {
     #[error("Operación cancelada")]
     Cancelled,
 }
+
+/// An embedded content file (`content/**/*.toml`, templates) is invalid or lacks a
+/// key. Covered by tests; it would only happen with a broken build.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, thiserror::Error)]
+#[error("Contenido no válido en {file} ({key}): {message}")]
+pub struct ContentError {
+    pub file: String,
+    pub key: String,
+    pub message: String,
+}

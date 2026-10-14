@@ -8,6 +8,7 @@
 
 pub mod csv;
 pub mod frame;
+pub mod model;
 pub mod stats;
 
 use std::path::{Path, PathBuf};
@@ -18,7 +19,10 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use self::frame::{Frame, Target};
-use crate::core_facade::{check_cancelled, CoreFacade, CsvDraftHandle, DatasetHandle, DatasetView};
+use crate::core_facade::{
+    check_cancelled, CoreFacade, CsvDraftHandle, DatasetHandle, DatasetView, ModelHandle, Progress,
+    TrainSpec,
+};
 use crate::ipc::{
     finite, to_u32, Cell, CommandError, CorrelationMatrix, DatasetEntry, DatasetId, DatasetRef,
     DatasetSummary, DescribeTable, DiagKind, Matrix, PairplotData, TablePreview,
@@ -158,8 +162,9 @@ impl CoreFacade for FixtureFacade {
             .find(|e| e.dataset == DatasetRef::Builtin { id })
             .map(|e| e.label)
             .unwrap_or_else(|| slug.to_owned());
-        let dataset = FixtureDataset::parse(id, label, &meta["expected"], stats, &csv_text)
+        let mut dataset = FixtureDataset::parse(id, label, &meta["expected"], stats, &csv_text)
             .map_err(|e| CommandError::internal(format!("fixture {slug}: {e}")))?;
+        dataset.root.clone_from(&self.root);
         Ok(Arc::new(dataset))
     }
 
@@ -174,7 +179,7 @@ impl CoreFacade for FixtureFacade {
     }
 }
 
-fn strings(value: &Value) -> Vec<String> {
+pub(crate) fn strings(value: &Value) -> Vec<String> {
     value
         .as_array()
         .map(|a| {
@@ -188,14 +193,14 @@ fn strings(value: &Value) -> Vec<String> {
         .unwrap_or_default()
 }
 
-fn floats(value: &Value) -> Vec<f64> {
+pub(crate) fn floats(value: &Value) -> Vec<f64> {
     value
         .as_array()
         .map(|a| a.iter().map(|v| v.as_f64().unwrap_or(f64::NAN)).collect())
         .unwrap_or_default()
 }
 
-fn counts(value: &Value) -> Vec<u32> {
+pub(crate) fn counts(value: &Value) -> Vec<u32> {
     value
         .as_array()
         .map(|a| {
@@ -207,6 +212,8 @@ fn counts(value: &Value) -> Vec<u32> {
 }
 
 pub struct FixtureDataset {
+    id: DatasetId,
+    root: PathBuf,
     frame: Frame,
     summary: DatasetSummary,
     stats: Value,
@@ -314,6 +321,8 @@ impl FixtureDataset {
                 .to_owned(),
         };
         Ok(Self {
+            id,
+            root: PathBuf::new(),
             frame,
             summary,
             stats,
@@ -423,6 +432,23 @@ impl DatasetView for FixtureDataset {
             });
         let sample = rows.or_else(|| self.frame.default_sample());
         Ok(self.frame.pairplot(features, diag, sample))
+    }
+
+    fn train(
+        &self,
+        spec: &TrainSpec,
+        progress: &Progress<'_>,
+        cancel: &AtomicBool,
+    ) -> Result<ModelHandle, CommandError> {
+        model::train(
+            &self.root,
+            self.id,
+            &self.frame,
+            self.summary.task,
+            spec,
+            progress,
+            cancel,
+        )
     }
 }
 

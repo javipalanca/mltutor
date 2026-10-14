@@ -7,6 +7,7 @@
   import { md, type LessonId } from "../lib/content";
   import { dataBlock, lesson as lessonContent, LESSON_PHASE, navbarMessages, tabName } from "../lib/lessons";
   import { session } from "../lib/session.svelte";
+  import RegressionLesson from "../lib/lessons/regression/RegressionLesson.svelte";
   import DatasetTab from "./DatasetTab.svelte";
 
   interface Props {
@@ -42,7 +43,9 @@
 
   <div class="tab-body" data-lesson-tab={active}>
     <DatasetTab lesson={id} {block} />
-    {#if active > 0}
+    {#if active > 0 && id === "regresion"}
+      <RegressionLesson {active} />
+    {:else if active > 0}
       <h2>{tab}</h2>
       <Notice
         severity="info"

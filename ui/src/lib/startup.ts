@@ -4,6 +4,7 @@ import { nextPaint, pageHeading, waitForIdle } from "./dom";
 import { router } from "./router.svelte";
 import { runScenario } from "./scenarios";
 import { session } from "./session.svelte";
+import { status } from "./status.svelte";
 import { runSmokeTest } from "./smoke";
 import { runSmokeCheck } from "./smokeChecks";
 
@@ -42,6 +43,11 @@ export async function startup(): Promise<void> {
   }
   const mode = await backend.launchMode();
   const smoke = mode.kind === "smoke_test";
+  if (mode.kind !== "normal") {
+    // Hidden or offscreen windows (CI, full-page captures) do not advance CSS transitions:
+    // a capture could show a button half-way between two states.
+    document.documentElement.dataset["automation"] = "true";
+  }
 
   const onError = (reason: unknown): void => {
     const message = `Error no capturado en la interfaz: ${describe(reason)}`;
@@ -53,6 +59,8 @@ export async function startup(): Promise<void> {
   document.addEventListener("securitypolicyviolation", (event) => {
     onError(`CSP bloquea ${event.violatedDirective}: ${event.blockedURI || "(en línea)"}`);
   });
+
+  void backend.onTaskProgress((progress) => status.onProgress(progress.message, progress.percent));
 
   try {
     await loadDatasets();

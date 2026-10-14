@@ -4,7 +4,26 @@
  * with ts-rs (`cargo test`).
  */
 import { invoke, isTauri } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import type { CodeExtra } from "./bindings/CodeExtra";
+import type { CodeTemplate } from "./bindings/CodeTemplate";
+import type { CoefficientsView } from "./bindings/CoefficientsView";
 import type { CommandError } from "./bindings/CommandError";
+import type { DecisionGrid } from "./bindings/DecisionGrid";
+import type { Evaluation } from "./bindings/Evaluation";
+import type { ExportFormat } from "./bindings/ExportFormat";
+import type { GridRequest } from "./bindings/GridRequest";
+import type { LessonId as BackendLessonId } from "./bindings/LessonId";
+import type { PredictionForm } from "./bindings/PredictionForm";
+import type { PredictionResult } from "./bindings/PredictionResult";
+import type { PredictRequest } from "./bindings/PredictRequest";
+import type { ProbabilityView } from "./bindings/ProbabilityView";
+import type { ResidualsView } from "./bindings/ResidualsView";
+import type { RocData } from "./bindings/RocData";
+import type { TaskProgress } from "./bindings/TaskProgress";
+import type { TrainedModelInfo } from "./bindings/TrainedModelInfo";
+import type { TrainRequest } from "./bindings/TrainRequest";
+import type { LessonId as RouteLesson } from "./content";
 import type { CorrelationMatrix } from "./bindings/CorrelationMatrix";
 import type { CsvLoaded } from "./bindings/CsvLoaded";
 import type { CsvPreview } from "./bindings/CsvPreview";
@@ -221,4 +240,89 @@ export function saveFile(name: string, kind: SaveKind, bytes: Uint8Array): Promi
   return invoke<string | null>("save_file", bytes, {
     headers: { "x-mltutor-file-name": encodeURIComponent(name), "x-mltutor-file-kind": kind },
   });
+}
+
+// --- Models (fase2-regresion.md §5.4) ---
+
+/** Lesson of the backend (`LessonId` in Rust) for each lesson route. */
+export const BACKEND_LESSON: Readonly<Record<RouteLesson, BackendLessonId>> = {
+  arboles: "trees",
+  regresion: "regression",
+  knn: "knn",
+  redes: "nn",
+};
+
+/** A model trained by a newer request or retrained meanwhile: reload, do not show it. */
+export function isStale(error: unknown): boolean {
+  return isCommandError(error) && error.kind === "model_stale";
+}
+
+/** Training in the background: progress by `task-progress`, cancellable, newest `seq` wins. */
+export function trainModel(req: Omit<TrainRequest, "task_id" | "seq">, seq: number = nextSeq()): Cancellable<TrainedModelInfo> {
+  nextTaskId = (nextTaskId + 1) % 0x7fffffff;
+  const taskId = nextTaskId;
+  busy.start(taskId);
+  const promise = invoke<TrainedModelInfo>("train_model", { req: { ...req, seq, task_id: taskId } }).finally(() =>
+    busy.end(taskId),
+  );
+  return { promise, cancel: () => void cancelTask(taskId) };
+}
+
+export function lessonModel(lesson: BackendLessonId): Promise<TrainedModelInfo | null> {
+  return call("lesson_model", { lesson });
+}
+
+export function evaluateModel(modelId: number): Promise<Evaluation> {
+  return call("evaluate_model", { modelId });
+}
+
+export function rocCurves(modelId: number): Promise<RocData> {
+  return call("roc_curves", { modelId });
+}
+
+export function probabilityView(modelId: number): Promise<ProbabilityView> {
+  return call("probability_view", { modelId });
+}
+
+export function residualsView(modelId: number): Promise<ResidualsView> {
+  return call("residuals_view", { modelId });
+}
+
+export function decisionGrid(modelId: number, featureX: number, featureY: number): Cancellable<DecisionGrid> {
+  nextTaskId = (nextTaskId + 1) % 0x7fffffff;
+  const taskId = nextTaskId;
+  busy.start(taskId);
+  const req: GridRequest = { model_id: modelId, feature_x: featureX, feature_y: featureY, task_id: taskId };
+  const promise = invoke<DecisionGrid>("decision_grid", { req }).finally(() => busy.end(taskId));
+  return { promise, cancel: () => void cancelTask(taskId) };
+}
+
+export function coefficientsView(modelId: number, classIndex: number | null): Promise<CoefficientsView> {
+  return call("coefficients_view", { modelId, classIndex });
+}
+
+export function predictionForm(modelId: number): Promise<PredictionForm> {
+  return call("prediction_form", { modelId });
+}
+
+export function predictOne(modelId: number, values: number[]): Promise<PredictionResult> {
+  const req: PredictRequest = { model_id: modelId, values };
+  return call("predict_one", { req });
+}
+
+/** ONNX or Python package, built and saved (native dialog) in Rust. Saved name or `null`. */
+export function exportModel(modelId: number, format: ExportFormat): Promise<string | null> {
+  return call("export_model", { modelId, format });
+}
+
+export function generateCode(modelId: number, template: CodeTemplate, extra: CodeExtra | null = null): Promise<string> {
+  return call("generate_code", { modelId, template, extra });
+}
+
+/** Subscribes to `task-progress`; returns the unsubscribe function. */
+export async function onTaskProgress(handler: (progress: TaskProgress) => void): Promise<() => void> {
+  if (!isTauri()) {
+    return () => undefined;
+  }
+  return listen<TaskProgress>("task-progress", (event) => handler(event.payload));
 }

@@ -7,6 +7,8 @@ import { untrack } from "svelte";
 class Busy {
   pending = $state(0);
   cancellable = $state<number[]>([]);
+  /** Last `task-progress` message while something runs (cleared when idle). */
+  progress = $state<string | null>(null);
 
   get active(): boolean {
     return this.pending > 0;
@@ -30,6 +32,9 @@ class Busy {
   end(task?: number): void {
     untrack(() => {
       this.pending = Math.max(0, this.pending - 1);
+      if (this.pending === 0) {
+        this.progress = null;
+      }
       if (task !== undefined) {
         this.cancellable = this.cancellable.filter((id) => id !== task);
       }

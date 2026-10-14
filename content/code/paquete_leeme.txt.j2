@@ -1,0 +1,55 @@
+{#- NUEVO (D1/D28, Fase 2): LEEME.txt del "📦 Paquete Python (.zip)", junto a modelo.json y
+    reconstruir_modelo.py (paquete_modelo_lineal.py.j2). Texto plano, sin Markdown.
+    Variables (pásalas todas):
+      estimator      str        "sklearn.linear_model.LogisticRegression" o "...LinearRegression"
+      dataset        str        nombre del dataset que ve el estudiante
+      feature_names  list[str]  nombres legibles, en el orden de las columnas del modelo
+      class_names    list[str]|null  clases en el orden de sus códigos (null en regresión)
+      n_train        int        muestras de entrenamiento
+      n_test         int        muestras de prueba
+      test_size      float      proporción de prueba
+      pkl_name       str        "modelo.pkl"
+-#}
+MODELO EXPORTADO DESDE MLTUTOR
+==============================
+
+Modelo:  {{ estimator }}
+Dataset: {{ dataset }}
+Datos:   {{ n_train }} muestras de entrenamiento y {{ n_test }} de prueba (test_size={{ test_size | pyrepr }}, random_state=42)
+
+Contenido del paquete
+---------------------
+- modelo.json            Los parámetros que aprendió el modelo (coeficientes, intercepto{% if class_names %}, clases{% endif %})
+                         y los hiperparámetros con los que se entrenó.
+- reconstruir_modelo.py  Crea el objeto de scikit-learn con esos parámetros, sin volver a
+                         entrenar, comprueba que predice lo mismo que MLTutor y lo guarda en
+                         {{ pkl_name }}.
+- LEEME.txt              Este archivo.
+
+Cómo usarlo
+-----------
+1. Descomprime el ZIP en una carpeta.
+2. Instala las dependencias:   pip install scikit-learn numpy
+3. Ejecuta:                    python reconstruir_modelo.py
+4. Carga el modelo en tu código:
+
+       import pickle
+       with open("{{ pkl_name }}", "rb") as f:
+           modelo = pickle.load(f)
+       print(modelo.predict([[...]]))   # una lista de valores por muestra
+
+Orden de las características
+----------------------------
+Cada muestra debe tener estos valores, en este orden:
+{% for nombre in feature_names %}  {{ loop.index }}. {{ nombre }}
+{% endfor %}
+{%- if class_names %}
+Clases (lo que devuelve predict)
+--------------------------------
+{% for nombre in class_names %}  {{ loop.index0 }} = {{ nombre }}
+{% endfor %}
+{%- endif %}
+Las columnas de texto del dataset original se convirtieron en números por orden
+alfabético (LabelEncoder). Codifica igual los datos nuevos.
+
+Atención: abrir un archivo .pkl puede ejecutar código. Carga solo los que hayas generado tú.

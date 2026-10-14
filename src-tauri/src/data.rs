@@ -92,7 +92,7 @@ impl DataState {
     }
 
     /// The dataset behind `dataset` and its label, parsing a built-in one on first use.
-    fn resolve(&self, dataset: DatasetRef) -> Result<(DatasetHandle, String), CommandError> {
+    pub fn resolve(&self, dataset: DatasetRef) -> Result<(DatasetHandle, String), CommandError> {
         match dataset {
             DatasetRef::Csv { id } => self
                 .session()
@@ -318,6 +318,15 @@ impl DatasetView for CachedViews {
 
     fn pairplot(&self, features: &[String], diag: DiagKind) -> Result<PairplotData, CommandError> {
         self.inner.pairplot(features, diag)
+    }
+
+    fn train(
+        &self,
+        spec: &crate::core_facade::TrainSpec,
+        progress: &crate::core_facade::Progress<'_>,
+        cancel: &AtomicBool,
+    ) -> Result<crate::core_facade::ModelHandle, CommandError> {
+        self.inner.train(spec, progress, cancel)
     }
 }
 
@@ -959,6 +968,14 @@ mod tests {
             diag: DiagKind,
         ) -> Result<PairplotData, CommandError> {
             self.inner.pairplot(features, diag)
+        }
+        fn train(
+            &self,
+            spec: &crate::core_facade::TrainSpec,
+            progress: &crate::core_facade::Progress<'_>,
+            cancel: &AtomicBool,
+        ) -> Result<crate::core_facade::ModelHandle, CommandError> {
+            self.inner.train(spec, progress, cancel)
         }
     }
 

@@ -138,14 +138,16 @@ Plan detallado, contrato y reparto: [fase2-regresion.md](fase2-regresion.md). Ca
 Primero porque linfa la cubre bien. Establece los **componentes compartidos** que
 reutilizarán el resto de lecciones.
 
-- [ ] Lineal (`linfa-linear`) y logística binaria y multiclase (`linfa-logistic`), con
+- [x] Lineal (`linfa-linear`) y logística (solver Newton/L-BFGS propio; ver MEMORY) binaria y multiclase (`linfa-logistic`), con
       paridad frente a sklearn (coeficientes, predicciones y probabilidades).
-- [ ] Componentes compartidos: métricas de clasificación y regresión, matriz de
+- [x] Componentes compartidos: métricas de clasificación y regresión, matriz de
       confusión, informe por clase, ROC/PR (macro y micro; weighted solo en core, D20), residuos,
       frontera de decisión y superficie 2D, formulario de predicción e importancia.
-- [ ] Coeficientes, predicciones y exportación (ONNX + paquete Python, según D1),
+- [x] Coeficientes, predicciones y exportación (ONNX + paquete Python, según D1),
       junto con el código Python generado.
-- [ ] Inventario §4 completo, con la captura comparativa revisada.
+- [x] Inventario §4 completo, con la captura comparativa revisada.
+- [ ] Script de entrenamiento con CSV propio: hoy pasa `csv_sep`, `csv_decimal` y `csv_encoding` a `None`.
+- [ ] `content/code/paquete_leeme.txt.j2` numera las clases con `loop.index0`; con un CSV de clases numéricas (p. ej. 3 y 6) hay que mostrar los valores reales (`class_values`).
 
 ### Fase 3 — 🌲 Árboles de Decisión  *(riesgo: alto · tamaño: L)*
 

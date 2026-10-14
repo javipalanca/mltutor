@@ -20,10 +20,18 @@ pub const AUTOMATION_TIMEOUT: Duration = Duration::from_secs(180);
 /// Must match `ui/src/lib/routes.ts` (the frontend fails the test if they differ).
 pub const SMOKE_ROUTES: [&str; 6] = ["inicio", "arboles", "regresion", "knn", "redes", "csv"];
 
-/// Extra checks of `--smoke-test` after the routes (fase1-shell-datos.md §8.2.5): the
-/// 📊 Datos tab of a lesson renders its views, and the Iris correlation heatmap and
-/// pairplot are drawn by Plotly.
-pub const SMOKE_CHECKS: [&str; 3] = ["datos_vistas", "datos_correlacion", "datos_pairplot"];
+/// Extra checks of `--smoke-test` after the routes. Fase 1 (fase1-shell-datos.md §8.2.5):
+/// the 📊 Datos tab of a lesson renders its views, and the Iris correlation heatmap and
+/// pairplot are drawn by Plotly. Fase 2 (fase2-regresion.md §9.2.4): 📊 Regresión trains
+/// Iris (logistic, multiclass), Cáncer (binary) and Diabetes (linear) and draws every view.
+pub const SMOKE_CHECKS: [&str; 6] = [
+    "datos_vistas",
+    "datos_correlacion",
+    "datos_pairplot",
+    "regresion_logistica_iris",
+    "regresion_binaria_cancer",
+    "regresion_lineal_diabetes",
+];
 
 pub struct AppState {
     pub mode: Mode,

@@ -1,13 +1,23 @@
+{#- CORREGIDO (D30, Fase 2). Python usaba siempre X_train[:, [0, 1]] y los nombres de TODAS las
+    características, fuera cual fuera el par elegido, y dependía de un model_2d sin definir.
+    Se ejecuta a continuación del script de "📄 Generar Código" (regresion_entrenamiento.py.j2),
+    que define X_train, y_train y modelo.
+    Variables (pásalas todas):
+      feature_indices  [int, int]  posiciones de las dos características elegidas en X
+      feature_names    [str, str]  sus nombres legibles, en el mismo orden
+      class_names      list[str]|null  nombres de las clases en el orden de sus códigos
+-#}
 import numpy as np
 import matplotlib.pyplot as plt
+from sklearn.base import clone
 from sklearn.inspection import DecisionBoundaryDisplay
 
-# Datos de entrenamiento (solo las primeras 2 características)
-X_2d = X_train[:, [0, 1]]  # Usar las características seleccionadas
-y_train = y_train
+# Necesita X_train, y_train y modelo (el script de "📄 Generar Código")
+# Datos de entrenamiento: solo las 2 características elegidas
+X_2d = np.asarray(X_train, dtype=float)[:, {{ feature_indices | pyrepr }}]
 
-
-# Entrenar el modelo simplificado
+# Entrenar el modelo simplificado: mismo tipo e hiperparámetros, solo con esas 2 características
+model_2d = clone(modelo)
 model_2d.fit(X_2d, y_train)
 
 # Crear figura

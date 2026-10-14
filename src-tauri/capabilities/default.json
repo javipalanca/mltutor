@@ -1,8 +1,10 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permissions of the main window: only MLTutor's own commands. The open/save dialogs and the file access happen in Rust (pick_and_load_csv, save_file), so the frontend gets no dialog or filesystem permission.",
-  "windows": ["main"],
+  "description": "Permissions of the main window: only MLTutor's own commands. The open/save dialogs and the file access happen in Rust (pick_and_load_csv, save_file), so the frontend gets no dialog or filesystem permission. The only core permission is listening to MLTutor's own events (task-progress).",
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "allow-launch-mode",
     "allow-frontend-ready",
@@ -27,6 +29,20 @@
     "allow-csv-target-info",
     "allow-set-csv-target",
     "allow-discard-csv",
-    "allow-save-file"
+    "allow-save-file",
+    "allow-train-model",
+    "allow-lesson-model",
+    "allow-evaluate-model",
+    "allow-roc-curves",
+    "allow-probability-view",
+    "allow-residuals-view",
+    "allow-decision-grid",
+    "allow-coefficients-view",
+    "allow-prediction-form",
+    "allow-predict-one",
+    "allow-export-model",
+    "allow-generate-code",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten"
   ]
 }

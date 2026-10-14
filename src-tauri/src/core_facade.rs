@@ -13,9 +13,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use crate::ipc::{
-    CommandError, CorrelationMatrix, CsvPreview, CsvTargetStats, DatasetEntry, DatasetId,
-    DatasetSummary, DescribeTable, DiagKind, PairplotData, TablePreview, TargetDistribution,
-    TargetInfo, TaskChoice, TaskType,
+    CodeTemplate, CoefficientsView, CommandError, CorrelationMatrix, CsvPreview, CsvTargetStats,
+    DatasetEntry, DatasetId, DatasetSummary, DecisionGrid, DescribeTable, DiagKind, Evaluation,
+    ExportFormat, ModelConfig, PairplotData, PredictionForm, PredictionResult, ProbabilityView,
+    ResidualsView, RocData, TablePreview, TargetDistribution, TargetInfo, TaskChoice, TaskType,
+    TrainNotice,
 };
 
 /// Maximum number of pairplot features (slider limit of §2.6).
@@ -32,9 +34,81 @@ pub trait DatasetView: Send + Sync {
     fn correlation(&self, cancel: &AtomicBool) -> Result<CorrelationMatrix, CommandError>;
     /// `features` are friendly names; already validated as non-empty, ≤ 6 and unique.
     fn pairplot(&self, features: &[String], diag: DiagKind) -> Result<PairplotData, CommandError>;
+    /// Splits the dataset (D7, `random_state=42`) and trains `spec.config` on the train
+    /// part. Reports progress through `progress` and checks `cancel` cooperatively.
+    fn train(
+        &self,
+        spec: &TrainSpec,
+        progress: &Progress<'_>,
+        cancel: &AtomicBool,
+    ) -> Result<ModelHandle, CommandError>;
 }
 
 pub type DatasetHandle = Arc<dyn DatasetView>;
+
+/// Progress callback of long operations: message and optional percentage (0..=100).
+pub type Progress<'a> = dyn Fn(&str, Option<f32>) + Sync + 'a;
+
+/// What to train (the command has already validated ranges and the target, D26).
+#[derive(Debug, Clone, PartialEq)]
+pub struct TrainSpec {
+    pub config: ModelConfig,
+    pub test_size: f64,
+    /// "🌸 Iris - Clasificación de flores" (training block of the Python package).
+    pub dataset_label: String,
+}
+
+/// Fixed facts of a trained model (the command adds id, lesson and dataset).
+#[derive(Debug, Clone, PartialEq)]
+pub struct ModelSummary {
+    pub model_task: TaskType,
+    pub dataset_task: TaskType,
+    pub n_train: usize,
+    pub n_test: usize,
+    pub feature_columns: Vec<String>,
+    pub feature_names: Vec<String>,
+    pub class_names: Option<Vec<String>>,
+    pub notices: Vec<TrainNotice>,
+}
+
+/// A trained model with its split, ready for the views of tabs 2–6 (fase2 §3).
+/// Implementations may cache predictions and probabilities internally.
+pub trait ModelView: Send + Sync {
+    fn summary(&self) -> ModelSummary;
+    /// C1/C2/C3 on the test set.
+    fn evaluate(&self) -> Result<Evaluation, CommandError>;
+    /// C4. `NotClassifier` for regressors.
+    fn roc_curves(&self) -> Result<RocData, CommandError>;
+    /// C5 + C6. `NotClassifier` for regressors.
+    fn probability_view(&self) -> Result<ProbabilityView, CommandError>;
+    /// C7. `NotRegressor` for classifiers.
+    fn residuals_view(&self) -> Result<ResidualsView, CommandError>;
+    /// C8: refits the same model on features `x`, `y` of the train set and predicts the grid.
+    /// Indices already validated (distinct and in range).
+    fn decision_grid(
+        &self,
+        x: usize,
+        y: usize,
+        progress: &Progress<'_>,
+        cancel: &AtomicBool,
+    ) -> Result<DecisionGrid, CommandError>;
+    /// §2.5. `class_index` (logistic multiclass) already validated.
+    fn coefficients(&self, class_index: Option<usize>) -> Result<CoefficientsView, CommandError>;
+    /// C9, with the metadata of the training dataset (D32).
+    fn prediction_form(&self) -> Result<PredictionForm, CommandError>;
+    /// C9. `values` already checked: one finite value per feature.
+    fn predict_one(&self, values: &[f64]) -> Result<PredictionResult, CommandError>;
+    /// C11: the bytes of the `.onnx` file or the `.zip` package.
+    fn export(&self, format: ExportFormat) -> Result<Vec<u8>, CommandError>;
+    /// C12. `pair` = features of the decision boundary (D30).
+    fn code(
+        &self,
+        template: CodeTemplate,
+        pair: Option<(usize, usize)>,
+    ) -> Result<String, CommandError>;
+}
+
+pub type ModelHandle = Arc<dyn ModelView>;
 
 /// Result of confirming the target of a CSV draft.
 pub struct CsvFinal {

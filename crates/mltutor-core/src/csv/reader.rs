@@ -218,7 +218,12 @@ fn parse_bool(field: &str) -> Option<bool> {
 enum ColumnBuilder {
     /// No value seen yet.
     Empty,
-    Int(Vec<i64>),
+    /// `neg_zero`: rows written as `-0` (`-00`…). pandas keeps them as `0` in an
+    /// `int64` column but as `-0.0` if the column becomes `float64`.
+    Int {
+        values: Vec<i64>,
+        neg_zero: Vec<usize>,
+    },
     /// `used_comma`: some value needed the decimal comma.
     Float {
         values: Vec<f64>,
@@ -234,8 +239,11 @@ impl ColumnBuilder {
     fn push(&mut self, field: &str, decimal_comma: bool, capacity: usize) {
         match self {
             ColumnBuilder::Empty => *self = Self::start(field, decimal_comma, capacity),
-            ColumnBuilder::Int(values) => {
+            ColumnBuilder::Int { values, neg_zero } => {
                 if let Ok(i) = field.trim().parse::<i64>() {
+                    if i == 0 && field.trim().starts_with('-') {
+                        neg_zero.push(values.len());
+                    }
                     values.push(i);
                     return;
                 }
@@ -248,6 +256,9 @@ impl ColumnBuilder {
                             .into_iter()
                             .map(|i| i as f64)
                             .collect();
+                        for &row in neg_zero.iter() {
+                            floats[row] = -0.0;
+                        }
                         floats.push(x);
                         *self = ColumnBuilder::Float {
                             values: floats,
@@ -283,7 +294,12 @@ impl ColumnBuilder {
         if let Ok(i) = field.trim().parse::<i64>() {
             let mut values = Vec::with_capacity(capacity);
             values.push(i);
-            return ColumnBuilder::Int(values);
+            let neg_zero = if i == 0 && field.trim().starts_with('-') {
+                vec![0]
+            } else {
+                Vec::new()
+            };
+            return ColumnBuilder::Int { values, neg_zero };
         }
         let mut used_comma = false;
         if let Some(x) = parse_float(field, decimal_comma, &mut used_comma) {
@@ -314,7 +330,7 @@ impl ColumnBuilder {
             v
         }
         match self {
-            ColumnBuilder::Int(v) => (ColumnData::Int(fit(v)), false),
+            ColumnBuilder::Int { values, .. } => (ColumnData::Int(fit(values)), false),
             ColumnBuilder::Float { values, used_comma } => {
                 (ColumnData::Float(fit(values)), used_comma)
             }

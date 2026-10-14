@@ -1,11 +1,12 @@
-<!-- mltutor/viz/roc.py::_add_detailed_explanation, al final de la vista ROC (binaria y multiclase). Expander cerrado. Título del expander: "ℹ️ ¿Cómo interpretar las Curvas de Rendimiento?" -->
+<!-- mltutor/viz/roc.py::_add_detailed_explanation, al final de la vista ROC (binaria y multiclase). Expander cerrado. Título del expander: "ℹ️ ¿Cómo interpretar las Curvas de Rendimiento?". CORREGIDO en Rust (2026-10-14): (1) el micro-promedio "Útil cuando algunas clases son más importantes" y "Menos sensible a desbalance" era incorrecto: micro da el mismo peso a cada muestra, así que lo dominan las clases frecuentes y puede ocultar un mal rendimiento en las minoritarias; (2) se añaden la lectura probabilística del AUC y la fórmula de AP. -->
 **Curva ROC (Receiver Operating Characteristic)**
 
 **¿Qué muestra?**
 - **Eje X:** Tasa de Falsos Positivos (FPR) = FP / (FP + TN)
 - **Eje Y:** Tasa de Verdaderos Positivos (TPR) = TP / (TP + FN) = Sensibilidad/Recall
 - **Línea diagonal:** Rendimiento de un clasificador aleatorio
-- **AUC (Área Bajo la Curva):** Métrica resumen del rendimiento
+- **AUC (Área Bajo la Curva):** Métrica resumen del rendimiento. Es la probabilidad de que el modelo dé más puntuación a un positivo elegido al azar que a un negativo elegido al azar
+- Cada punto de la curva es un umbral de decisión distinto: al bajar el umbral se detectan más positivos (sube TPR) a costa de más falsas alarmas (sube FPR)
 
 **Interpretación:**
 - **AUC = 1.0:** Clasificador perfecto
@@ -28,7 +29,7 @@
 - **Eje X:** Recall (Sensibilidad) = TP / (TP + FN)
 - **Eje Y:** Precision (Precisión) = TP / (TP + FP)
 - **Línea horizontal:** Baseline (proporción de casos positivos)
-- **AP (Average Precision):** Métrica resumen del rendimiento
+- **AP (Average Precision):** Métrica resumen del rendimiento: la precisión media a lo largo de la curva, $\text{AP} = \sum_n (R_n - R_{n-1})\, P_n$, donde $P_n$ y $R_n$ son la precisión y el recall del umbral *n*
 
 **Interpretación:**
 - **AP alto:** Buen balance entre precisión y recall
@@ -65,5 +66,5 @@
 **Micro-promedio:**
 - Agregación global de TP, FP, FN de todas las clases
 - Las clases con más muestras tienen más peso
-- Menos sensible a desbalance de clases
-- Útil cuando algunas clases son más importantes
+- Puede ocultar un mal rendimiento en las clases minoritarias
+- Útil cuando cada muestra cuenta lo mismo, sea de la clase que sea

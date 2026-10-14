@@ -54,6 +54,39 @@ pub enum CommandError {
     FileSave {
         message: String,
     },
+    /// The model a view asked for is no longer the lesson's model (it was retrained).
+    /// The UI reloads the view instead of showing an error.
+    ModelStale {
+        message: String,
+    },
+    /// D26: the target cannot be used by this model (logistic on a regression target).
+    InvalidTarget {
+        message: String,
+    },
+    /// The view needs a classifier (ROC, probabilities, boundary).
+    NotClassifier {
+        message: String,
+    },
+    /// The view needs a regressor (residuals, surface).
+    NotRegressor {
+        message: String,
+    },
+    /// The grid of the decision boundary/surface has fewer than 2 rows or columns.
+    GridTooSmall {
+        message: String,
+    },
+    /// Values of the prediction form that cannot be used (length, NaN).
+    InvalidInput {
+        message: String,
+    },
+    /// Training failed (singular system, optimizer error…).
+    Training {
+        message: String,
+    },
+    /// Building an ONNX file or a Python package failed.
+    Export {
+        message: String,
+    },
     Internal {
         message: String,
     },
@@ -135,6 +168,56 @@ impl CommandError {
         }
     }
 
+    pub fn model_stale() -> Self {
+        Self::ModelStale {
+            message: "El modelo ha cambiado. Vuelve a cargar la vista.".into(),
+        }
+    }
+
+    pub fn invalid_target(message: impl Into<String>) -> Self {
+        Self::InvalidTarget {
+            message: message.into(),
+        }
+    }
+
+    pub fn not_classifier() -> Self {
+        Self::NotClassifier {
+            message: "Esta visualización necesita un modelo de clasificación.".into(),
+        }
+    }
+
+    pub fn not_regressor() -> Self {
+        Self::NotRegressor {
+            message: "Esta visualización necesita un modelo de regresión.".into(),
+        }
+    }
+
+    pub fn grid_too_small(rows: usize, cols: usize) -> Self {
+        Self::GridTooSmall {
+            message: format!(
+                "❌ Error: La malla resultante es demasiado pequeña: ({rows}, {cols})"
+            ),
+        }
+    }
+
+    pub fn invalid_input(message: impl Into<String>) -> Self {
+        Self::InvalidInput {
+            message: message.into(),
+        }
+    }
+
+    pub fn training(error: impl std::fmt::Display) -> Self {
+        Self::Training {
+            message: format!("Error al entrenar el modelo: {error}"),
+        }
+    }
+
+    pub fn export(error: impl std::fmt::Display) -> Self {
+        Self::Export {
+            message: format!("❌ No se pudo exportar el modelo: {error}"),
+        }
+    }
+
     /// Unexpected failure: logs the technical detail and returns the generic message.
     pub fn internal(detail: impl std::fmt::Display) -> Self {
         log::error!("error interno en un comando: {detail}");
@@ -156,6 +239,14 @@ impl CommandError {
             | Self::InvalidSelection { message }
             | Self::Cancelled { message }
             | Self::FileSave { message }
+            | Self::ModelStale { message }
+            | Self::InvalidTarget { message }
+            | Self::NotClassifier { message }
+            | Self::NotRegressor { message }
+            | Self::GridTooSmall { message }
+            | Self::InvalidInput { message }
+            | Self::Training { message }
+            | Self::Export { message }
             | Self::Internal { message } => message,
         }
     }

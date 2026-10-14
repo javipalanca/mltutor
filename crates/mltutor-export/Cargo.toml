@@ -9,6 +9,18 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
+mltutor-core.workspace = true
+ndarray = "0.16"
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+# ONNX protobuf: the onnx.proto messages are written by hand with prost-derive (no protoc).
+prost = { version = "0.14", default-features = false, features = ["derive", "std"] }
+# Python package (.zip): deflate in pure Rust.
+zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+
+[dev-dependencies]
+approx = "0.5"
 
 [lints]
 workspace = true

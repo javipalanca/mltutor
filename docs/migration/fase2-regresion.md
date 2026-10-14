@@ -755,6 +755,68 @@ F1 (sin el salto de línea inicial de las constantes de Python).
 | Código | f-strings | `codegen` con minijinja | Filtro `pyrepr` |
 | Permutation importance (C10) | sklearn | Propio (F3) | RNG de numpy por columna |
 
+### 8.3 Implementación real y desviaciones (rust-ml-engineer, 2026-10-14)
+
+La API estable está documentada en `crates/mltutor-core/src/lib.rs` y `crates/mltutor-export/src/lib.rs`.
+Diferencias con lo previsto en §3, §5 y §8.1:
+
+- **Trait** `model::Predictor`: además de §3.0 tiene `classes() -> Option<&[usize]>` (código de clase de
+  cada columna de `predict_proba`), `linear_coefficients()`, `fit_report() -> Option<FitReport { n_iter,
+  max_iter, converged }>` y `as_any()`. `refit(x, y, &TrainControl)` recibe el control de cancelación.
+  `Target` es el de F1 (`dataset::Target`) con `select(&rows)`, `numeric()`, `class_codes()`. Las clases son
+  siempre **códigos** del dataset; los nombres los pone `src-tauri`.
+- **OLS**: datos centrados como sklearn → `linfa-linear` (QR) si el rango es completo; si no (columnas
+  colineales o constantes), solución de norma mínima por SVD (`linfa-linalg`), como `gelsd`.
+- **Logística: no usa `linfa-logistic`.** Mismo objetivo (verificado: `α = 1/C` exacto, test
+  `linfa_logistic_scale.rs`), pero el solver es propio: **Newton amortiguado** (Hessiana exacta, Cholesky,
+  Armijo) si `k·(p+1) ≤ 300` (todos los datasets salvo Dígitos) y L-BFGS + More-Thuente de `argmin`
+  (el de linfa, con bucle propio para cancelar y contar iteraciones) por encima. Ambos sobre características
+  estandarizadas internamente (cambio de variable; mismo óptimo). Resultado: el **óptimo** de sklearn, no
+  el punto donde se para su L-BFGS. `n_iter` cuenta iteraciones de Newton (5–9 frente a 23–1000 de
+  sklearn). `converged` = criterio de sklearn (`max|∇| ≤ tol`) en nuestra solución: en la práctica
+  siempre `true` con Newton, así que el aviso D19 casi nunca saldrá (Cáncer converge en 9 iteraciones).
+  En multinomial, los coeficientes de cada característica y los interceptos se centran (Σₖ = 0, como sklearn).
+- **Cáncer:** `converged_reference` (sklearn `tol=1e-12`) **no está en el óptimo**: scipy paró por `ftol`
+  con `max|∇| = 1,2e-5`. Rust llega a `max|∇| = 3e-9` con un objetivo menor (0,1067689484669 frente a
+  0,1067689502147), y difiere de esa referencia en 8,3e-5 de probabilidad. El test comprueba optimalidad
+  (gradiente y objetivo ≤ referencia) cuando la referencia no está convergida.
+- **Métricas**: `ClassificationEvaluation.confusion` es `Vec<Vec<u32>>`; `SampleRow { position, real,
+  predicted, correct }` con códigos; los avisos son `MetricWarning` (enum) con `message_es(&class_names)`.
+  `RegressionEvaluation` no lleva `y_true/y_pred` ni `interpretation_md` (los añade el DTO; el Markdown lo
+  da `interpretation::regression`). `errors_kde: Option<KdeCurve { x, y }>` ya escalada a recuentos.
+- **Interpretación**: incluye la línea NUEVA `reg_r2_negativo` si R² < 0.
+- **Curvas**: `Curve { x, y, thresholds: Vec<f64> }` con `+∞` como `f64::INFINITY` (el DTO lo pasa a
+  `None`); ROC: x = FPR, y = TPR; PR: x = recall, y = precision. `BinaryCurves.positive_class` =
+  `classes_[1]`. `MulticlassCurves` trae `per_class` (solo clases presentes en el test), `micro`, `macro_roc`
+  (interpolado, no media de AUC), `macro_ap` (media), `weighted_auc`, `weighted_ap` y `absent_classes`
+  (códigos, D20). Binaria/multiclase lo decide el número de clases **del modelo**.
+- **Probabilidades**: `ProbabilityView::{Binary(BinaryProbabilities), Multiclass { per_class }}` con
+  `ClassHistogram { class, hist }`; `shown_thresholds` = 0,3/0,5/0,7 presentes (D21).
+- **Residuos**: `ResidualAnalysis` incluye `residuals` y `r2` (D22); `checks.corr_ok = None` con n ≤ 10.
+- **Rejilla**: `decision_grid(...) -> DecisionGrid { axes: GridAxes { x, y, notices }, values, features,
+  points: Array2, point_target, model_2d, show_2d_warning }`; los mensajes son `GridNotice` (la UI los
+  formatea con `{n:,}`); `GridOptions { step }` (KNN: `knn_step(n)`).
+- **Coeficientes**: `CoefficientsView { model_task, rows, class_index, n_rows, intercept, intercept_odds,
+  quantiles: AbsQuantiles { q25, q60, q75, q80, q95 }, extreme }`; cada fila lleva `effect`, `importance`
+  (lineal), `strength` (logística, D27 simétrica) e `intensity` (la del análisis detallado, reglas de Python).
+  `Level::{VeryHigh, High, Medium, Low}`. Helpers `top(Effect)` y `signs()`.
+- **Formulario**: `FormControl { index, column, name, description, label, control: ControlKind::{Checkbox,
+  Select { options: [SelectOption { label, code }], default_index }, Slider { min, max, step, default }} }`,
+  `PredictionForm { controls, left_column }` y `default_values()`. `predict_one` devuelve
+  `PredictionOutcome::{Class { class, proba: Option<Vec<(code, p)>> }, Value { value }}`; la rama la decide
+  la tarea del **modelo** (D25). Iris muestra las descripciones de los metadatos (Python no las veía).
+- **Codegen**: `build.rs` incrusta todos los `content/code/*.j2`, así que una plantilla nueva se carga por
+  nombre sin tocar Rust (`render_named`). `CodeTemplate` añade `RegressionTraining`, `PackageScript` y
+  `PackageReadme`. Modo estricto también dentro de `pyrepr`.
+- **Export**: ONNX binario como skl2onnx (un solo `LinearClassifier` con filas `[−w, w]` y `LOGISTIC`, sin
+  `Normalizer`); multinomial con `SOFTMAX` + `Normalizer(L1)`. Opset `ai.onnx.ml` 3 (skl2onnx escribe 1).
+  Validado con onnxruntime + `onnx.checker` (error ≤ 1,6e-5 absoluto en Diabetes, ≤ 8e-7 en logística).
+  El paquete ZIP se ha ejecutado con scikit-learn en los 5 datasets incluidos ("✅ … predice lo mismo").
+- **Rendimiento** (`tests/bench_regression.rs`, release, Mac arm64): California entrenar 3,6 ms,
+  evaluación 3,5 ms, superficie 200×200 0,33 ms, formulario 1,8 ms; Cáncer logística 0,6 ms; **Dígitos
+  logística 490 ms** (L-BFGS hasta `max_iter`; fuera del presupuesto de 100 ms, pero con progreso y
+  cancelación por iteración).
+
 ### 8.2 Vistas
 
 | Vista | Comando | Componente Svelte |

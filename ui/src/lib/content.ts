@@ -7,6 +7,8 @@ import tarjetas from "@content/inicio/tarjetas.toml";
 import datosMensajes from "@content/datos/mensajes.toml";
 import csvMensajes from "@content/csv/mensajes.toml";
 import csvEjemplos from "@content/csv/ejemplos.toml";
+import componentesMensajes from "@content/componentes/mensajes.toml";
+import regresionMensajes from "@content/regresion/mensajes.toml";
 
 const markdown = import.meta.glob<string>("../../../content/**/*.md", {
   query: "?raw",
@@ -98,6 +100,34 @@ export const datosList = messageList(datosMensajes, "datos/mensajes.toml");
 /** `content/csv/mensajes.toml` */
 export const csvText = messages(csvMensajes, "csv/mensajes.toml");
 export const csvList = messageList(csvMensajes, "csv/mensajes.toml");
+
+/** `content/componentes/mensajes.toml` (shared evaluation/visualisation components). */
+export const compText = messages(componentesMensajes, "componentes/mensajes.toml");
+export const compList = messageList(componentesMensajes, "componentes/mensajes.toml");
+/** `content/regresion/mensajes.toml` */
+export const regText = messages(regresionMensajes, "regresion/mensajes.toml");
+export const regList = messageList(regresionMensajes, "regresion/mensajes.toml");
+
+function rawValue(source: unknown) {
+  const data = source as Readonly<Record<string, Readonly<Record<string, unknown>>>>;
+  return (section: string, key: string): unknown => data[section]?.[key];
+}
+
+/** Any value (tables of thresholds, panels…) of `componentes/mensajes.toml`; `undefined` if absent. */
+export const compRaw = rawValue(componentesMensajes);
+/** Any value of `regresion/mensajes.toml`; `undefined` if absent. */
+export const regRaw = rawValue(regresionMensajes);
+
+/** Optional text (new texts of the content author may not exist yet): `fallback` if absent. */
+export function optionalText(raw: (section: string, key: string) => unknown, section: string, key: string, fallback: string): string {
+  const value = raw(section, key);
+  return typeof value === "string" ? value : fallback;
+}
+
+/** Whether `content/<path>` exists (optional texts). */
+export function hasMd(path: string): boolean {
+  return Object.keys(markdown).some((candidate) => candidate.endsWith(`/content/${path}`));
+}
 
 export interface CsvExample {
   readonly name: string;

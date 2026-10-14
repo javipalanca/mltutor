@@ -16,7 +16,7 @@
     "tolerance": {
       "text": "exact (ignoring leading/trailing newlines)"
     },
-    "tolerance_rationale": "Templates are verbatim copies of the app's strings; the context uses Python repr() for lists (Rust needs a 'pyrepr' filter)."
+    "tolerance_rationale": "Templates are verbatim copies of the app's strings, except those with a 'changed' entry (a decision fixed the app's code; 'text' is then the expected render and 'python_text' the app's); the context uses Python repr() for lists (Rust needs a 'pyrepr' filter)."
   },
   "input": {
     "engine": "jinja2 with keep_trailing_newline=True, filter pyrepr = repr()"
@@ -55,7 +55,24 @@
     "frontera_decision.py.j2": {
       "source": "mltutor.algorithms.code_examples.generate_decision_boundary_code",
       "context": {
+        "feature_indices": [
+          2,
+          3
+        ],
         "feature_names": [
+          "petal length (cm)",
+          "petal width (cm)"
+        ],
+        "class_names": [
+          "setosa",
+          "versicolor",
+          "virginica"
+        ]
+      },
+      "text": "import numpy as np\nimport matplotlib.pyplot as plt\nfrom sklearn.base import clone\nfrom sklearn.inspection import DecisionBoundaryDisplay\n\n# Necesita X_train, y_train y modelo (el script de \"📄 Generar Código\")\n# Datos de entrenamiento: solo las 2 características elegidas\nX_2d = np.asarray(X_train, dtype=float)[:, [2, 3]]\n\n# Entrenar el modelo simplificado: mismo tipo e hiperparámetros, solo con esas 2 características\nmodel_2d = clone(modelo)\nmodel_2d.fit(X_2d, y_train)\n\n# Crear figura\nfig, ax = plt.subplots(figsize=(14, 10))\n\n# Visualizar frontera de decisión usando sklearn\ndisp = DecisionBoundaryDisplay.from_estimator(\n    model_2d,\n    X_2d,\n    response_method=\"predict\",\n    alpha=0.6,\n    ax=ax,\n    grid_resolution=200\n)\n\n# Añadir puntos de datos sobre la frontera\nscatter = ax.scatter(\n    X_2d[:, 0], \n    X_2d[:, 1], \n    c=y_train, \n    edgecolors='black', \n    s=60,\n    alpha=0.8\n)\n\n# Configurar etiquetas de los ejes\nfeature_names = ['petal length (cm)', 'petal width (cm)']\nif len(feature_names) >= 2:\n    ax.set_xlabel(feature_names[0])\n    ax.set_ylabel(feature_names[1])\nelse:\n    ax.set_xlabel(\"Característica 1\")\n    ax.set_ylabel(\"Característica 2\")\n\n# Añadir leyenda de clases\nclass_names = ['setosa', 'versicolor', 'virginica']\nif class_names:\n    legend_labels = class_names\nelse:\n    legend_labels = [f\"Clase {i}\" for i in range(len(np.unique(y_train)))]\n\n# Crear leyenda para las clases\nhandles, _ = scatter.legend_elements()\nax.legend(handles, legend_labels, title=\"Clases\", loc=\"best\")\n\nax.set_title(\"Frontera de Decisión\")\nplt.tight_layout()\nplt.show()\n\n# Para guardar a un archivo:\n# plt.savefig('frontera_decision.png', dpi=300, bbox_inches='tight')\n",
+      "python_text": "\nimport numpy as np\nimport matplotlib.pyplot as plt\nfrom sklearn.inspection import DecisionBoundaryDisplay\n\n# Datos de entrenamiento (solo las primeras 2 características)\nX_2d = X_train[:, [0, 1]]  # Usar las características seleccionadas\ny_train = y_train\n\n\n# Entrenar el modelo simplificado\nmodel_2d.fit(X_2d, y_train)\n\n# Crear figura\nfig, ax = plt.subplots(figsize=(14, 10))\n\n# Visualizar frontera de decisión usando sklearn\ndisp = DecisionBoundaryDisplay.from_estimator(\n    model_2d,\n    X_2d,\n    response_method=\"predict\",\n    alpha=0.6,\n    ax=ax,\n    grid_resolution=200\n)\n\n# Añadir puntos de datos sobre la frontera\nscatter = ax.scatter(\n    X_2d[:, 0], \n    X_2d[:, 1], \n    c=y_train, \n    edgecolors='black', \n    s=60,\n    alpha=0.8\n)\n\n# Configurar etiquetas de los ejes\nfeature_names = ['sepal length (cm)', 'sepal width (cm)', 'petal length (cm)', 'petal width (cm)']\nif len(feature_names) >= 2:\n    ax.set_xlabel(feature_names[0])\n    ax.set_ylabel(feature_names[1])\nelse:\n    ax.set_xlabel(\"Característica 1\")\n    ax.set_ylabel(\"Característica 2\")\n\n# Añadir leyenda de clases\nclass_names = ['setosa', 'versicolor', 'virginica']\nif class_names:\n    legend_labels = class_names\nelse:\n    legend_labels = [f\"Clase {i}\" for i in range(len(np.unique(y_train)))]\n\n# Crear leyenda para las clases\nhandles, _ = scatter.legend_elements()\nax.legend(handles, legend_labels, title=\"Clases\", loc=\"best\")\n\nax.set_title(\"Frontera de Decisión\")\nplt.tight_layout()\nplt.show()\n\n# Para guardar a un archivo:\n# plt.savefig('frontera_decision.png', dpi=300, bbox_inches='tight')\n",
+      "python_context": {
+        "feature_names_boundary": [
           "sepal length (cm)",
           "sepal width (cm)",
           "petal length (cm)",
@@ -67,8 +84,8 @@
           "virginica"
         ]
       },
-      "text": "\nimport numpy as np\nimport matplotlib.pyplot as plt\nfrom sklearn.inspection import DecisionBoundaryDisplay\n\n# Datos de entrenamiento (solo las primeras 2 características)\nX_2d = X_train[:, [0, 1]]  # Usar las características seleccionadas\ny_train = y_train\n\n\n# Entrenar el modelo simplificado\nmodel_2d.fit(X_2d, y_train)\n\n# Crear figura\nfig, ax = plt.subplots(figsize=(14, 10))\n\n# Visualizar frontera de decisión usando sklearn\ndisp = DecisionBoundaryDisplay.from_estimator(\n    model_2d,\n    X_2d,\n    response_method=\"predict\",\n    alpha=0.6,\n    ax=ax,\n    grid_resolution=200\n)\n\n# Añadir puntos de datos sobre la frontera\nscatter = ax.scatter(\n    X_2d[:, 0], \n    X_2d[:, 1], \n    c=y_train, \n    edgecolors='black', \n    s=60,\n    alpha=0.8\n)\n\n# Configurar etiquetas de los ejes\nfeature_names = ['sepal length (cm)', 'sepal width (cm)', 'petal length (cm)', 'petal width (cm)']\nif len(feature_names) >= 2:\n    ax.set_xlabel(feature_names[0])\n    ax.set_ylabel(feature_names[1])\nelse:\n    ax.set_xlabel(\"Característica 1\")\n    ax.set_ylabel(\"Característica 2\")\n\n# Añadir leyenda de clases\nclass_names = ['setosa', 'versicolor', 'virginica']\nif class_names:\n    legend_labels = class_names\nelse:\n    legend_labels = [f\"Clase {i}\" for i in range(len(np.unique(y_train)))]\n\n# Crear leyenda para las clases\nhandles, _ = scatter.legend_elements()\nax.legend(handles, legend_labels, title=\"Clases\", loc=\"best\")\n\nax.set_title(\"Frontera de Decisión\")\nplt.tight_layout()\nplt.show()\n\n# Para guardar a un archivo:\n# plt.savefig('frontera_decision.png', dpi=300, bbox_inches='tight')\n",
-      "compare": "text.strip('\\n') == render(template, context).strip('\\n')"
+      "changed": "D30: the pair chosen by the student (here petal length/width of Iris, indices 2 and 3) instead of always columns 0 and 1 with every feature name; model_2d = clone(modelo) so it runs after content/code/regresion_entrenamiento.py.j2",
+      "compare": "text == render(template, context)"
     }
   }
 }

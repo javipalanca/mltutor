@@ -96,6 +96,78 @@ pub enum Target {
     Values { values: Vec<f64> },
 }
 
+impl Target {
+    /// Number of rows.
+    pub fn len(&self) -> usize {
+        match self {
+            Target::Classes { codes, .. } => codes.len(),
+            Target::Values { values } => values.len(),
+        }
+    }
+
+    /// Whether there are no rows.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// The rows at `rows` (positional, e.g. a train/test split), keeping the class
+    /// names and values.
+    pub fn select(&self, rows: &[usize]) -> Target {
+        match self {
+            Target::Classes {
+                codes,
+                class_names,
+                class_values,
+            } => Target::Classes {
+                codes: rows
+                    .iter()
+                    .map(|&r| codes.get(r).copied().unwrap_or(u32::MAX))
+                    .collect(),
+                class_names: class_names.clone(),
+                class_values: class_values.clone(),
+            },
+            Target::Values { values } => Target::Values {
+                values: rows
+                    .iter()
+                    .map(|&r| values.get(r).copied().unwrap_or(f64::NAN))
+                    .collect(),
+            },
+        }
+    }
+
+    /// Python's numeric `y`: the class value of each row for classification (the
+    /// code itself for built-in datasets), the values for regression.
+    pub fn numeric(&self) -> Vec<f64> {
+        match self {
+            Target::Classes {
+                codes,
+                class_values,
+                ..
+            } => codes
+                .iter()
+                .map(|&c| class_values.get(c as usize).copied().unwrap_or(f64::NAN))
+                .collect(),
+            Target::Values { values } => values.clone(),
+        }
+    }
+
+    /// Class codes as `usize` (classification only).
+    pub fn class_codes(&self) -> Option<Vec<usize>> {
+        match self {
+            Target::Classes { codes, .. } => Some(codes.iter().map(|&c| c as usize).collect()),
+            Target::Values { .. } => None,
+        }
+    }
+
+    /// Number of classes of the dataset (classification only).
+    pub fn n_classes(&self) -> Option<usize> {
+        match self {
+            Target::Classes { class_names, .. } => Some(class_names.len()),
+            Target::Values { .. } => None,
+        }
+    }
+}
+
 /// A dataset ready for exploration and training. Rows are aligned by position
 /// (the Python Penguins misalignment is not reproduced).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -151,17 +223,7 @@ impl Dataset {
 
     /// The target as Python's numeric `y` (class values for classification).
     pub fn target_numeric(&self) -> Vec<f64> {
-        match &self.target {
-            Target::Classes {
-                codes,
-                class_values,
-                ..
-            } => codes
-                .iter()
-                .map(|&c| class_values.get(c as usize).copied().unwrap_or(f64::NAN))
-                .collect(),
-            Target::Values { values } => values.clone(),
-        }
+        self.target.numeric()
     }
 
     /// The target as shown in the exploration: the class name per row for

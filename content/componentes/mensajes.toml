@@ -3,6 +3,11 @@
 # Origen: mltutor/algorithms/model_evaluation.py, mltutor/viz/{roc,residual,decision_boundary,features}.py,
 # mltutor/ui.py::create_prediction_interface y mltutor/utils.py. {x:.4f} = formato de Python.
 # Textos largos (expanders): los .md de esta carpeta.
+#
+# Marcas:  "NUEVO (Dnn)" = texto que no existe en Python, exigido por una decisión de
+# fase2-regresion.md §10.  "CORREGIDO" = el texto de Python era incorrecto; el literal original
+# queda en el comentario "Python:". Los tests de paridad de textos deben usar el literal de Python
+# solo para las claves que no llevan estas marcas.
 
 [codigo]   # utils.show_code_with_download(code, title, filename)
 titulo = "#### {titulo}"
@@ -64,6 +69,10 @@ titulo = "### 🔍 Interpretación de Resultados"
 # Regresión (st.info, líneas unidas con "\n"):
 reg = ["**Resumen del Modelo:**", "- Tu modelo de regresión lineal explica **{r2_pct:.1f}%** de la variabilidad en los datos", "- En promedio, las predicciones se desvían **{mae:.2f} unidades** del valor real (MAE)", "- La raíz del error cuadrático medio es **{rmse:.2f} unidades** (RMSE)"]
 reg_rmse_mayor = "\n- ⚠️ El RMSE es significativamente mayor que el MAE, lo que indica la presencia de algunos errores grandes"   # si rmse > 1.5·mae
+# NUEVO: si r2 < 0 se añade esta línea (después de reg_rmse_mayor, si aparece). Python decía
+# "explica **-12.3%** de la variabilidad" sin más. Nota para F3/F4: "regresión lineal" de `reg` es
+# literal también en Árboles y KNN, donde no es correcto.
+reg_r2_negativo = "\n- ⚠️ El R² es negativo: con los datos de prueba, el modelo predice peor que si diera siempre la media del objetivo"
 # Clasificación (st.info): cada línea termina en "\n"
 cls = ["**Resumen del Modelo:**", "- Tu modelo clasifica correctamente **{acc_pct:.1f}%** de los casos", "- De las predicciones positivas, **{prec_pct:.1f}%** son correctas (Precisión)", "- Detecta **{rec_pct:.1f}%** de todos los casos positivos reales (Recall)"]
 cls_f1 = "- El F1-Score (balance entre precisión y recall) es **{f1:.3f}**\n\n"   # si f1 > 0
@@ -90,6 +99,12 @@ leyenda_roc = "Curva ROC (AUC = {auc:.3f})"                  # darkorange
 leyenda_aleatorio = "Clasificador Aleatorio"                  # binaria: navy '--'; multiclase: 'k--' alpha 0.5
 leyenda_pr = "Curva P-R (AP = {ap:.3f})"                      # darkgreen
 leyenda_baseline = "Baseline ({baseline:.3f})"                # navy '--', y = proporción de positivos
+# NUEVO: st.caption bajo el título de las curvas binarias. En 🔬 Cáncer la clase 1 es *benign*: sin
+# esta nota parece que la ROC mide la detección del tumor maligno.
+clase_positiva = "La clase positiva es **{clase}** (la de código 1): las curvas miden lo bien que el modelo la distingue de **{clase_negativa}**."
+# NUEVO (D20): multiclase, si alguna clase del modelo no tiene muestras en el conjunto de prueba.
+# Python desalineaba las columnas de predict_proba; Rust usa las clases del modelo y omite estas.
+clases_ausentes = "ℹ️ Sin muestras de prueba de: {clases}. Sus curvas ROC y Precision-Recall no se pueden calcular y no entran en los promedios."   # {clases} = nombres separados por ", "
 leyenda_clase_roc = "{clase} (AUC = {auc:.3f})"
 leyenda_clase_pr = "{clase} (AP = {ap:.3f})"
 leyenda_micro_roc = "Micro-promedio (AUC = {auc:.3f})"       # deeppink ':' ancho 4
@@ -138,7 +153,11 @@ actual = "Umbral Actual"                                       # valor fijo "0.5
 optimo = "Umbral Óptimo (F1)"                                  # {:.2f}
 consejo = "💡 Considera ajustar el umbral a {umbral:.2f} para mejorar el F1-Score"   # si |óptimo − 0.5| > 0.1
 tabla_titulo = "**Comparación de Umbrales:**"
-tabla_columnas = ["Umbral", "Accuracy", "Precision", "Recall", "F1-Score"]   # {:.3f}; filas 0.3/0.5/0.7 (por un fallo de coma flotante solo aparece 0.5, ver D21)
+tabla_columnas = ["Umbral", "Accuracy", "Precision", "Recall", "F1-Score"]   # Umbral {:.1f} (Python no lo formateaba: con D21 saldría 0.30000000000000004), resto {:.3f}
+# D21: filas 0.3, 0.5 y 0.7, como pretendía el código (en Python, por la coma flotante de
+# np.arange, solo aparecía la fila 0.5). Si un umbral predice una sola clase, no tiene fila.
+# NUEVO (D21): st.caption debajo de la tabla.
+tabla_nota = "Cada fila clasifica como positiva toda muestra con probabilidad ≥ umbral y recalcula las métricas con el conjunto de prueba."
 
 [residuos]   # viz/residual.py
 expander_pred = "ℹ️ ¿Cómo interpretar estas visualizaciones?"   # predicciones-vs-reales.md
@@ -146,7 +165,7 @@ pred_title = "Predicciones vs Valores Reales"                   # scatter alpha 
 pred_xlabel = "Valores Reales"
 pred_ylabel = "Predicciones"
 pred_leyenda = "Predicción Perfecta"                            # 'r--', de min(y, ŷ) a max(y, ŷ)
-pred_r2 = "R² = {r2:.4f}"                                       # caja wheat; en Python SIEMPRE 0.0000 (lee metrics_lr, que no existe): D22
+pred_r2 = "R² = {r2:.4f}"                                       # caja wheat. D22: el R² real del test (en Python SIEMPRE 0.0000: leía metrics_lr, que no existe)
 expander_residuos = "ℹ️ ¿Cómo interpretar el análisis de residuos?"   # residuos-interpretar.md
 res_title = "Residuos vs Predicciones"
 res_xlabel = "Predicciones"
@@ -161,9 +180,18 @@ hist_ideal = "Ideal (0)"                                        # green, alpha 0
 interp_titulo = "### 🔍 Interpretación de los Residuos"
 media_ok = "✅ **Media de residuos cercana a 0:** El modelo está bien calibrado"   # |media| < 0.1·std
 media_mal = "⚠️ **Media de residuos alejada de 0:** El modelo puede tener sesgo sistemático"
-corr_ok = "✅ **Sin correlación entre residuos y predicciones:** Buen ajuste lineal"   # n > 10 y |r| < 0.1 (linregress(ŷ, residuos))
-corr_mal = "⚠️ **Correlación detectada en residuos:** Puede haber relaciones no lineales"
-normal_ok = "✅ **Distribución de residuos aproximadamente normal**"   # |skew| < 1 (scipy, sesgado)
+# CORREGIDO: la prueba es una correlación LINEAL (Pearson) entre ŷ y los residuos. Detecta un sesgo
+# que crece o decrece con la predicción, pero no una curva (un patrón en U tiene r ≈ 0), así que
+# no demuestra un "buen ajuste lineal" ni indica por sí sola relaciones no lineales.
+# Python: "✅ **Sin correlación entre residuos y predicciones:** Buen ajuste lineal" y
+# "⚠️ **Correlación detectada en residuos:** Puede haber relaciones no lineales".
+corr_ok = "✅ **Sin correlación entre residuos y predicciones:** el error no aumenta ni disminuye de forma sistemática con el valor predicho"   # n > 10 y |r| < 0.1 (linregress(ŷ, residuos))
+corr_mal = "⚠️ **Correlación detectada en residuos:** el modelo se equivoca de forma sistemática según el valor predicho (por ejemplo, se queda corto en los valores altos)"
+# NUEVO (§4, caso n ≤ 10): Python lanzaba NameError; Rust omite la viñeta de correlación y muestra esta.
+corr_pocas_muestras = "ℹ️ **Correlación de los residuos:** con 10 muestras de prueba o menos no se comprueba"
+# CORREGIDO: solo se mide la asimetría (|skew| < 1); una distribución simétrica puede no ser normal
+# (dos picos, colas largas). Python: "✅ **Distribución de residuos aproximadamente normal**".
+normal_ok = "✅ **Distribución de residuos aproximadamente simétrica**"   # |skew| < 1 (scipy, sesgado)
 normal_mal = "⚠️ **Distribución de residuos sesgada:** Revisar outliers o transformaciones"
 item = "- {texto}"
 sugerencias = "💡 **Sugerencias de mejora:** Considera probar transformaciones de variables, añadir características polinómicas, o usar modelos no lineales."   # st.info si falla alguna de las tres
@@ -173,6 +201,8 @@ titulo = "### Selección de Características"
 texto = "Selecciona 2 características para visualizar:"
 primera = "Primera característica:"                            # key viz_feature1, índice 0
 segunda = "Segunda característica:"                            # key viz_feature2, índice min(1, n−1)
+# NUEVO (§4): si las dos son iguales, Python no dibujaba nada y no decía nada.
+misma_caracteristica = "ℹ️ Elige dos características distintas para dibujar el gráfico."
 spinner_frontera = "Generando frontera de decisión..."
 spinner_superficie = "Generando superficie de decisión..."
 spinner_malla = "Calculando predicciones en {n:,} puntos..."

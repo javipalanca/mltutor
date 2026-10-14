@@ -57,7 +57,7 @@ fn ipc_dataset_id(id: core::DatasetId) -> DatasetId {
     }
 }
 
-fn task(task: core::TaskType) -> TaskType {
+pub(crate) fn task(task: core::TaskType) -> TaskType {
     match task {
         core::TaskType::Classification => TaskType::Classification,
         core::TaskType::Regression => TaskType::Regression,
@@ -222,23 +222,27 @@ pub fn dataset_error(error: core::DatasetError) -> CommandError {
 
 // --- views ---
 
-struct CoreDataset(core::Dataset);
+/// A parsed dataset; `id` is `None` for user CSVs (no metadata for the form).
+pub(crate) struct CoreDataset {
+    data: Arc<core::Dataset>,
+    id: Option<core::DatasetId>,
+}
 
 impl DatasetView for CoreDataset {
     fn summary(&self) -> DatasetSummary {
-        summary(self.0.summary())
+        summary(self.data.summary())
     }
 
     fn preview(&self, rows: usize) -> TablePreview {
-        table(explore::preview(&self.0, rows))
+        table(explore::preview(&self.data, rows))
     }
 
     fn describe(&self) -> DescribeTable {
-        describe(explore::describe(&self.0))
+        describe(explore::describe(&self.data))
     }
 
     fn target_distribution(&self) -> TargetDistribution {
-        match explore::target_distribution(&self.0) {
+        match explore::target_distribution(&self.data) {
             explore::TargetDistribution::Bar {
                 labels,
                 counts,
@@ -270,7 +274,7 @@ impl DatasetView for CoreDataset {
 
     fn correlation(&self, cancel: &AtomicBool) -> Result<CorrelationMatrix, CommandError> {
         let corr =
-            explore::correlation_matrix_cancellable(&self.0, cancel).map_err(dataset_error)?;
+            explore::correlation_matrix_cancellable(&self.data, cancel).map_err(dataset_error)?;
         Ok(CorrelationMatrix {
             truncation_message: corr.truncation_message(),
             values: matrix(&corr.values),
@@ -287,9 +291,17 @@ impl DatasetView for CoreDataset {
             DiagKind::Kde => explore::DiagKind::Kde,
             DiagKind::Hist => explore::DiagKind::Hist,
         };
-        explore::pairplot_data(&self.0, features, diag)
+        explore::pairplot_data(&self.data, features, diag)
             .map(pairplot)
             .map_err(dataset_error)
+    }
+    fn train(
+        &self,
+        spec: &crate::core_facade::TrainSpec,
+        progress: &crate::core_facade::Progress<'_>,
+        cancel: &AtomicBool,
+    ) -> Result<crate::core_facade::ModelHandle, CommandError> {
+        crate::real_models::train(&self.data, self.id, spec, progress, cancel)
     }
 }
 
@@ -401,7 +413,10 @@ impl CsvDraft for CoreCsvDraft {
             n_cols: self.table.n_cols(),
             describe: describe(self.table.describe()),
             target_stats: stats,
-            dataset: Arc::new(CoreDataset(dataset)),
+            dataset: Arc::new(CoreDataset {
+                data: Arc::new(dataset),
+                id: None,
+            }),
         })
     }
 }
@@ -435,7 +450,10 @@ impl CoreFacade for RealFacade {
             other => core::dataset::load_builtin(dataset_id(other)),
         }
         .map_err(dataset_error)?;
-        Ok(Arc::new(CoreDataset(dataset)))
+        Ok(Arc::new(CoreDataset {
+            data: Arc::new(dataset),
+            id: Some(dataset_id(id)),
+        }))
     }
 
     fn read_csv(

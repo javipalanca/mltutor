@@ -26,6 +26,18 @@ fn main() {
         "set_csv_target",
         "discard_csv",
         "save_file",
+        "train_model",
+        "lesson_model",
+        "evaluate_model",
+        "roc_curves",
+        "probability_view",
+        "residuals_view",
+        "decision_grid",
+        "coefficients_view",
+        "prediction_form",
+        "predict_one",
+        "export_model",
+        "generate_code",
     ]);
     if let Err(error) =
         tauri_build::try_build(tauri_build::Attributes::new().app_manifest(manifest))

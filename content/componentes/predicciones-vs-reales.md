@@ -1,4 +1,4 @@
-<!-- mltutor/viz/residual.py::plot_predictions, antes del gráfico. Expander cerrado. Título del expander: "ℹ️ ¿Cómo interpretar estas visualizaciones?" -->
+<!-- mltutor/viz/residual.py::plot_predictions, antes del gráfico. Expander cerrado. Título del expander: "ℹ️ ¿Cómo interpretar estas visualizaciones?". NUEVO en Rust (D22, 2026-10-14): la viñeta del recuadro R², que en Python siempre mostraba 0.0000. -->
 **Gráfico de Predicciones vs Valores Reales:**
 - Cada punto representa una predicción del modelo
 - La línea roja diagonal representa predicciones perfectas
@@ -6,6 +6,7 @@
     - Puntos cerca de la línea roja = buenas predicciones
     - Puntos dispersos = predicciones menos precisas
     - Patrones sistemáticos fuera de la línea pueden indicar problemas del modelo
+- **Recuadro R²:** el coeficiente de determinación con los datos de prueba (el mismo de 📈 Evaluación); cuanto más cerca de 1, más se pegan los puntos a la diagonal
 
 **Gráfico de Residuos:**
 - Muestra la diferencia entre valores reales y predicciones

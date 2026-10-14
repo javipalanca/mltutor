@@ -108,7 +108,7 @@ export function withAlpha(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-function baseLayout(theme: ChartTheme, title: string): Partial<Layout> {
+export function baseLayout(theme: ChartTheme, title: string): Partial<Layout> {
   return {
     title: { text: title, font: { size: 16, color: theme.text }, x: 0.5, xanchor: "center" },
     font: { family: "Inter Variable, Inter, Segoe UI, Arial, sans-serif", size: 13, color: theme.text },
@@ -120,7 +120,7 @@ function baseLayout(theme: ChartTheme, title: string): Partial<Layout> {
   };
 }
 
-function axis(theme: ChartTheme, title: string) {
+export function axis(theme: ChartTheme, title: string) {
   return {
     title: { text: title, font: { size: 13 } },
     gridcolor: theme.grid,

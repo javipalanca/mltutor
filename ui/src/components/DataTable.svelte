@@ -12,9 +12,13 @@
     sortable?: boolean;
     /** Accessible name. */
     label?: string;
+    /** Columns shown right-aligned even if their cells are text (pre-formatted numbers). */
+    numericColumns?: readonly number[];
+    /** Hides the "n filas · m columnas" caption (small tables inside a layout). */
+    compact?: boolean;
   }
 
-  let { columns, rows, index, hideIndex = false, sortable = false, label }: Props = $props();
+  let { columns, rows, index, hideIndex = false, sortable = false, label, numericColumns = [], compact = false }: Props = $props();
 
   let sortColumn = $state<number | null>(null);
   let descending = $state(false);
@@ -121,7 +125,7 @@
             {#if showIndex}<th scope="row" class="index">{index?.[row] ?? ""}</th>{/if}
             {#each rows[row] ?? [] as cell, c (c)}
               {@const text = cellText(cell)}
-              <td class:number={cell.kind === "number"} class:missing={cell.kind === "missing"} title={cell.kind === "number" ? String(cell.v) : undefined}>
+              <td class:number={cell.kind === "number" || numericColumns.includes(c)} class:missing={cell.kind === "missing"} title={cell.kind === "number" ? String(cell.v) : undefined}>
                 {text}
               </td>
             {/each}
@@ -130,10 +134,12 @@
       </tbody>
     </table>
   </div>
+  {#if !compact}
   <div class="caption">
     {rows.length.toLocaleString("en-US")} filas · {columns.length} columnas &nbsp;·&nbsp; Selecciona y copia con Ctrl+C / ⌘C
     {#if copied}<span class="copied"> · ✓ Copiado</span>{/if}
   </div>
+  {/if}
 </div>
 
 <style>

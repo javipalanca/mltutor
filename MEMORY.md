@@ -247,6 +247,57 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
   - El formulario de predicción de Python usa float32; Rust usa f64 (D31).
     `onnx.reference.ReferenceEvaluator` evalúa LinearClassifier/LinearRegressor sin onnxruntime.
   - Capturas de F2: `uv run python tools/capture_qt.py --phase 2 --quantize`, unos 75 s.
+- **UI de F2 (2026-10-14):** WKWebView no avanza las transiciones CSS en ventanas ocultas o
+  con `--full-page`, y las capturas salían con botones a medio cambiar. En modo automatizado,
+  `startup.ts` pone `data-automation` en `<html>` y `theme.css` desactiva las transiciones. En
+  el smoke test, los timers se congelan con la ventana oculta y `waitFor` puede no expirar:
+  los selectores deben apuntar a elementos visibles (el `pre` de un expander cerrado colgaba la
+  prueba). `listen()` necesita `core:event:allow-listen/unlisten`. Los textos propios en
+  Markdown se insertan con un marcador después de `fmt` para que no se escapen.
+  `modelSession.svelte.ts` y `viewLoader.svelte.ts` (`ui/src/lib/ml/`) son reutilizables en
+  F3–F5; la frontera de los modelos es `ModelView` + `DatasetView::train`.
+- **Medidas F2:** `.app` de 14,9 MiB (zip de 8,1 MB); entrenar y cada vista ≤ 5 ms en California;
+  el smoke test completo tarda unos 13 s.
+- **Logística en Rust (2026-10-14):** linfa minimiza Σ pérdida + (α/2)‖W‖²: α = 1/C exacto,
+  sin ½ ni media (`tests/linfa_logistic_scale.rs`). Aun así NO se usa linfa-logistic: no
+  cancela, no informa de iteraciones ni convergencia y con L-BFGS no converge en Cáncer. El
+  solver es propio:
+  - Newton amortiguado (Hessiana exacta + Cholesky + Armijo) si `k·(p+1) ≤ 300`;
+  - L-BFGS de argmin con bucle propio en los demás casos (Dígitos: unos 0,5 s);
+  - estandarización interna, buscando el óptimo y no el punto donde para sklearn;
+  - Cáncer converge en 9 iteraciones.
+  La `converged_reference` de Cáncer no está en el óptimo (scipy para por ftol, max|∇| 1,2e-5),
+  así que el test comprueba gradiente < 1e-6 y un objetivo ≤ al de la referencia. Consecuencia:
+  el aviso D19 casi nunca saldrá. Los coeficientes multinomiales se centran (Σₖ = 0).
+- **minijinja 3:** `keep_trailing_newline` se activa con `SyntaxConfig::builder()`; serde con
+  `Value::from(Serde(x))`; en modo strict, un `undefined` pasado a un filtro NO falla, así que
+  `pyrepr` lo rechaza a mano. `crates/mltutor-core/build.rs` incrusta todos los
+  `content/code/*.j2`, que se cargan por nombre.
+- **zip 9 determinista:** `default-features = false`, `deflate-flate2-zlib-rs` y
+  `last_modified_time(DateTime::default())`.
+- **ONNX binario de skl2onnx:** un `LinearClassifier` con filas `[−w, w]` y `LOGISTIC`, sin
+  Normalizer. onnxruntime acepta `ai.onnx.ml` 3.
+- **CSV:** `"-0"` en una columna entera que pasa a float debe dar -0.0 (lo encontró la
+  proptest; el caso está en `proptest-regressions/`, versionado).
+- **Contenido de F2 (2026-10-14):** `content/code/regresion_entrenamiento.py.j2` (D29) se ejecuta
+  en `export_golden.py` (`code/regression_training`) y reproduce la app a 1e-12. Rust debe pasar
+  SIEMPRE todas las variables (null si no aplican), porque las plantillas se probaron con
+  minijinja en modo strict. Los textos de `content/` marcados CORREGIDO/NUEVO difieren a
+  propósito de Python, y los tests de paridad de textos deben excluirlos. Correcciones
+  conceptuales:
+  - ejemplos de umbrales (spam, diagnóstico) que estaban al revés;
+  - el R² va de −∞ a 1;
+  - en la softmax, e^β no es el odds ratio de una clase frente al resto;
+  - el micro-promedio lo dominan las clases frecuentes;
+  - la prueba de Pearson sobre los residuos no detecta curvas;
+  - con L2, escalar cambia el modelo y no solo la convergencia.
+- **AUC macro de la app:** interpola las curvas ROC por clase y las promedia, así que no es la
+  media de los AUC por clase (0,561 frente a 0,502 en el CSV `string_target`); el AP macro sí
+  lo es. Cáncer sin escalar necesita 2278 iteraciones (el máximo del deslizador es 2000);
+  escalado, 19. En la multinomial con L2 de sklearn, los coeficientes de cada característica
+  suman 0 entre clases.
+- **seaborn-data:** `sns.load_dataset` reproduce los CSV golden. Pingüinos pasa `sex` a formato
+  título (el CSV original trae MALE/FEMALE).
 - **CSV de texto con diccionario (2026-10-14):** `ColumnData::Text` es un `TextColumn`: un código
   `u32` por fila (`u32::MAX` = faltante) y los valores distintos una sola vez, en orden de
   primera aparición, que es el desempate de `value_counts` en pandas. Con 94 MiB de texto, el

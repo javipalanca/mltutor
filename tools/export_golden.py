@@ -1541,6 +1541,18 @@ CODE_TEMPLATES = {
 }
 
 
+# Templates that deliberately differ from the app's text (a decision fixes a bug): the
+# fixture stores the rendered text Rust must produce, plus the app's text for reference.
+CODE_TEMPLATES_CHANGED: dict[str, tuple[str, dict]] = {
+    "frontera_decision.py.j2": (
+        "D30: the pair chosen by the student (here petal length/width of Iris, indices 2 and 3) "
+        "instead of always columns 0 and 1 with every feature name; model_2d = clone(modelo) so "
+        "it runs after content/code/regresion_entrenamiento.py.j2",
+        {"feature_indices": [2, 3], "feature_names": ["petal length (cm)", "petal width (cm)"],
+         "class_names": ["setosa", "versicolor", "virginica"]}),
+}
+
+
 def case_code_regression(writer: Writer) -> None:
     import importlib
 
@@ -1549,6 +1561,14 @@ def case_code_regression(writer: Writer) -> None:
         mod, attr = dotted.rsplit(".", 1)
         obj = getattr(importlib.import_module(mod), attr)
         app_text = obj(**ctx) if callable(obj) else obj
+        if template in CODE_TEMPLATES_CHANGED:
+            reason, tctx = CODE_TEMPLATES_CHANGED[template]
+            out[template] = {"source": dotted, "context": tctx,
+                             "text": _render_code_template(template, tctx),
+                             "python_text": app_text, "python_context": ctx,
+                             "changed": reason,
+                             "compare": "text == render(template, context)"}
+            continue
         tctx = {}
         if ctx:
             tctx = {"feature_names": ctx.get("feature_names_boundary"),
@@ -1561,12 +1581,152 @@ def case_code_regression(writer: Writer) -> None:
                          "compare": "text.strip('\\n') == render(template, context).strip('\\n')"}
     doc = {
         "meta": make_meta({"text": "exact (ignoring leading/trailing newlines)"},
-                          "Templates are verbatim copies of the app's strings; the context uses "
-                          "Python repr() for lists (Rust needs a 'pyrepr' filter)."),
+                          "Templates are verbatim copies of the app's strings, except those with "
+                          "a 'changed' entry (a decision fixed the app's code; 'text' is then the "
+                          "expected render and 'python_text' the app's); the context uses Python "
+                          "repr() for lists (Rust needs a 'pyrepr' filter)."),
         "input": {"engine": "jinja2 with keep_trailing_newline=True, filter pyrepr = repr()"},
         "expected": out,
     }
     writer.write_json(PARITY_DIR / "code" / "regression.json", doc)
+
+
+# D29: "📄 Generar Código" of the 📊 Regresión lesson is a complete training script
+# (content/code/regresion_entrenamiento.py.j2). Each case renders it with the context
+# Rust will pass, EXECUTES it in a fresh interpreter and checks that the numbers it
+# computes equal the app's (linear_models fixtures). Only datasets bundled with
+# scikit-learn and CSVs, so the case needs no network.
+TRAINING_SCRIPT_CASES: dict[str, dict[str, Any]] = {
+    "iris_logistic": {"fixture": "iris_logistic", "sample": None},
+    "iris_logistic_form_sample": {"fixture": "iris_logistic", "sample": [5.8, 3.0, 4.35, 1.3]},
+    "breast_cancer_logistic": {"fixture": "breast_cancer_logistic", "sample": None},
+    "diabetes_linear": {"fixture": "diabetes_linear", "sample": None},
+    "iris_linear_mismatch": {"fixture": "iris_linear_mismatch", "sample": None},
+    "csv_string_target_logistic": {"fixture": "csv_string_target_logistic", "sample": None},
+    "csv_numeric_regression_linear": {"fixture": "csv_numeric_regression_linear", "sample": None},
+}
+TRAINING_SCRIPT_CONTEXT_KEYS = ["dataset", "dataset_label", "csv_file", "csv_target", "csv_sep",
+                                "csv_decimal", "csv_encoding", "model", "max_iter", "test_size",
+                                "feature_names", "class_names", "sample"]
+_TRAINING_SCRIPT_PROBE = """\
+import json, runpy, sys
+import numpy as np
+g = runpy.run_path(sys.argv[1], run_name="__main__")
+out = {k: float(g[k]) for k in ("accuracy", "precision", "recall", "f1", "auc", "ap", "auc_micro",
+                                "ap_micro", "ap_macro", "mse", "rmse", "mae", "r2") if k in g}
+out["y_pred"] = np.asarray(g["y_pred"], dtype=float).tolist()
+out["test_positions"] = [int(g["X"].index.get_loc(i)) for i in g["X_test"].index]
+out["prediction"] = float(g["prediccion"])
+with open(sys.argv[2], "w", encoding="utf-8") as f:
+    json.dump(out, f)
+"""
+
+
+def _training_script_context(spec: dict) -> tuple[dict, dict[str, bytes], dict]:
+    """Template context (as Rust builds it), files to place next to the script, fixture."""
+    fixture = json.loads((PARITY_DIR / LR_MODULE / f"{spec['fixture']}.json").read_text("utf-8"))
+    inp, exp = fixture["input"], fixture["expected"]
+    logistic = inp["model_type"] == "Logistic"
+    files: dict[str, bytes] = {}
+    ctx = dict.fromkeys(TRAINING_SCRIPT_CONTEXT_KEYS)
+    class_names = exp["class_names"] if logistic else None
+    if "csv_fixture" in inp:
+        name = Path(inp["csv_fixture"]).stem
+        raw = _csv_cases()[name]
+        files[f"{name}.csv"] = raw
+        ctx.update(dataset="csv", csv_file=f"{name}.csv", csv_target=inp["target"], csv_sep=",",
+                   csv_decimal=".", csv_encoding="utf-8")
+        target = pd.read_csv(__import__("io").BytesIO(raw))[inp["target"]]
+        if logistic and target.dtype == object:  # D10: Rust keeps the original class names
+            class_names = sorted(target.astype(str).unique().tolist())
+    else:
+        ctx["dataset"] = Path(inp["dataset"]).stem
+    ctx.update(dataset_label=inp["app_label"], model="logistic" if logistic else "linear",
+               max_iter=inp["max_iter"] if logistic else None, test_size=inp["test_size"],
+               feature_names=exp["feature_names"], class_names=class_names, sample=spec["sample"])
+    return ctx, files, fixture
+
+
+def _training_script_reference(fixture: dict) -> dict[str, float]:
+    """The app's numbers that the script must reproduce."""
+    exp = fixture["expected"]
+    ev = exp.get("evaluation")
+    if fixture["input"]["model_type"] == "Logistic":
+        wa = ev["classification_report"]["weighted avg"]
+        ref = {"accuracy": ev["accuracy"], "precision": wa["precision"], "recall": wa["recall"],
+               "f1": wa["f1-score"]}
+        curves = ev["curves"]
+        if "binary" in curves:
+            ref["auc"] = curves["binary"]["roc"]["auc"]
+            ref["ap"] = curves["binary"]["pr"]["average_precision"]
+        else:
+            mc = curves["multiclass"]
+            ref["auc_micro"] = mc["micro"]["roc"]["auc"]
+            ref["ap_micro"] = mc["micro"]["pr"]["average_precision"]
+            ref["ap_macro"] = mc["macro"]["average_precision"]
+        return ref
+    if ev is None:  # model/task mismatch: the fixture has y_test/y_pred, not the metrics
+        from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+
+        yt = np.asarray(exp["y_test"], dtype=float)
+        yp = np.asarray(exp["y_pred"], dtype=float)
+        mse = mean_squared_error(yt, yp)
+        return {"mse": mse, "rmse": math.sqrt(mse), "mae": mean_absolute_error(yt, yp),
+                "r2": r2_score(yt, yp)}
+    return {k: ev[k] for k in ("mse", "rmse", "mae", "r2")}
+
+
+def case_code_regression_training(writer: Writer) -> None:
+    import subprocess
+    import tempfile
+
+    out = {}
+    for name, spec in TRAINING_SCRIPT_CASES.items():
+        ctx, files, fixture = _training_script_context(spec)
+        script = _render_code_template("regresion_entrenamiento.py.j2", ctx)
+        with tempfile.TemporaryDirectory() as tmp:
+            for fname, data in files.items():
+                (Path(tmp) / fname).write_bytes(data)
+            (Path(tmp) / "script.py").write_text(script, encoding="utf-8")
+            (Path(tmp) / "probe.py").write_text(_TRAINING_SCRIPT_PROBE, encoding="utf-8")
+            proc = subprocess.run([sys.executable, "probe.py", "script.py", "numbers.json"],
+                                  cwd=tmp, capture_output=True, text=True, timeout=300,
+                                  env={**os.environ, "PYTHONWARNINGS": "ignore"})
+            if proc.returncode != 0:
+                raise RuntimeError(f"{name}: script failed:\n{proc.stdout}\n{proc.stderr}")
+            got = json.loads((Path(tmp) / "numbers.json").read_text("utf-8"))
+        exp = fixture["expected"]
+        if got["test_positions"] != exp["test_indices"]:
+            raise AssertionError(f"{name}: the script's split differs from the app's")
+        if not np.allclose(got["y_pred"], np.asarray(exp["y_pred"], dtype=float),
+                           rtol=1e-9, atol=1e-9):
+            raise AssertionError(f"{name}: predictions differ from the app's")
+        ref = _training_script_reference(fixture)
+        for key, value in ref.items():
+            if not math.isclose(got[key], value, rel_tol=1e-12, abs_tol=1e-12):
+                raise AssertionError(f"{name}: {key} = {got[key]!r}, app = {value!r}")
+        out[name] = {
+            "context": ctx,
+            "text": script,
+            "stdout": proc.stdout,
+            "checked_against": f"{LR_MODULE}/{spec['fixture']}.json",
+            "checked_numbers": {k: got[k] for k in ref},
+            "sample_prediction": got["prediction"],
+        }
+    doc = {
+        "meta": make_meta(
+            {"text": "exact", "stdout": "informational (depends on the scikit-learn version)"},
+            "D29: the template is rendered with jinja2 (identical to minijinja for the constructs "
+            "it uses; checked with the minijinja Python bindings) and executed; its split, "
+            "predictions and metrics equal the app's (rel 1e-12). Rust must render 'text' "
+            "exactly from 'context' (filter pyrepr = Python repr())."),
+        "input": {"template": "content/code/regresion_entrenamiento.py.j2",
+                  "engine": "jinja2 with keep_trailing_newline=True, StrictUndefined, "
+                            "filter pyrepr = repr()",
+                  "context_keys": TRAINING_SCRIPT_CONTEXT_KEYS},
+        "expected": out,
+    }
+    writer.write_json(PARITY_DIR / "code" / "regression_training.json", doc)
 
 
 def build_cases() -> dict[str, Callable[[Writer], None]]:
@@ -1583,6 +1743,7 @@ def build_cases() -> dict[str, Callable[[Writer], None]]:
     for name, spec in LR_CASES.items():
         cases[f"{LR_MODULE}/{name}"] = (lambda n, s: (lambda w: case_linear_model(n, s, w)))(name, spec)
     cases["code/regression"] = case_code_regression
+    cases["code/regression_training"] = case_code_regression_training
     return cases
 
 

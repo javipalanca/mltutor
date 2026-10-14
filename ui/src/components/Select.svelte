@@ -12,9 +12,13 @@
     help?: string;
     disabled?: boolean;
     id: string;
+    /** Second line under the label (italic description of the prediction form). */
+    hint?: string | undefined;
+    /** Bold label (`**{nombre}**`). */
+    strong?: boolean;
   }
 
-  let { label, options, value, onchange, help, disabled = false, id }: Props = $props();
+  let { label, options, value, onchange, help, disabled = false, id, hint, strong = false }: Props = $props();
   const selectedIndex = $derived(options.findIndex((option) => option.value === value));
 
   function change(event: Event): void {
@@ -27,7 +31,8 @@
 </script>
 
 <div class="field">
-  <label for={id} title={help}>{label}</label>
+  <label for={id} title={help} class:strong>{label}</label>
+  {#if hint}<p class="hint">{hint}</p>{/if}
   <div class="control">
     <select {id} {disabled} value={String(selectedIndex)} onchange={change} title={help}>
       {#each options as option, index (index)}
@@ -46,6 +51,17 @@
   label {
     display: block;
     margin-bottom: 8px;
+  }
+
+  label.strong {
+    font-weight: 700;
+  }
+
+  .hint {
+    margin: -4px 0 8px;
+    color: var(--color-text-muted);
+    font-size: 13px;
+    font-style: italic;
   }
 
   .control {

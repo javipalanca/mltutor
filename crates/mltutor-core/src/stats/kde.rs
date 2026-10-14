@@ -48,6 +48,12 @@ impl Kde {
 /// Returns `None` when seaborn skips the curve: fewer than 2 values or zero
 /// variance (Digits `p0`).
 pub fn gaussian_kde_scott(values: &[f64], weight: f64) -> Option<Kde> {
+    gaussian_kde_scott_cut(values, weight, KDE_CUT)
+}
+
+/// [`gaussian_kde_scott`] with another `cut`: `sns.histplot(kde=True)` uses
+/// `cut=0`, so its curve spans exactly `[min, max]` (fase2-regresion.md C2).
+pub fn gaussian_kde_scott_cut(values: &[f64], weight: f64, cut: f64) -> Option<Kde> {
     let x: Vec<f64> = values.iter().copied().filter(|v| v.is_finite()).collect();
     let n = x.len();
     if n < 2 {
@@ -80,11 +86,7 @@ pub fn gaussian_kde_scott(values: &[f64], weight: f64) -> Option<Kde> {
         .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), &v| {
             (lo.min(v), hi.max(v))
         });
-    let grid = linspace(
-        lo - bandwidth * KDE_CUT,
-        hi + bandwidth * KDE_CUT,
-        KDE_GRIDSIZE,
-    );
+    let grid = linspace(lo - bandwidth * cut, hi + bandwidth * cut, KDE_GRIDSIZE);
 
     // scipy `gaussian_kernel_estimate`: whiten points and grid by the Cholesky
     // factor, then accumulate exp(-r²/2) · norm over the data in order.

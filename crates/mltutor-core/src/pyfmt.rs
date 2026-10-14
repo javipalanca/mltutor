@@ -53,9 +53,161 @@ pub fn py_float_repr(x: f64) -> String {
     }
 }
 
+/// A value for [`py_format`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum FmtArg<'a> {
+    Float(f64),
+    Int(i64),
+    Str(&'a str),
+}
+
+/// Python's `str.format` for the few format specs used by the messages in
+/// `content/**/mensajes.toml`: `{name}`, `{name:.Nf}`, `{name:+.Nf}`,
+/// `{name:.N%}` and `{name:,}` (thousands separator for integers). Unknown names
+/// are left untouched; `{{` and `}}` are literal braces.
+pub fn py_format(template: &str, args: &[(&str, FmtArg<'_>)]) -> String {
+    let mut out = String::with_capacity(template.len() + 16);
+    let mut rest = template;
+    while let Some(pos) = rest.find(['{', '}']) {
+        out.push_str(&rest[..pos]);
+        let tail = &rest[pos..];
+        if tail.starts_with("{{") || tail.starts_with("}}") {
+            out.push_str(&tail[..1]);
+            rest = &tail[2..];
+            continue;
+        }
+        if let Some(after) = tail.strip_prefix('}') {
+            out.push('}');
+            rest = after;
+            continue;
+        }
+        let Some(end) = tail.find('}') else {
+            out.push_str(tail);
+            return out;
+        };
+        let field = &tail[1..end];
+        let (name, spec) = field.split_once(':').unwrap_or((field, ""));
+        match args.iter().find(|(n, _)| *n == name) {
+            Some((_, value)) => out.push_str(&format_spec(*value, spec)),
+            None => out.push_str(&tail[..=end]),
+        }
+        rest = &tail[end + 1..];
+    }
+    out.push_str(rest);
+    out
+}
+
+/// One `format(value, spec)`.
+pub fn format_spec(value: FmtArg<'_>, spec: &str) -> String {
+    match value {
+        FmtArg::Str(s) => s.to_owned(),
+        FmtArg::Int(i) => {
+            if spec == "," {
+                group_thousands(&i.to_string())
+            } else if let Some(prec) = parse_precision(spec, 'f') {
+                format_fixed(i as f64, prec, spec.starts_with('+'))
+            } else {
+                i.to_string()
+            }
+        }
+        FmtArg::Float(x) => {
+            if let Some(prec) = parse_precision(spec, '%') {
+                format!("{}%", format_fixed(x * 100.0, prec, spec.starts_with('+')))
+            } else if let Some(prec) = parse_precision(spec, 'f') {
+                format_fixed(x, prec, spec.starts_with('+'))
+            } else if spec == "," {
+                group_thousands(&py_float_repr(x))
+            } else {
+                py_float_repr(x)
+            }
+        }
+    }
+}
+
+/// `"+.3f"` / `".3f"` → 3 (with `kind = 'f'`), `".1%"` → 1 (with `'%'`).
+fn parse_precision(spec: &str, kind: char) -> Option<usize> {
+    let s = spec.strip_prefix('+').unwrap_or(spec);
+    let s = s.strip_prefix('.')?;
+    let s = s.strip_suffix(kind)?;
+    s.parse().ok()
+}
+
+/// `f"{x:.{prec}f}"` (Rust and Python both round the exact binary value half to
+/// even). `nan`/`inf` like Python.
+pub fn format_fixed(x: f64, prec: usize, plus: bool) -> String {
+    if x.is_nan() {
+        return "nan".to_owned();
+    }
+    if x.is_infinite() {
+        return if x > 0.0 {
+            if plus {
+                "+inf"
+            } else {
+                "inf"
+            }
+        } else {
+            "-inf"
+        }
+        .to_owned();
+    }
+    if plus {
+        format!("{x:+.prec$}")
+    } else {
+        format!("{x:.prec$}")
+    }
+}
+
+/// `"1234567"` → `"1,234,567"` (keeps a sign and a fractional part).
+fn group_thousands(digits: &str) -> String {
+    let (sign, body) = match digits.strip_prefix('-') {
+        Some(b) => ("-", b),
+        None => ("", digits),
+    };
+    let (int, frac) = match body.split_once('.') {
+        Some((i, f)) => (i, Some(f)),
+        None => (body, None),
+    };
+    let mut out = String::new();
+    for (i, ch) in int.chars().enumerate() {
+        if i > 0 && (int.len() - i) % 3 == 0 {
+            out.push(',');
+        }
+        out.push(ch);
+    }
+    match frac {
+        Some(f) => format!("{sign}{out}.{f}"),
+        None => format!("{sign}{out}"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::py_float_repr;
+    use super::{py_float_repr, py_format, FmtArg};
+
+    #[test]
+    fn formats_like_python() {
+        let s = py_format(
+            "R2 {a:.1f}% mae {b:.2f} {c:,} {d:+.1f}% {e:.1%} {f} {g} {{x}} {missing}",
+            &[
+                ("a", FmtArg::Float(47.72897)),
+                ("b", FmtArg::Float(41.919378)),
+                ("c", FmtArg::Int(56700)),
+                ("d", FmtArg::Float(-12.34)),
+                ("e", FmtArg::Float(0.029239766)),
+                ("f", FmtArg::Str("texto")),
+                ("g", FmtArg::Int(3)),
+            ],
+        );
+        assert_eq!(
+            s,
+            "R2 47.7% mae 41.92 56,700 -12.3% 2.9% texto 3 {x} {missing}"
+        );
+        assert_eq!(py_format("{x:.2f}", &[("x", FmtArg::Float(0.125))]), "0.12");
+        assert_eq!(
+            py_format("{x:,}", &[("x", FmtArg::Int(1_234_567))]),
+            "1,234,567"
+        );
+    }
 
     #[test]
     fn matches_cpython_repr() {

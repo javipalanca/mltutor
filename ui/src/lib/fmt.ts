@@ -1,6 +1,7 @@
 /**
  * Python `str.format`-style templates used by `content/**` (`{ratio:.1f}`, `{n:,}`).
- * Supports `{name}`, `{name:.Nf}`, `{name:,}` and `{name:,.Nf}`; unknown names are left as is.
+ * Supports `{name}`, `{name:.Nf}`, `{name:+.Nf}`, `{name:.N%}`, `{name:,}` and `{name:,.Nf}`; unknown
+ * names are left as is.
  *
  * The templates are Markdown, so `fmt` escapes the interpolated strings by default
  * (`escapeMarkdown`): a column called `<a href=…>` is shown as text. Use `fmtText` only
@@ -13,7 +14,7 @@ export type FmtValue = string | number | boolean | null | undefined;
 /** Shown for a missing value (`null`, e.g. a statistic that is not finite). */
 export const MISSING = "—";
 
-const PLACEHOLDER = /\{([A-Za-z_][A-Za-z0-9_]*)(?::(,)?(?:\.(\d+)f)?)?\}/g;
+const PLACEHOLDER = /\{([A-Za-z_][A-Za-z0-9_]*)(?::(\+)?(,)?(?:\.(\d+)([f%]))?)?\}/g;
 
 /**
  * `value.toFixed(decimals)` with Python's rounding: exact ties go to the even digit
@@ -55,13 +56,16 @@ function interpolate(
   values: Readonly<Record<string, FmtValue>>,
   escape: (text: string) => string,
 ): string {
-  return template.replace(PLACEHOLDER, (whole, name: string, comma?: string, decimals?: string) => {
+  return template.replace(PLACEHOLDER, (whole, name: string, plus?: string, comma?: string, decimals?: string, kind?: string) => {
     if (!(name in values)) {
       return whole;
     }
     const value = values[name];
     if (typeof value === "number") {
-      return formatNumber(value, comma === ",", decimals === undefined ? undefined : Number(decimals));
+      const percent = kind === "%";
+      const text = formatNumber(percent ? value * 100 : value, comma === ",", decimals === undefined ? undefined : Number(decimals));
+      const signed = plus === "+" && !text.startsWith("-") && Number.isFinite(value) ? `+${text}` : text;
+      return percent ? `${signed}%` : signed;
     }
     if (value === null) {
       return MISSING;

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-coefficients-view"
+description = "Enables the coefficients_view command without any pre-configured scope."
+commands.allow = ["coefficients_view"]
+
+[[permission]]
+identifier = "deny-coefficients-view"
+description = "Denies the coefficients_view command without any pre-configured scope."
+commands.deny = ["coefficients_view"]

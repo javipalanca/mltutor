@@ -72,10 +72,12 @@ npm --prefix ui run test -- --run  # vitest (sin --run se queda en modo watch)
 # App
 npm --prefix ui run tauri dev    # app en desarrollo (Vite con recarga en :5173)
 npm --prefix ui run tauri build  # release: .app (macOS), AppImage (Linux), mltutor.exe sin instalador (Windows)
-target/release/mltutor --smoke-test          # recorre las rutas y prueba 📊 Datos (correlación y pairplot de Iris); 0 ok, 1 fallo, 2 timeout (180 s)
+target/release/mltutor --smoke-test          # recorre las rutas, prueba 📊 Datos (correlación y pairplot de Iris) y entrena en 📊 Regresión Iris, Cáncer y Diabetes con todas sus vistas; 0 ok, 1 fallo, 2 timeout (180 s)
 target/release/mltutor --screenshot out.png  # captura de la ventana (solo macOS por ahora)
 target/release/mltutor --screenshot out.png --scenario datos_pairplot_kde_iris --full-page  # pantalla concreta, página entera
 #   escenarios en ui/src/lib/scenarios.ts (nombres de docs/migration/capturas/qt/); los CSV llevan la ruta: csv_cargado_clasificacion:<ruta.csv>
+#   F2: regresion_<nombre Qt sin número> (ui/src/lib/lessons/regression/scenarios.ts), p. ej. regresion_roc_multiclase_iris
+#   el registro incluye el tiempo de cada vista de modelo (DEBUG «evaluate_model del modelo N: x ms»)
 npm --prefix ui run tauri build -- --debug --no-bundle  # binario de depuración con el frontend embebido (target/debug/mltutor), rápido para iterar
 MLTUTOR_FACADE=fixture target/debug/mltutor  # solo en debug: datos de tests/parity en lugar de mltutor-core
 # Ojo: `cargo build --release` a secas no empaqueta el frontend (carga devUrl); usa `tauri build`.

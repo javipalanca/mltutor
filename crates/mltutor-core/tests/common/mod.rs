@@ -1,6 +1,8 @@
 //! Helpers shared by the parity tests (fixtures in `tests/parity/`).
 #![allow(dead_code, clippy::unwrap_used, clippy::expect_used)]
 
+pub mod lm;
+
 use std::path::PathBuf;
 
 use serde_json::Value;

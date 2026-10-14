@@ -4,7 +4,9 @@
 //! the [`crate::core_facade`] implementations, so `mltutor-core` does not depend on ts-rs.
 
 pub mod error;
+pub mod model;
 pub mod types;
 
 pub use error::CommandError;
+pub use model::*;
 pub use types::*;

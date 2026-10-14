@@ -546,4 +546,14 @@ impl DatasetView for ComputedDataset {
             .frame
             .pairplot(features, diag, self.frame.default_sample()))
     }
+    fn train(
+        &self,
+        _spec: &crate::core_facade::TrainSpec,
+        _progress: &crate::core_facade::Progress<'_>,
+        _cancel: &AtomicBool,
+    ) -> Result<crate::core_facade::ModelHandle, CommandError> {
+        Err(CommandError::training(
+            "FixtureFacade: los CSV propios solo se entrenan con mltutor-core",
+        ))
+    }
 }

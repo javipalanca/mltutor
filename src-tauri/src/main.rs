@@ -12,8 +12,11 @@ mod files;
 mod fixture_facade;
 mod ipc;
 mod logging;
+mod models;
 mod navigation;
+mod real_exports;
 mod real_facade;
+mod real_models;
 mod screenshot;
 mod session;
 mod state;
@@ -82,6 +85,7 @@ fn run(mode: Mode, started: Instant) -> i32 {
         .plugin(navigation::plugin())
         .manage(AppState::new(mode, started))
         .manage(data::DataState::new(facade()))
+        .manage(models::ModelState::default())
         .invoke_handler(tauri::generate_handler![
             commands::launch_mode,
             commands::frontend_ready,
@@ -107,6 +111,18 @@ fn run(mode: Mode, started: Instant) -> i32 {
             data::set_csv_target,
             data::discard_csv,
             files::save_file,
+            models::train_model,
+            models::lesson_model,
+            models::evaluate_model,
+            models::roc_curves,
+            models::probability_view,
+            models::residuals_view,
+            models::decision_grid,
+            models::coefficients_view,
+            models::prediction_form,
+            models::predict_one,
+            models::export_model,
+            models::generate_code,
         ])
         .setup(move |app| {
             if automated {

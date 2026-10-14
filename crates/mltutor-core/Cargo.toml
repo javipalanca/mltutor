@@ -20,9 +20,22 @@ rand_mt = { version = "6.1", default-features = false }
 indexmap = "2"
 # TextColumn: hash table of codes over one string buffer (already used by indexmap).
 hashbrown = { version = "0.17", default-features = false }
+# F2 linear models (MEMORY: spike 2026-10-13). OLS goes through linfa-linear (QR); the
+# logistic regression uses the same L-BFGS + More-Thuente solver as linfa-logistic, called
+# directly so that training can be cancelled and report iterations/convergence.
+linfa = { version = "0.8.1", default-features = false }
+linfa-linear = { version = "0.8.1", default-features = false }
+linfa-linalg = { version = "0.2", default-features = false }
+argmin = { version = "0.11", default-features = false }
+argmin-math = { version = "0.5", default-features = false, features = ["ndarray_v0_16-nolinalg"] }
+# Python code shown to the student (content/code/*.py.j2).
+minijinja = { version = "3", default-features = false, features = ["builtins", "macros", "multi_template", "serde", "std_collections", "preserve_order"] }
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
 
 [dev-dependencies]
-serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+approx = "0.5"
+# Only to check that our objective is linfa-logistic's with alpha = 1/C.
+linfa-logistic = { version = "0.8.1", default-features = false }
 sha2 = "0.10"
 base64 = "0.22"
 proptest = "1"

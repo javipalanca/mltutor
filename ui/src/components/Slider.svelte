@@ -9,9 +9,13 @@
     onchange: (value: number) => void;
     help?: string;
     id: string;
+    /** Second line under the label (italic description of the prediction form). */
+    hint?: string | undefined;
+    /** Bold label (`**{nombre}**`). */
+    strong?: boolean;
   }
 
-  let { label, min, max, step = 1, value, onchange, help, id }: Props = $props();
+  let { label, min, max, step = 1, value, onchange, help, id, hint, strong = false }: Props = $props();
   let dragging = $state<number | null>(null);
   const shown = $derived(dragging ?? value);
   const percent = $derived(max > min ? ((shown - min) / (max - min)) * 100 : 0);
@@ -30,7 +34,8 @@
 </script>
 
 <div class="field" title={help}>
-  <label for={id}>{label}</label>
+  <label for={id} class:strong>{label}</label>
+  {#if hint}<p class="hint">{hint}</p>{/if}
   <div class="row">
     <input
       {id}
@@ -65,6 +70,17 @@
   label {
     display: block;
     margin-bottom: 10px;
+  }
+
+  label.strong {
+    font-weight: 700;
+  }
+
+  .hint {
+    margin: -6px 0 10px;
+    color: var(--color-text-muted);
+    font-size: 13px;
+    font-style: italic;
   }
 
   .row {
