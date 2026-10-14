@@ -66,6 +66,7 @@ La UI dibuja con Plotly o SVG. Nunca se envían imágenes rasterizadas.
 | D7 | Split train/test | ✅ Aprobada: **idéntico al de Python**, sin estratificar, con `rand_mt` (MT19937) para reproducir `RandomState(42).permutation`. Mismos datos de train y test que la versión actual. La estratificación queda como mejora futura opcional |
 | D18 | `freezePrototype: false` en Tauri (con `true`, Plotly falla con "readonly property") | Aplicado. Riesgo bajo: no se carga contenido remoto y `script-src 'self'` sigue estricto. Revisable |
 | D19–D35 | Detalles de la Fase 2 (paridad de la logística frente a la referencia convergida, umbrales 0,3/0,5/0,7, R² real, colores coherentes en la frontera, coeficientes corregidos, exportación con código + ONNX + paquete ZIP, script de "Generar Código" correcto, entre otros) | Recomendaciones aplicadas por defecto (2026-10-14). Detalle en [fase2-regresion.md §10](fase2-regresion.md) |
+| D36–D51 | Detalles de la Fase 3 (CART bit a bit, preselección de la tarea, importancia nativa + permutación, nombres de clase en el texto, diagrama SVG con zoom, PNG/SVG, código Python del árbol corregido, umbral ONNX como el mayor float32 ≤ t, entre otros) | Recomendaciones aplicadas por defecto (2026-10-14). Detalle en [fase3-arboles.md §10](fase3-arboles.md) |
 | D9–D17 | Detalles de la Fase 1 (Moons fijo por sesión, CSV más tolerante, pairplot de regresión legible, correlación de -1 a 1, estado de subvistas por lección, CSV resaltado en la barra lateral, días de Propinas corregidos, consejos del pairplot, CSV embebidos desde `tests/parity`) | Recomendaciones aplicadas por defecto (2026-10-13). Detalle en [fase1-shell-datos.md §9](fase1-shell-datos.md). Revisables por el usuario |
 | D8 | MPG: columna `name` | ✅ Aprobada: **no se usa como característica** del modelo (301 modelos de coche codificados como número no tienen sentido). Se conserva en la exploración de datos: vista previa, tooltip en el pairplot y gráficos de dispersión |
 
@@ -149,9 +150,23 @@ reutilizarán el resto de lecciones.
 - [x] Script de entrenamiento con CSV propio: hoy pasa `csv_sep`, `csv_decimal` y `csv_encoding` a `None`.
 - [x] `content/code/paquete_leeme.txt.j2` numera las clases con `loop.index0`; con un CSV de clases numéricas (p. ej. 3 y 6) hay que mostrar los valores reales (`class_values`).
 
+#### Pendientes de la verificación de F2 (se hacen con la F3)
+
+- [ ] OLS: la SVD de R (linfa-linalg) cuesta O(p³) y no se puede cancelar (1500 columnas: 11 s).
+      Resolver por sustitución hacia atrás cuando R esté bien condicionada y dejar la SVD solo
+      para el rango deficiente, o limitar p con un error claro.
+- [ ] OLS: con valores de ±1e308 devuelve `Ok` con el intercepto NaN. Comprobar la finitud de los
+      offsets, de R y c y del intercepto, y devolver `values_too_large()`.
+- [ ] `last_seq` por lección: tras recargar con el reloj atrasado, una lección puede quedar sin
+      entrenar. Exponer el máximo de TODAS las seq aceptadas en `get_selected_dataset`.
+- [ ] Newton: `Objective::hessian` reserva matrices n×(p+1) en cada iteración; reutilizar los búferes.
+
 ### Fase 3 — 🌲 Árboles de Decisión  *(riesgo: alto · tamaño: L)*
 
-- [ ] Clasificación (linfa-trees o propio) y **regresión (implementación propia)**, con
+Plan detallado, contrato y reparto: [fase3-arboles.md](fase3-arboles.md). Capturas: `docs/migration/capturas/qt/fase3/`.
+Incluye la permutation importance (C10) y el paquete Python ZIP.
+
+- [ ] CART propio con **paridad exacta** con sklearn (D36, especificación ejecutable en `tools/cart_reference.py`), clasificación y regresión, con
       los criterios del inventario, paridad de estructura y predicciones frente a sklearn.
 - [ ] Diagrama del árbol en SVG interactivo (zoom, nodos coloreados por clase o valor,
       ancho y alto) y reglas en texto.

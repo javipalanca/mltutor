@@ -1,0 +1,52 @@
+{
+  "meta": {
+    "format_version": 1,
+    "generator": "tools/export_golden.py",
+    "generated": "2026-10-14",
+    "versions": {
+      "python": "3.11.14",
+      "numpy": "1.26.4",
+      "pandas": "2.3.3",
+      "scipy": "1.16.3",
+      "scikit-learn": "1.7.2",
+      "seaborn": "0.13.2",
+      "platform": "Darwin-arm64"
+    },
+    "seed": 42,
+    "tolerance": {
+      "text": "exact (ignoring leading/trailing newlines)"
+    },
+    "tolerance_rationale": "Verbatim copies of the lesson's code strings. arbol_python.py.j2 and arbol_python_corregido.py.j2 (export_tree_as_python_code) and paquete_modelo_arbol.py.j2 are checked inside each trees/*.json (python_code, export_package), because their context comes from the trained tree."
+  },
+  "input": {
+    "engine": "jinja2 with keep_trailing_newline=True, filter pyrepr = repr()"
+  },
+  "expected": {
+    "visualizar_arbol.py.j2": {
+      "source": "mltutor.algorithms.code_examples.VIZ_TREE_CODE",
+      "context": {},
+      "text": "\nimport matplotlib.pyplot as plt\nfrom sklearn.tree import plot_tree\n\n# Suponiendo que ya tienes un modelo entrenado (tree_model)\n# y los nombres de las características (feature_names) y clases (class_names)\n\nfig, ax = plt.subplots(figsize=(14, 10))\n\nplot_tree(\n    tree_model,\n    feature_names=feature_names,\n    class_names=class_names,  # Solo para clasificación\n    filled=True,\n    rounded=True,\n    ax=ax,\n    proportion=True,\n    impurity=True\n)\n\nplt.tight_layout()\nplt.show()\n\n# Para guardar a un archivo:\n# plt.savefig('arbol_decision.png', dpi=300, bbox_inches='tight')\n",
+      "compare": "text.strip('\\n') == render(template, context).strip('\\n')"
+    },
+    "texto_arbol.py.j2": {
+      "source": "mltutor.algorithms.code_examples.TEXT_TREE_CODE",
+      "context": {},
+      "text": "\nfrom sklearn.tree import export_text\n\ndef get_tree_text(model, feature_names, show_class_name=True):\n    \"\"\"\n    Obtiene una representación de texto de un árbol de decisión.\n\n    Parameters:\n    -----------\n    model : DecisionTreeClassifier o DecisionTreeRegressor\n        Modelo de árbol entrenado\n    feature_names : list\n        Nombres de las características\n    show_class_name : bool\n        Si es True, muestra los nombres de las clases (para clasificación)\n\n    Returns:\n    --------\n    str\n        Representación de texto del árbol\n    \"\"\"\n    return export_text(\n        model,\n        feature_names=feature_names,\n        show_weights=True\n    )\n\n# Ejemplo de uso:\ntree_text = get_tree_text(tree_model, feature_names)\nprint(tree_text)\n\n# Para guardar a un archivo:\n# with open('arbol_texto.txt', 'w') as f:\n#     f.write(tree_text)\n",
+      "compare": "text.strip('\\n') == render(template, context).strip('\\n')"
+    },
+    "camino_decision.py.j2": {
+      "source": "mltutor.algorithms.code_examples.DECISION_PATH_CODE",
+      "context": {},
+      "text": "\nimport numpy as np\n\ndef mostrar_camino_decision(tree_model, X_nuevo, feature_names, class_names=None):\n    \"\"\"\n    Muestra el camino de decisión para un ejemplo específico.\n    \n    Parameters:\n    -----------\n    tree_model : DecisionTreeClassifier o DecisionTreeRegressor\n        Modelo de árbol de decisión entrenado\n    X_nuevo : array\n        Ejemplo para predecir (debe ser un solo ejemplo)\n    feature_names : list\n        Nombres de las características\n    class_names : list, optional\n        Nombres de las clases (solo para clasificación)\n    \"\"\"\n    # Asegurar que X_nuevo sea un array numpy 2D con una sola fila\n    X_nuevo = np.asarray(X_nuevo).reshape(1, -1)\n    \n    # Obtener información del árbol\n    feature_idx = tree_model.tree_.feature\n    threshold = tree_model.tree_.threshold\n    \n    # Construir el camino de decisión\n    node_indicator = tree_model.decision_path(X_nuevo)\n    leaf_id = tree_model.apply(X_nuevo)\n    \n    # Obtener los nodos en el camino\n    node_index = node_indicator.indices[node_indicator.indptr[0]:node_indicator.indptr[1]]\n    \n    # Mostrar el camino paso a paso\n    print(\"Camino de decisión:\")\n    for node_id in node_index:\n        # Detener si es un nodo hoja\n        if leaf_id[0] == node_id:\n            continue\n            \n        # Obtener la característica y el umbral de la decisión\n        feature_id = feature_idx[node_id]\n        feature_name = feature_names[feature_id]\n        threshold_value = threshold[node_id]\n        \n        # Comprobar si la muestra va por la izquierda o derecha\n        if X_nuevo[0, feature_id] <= threshold_value:\n            print(f\"- {feature_name} = {X_nuevo[0, feature_id]:.4f} ≤ {threshold_value:.4f}\")\n        else:\n            print(f\"- {feature_name} = {X_nuevo[0, feature_id]:.4f} > {threshold_value:.4f}\")\n    \n    # Mostrar la predicción final\n    prediccion = tree_model.predict(X_nuevo)[0]\n    if hasattr(tree_model, 'classes_') and class_names:\n        print(f\"Predicción final: {class_names[prediccion]}\")\n    else:\n        print(f\"Predicción final: {prediccion:.4f}\")\n\n# Ejemplo de uso:\n# mostrar_camino_decision(tree_model, X_nuevo, feature_names, class_names)\n",
+      "compare": "text.strip('\\n') == render(template, context).strip('\\n')"
+    },
+    "usar_modelo_arbol.py.j2": {
+      "source": "mltutor.algorithms.code_examples.generate_tree_model_export_code",
+      "context": {
+        "feature_names": ["sepal length (cm)", "sepal width (cm)", "petal length (cm)", "petal width (cm)"]
+      },
+      "text": "\n# Código para usar el modelo de árbol de decisión\nimport pickle\nimport numpy as np\n\n# Cargar el modelo\nwith open('decision_tree_model.pkl', 'rb') as f:\n    model_data = pickle.load(f)\n\nmodel = model_data['model']\nfeature_names = model_data['feature_names']\nclass_names = model_data['class_names']\ntask_type = model_data['task_type']\n\n# Función para hacer predicciones\ndef predecir(valores_caracteristicas):\n    \"\"\"\n    Hace una predicción con el modelo de árbol de decisión.\n    \n    Args:\n        valores_caracteristicas (list): Lista con valores para cada característica\n                                      en el orden: ['sepal length (cm)', 'sepal width (cm)', 'petal length (cm)', 'petal width (cm)']\n    \n    Returns:\n        Predicción del modelo\n    \"\"\"\n    # Convertir a array numpy\n    X = np.array(valores_caracteristicas).reshape(1, -1)\n    \n    # Hacer predicción\n    prediction = model.predict(X)[0]\n    \n    if task_type == \"Clasificación\":\n        if class_names:\n            return class_names[prediction]\n        else:\n            return f\"Clase {prediction}\"\n    else:\n        return prediction\n\n# Ejemplo de uso:\n# resultado = predecir([valor1, valor2, valor3, ...])\n# print(f\"Predicción: {resultado}\")\n\n# Para obtener probabilidades (solo clasificación):\nif task_type == \"Clasificación\" and hasattr(model, 'predict_proba'):\n    def predecir_con_probabilidades(valores_caracteristicas):\n        X = np.array(valores_caracteristicas).reshape(1, -1)\n        prediction = model.predict(X)[0]\n        probabilities = model.predict_proba(X)[0]\n        \n        resultado = {\n            'prediccion': class_names[prediction] if class_names else f\"Clase {prediction}\",\n            'probabilidades': {\n                (class_names[i] if class_names else f\"Clase {i}\"): prob \n                for i, prob in enumerate(probabilities)\n            }\n        }\n        \n        return resultado\n",
+      "compare": "text.strip('\\n') == render(template, context).strip('\\n')"
+    }
+  }
+}

@@ -1,0 +1,57 @@
+{#- NUEVO (D1/D43, Fase 3): LEEME.txt del "📦 Paquete Python (.zip)" de 🌲 Árboles de Decisión, junto a
+    modelo.json y reconstruir_modelo.py (paquete_modelo_arbol.py.j2). Texto plano, sin Markdown. Es
+    paquete_leeme.txt.j2 (Fase 2) adaptado: el contenido del JSON y el nombre del pickle cambian.
+    Variables (pásalas todas):
+      estimator      str        "sklearn.tree.DecisionTreeClassifier" o "...DecisionTreeRegressor"
+      dataset        str        nombre del dataset que ve el estudiante
+      feature_names  list[str]  nombres legibles, en el orden de las columnas del modelo
+      classes        list[{value, name}]|null  una entrada por clase, en el orden de classes_
+                                (`value` = lo que devuelve predict; null en regresión)
+      n_train, n_test int; test_size float
+      node_count, n_leaves, max_depth  int (del árbol entrenado)
+      pkl_name       str        "decision_tree_model.pkl"
+-#}
+MODELO EXPORTADO DESDE MLTUTOR
+==============================
+
+Modelo:  {{ estimator }}
+Dataset: {{ dataset }}
+Datos:   {{ n_train }} muestras de entrenamiento y {{ n_test }} de prueba (test_size={{ test_size | pyrepr }}, random_state=42)
+Árbol:   {{ node_count }} nodos, {{ n_leaves }} hojas, profundidad {{ max_depth }}
+
+Contenido del paquete
+---------------------
+- modelo.json            El árbol que aprendió el modelo (nodos, umbrales, impurezas y valores{% if classes %}, clases{% endif %})
+                         y los hiperparámetros con los que se entrenó.
+- reconstruir_modelo.py  Crea el objeto de scikit-learn con ese árbol, sin volver a
+                         entrenar, comprueba que predice lo mismo que MLTutor y lo guarda en
+                         {{ pkl_name }}.
+- LEEME.txt              Este archivo.
+
+Cómo usarlo
+-----------
+1. Descomprime el ZIP en una carpeta.
+2. Instala las dependencias:   pip install scikit-learn numpy
+3. Ejecuta:                    python reconstruir_modelo.py
+4. Carga el modelo en tu código (o usa el "Código para Usar el Modelo" de MLTutor):
+
+       import pickle
+       with open("{{ pkl_name }}", "rb") as f:
+           modelo = pickle.load(f)["model"]
+       print(modelo.predict([[...]]))   # una lista de valores por muestra
+
+Orden de las características
+----------------------------
+Cada muestra debe tener estos valores, en este orden:
+{% for nombre in feature_names %}  {{ loop.index }}. {{ nombre }}
+{% endfor %}
+{%- if classes %}
+Clases (lo que devuelve predict)
+--------------------------------
+{% for clase in classes %}  {{ clase.value }} = {{ clase.name }}
+{% endfor %}
+{%- endif %}
+Las columnas de texto del dataset original se convirtieron en números por orden
+alfabético (LabelEncoder). Codifica igual los datos nuevos.
+
+Atención: abrir un archivo .pkl puede ejecutar código. Carga solo los que hayas generado tú.

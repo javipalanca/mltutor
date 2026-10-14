@@ -247,6 +247,26 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
   - El formulario de predicción de Python usa float32; Rust usa f64 (D31).
     `onnx.reference.ReferenceEvaluator` evalúa LinearClassifier/LinearRegressor sin onnxruntime.
   - Capturas de F2: `uv run python tools/capture_qt.py --phase 2 --quantize`, unos 75 s.
+- **CART de sklearn y empates (2026-10-14, F3):** en cada nodo, sklearn sortea el orden de las
+  características (xorshift `our_rand_r` sembrado con `RandomState(rs).randint(0, 2^31−1)`, que da
+  1608637542 con 42, y Fisher-Yates sobre un array `features` que persiste entre nodos). Gana la
+  PRIMERA que alcanza la mejor mejora (`>` estricto). Los empates son frecuentes (raíz de Iris:
+  petal length/width) y hay casi-empates de 1 ulp que solo coinciden sumando en el mismo orden
+  (introsort, `reverse_reset`, partición). `tools/cart_reference.py` lo reproduce bit a bit en los 40
+  árboles de los fixtures y es la especificación del CART de Rust (D36, D51).
+  - El umbral es `x[p−1]/2 + x[p]/2` en f64 de valores f32. Una columna es constante si
+    `max ≤ f32(min + 1e-7)`, en float32. `predict` compara `f32(x) <= t`.
+  - La wheel macOS arm64 de sklearn usa FMA: las impurezas difieren 1–4 ulp (la estructura, no).
+- **permutation_importance (sklearn ≥ 1.5):** usa UNA sola semilla `randint(2^31)` para todas las
+  columnas y baraja de forma acumulativa (`shuffle(idx)` y `X[:, c] = X[idx, c]`).
+- **Umbrales de árbol en ONNX y Python:** skl2onnx redondea los umbrales al float32 más cercano; hay
+  que escribir el mayor float32 ≤ t (D47). El código Python que recibe floats f64 usa el "switch
+  point" w (`x <= w ⇔ f32(x) <= t`); si no, `longitude = -117.9` toma la otra rama en California.
+- **Fallos del árbol en Python:**
+  - el tipo de árbol empieza siempre en Clasificación (Diabetes entrena 192 clases y la Evaluación cae);
+  - `export_tree_as_python_code` nunca compila;
+  - la superficie usa los sliders actuales;
+  - en Árboles nunca se ve la importancia por permutación.
 - **OLS (2026-10-14, revisión F2):** sklearn usa `scipy.linalg.lstsq` con `cond = max(n,p)·eps`, no
   eps. Con `eps·σ_max`, las columnas derivadas (`0.1·x0 + 0.7·x2`, `x0/3`) conservan valores
   singulares de ruido y dan coeficientes de unos 1e12 (y un ONNX que falla en millones). Rust usa una

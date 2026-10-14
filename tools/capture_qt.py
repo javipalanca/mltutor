@@ -6,6 +6,7 @@ session state and dispatching control actions on the rendered node tree.
 Usage:
     uv run python tools/capture_qt.py docs/migration/capturas/qt             # phase 1
     uv run python tools/capture_qt.py docs/migration/capturas/qt/fase2 --phase 2
+    uv run python tools/capture_qt.py docs/migration/capturas/qt/fase3 --phase 3
     ... --quantize   # rewrite every PNG with a 256-colour palette (Pillow) before commit
 (QT_QPA_PLATFORM must NOT be offscreen: WebEngine and fonts need the real platform.)
 """
@@ -215,8 +216,97 @@ STEPS_F2 = [
     (lr(3, viz_type="ROC"), "44_error_roc_logistica_diabetes"),
 ]
 
+TREES = "🌲 Árboles de Decisión"
+WINE = "🍷 Vino - Clasificación de vinos"
+CALIFORNIA = "🏠 Viviendas California - Precios"
+
+
+def dt(tab, **extra):
+    return go(TREES, active_tab=tab, **extra)
+
+
+def slide(label, value):
+    return lambda: window.action(find("slider", label), value)
+
+
+# Phase 3: 🌲 Árboles de Decisión. See docs/migration/fase3-arboles.md §0.
+STEPS_F3 = [
+    (go(TREES, active_tab=2, is_trained=False, selected_dataset=IRIS,
+        unified_dataset_selector=IRIS, active_analysis=None), "00_evaluacion_sin_entrenar"),
+    (dt(3), "00b_visualizacion_sin_entrenar"),
+    (dt(1), "01_entrenamiento_iris"),
+    (click("Entrenar Modelo"), "02_entrenado_iris"),
+    (dt(2), "03_evaluacion_clasificacion_iris"),
+    (expand_all, "04_evaluacion_clasificacion_iris_expandido"),
+    (dt(3, viz_type="Árbol"), "05_arbol_iris"),
+    (slide("Ancho de figura:", 20), None),
+    (slide("Alto de figura:", 15), "06_arbol_iris_20x15"),
+    (expand_all, "07_arbol_iris_codigo"),
+    (dt(3, viz_type="Texto"), "08_texto_iris"),
+    (dt(3, viz_type="Frontera"), "09_frontera_iris"),
+    (choose("petal width (cm)", key="viz_feature2"), None),
+    (choose("petal length (cm)", key="viz_feature1"), "10_frontera_petalos_iris"),
+    (dt(3, viz_type="ROC", viz_feature1="sepal length (cm)", viz_feature2="sepal width (cm)"),
+     "11_roc_iris"),
+    (dt(4), "12_caracteristicas_iris"),
+    (expand_all, "13_caracteristicas_iris_expandido"),
+    (dt(5), "14_prediccion_formulario_iris"),
+    (click("Realizar predicción"), "15_prediccion_camino_iris"),
+    (expand_all, "16_prediccion_camino_iris_codigo"),
+    (dt(6), "17_exportar_iris"),
+    (expand_all, "18_exportar_iris_expandido"),
+    (click("📦 Exportar como Pickle"), "19_exportar_pickle"),
+    (click("📝 Exportar Reglas como Texto"), "20_exportar_reglas"),
+    (click("🐍 Exportar como Código Python"), "21_exportar_codigo_python"),
+    (dt(1, selected_dataset=CANCER, unified_dataset_selector=CANCER), None),
+    (choose("entropy", label="Criterio de División:"), None),
+    (slide("Profundidad Máxima:", 10), "22_entrenamiento_cancer_entropy_d10"),
+    (click("Entrenar Modelo"), None),
+    (dt(3, viz_type="Árbol"), "23_arbol_cancer_d10"),
+    (dt(3, viz_type="ROC"), "24_roc_binaria_cancer"),
+    (dt(1, selected_dataset=TITANIC, unified_dataset_selector=TITANIC), None),
+    (choose("gini", label="Criterio de División:"), None),
+    (slide("Profundidad Máxima:", 4), None),
+    (click("Entrenar Modelo"), None),
+    (dt(5), "25_prediccion_formulario_titanic"),
+    (click("Realizar predicción"), "26_prediccion_camino_titanic"),
+    (dt(1, selected_dataset=DIABETES, unified_dataset_selector=DIABETES), "27_aviso_clasificacion_en_diabetes"),
+    (click_key("btn_regression"), "28_entrenamiento_regresion_diabetes"),
+    (slide("Profundidad Máxima:", 3), None),
+    (click("Entrenar Modelo"), "29_entrenado_regresion_diabetes"),
+    (dt(2), "30_evaluacion_regresion_diabetes"),
+    (dt(3, viz_type="Árbol"), "31_arbol_regresion_diabetes"),
+    (dt(3, viz_type="Texto"), "32_texto_regresion_diabetes"),
+    (dt(3, viz_type="Residuos"), "33_residuos_diabetes"),
+    (dt(3, viz_type="Superficie"), "34_superficie_diabetes"),
+    (choose("s5", key="viz_feature2"), None),
+    (choose("bmi", key="viz_feature1"), "35_superficie_bmi_s5_diabetes"),
+    (dt(4), "36_caracteristicas_regresion_diabetes"),
+    (expand_all, "37_caracteristicas_regresion_diabetes_expandido"),
+    (dt(5, viz_feature1="age", viz_feature2="sex"), None),
+    (click("Realizar predicción"), "38_prediccion_regresion_diabetes"),
+    (dt(6), "39_exportar_regresion_diabetes"),
+    (dt(1, selected_dataset=CALIFORNIA, unified_dataset_selector=CALIFORNIA), None),
+    (slide("Profundidad Máxima:", 8), None),
+    (slide("Muestras Mínimas para División:", 10), None),
+    (click("Entrenar Modelo"), None),
+    (dt(3, viz_type="Árbol"), "40_arbol_california_d8"),
+    (dt(1), None),
+    (click_key("btn_classification"), None),
+    (slide("Profundidad Máxima:", 3), None),
+    (slide("Muestras Mínimas para División:", 2), None),
+    (click("Entrenar Modelo"), "41_error_clasificacion_california"),
+    (dt(1, selected_dataset=DIABETES, unified_dataset_selector=DIABETES), None),
+    (click("Entrenar Modelo"), "42_clasificacion_entrenada_en_diabetes"),
+    (dt(2), "43_error_evaluacion_clasificacion_diabetes"),
+    (dt(1, selected_dataset=IRIS, unified_dataset_selector=IRIS), None),
+    (click_key("btn_regression"), "44_aviso_regresion_en_iris"),
+]
+
 if PHASE == 2:
     STEPS = STEPS_F2
+elif PHASE == 3:
+    STEPS = STEPS_F3
 
 steps = iter(STEPS)
 pending = [None]
@@ -224,10 +314,11 @@ pending = [None]
 
 # Phase 2 keeps the window capture (with the sidebar) only for a few screens.
 WINDOW_F2 = {"02_entrenado_logistica_iris", "05_roc_multiclase_iris", "33_residuos_diabetes"}
+WINDOW_F3 = {"02_entrenado_iris", "05_arbol_iris", "31_arbol_regresion_diabetes"}
 
 
 def capture(name):
-    if PHASE == 1 or name in WINDOW_F2:
+    if PHASE == 1 or name in WINDOW_F2 or name in WINDOW_F3:
         window.grab().save(str(OUT / f"{name}_ventana.png"))
     widget = window.content.widget()
     if widget is not None:

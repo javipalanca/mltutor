@@ -1,0 +1,60 @@
+{#- Literal de mltutor/algorithms/code_examples.py::DECISION_PATH_CODE (sin el salto de línea inicial).
+    Pestaña 🔮 Predicciones, bajo "### Camino de decisión": show_code_with_download(DECISION_PATH_CODE, "Código para generar el camino de decisión", "camino_decision.py"). Sin variables. -#}
+import numpy as np
+
+def mostrar_camino_decision(tree_model, X_nuevo, feature_names, class_names=None):
+    """
+    Muestra el camino de decisión para un ejemplo específico.
+    
+    Parameters:
+    -----------
+    tree_model : DecisionTreeClassifier o DecisionTreeRegressor
+        Modelo de árbol de decisión entrenado
+    X_nuevo : array
+        Ejemplo para predecir (debe ser un solo ejemplo)
+    feature_names : list
+        Nombres de las características
+    class_names : list, optional
+        Nombres de las clases (solo para clasificación)
+    """
+    # Asegurar que X_nuevo sea un array numpy 2D con una sola fila
+    X_nuevo = np.asarray(X_nuevo).reshape(1, -1)
+    
+    # Obtener información del árbol
+    feature_idx = tree_model.tree_.feature
+    threshold = tree_model.tree_.threshold
+    
+    # Construir el camino de decisión
+    node_indicator = tree_model.decision_path(X_nuevo)
+    leaf_id = tree_model.apply(X_nuevo)
+    
+    # Obtener los nodos en el camino
+    node_index = node_indicator.indices[node_indicator.indptr[0]:node_indicator.indptr[1]]
+    
+    # Mostrar el camino paso a paso
+    print("Camino de decisión:")
+    for node_id in node_index:
+        # Detener si es un nodo hoja
+        if leaf_id[0] == node_id:
+            continue
+            
+        # Obtener la característica y el umbral de la decisión
+        feature_id = feature_idx[node_id]
+        feature_name = feature_names[feature_id]
+        threshold_value = threshold[node_id]
+        
+        # Comprobar si la muestra va por la izquierda o derecha
+        if X_nuevo[0, feature_id] <= threshold_value:
+            print(f"- {feature_name} = {X_nuevo[0, feature_id]:.4f} ≤ {threshold_value:.4f}")
+        else:
+            print(f"- {feature_name} = {X_nuevo[0, feature_id]:.4f} > {threshold_value:.4f}")
+    
+    # Mostrar la predicción final
+    prediccion = tree_model.predict(X_nuevo)[0]
+    if hasattr(tree_model, 'classes_') and class_names:
+        print(f"Predicción final: {class_names[prediccion]}")
+    else:
+        print(f"Predicción final: {prediccion:.4f}")
+
+# Ejemplo de uso:
+# mostrar_camino_decision(tree_model, X_nuevo, feature_names, class_names)

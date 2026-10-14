@@ -1,0 +1,26 @@
+{#- Literal de mltutor/algorithms/code_examples.py::VIZ_TREE_CODE (sin el salto de línea inicial).
+    Pestaña 📉 Visualización → 🌲 Árbol: show_code_with_download(VIZ_TREE_CODE, "Código para visualizar el árbol", "visualizar_arbol.py"). Sin variables. -#}
+import matplotlib.pyplot as plt
+from sklearn.tree import plot_tree
+
+# Suponiendo que ya tienes un modelo entrenado (tree_model)
+# y los nombres de las características (feature_names) y clases (class_names)
+
+fig, ax = plt.subplots(figsize=(14, 10))
+
+plot_tree(
+    tree_model,
+    feature_names=feature_names,
+    class_names=class_names,  # Solo para clasificación
+    filled=True,
+    rounded=True,
+    ax=ax,
+    proportion=True,
+    impurity=True
+)
+
+plt.tight_layout()
+plt.show()
+
+# Para guardar a un archivo:
+# plt.savefig('arbol_decision.png', dpi=300, bbox_inches='tight')

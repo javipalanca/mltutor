@@ -1,0 +1,199 @@
+{
+  "meta": {
+    "format_version": 1,
+    "generator": "tools/export_golden.py",
+    "generated": "2026-10-14",
+    "versions": {
+      "python": "3.11.14",
+      "numpy": "1.26.4",
+      "pandas": "2.3.3",
+      "scipy": "1.16.3",
+      "scikit-learn": "1.7.2",
+      "seaborn": "0.13.2",
+      "platform": "Darwin-arm64"
+    },
+    "seed": 42,
+    "tolerance": {
+      "texts": "exact"
+    },
+    "tolerance_rationale": "Training fails in the app; the fixture records what the student sees."
+  },
+  "input": {
+    "dataset": "datasets/california_housing.json",
+    "app_label": "🏠 Viviendas California - Precios",
+    "tree_type": "Clasificación",
+    "criterion": "gini",
+    "max_depth": 3,
+    "min_samples_split": 2,
+    "test_size": 0.3,
+    "random_state": 42,
+    "function": "mltutor.apps.decission_tree_app.run_decision_trees_app, rendered headlessly by tools/golden_render.py"
+  },
+  "expected": {
+    "trained": false,
+    "views": {
+      "train": {
+        "kind": "page",
+        "children": [
+          {
+            "kind": "heading",
+            "text": "📊 Selección y Preparación de Datos",
+            "level": 1
+          },
+          {
+            "kind": "text",
+            "text": "### 🎯 Selección de Dataset",
+            "html": false
+          },
+          {
+            "kind": "select",
+            "label": "Dataset:",
+            "key": "unified_dataset_selector",
+            "value": "🏠 Viviendas California - Precios",
+            "options": ["🌸 Iris - Clasificación de flores", "🍷 Vino - Clasificación de vinos", "🔬 Cáncer - Diagnóstico binario", "🔢 Dígitos - Clasificación de dígitos", "🩺 Diabetes - Progresión (regresión)", "💎 Diamantes - Precio (regresión)", "⛽ MPG - Consumo combustible (regresión)", "🌙 Moons - Clasificación sintética", "🚢 Titanic - Supervivencia", "💰 Propinas - Predicción de propinas", "🏠 Viviendas California - Precios", "🐧 Pingüinos - Clasificación de especies"],
+            "display": ["🌸 Iris - Clasificación de flores", "🍷 Vino - Clasificación de vinos", "🔬 Cáncer - Diagnóstico binario", "🔢 Dígitos - Clasificación de dígitos", "🩺 Diabetes - Progresión (regresión)", "💎 Diamantes - Precio (regresión)", "⛽ MPG - Consumo combustible (regresión)", "🌙 Moons - Clasificación sintética", "🚢 Titanic - Supervivencia", "💰 Propinas - Predicción de propinas", "🏠 Viviendas California - Precios", "🐧 Pingüinos - Clasificación de especies"],
+            "help": "El dataset seleccionado se mantendrá entre las pestañas de Exploración y Entrenamiento"
+          },
+          {
+            "kind": "text",
+            "text": "🏠 **Viviendas**: Regresión para predecir precios de casas.",
+            "html": false
+          },
+          {
+            "kind": "text",
+            "text": "---",
+            "html": false
+          },
+          {
+            "kind": "heading",
+            "text": "Configuración del Modelo",
+            "level": 1
+          },
+          {
+            "kind": "text",
+            "text": "### Información del Dataset",
+            "html": false
+          },
+          {
+            "kind": "text",
+            "text": "<div class=\"info-box\">Dataset Viviendas California: 20640 distritos, 8 características, precio medio (regresión)</div>",
+            "html": true
+          },
+          {
+            "kind": "text",
+            "text": "### Tipo de Árbol de Decisión",
+            "html": false
+          },
+          {
+            "kind": "row",
+            "weights": [1, 1],
+            "children": [
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "button",
+                    "key": "btn_classification",
+                    "label": "🏷️ Clasificación",
+                    "type": "primary",
+                    "use_container_width": true,
+                    "help": "Para predecir categorías o clases"
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "button",
+                    "key": "btn_regression",
+                    "label": "📈 Regresión",
+                    "type": "secondary",
+                    "use_container_width": true,
+                    "help": "Para predecir valores numéricos continuos"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "notice",
+            "text": "Este dataset parece ser más adecuado para Regresión. La selección actual podría no ofrecer resultados óptimos.",
+            "severity": "warning"
+          },
+          {
+            "kind": "text",
+            "text": "### Parámetros del Modelo",
+            "html": false
+          },
+          {
+            "kind": "row",
+            "weights": [1, 1],
+            "children": [
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "select",
+                    "label": "Criterio de División:",
+                    "key": null,
+                    "value": "gini",
+                    "options": ["gini", "entropy"],
+                    "display": ["gini", "entropy"],
+                    "help": "Medida de la calidad de una división. Gini o Entropy para clasificación, MSE para regresión."
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "Profundidad Máxima:",
+                    "key": null,
+                    "value": 3,
+                    "min_value": 1,
+                    "max_value": 10,
+                    "step": null,
+                    "help": "La profundidad máxima del árbol. A mayor profundidad, más complejo el modelo."
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "slider",
+                    "label": "Muestras Mínimas para División:",
+                    "key": null,
+                    "value": 2,
+                    "min_value": 2,
+                    "max_value": 10,
+                    "step": null,
+                    "help": "Número mínimo de muestras para dividir un nodo."
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "Tamaño del Conjunto de Prueba:",
+                    "key": null,
+                    "value": 0.3,
+                    "min_value": 0.1,
+                    "max_value": 0.5,
+                    "step": 0.05,
+                    "help": "Proporción de datos que se usará para evaluar el modelo."
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "button",
+            "key": null,
+            "label": "Entrenar Modelo",
+            "type": "primary"
+          },
+          {
+            "kind": "notice",
+            "text": "Error al entrenar el modelo: Unknown label type: continuous. Maybe you are trying to fit a classifier, which expects discrete classes on a regression target with continuous values.",
+            "severity": "error"
+          }
+        ]
+      }
+    }
+  }
+}

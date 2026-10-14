@@ -1,0 +1,100 @@
+{#- NUEVO (decisiones D1 y D43, Fase 3): no existe en la versión Python. Script del "📦 Paquete Python
+    (.zip)" de la lección 🌲 Árboles de Decisión. Lee modelo.json, reconstruye el árbol de scikit-learn
+    sin reentrenar (copia los nodos en un sklearn.tree._tree.Tree), comprueba que predice lo mismo que
+    MLTutor y lo guarda con el mismo formato que el pickle de la versión Python (un diccionario con el
+    modelo, los nombres y el tipo de tarea), para que funcione el "Código para Usar el Modelo"
+    (usar_modelo_arbol.py.j2).
+    Variables (pásalas todas):
+      estimator   str   "sklearn.tree.DecisionTreeClassifier" o "sklearn.tree.DecisionTreeRegressor"
+      dataset     str   nombre del dataset (texto del usuario si es un CSV: va con pycomment)
+      classifier  bool
+      task_type   str   "Clasificación" o "Regresión" (lo que guarda el pickle en task_type)
+      json_name   str   "modelo.json"
+      pkl_name    str   "decision_tree_model.pkl"
+-#}
+"""
+Reconstruye el árbol de decisión entrenado en MLTutor como un objeto de scikit-learn.
+
+Modelo: {{ estimator }}
+Dataset: {{ dataset | pycomment }}
+
+Uso (en la carpeta donde has descomprimido el ZIP):
+    pip install scikit-learn numpy
+    python reconstruir_modelo.py
+
+Genera '{{ pkl_name }}', el archivo que carga el "Código para Usar el Modelo" de MLTutor.
+"""
+import json
+import pickle
+
+import numpy as np
+{% if classifier %}from sklearn.tree import DecisionTreeClassifier{% else %}from sklearn.tree import DecisionTreeRegressor{% endif %}
+from sklearn.tree._tree import Tree
+
+# 1. Leer el árbol que ha aprendido MLTutor
+with open("{{ json_name }}", encoding="utf-8") as f:
+    datos = json.load(f)
+arbol = datos["tree"]
+
+# 2. Crear el modelo con los mismos hiperparámetros
+{% if classifier %}modelo = DecisionTreeClassifier(**datos["params"])
+{% else %}modelo = DecisionTreeRegressor(**datos["params"])
+{% endif %}
+# 3. Copiar los nodos del árbol (no hace falta volver a entrenar)
+n_clases = np.array([{% if classifier %}datos["n_classes_"]{% else %}1{% endif %}], dtype=np.intp)
+tree = Tree(datos["n_features_in"], n_clases, 1)
+nodos = np.zeros(arbol["node_count"], dtype=tree.__getstate__()["nodes"].dtype)
+campos = {
+    "left_child": "children_left",
+    "right_child": "children_right",
+    "feature": "feature",
+    "threshold": "threshold",
+    "impurity": "impurity",
+    "n_node_samples": "n_node_samples",
+    "weighted_n_node_samples": "weighted_n_node_samples",
+    "missing_go_to_left": "missing_go_to_left",
+}
+for campo, clave in campos.items():
+    nodos[campo] = arbol[clave]
+valores = np.array(arbol["value"], dtype=float).reshape(arbol["node_count"], 1, -1)
+tree.__setstate__({"max_depth": arbol["max_depth"], "node_count": arbol["node_count"],
+                   "nodes": nodos, "values": valores})
+modelo.tree_ = tree
+modelo.n_features_in_ = datos["n_features_in"]
+modelo.n_outputs_ = 1
+modelo.max_features_ = datos["max_features_"]
+{% if classifier %}modelo.classes_ = np.array(datos["classes_"])
+modelo.n_classes_ = int(datos["n_classes_"])
+{% endif %}
+# 4. Comprobar que el modelo reconstruido predice lo mismo que MLTutor
+X = np.array(datos["check"]["X"], dtype=float)
+{% if classifier %}assert np.array_equal(modelo.predict(X), np.array(datos["check"]["prediction"]))
+assert np.allclose(modelo.predict_proba(X), datos["check"]["probabilities"], atol=1e-12)
+{% else %}assert np.allclose(modelo.predict(X), datos["check"]["prediction"], rtol=1e-12, atol=1e-12)
+{% endif %}print("✅ El modelo reconstruido predice lo mismo que MLTutor")
+
+# 5. Guardarlo como lo hacía MLTutor: un diccionario con el modelo y su descripción
+model_data = {
+    "model": modelo,
+    "feature_names": datos["display_names"],
+    "class_names": datos.get("class_names"),
+    "task_type": "{{ task_type }}",
+    "model_info": {
+        "task_type": "{{ task_type }}",
+        "max_depth": datos["params"]["max_depth"],
+        "min_samples_split": datos["params"]["min_samples_split"],
+        "criterion": datos["params"]["criterion"],
+        "n_features": datos["n_features_in"],
+        "n_nodes": arbol["node_count"],
+        "n_leaves": arbol["n_leaves"],
+    },
+}
+with open("{{ pkl_name }}", "wb") as f:
+    pickle.dump(model_data, f)
+print("💾 Modelo guardado en '{{ pkl_name }}'")
+
+# Ejemplo de uso:
+# with open("{{ pkl_name }}", "rb") as f:
+#     modelo = pickle.load(f)["model"]
+# nuevo_ejemplo = np.array([[{% raw %}valor1, valor2, ...{% endraw %}]])  # en el orden de datos["feature_names_in"]
+# print(modelo.predict(nuevo_ejemplo))

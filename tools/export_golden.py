@@ -212,7 +212,8 @@ class Writer:
         rel = str(path.relative_to(REPO_ROOT))
         (self.unchanged if same else self.changed).append(rel)
 
-    def write_json(self, path: Path, doc: dict) -> None:
+    def write_json(self, path: Path, doc: dict, dump: Callable[[dict], str] | None = None) -> None:
+        """``dump`` formats the file (default ``dumps``); only the content is compared."""
         doc = to_jsonable(doc)
         old = None
         if path.exists():
@@ -225,7 +226,7 @@ class Writer:
             return
         doc["meta"]["generated"] = _dt.date.today().isoformat()
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(dumps(doc), encoding="utf-8")
+        path.write_text((dump or dumps)(doc), encoding="utf-8")
 
     def write_bytes(self, path: Path, data: bytes) -> None:
         same = path.exists() and path.read_bytes() == data
@@ -1870,6 +1871,10 @@ def build_cases() -> dict[str, Callable[[Writer], None]]:
         cases[f"{LR_MODULE}/{name}"] = (lambda n, s: (lambda w: case_linear_model(n, s, w)))(name, spec)
     cases["code/regression"] = case_code_regression
     cases["code/regression_training"] = case_code_regression_training
+    # Phase 3: 🌲 Árboles de Decisión (tools/golden_trees.py reuses this module's helpers).
+    import golden_trees
+
+    golden_trees.register(cases, sys.modules[__name__])
     return cases
 
 

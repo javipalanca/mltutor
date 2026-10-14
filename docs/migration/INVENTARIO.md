@@ -76,13 +76,13 @@ Pestañas: 📊 Datos · 🏋️ Entrenamiento · 📈 Evaluación · 📉 Visua
       En clasificación, 🌈 frontera de decisión (eligiendo 2 características) y
       📉 ROC/PR. En regresión, 📈 residuos y 🌐 superficie de decisión.
       🐍 `viz/tree_visualizer.py`, `viz/decision_boundary.py`, `viz/roc.py`, `viz/residual.py`
-- [ ] Características: importancia del modelo y permutation importance con valores
+- [ ] Características: importancia nativa y por permutación (D38; C10, reutilizado en KNN), con valores
       detallados. 🐍 `viz/features.py`
 - [ ] Predicciones: formulario por característica guiado por los metadatos, resultado
-      con probabilidades y camino de decisión. 🐍 `ui.py::create_prediction_interface`,
+      con probabilidades de la hoja y camino de decisión (D46). 🐍 `ui.py::create_prediction_interface`,
       `model_evaluation.py::show_prediction_path`
-- [ ] Exportar: 📦 Pickle, ONNX, 🐍 código Python (`export_tree_as_python_code`),
-      📝 reglas .txt, imagen del árbol y código de entrenamiento generado. ⚠️ Pickle
+- [ ] Exportar: ONNX (TreeEnsemble*), paquete Python ZIP (D43), 📝 reglas .txt, 🐍 código Python
+      corregido (D44; el de Python no compila), imagen PNG/SVG del árbol (D42) y código de uso.
 
 ## 4. 📊 Regresión (lineal y logística) 🐍 `apps/linear_regression_app.py`
 
@@ -164,8 +164,11 @@ Estas funciones no se usan en la navegación actual. No se migran salvo que se d
 lo contrario: `show_network_anatomy_tab`, `show_enhanced_decision_surface_tab`,
 `show_live_activations_tab`, `show_interpretability_tab`,
 `show_interactive_simulator_tab` y sus auxiliares (`viz/nn_extra.py`);
-`show_sidebar_config`, `display_tree_visualization` (`ui.py`); `render_visualization`
-(`viz/tree_visualization.py`); `create_animated_neighbors_plot` (`knn_app.py`).
+`show_sidebar_config`, `display_tree_visualization`, `display_feature_importance`,
+`display_model_export_options`, `export_model_pickle`, `export_modelo_onnx` (`ui.py`);
+`viz/tree_visualization.py` entero; `tree_visualizer.create_tree_visualization` y
+`render_tree_visualization`; `utils.generate_model_code`; `model_training.predict_sample`;
+`DECISION_BOUNDARY_CODE`; `create_animated_neighbors_plot` (`knn_app.py`).
 Antes de descartar cada una, `migration-porter` debe confirmar que no se puede alcanzar.
 
 ## 9. Gráficos: de matplotlib a Plotly

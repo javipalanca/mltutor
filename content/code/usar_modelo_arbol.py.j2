@@ -1,0 +1,64 @@
+{#- Literal de mltutor/algorithms/code_examples.py::generate_tree_model_export_code(feature_names)
+    (sin el salto de línea inicial). Pestaña 💾 Exportar, al final: show_code_with_download(código,
+    "Código para Usar el Modelo", "usar_modelo.py"). Carga 'decision_tree_model.pkl' (el pickle
+    de "📦 Exportar como Pickle"), que Rust no genera (D1): el paquete Python lo crea con este formato (D43).
+    Variables: feature_names (list[str], nombres legibles; Python los imprime con str(list) = repr). -#}
+# Código para usar el modelo de árbol de decisión
+import pickle
+import numpy as np
+
+# Cargar el modelo
+with open('decision_tree_model.pkl', 'rb') as f:
+    model_data = pickle.load(f)
+
+model = model_data['model']
+feature_names = model_data['feature_names']
+class_names = model_data['class_names']
+task_type = model_data['task_type']
+
+# Función para hacer predicciones
+def predecir(valores_caracteristicas):
+    """
+    Hace una predicción con el modelo de árbol de decisión.
+    
+    Args:
+        valores_caracteristicas (list): Lista con valores para cada característica
+                                      en el orden: {{ feature_names | pyrepr }}
+    
+    Returns:
+        Predicción del modelo
+    """
+    # Convertir a array numpy
+    X = np.array(valores_caracteristicas).reshape(1, -1)
+    
+    # Hacer predicción
+    prediction = model.predict(X)[0]
+    
+    if task_type == "Clasificación":
+        if class_names:
+            return class_names[prediction]
+        else:
+            return f"Clase {prediction}"
+    else:
+        return prediction
+
+# Ejemplo de uso:
+# resultado = predecir([valor1, valor2, valor3, ...])
+# print(f"Predicción: {resultado}")
+
+# Para obtener probabilidades (solo clasificación):
+if task_type == "Clasificación" and hasattr(model, 'predict_proba'):
+    def predecir_con_probabilidades(valores_caracteristicas):
+        X = np.array(valores_caracteristicas).reshape(1, -1)
+        prediction = model.predict(X)[0]
+        probabilities = model.predict_proba(X)[0]
+        
+        resultado = {
+            'prediccion': class_names[prediction] if class_names else f"Clase {prediction}",
+            'probabilidades': {
+                (class_names[i] if class_names else f"Clase {i}"): prob 
+                for i, prob in enumerate(probabilities)
+            }
+        }
+        
+        return resultado

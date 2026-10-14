@@ -1,0 +1,35 @@
+{#- Literal de mltutor/algorithms/code_examples.py::TEXT_TREE_CODE (sin el salto de línea inicial).
+    Pestaña 📉 Visualización → 📝 Texto: show_code_with_download(TEXT_TREE_CODE, "Código para obtener el texto del árbol", "texto_arbol.py"). Sin variables. -#}
+from sklearn.tree import export_text
+
+def get_tree_text(model, feature_names, show_class_name=True):
+    """
+    Obtiene una representación de texto de un árbol de decisión.
+
+    Parameters:
+    -----------
+    model : DecisionTreeClassifier o DecisionTreeRegressor
+        Modelo de árbol entrenado
+    feature_names : list
+        Nombres de las características
+    show_class_name : bool
+        Si es True, muestra los nombres de las clases (para clasificación)
+
+    Returns:
+    --------
+    str
+        Representación de texto del árbol
+    """
+    return export_text(
+        model,
+        feature_names=feature_names,
+        show_weights=True
+    )
+
+# Ejemplo de uso:
+tree_text = get_tree_text(tree_model, feature_names)
+print(tree_text)
+
+# Para guardar a un archivo:
+# with open('arbol_texto.txt', 'w') as f:
+#     f.write(tree_text)
