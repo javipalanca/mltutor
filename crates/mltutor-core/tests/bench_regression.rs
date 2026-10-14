@@ -126,11 +126,13 @@ fn regression_lesson_under_100_ms_per_command() {
             linear::fit(cfg, xt.view(), &yt, &ctl).unwrap();
         });
         if label == "Digits" {
-            // 650 parameters: L-BFGS (above NEWTON_MAX_PARAMS), runs to max_iter;
-            // outside the California budget, reported only (progress events).
+            // 650 parameters: Newton (~45 ms per Hessian, 12 iterations) since the
+            // F2 review (~0.59 s); before, L-BFGS ran to max_iter (482-540 ms, 1000
+            // iterations, 2.8e-3 from the optimum). Outside the California
+            // budget, reported only (progress events).
             println!(
                 "{:<40} {t:>10.2?} (not asserted)",
-                format!("{label}: train (logistic, L-BFGS)")
+                format!("{label}: train (logistic, Newton)")
             );
         } else {
             report(&format!("{label}: train (logistic, Newton)"), t);
@@ -165,5 +167,44 @@ fn regression_lesson_under_100_ms_per_command() {
                 .unwrap();
             }),
         );
+    }
+}
+
+/// splitmix64 in [0, 1): reproducible data without a RNG crate.
+fn uniform(state: &mut u64) -> f64 {
+    *state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+    let mut z = *state;
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    z ^= z >> 31;
+    (z >> 11) as f64 / (1_u64 << 53) as f64
+}
+
+/// Review F2 (OLS cost): large CSVs. Before the QR rewrite (2026-10-14, full SVD
+/// of the n × p matrix + linfa QR): 100 000 × 200 took 36.3 s and 1 000 000 × 20
+/// 3.23 s; after (Householder QR + SVD of R): 1.17 s and 0.32 s. Only reported.
+/// `cargo test -p mltutor-core --release --test bench_regression ols_large -- --ignored --nocapture`
+#[test]
+#[ignore = "benchmark: run in release with --ignored"]
+fn ols_large_design_matrices() {
+    for (n, p) in [(100_000_usize, 200_usize), (1_000_000, 20)] {
+        let mut s = 42_u64;
+        let x = ndarray::Array2::from_shape_fn((n, p), |_| uniform(&mut s) * 2.0 - 1.0);
+        let y = ndarray::Array1::from_shape_fn(n, |i| {
+            x.row(i)
+                .iter()
+                .enumerate()
+                .map(|(j, v)| v * (j as f64 + 1.0))
+                .sum::<f64>()
+                + uniform(&mut s)
+        });
+        let t = Instant::now();
+        let m =
+            mltutor_core::linear::LinearRegression::fit(x.view(), y.view(), &TrainControl::none())
+                .unwrap();
+        let d = t.elapsed();
+        println!("OLS {n} x {p}: {d:>10.2?} (rank {})", m.rank());
+        assert_eq!(m.rank(), p);
+        assert!((m.coef()[p - 1] - p as f64).abs() < 1e-2);
     }
 }

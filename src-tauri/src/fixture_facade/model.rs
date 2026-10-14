@@ -13,7 +13,7 @@ use std::sync::atomic::AtomicBool;
 
 use serde_json::Value;
 
-use super::frame::Frame;
+use super::frame::{Frame, Target};
 use super::{floats, strings};
 use crate::core_facade::{
     check_cancelled, ModelHandle, ModelSummary, ModelView, Progress, TrainSpec,
@@ -497,6 +497,14 @@ fn linspace(lo: f64, hi: f64, n: usize) -> Vec<f64> {
         .collect()
 }
 
+impl FixtureModel {
+    /// The fixtures train on splits that contain every class.
+    fn model_classes(&self) -> Option<Vec<usize>> {
+        (self.task == TaskType::Classification)
+            .then(|| (0..self.class_names.as_ref().map_or(0, Vec::len)).collect())
+    }
+}
+
 impl ModelView for FixtureModel {
     fn summary(&self) -> ModelSummary {
         ModelSummary {
@@ -507,6 +515,7 @@ impl ModelView for FixtureModel {
             feature_columns: self.frame.feature_columns.clone(),
             feature_names: self.frame.feature_display.clone(),
             class_names: self.class_names.clone(),
+            model_classes: self.model_classes(),
             notices: self.notices.clone(),
         }
     }
@@ -754,6 +763,12 @@ impl ModelView for FixtureModel {
                     .collect::<Vec<_>>(),
             ),
             point_target: self.train.iter().map(|&i| target[i]).collect(),
+            point_codes: match &self.frame.target {
+                Target::Classes { codes, .. } if self.task == TaskType::Classification => {
+                    Some(self.train.iter().map(|&i| u32::from(codes[i])).collect())
+                }
+                _ => None,
+            },
             feature_names: [
                 self.frame.feature_display[x].clone(),
                 self.frame.feature_display[y].clone(),
@@ -841,6 +856,9 @@ impl ModelView for FixtureModel {
         Ok(CoefficientsView {
             rows,
             class_index: (logistic && self.coef.len() > 1).then_some(to_u32(row)),
+            model_classes: self
+                .model_classes()
+                .map(|c| c.into_iter().map(to_u32).collect()),
             n_rows: to_u32(self.coef.len()),
             intercept: self.intercept.get(row).copied().unwrap_or(0.0),
             intercept_odds: (logistic && self.coef.len() == 1)

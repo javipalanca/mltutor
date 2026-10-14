@@ -1,5 +1,8 @@
 //! Embeds every template of `content/code/` (`*.j2`) so that `codegen` can load
 //! them by name, including templates added after this crate was written.
+//!
+//! A missing or unreadable directory fails the build (a panic is how a build
+//! script reports an error): an empty template list would only show up at run time.
 
 use std::env;
 use std::fs;
@@ -7,24 +10,29 @@ use std::io::Write;
 use std::path::PathBuf;
 
 fn main() {
-    let manifest = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap_or_default());
+    let manifest = PathBuf::from(env_var("CARGO_MANIFEST_DIR"));
     let dir = manifest.join("../../content/code");
     println!("cargo:rerun-if-changed={}", dir.display());
-    let mut names: Vec<(String, PathBuf)> = fs::read_dir(&dir)
-        .map(|entries| {
-            entries
-                .filter_map(Result::ok)
-                .map(|e| e.path())
-                .filter(|p| p.extension().is_some_and(|x| x == "j2"))
-                .filter_map(|p| {
-                    let name = p.file_name()?.to_str()?.to_owned();
-                    Some((name, p))
-                })
-                .collect()
-        })
-        .unwrap_or_default();
+    let entries = fs::read_dir(&dir).unwrap_or_else(|e| {
+        panic!("cannot read {}: {e}", dir.display());
+    });
+    let mut names: Vec<(String, PathBuf)> = Vec::new();
+    for entry in entries {
+        let path = entry
+            .unwrap_or_else(|e| panic!("cannot read {}: {e}", dir.display()))
+            .path();
+        if path.extension().is_some_and(|x| x == "j2") {
+            let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+                panic!("non UTF-8 template name: {}", path.display());
+            };
+            names.push((name.to_owned(), path.clone()));
+        }
+    }
+    if names.is_empty() {
+        panic!("no *.j2 templates in {}", dir.display());
+    }
     names.sort();
-    let out = PathBuf::from(env::var("OUT_DIR").unwrap_or_default()).join("templates.rs");
+    let out = PathBuf::from(env_var("OUT_DIR")).join("templates.rs");
     let mut code = String::from("/// `(file name, source)` of every `content/code/*.j2`.\npub const TEMPLATES: &[(&str, &str)] = &[\n");
     for (name, path) in &names {
         println!("cargo:rerun-if-changed={}", path.display());
@@ -35,7 +43,11 @@ fn main() {
         ));
     }
     code.push_str("];\n");
-    if let Ok(mut f) = fs::File::create(&out) {
-        let _ = f.write_all(code.as_bytes());
-    }
+    fs::File::create(&out)
+        .and_then(|mut f| f.write_all(code.as_bytes()))
+        .unwrap_or_else(|e| panic!("cannot write {}: {e}", out.display()));
+}
+
+fn env_var(name: &str) -> String {
+    env::var(name).unwrap_or_else(|e| panic!("missing variable {name}: {e}"))
 }

@@ -5,8 +5,9 @@
     métricas y la predicción de una muestra.
 
     Se renderiza con minijinja (Rust) y con jinja2 (tools/export_golden.py). Solo usa if/elif/else,
-    for, comparaciones y el filtro `pyrepr` (repr() de Python). Pasa SIEMPRE todas las variables,
-    con null (None) las que no apliquen.
+    for, comparaciones y los filtros `pyrepr` (repr() de Python, para literales) y `pycomment`
+    (quita "\n", "\r" y comillas triples, para el texto del usuario dentro del docstring o de
+    comentarios #). Pasa SIEMPRE todas las variables, con null (None) las que no apliquen.
 
     Variables:
       dataset        str        slug del dataset incluido: "iris", "wine", "breast_cancer", "digits",
@@ -33,7 +34,7 @@
 """
 MLTutor · 📊 Regresión — entrenamiento reproducible con scikit-learn
 
-Dataset: {{ dataset_label }}
+Dataset: {{ dataset_label | pycomment }}
 Modelo:  {% if model == "logistic" %}Regresión logística (LogisticRegression, max_iter={{ max_iter }}){% else %}Regresión lineal (LinearRegression){% endif %}
 Prueba:  test_size={{ test_size | pyrepr }} (train_test_split con random_state=42, sin estratificar)
 
@@ -42,9 +43,9 @@ prueba, entrena el modelo, calcula las métricas de la pestaña 📈 Evaluación
 coeficientes y predice una muestra.
 
 Uso:
-    pip install scikit-learn pandas numpy{% if dataset in ["titanic", "tips", "penguins", "mpg", "diamonds"] %} seaborn{% endif %}
+    pip install "scikit-learn>=1.6" pandas numpy{% if dataset in ["titanic", "tips", "penguins", "mpg", "diamonds"] %} seaborn{% endif %}
 {%- if dataset == "csv" %}
-    # Copia {{ csv_file }} en la misma carpeta que este script
+    # Copia {{ csv_file | pycomment }} en la misma carpeta que este script
 {%- endif %}
     python {% if model == "logistic" %}regresion_logistica{% else %}regresion_lineal{% endif %}.py
 """
@@ -72,11 +73,13 @@ from sklearn.datasets import make_moons
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
     accuracy_score,
+    auc as area_bajo_curva,
     average_precision_score,
     classification_report,
     confusion_matrix,
     precision_recall_fscore_support,
     roc_auc_score,
+    roc_curve,
 )
 {%- else %}
 from sklearn.linear_model import LinearRegression
@@ -187,18 +190,30 @@ print(f"Entrenamiento: {len(X_train)} muestras · Prueba: {len(X_test)} muestras
 # 3. Entrenar el modelo
 # ---------------------------------------------------------------------------
 {%- if model == "logistic" %}
-# Los mismos hiperparámetros que MLTutor: C=1.0 (regularización L2), solver 'lbfgs' y los
-# datos SIN escalar
-modelo = LogisticRegression(max_iter={{ max_iter }}, random_state=42)
+# Los mismos hiperparámetros que MLTutor: C=1.0 (regularización L2 de los coeficientes; el
+# intercepto no se penaliza) y los datos SIN escalar.
+# MLTutor busca el mínimo exacto de la pérdida con un método de segundo orden (Newton, que
+# usa la curvatura de la pérdida). En scikit-learn el equivalente es solver="newton-cholesky"
+# (multiclase desde la versión 1.6): llega al mismo modelo en pocas iteraciones aunque las
+# características tengan escalas muy distintas. El solver por defecto, 'lbfgs', con datos sin
+# escalar puede agotar max_iter lejos del óptimo (en 🔬 Cáncer, las probabilidades difieren
+# hasta 0,2 de las de MLTutor). tol=1e-8 hace que siga hasta que la pendiente (el gradiente)
+# es prácticamente cero, como MLTutor; con el valor por defecto (tol=1e-4) se detiene un poco
+# antes y las probabilidades pueden diferir en la cuarta o quinta cifra decimal.
+modelo = LogisticRegression(solver="newton-cholesky", tol=1e-8, max_iter={{ max_iter }},
+                            random_state=42)
 modelo.fit(X_train, y_train)
 if modelo.n_iter_.max() >= modelo.max_iter:
     print(f"⚠️ El optimizador no ha convergido en {modelo.max_iter} iteraciones.")
-    print("   Escala las características para que converja. Con un Pipeline, el escalador")
-    print("   aprende la media y la desviación solo de los datos de entrenamiento:")
-    print("   from sklearn.pipeline import make_pipeline")
-    print("   from sklearn.preprocessing import StandardScaler")
-    print("   modelo = make_pipeline(StandardScaler(), LogisticRegression(max_iter=1000))")
-    print("   Sin converger, tus números pueden diferir un poco de los de MLTutor.")
+    print("   Sube max_iter. Sin converger, tus números pueden diferir de los de MLTutor.")
+# ¿Y si escalo las características con StandardScaler? Es buena práctica (los coeficientes
+# pasan a medir el efecto de una desviación estándar y son comparables), pero da OTRO modelo,
+# no el de MLTutor: la penalización L2 actúa entonces sobre los coeficientes de las
+# características estandarizadas y el óptimo cambia. Si lo haces, ajusta el escalador solo
+# con X_train (un Pipeline lo hace por ti) para no filtrar información de la prueba:
+#   from sklearn.pipeline import make_pipeline
+#   from sklearn.preprocessing import StandardScaler
+#   modelo = make_pipeline(StandardScaler(), LogisticRegression(solver="newton-cholesky"))
 {%- else %}
 modelo = LinearRegression()  # mínimos cuadrados ordinarios, sin hiperparámetros que ajustar
 modelo.fit(X_train, y_train)
@@ -247,8 +262,20 @@ else:
     ap_micro = average_precision_score(Y_test[:, presentes], proba[:, presentes], average="micro")
     ap_macro = np.mean([average_precision_score(Y_test[:, i], proba[:, i])
                         for i in range(len(modelo.classes_)) if presentes[i]])
+    # Macro-promedio del ROC AUC como lo calcula MLTutor: se juntan las FPR de todas las
+    # curvas por clase, se interpola la TPR de cada clase en esos puntos (np.interp), se
+    # promedian y se mide el área de esa curva media. Puede salir mayor que
+    # roc_auc_score(average="macro"), que promedia las AUC de cada clase: cada curva ROC es una
+    # escalera, y en sus saltos verticales np.interp se queda con el valor de arriba y une esos
+    # puntos con rectas, así que la curva media «recorta las esquinas» por encima. Con pocas
+    # muestras de prueba la diferencia se nota (en un CSV pequeño, 0,561 frente a 0,502).
+    curvas = [roc_curve(Y_test[:, i], proba[:, i])
+              for i in range(len(modelo.classes_)) if presentes[i]]
+    fpr_todas = np.unique(np.concatenate([fpr for fpr, _, _ in curvas]))
+    tpr_media = np.mean([np.interp(fpr_todas, fpr, tpr) for fpr, tpr, _ in curvas], axis=0)
+    auc_macro = area_bajo_curva(fpr_todas, tpr_media)
     print(f"Micro-promedio: ROC AUC {auc_micro:.3f} · AP {ap_micro:.3f}")
-    print(f"Macro-promedio: AP {ap_macro:.3f}")
+    print(f"Macro-promedio: ROC AUC {auc_macro:.3f} · AP {ap_macro:.3f}")
 {%- else %}
 mse = mean_squared_error(y_test, y_pred)
 rmse = np.sqrt(mse)

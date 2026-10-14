@@ -16,7 +16,8 @@ from sklearn.inspection import DecisionBoundaryDisplay
 # Datos de entrenamiento: solo las 2 características elegidas
 X_2d = np.asarray(X_train, dtype=float)[:, {{ feature_indices | pyrepr }}]
 
-# Entrenar el modelo simplificado: mismo tipo e hiperparámetros, solo con esas 2 características
+# Entrenar el modelo simplificado: mismo tipo e hiperparámetros (en la logística, también
+# solver="newton-cholesky", como MLTutor), solo con esas 2 características
 model_2d = clone(modelo)
 model_2d.fit(X_2d, y_train)
 

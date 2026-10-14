@@ -49,6 +49,11 @@ pub enum ExportError {
 
 /// ONNX graph of an F2 model. `class_values` = numeric value of each class code
 /// (`classes_` of scikit-learn; the codes themselves when `None`).
+///
+/// `LinearClassifier` takes integer labels (`classlabels_ints`), so the class
+/// values are used only when **all** of them are integers that fit in `i64` and
+/// stay distinct; otherwise (e.g. `[2.5, 0.0]`) every class gets its code
+/// (`0..k`), so that no two classes share a label. See [`onnx_class_labels`].
 pub fn onnx_model(
     model: &dyn Predictor,
     class_values: Option<&[f64]>,
@@ -61,21 +66,39 @@ pub fn onnx_model(
         let coef = coefs.coef.row(0).to_vec();
         onnx::linear_regressor(&coef, coefs.intercept.first().copied().unwrap_or(0.0))
     } else if any.is::<LogisticRegression>() {
-        let classes: Vec<i64> = model
-            .classes()
-            .unwrap_or(&[])
-            .iter()
-            .map(|&c| {
-                class_values
-                    .and_then(|v| v.get(c))
-                    .filter(|v| v.fract() == 0.0)
-                    .map_or(c as i64, |&v| v as i64)
-            })
-            .collect();
+        let classes = onnx_class_labels(model.classes().unwrap_or(&[]), class_values);
         let flat: Vec<f64> = coefs.coef.iter().copied().collect();
         onnx::linear_classifier(&flat, coefs.coef.ncols(), &coefs.intercept, &classes)
     } else {
         Err(ExportError::Unsupported)
+    }
+}
+
+/// The `classlabels_ints` of a classifier with classes `codes` (see [`onnx_model`]):
+/// the class values when all are distinct integers, the codes otherwise.
+pub fn onnx_class_labels(codes: &[usize], class_values: Option<&[f64]>) -> Vec<i64> {
+    let as_codes = || codes.iter().map(|&c| c as i64).collect::<Vec<_>>();
+    let Some(values) = class_values else {
+        return as_codes();
+    };
+    // 2^63 as f64: integral values strictly below it in magnitude fit in i64.
+    const LIMIT: f64 = 9_223_372_036_854_775_808.0;
+    let mut labels = Vec::with_capacity(codes.len());
+    for &c in codes {
+        match values.get(c) {
+            Some(&v) if v.is_finite() && v.fract() == 0.0 && v.abs() < LIMIT => {
+                labels.push(v as i64);
+            }
+            _ => return as_codes(),
+        }
+    }
+    let mut sorted = labels.clone();
+    sorted.sort_unstable();
+    sorted.dedup();
+    if sorted.len() == labels.len() {
+        labels
+    } else {
+        as_codes()
     }
 }
 
@@ -90,7 +113,45 @@ pub fn onnx_file_name(model: &dyn Predictor) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::VERSION;
+    use super::*;
+    use mltutor_core::model::TrainControl;
+    use ndarray::array;
+
+    #[test]
+    fn onnx_labels_never_repeat() {
+        // Review F2: [2.5, 0.0] used to give [0, 0] (2.5 → code 0, 0.0 → 0).
+        assert_eq!(onnx_class_labels(&[0, 1], Some(&[2.5, 0.0])), vec![0, 1]);
+        assert_eq!(onnx_class_labels(&[0, 1], Some(&[3.0, 6.0])), vec![3, 6]);
+        assert_eq!(
+            onnx_class_labels(&[0, 2], Some(&[1.0, 5.0, 7.0])),
+            vec![1, 7]
+        );
+        assert_eq!(onnx_class_labels(&[0, 1], None), vec![0, 1]);
+        assert_eq!(
+            onnx_class_labels(&[0, 1], Some(&[f64::NAN, 1.0])),
+            vec![0, 1]
+        );
+        assert_eq!(onnx_class_labels(&[0, 1], Some(&[1e300, 1.0])), vec![0, 1]);
+        // Codes missing from `class_values`.
+        assert_eq!(onnx_class_labels(&[0, 1], Some(&[4.0])), vec![0, 1]);
+    }
+
+    #[test]
+    fn onnx_model_with_fractional_class_values() {
+        let x = array![[0.0], [1.0], [2.0], [3.0], [4.0], [5.0]];
+        let y = [0, 0, 1, 0, 1, 1];
+        let model = LogisticRegression::fit(
+            x.view(),
+            &y,
+            mltutor_core::linear::LogisticParams::default(),
+            &TrainControl::none(),
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        let onnx = onnx_model(&model, Some(&[2.5, 0.0])).unwrap_or_else(|e| panic!("{e}"));
+        let (labels, _) =
+            onnx::evaluate(&onnx, &[vec![0.0], vec![5.0]]).unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(labels, vec![0, 1]);
+    }
 
     #[test]
     fn version_matches_workspace() {

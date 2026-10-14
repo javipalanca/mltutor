@@ -1,6 +1,6 @@
 # Plan de migración de MLTutor a Rust
 
-Rama: `feature/rust-migration` · Inicio: 2026-10-13 · Estado: **Fases 0 y 1 completadas (2026-10-14, revisadas por rust-reviewer), Fase 2 en curso**
+Rama: `feature/rust-migration` · Inicio: 2026-10-13 · Estado: **Fases 0 y 1 completadas (2026-10-14, revisadas por rust-reviewer), Fase 2 completada (2026-10-14, revisada por rust-reviewer y ml-correctness-reviewer), Fase 3 en curso**
 
 ## Objetivo
 
@@ -146,8 +146,8 @@ reutilizarán el resto de lecciones.
 - [x] Coeficientes, predicciones y exportación (ONNX + paquete Python, según D1),
       junto con el código Python generado.
 - [x] Inventario §4 completo, con la captura comparativa revisada.
-- [ ] Script de entrenamiento con CSV propio: hoy pasa `csv_sep`, `csv_decimal` y `csv_encoding` a `None`.
-- [ ] `content/code/paquete_leeme.txt.j2` numera las clases con `loop.index0`; con un CSV de clases numéricas (p. ej. 3 y 6) hay que mostrar los valores reales (`class_values`).
+- [x] Script de entrenamiento con CSV propio: hoy pasa `csv_sep`, `csv_decimal` y `csv_encoding` a `None`.
+- [x] `content/code/paquete_leeme.txt.j2` numera las clases con `loop.index0`; con un CSV de clases numéricas (p. ej. 3 y 6) hay que mostrar los valores reales (`class_values`).
 
 ### Fase 3 — 🌲 Árboles de Decisión  *(riesgo: alto · tamaño: L)*
 

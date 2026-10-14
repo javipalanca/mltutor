@@ -1,8 +1,10 @@
 //! Python code shown to the student (fase2-regresion.md C12): the templates of
 //! `content/code/*.j2`, embedded at build time (`build.rs`, loaded by file name)
 //! and rendered with minijinja exactly like jinja2 in `tools/export_golden.py`:
-//! `keep_trailing_newline`, strict undefined variables and a `pyrepr` filter that
-//! reproduces Python's `repr()` (`'texto'`, `[1, 2.5, None]`, `0.3`, `2.5e-07`).
+//! `keep_trailing_newline`, strict undefined variables, a `pyrepr` filter that
+//! reproduces Python's `repr()` (`'texto'`, `[1, 2.5, None]`, `0.3`, `2.5e-07`)
+//! and a `pycomment` filter ([`py_comment`]) for user text inside a `#` comment or
+//! a docstring.
 
 use minijinja::syntax::SyntaxConfig;
 use minijinja::value::{Serde, Value, ValueKind};
@@ -214,6 +216,22 @@ fn py_json(value: &Value) -> String {
     }
 }
 
+/// The `pycomment` filter (interface I3): user text (a CSV file name, a dataset
+/// label) made safe inside a Python `#` comment or a `"""` docstring.
+///
+/// 1. Removes `\r` and `\n`, which would end the comment.
+/// 2. Removes `"""` repeatedly, so that a removal cannot form a new one
+///    (`""\n"` → `"""` after step 1 → nothing).
+/// 3. Doubles every backslash: `\N` or `\x` inside a docstring is a `SyntaxError`
+///    (an invalid escape); `\\` is read back as one `\`.
+pub fn py_comment(text: &str) -> String {
+    let mut out: String = text.chars().filter(|&c| c != '\r' && c != '\n').collect();
+    while out.contains("\"\"\"") {
+        out = out.replace("\"\"\"", "");
+    }
+    out.replace('\\', "\\\\")
+}
+
 fn environment() -> Environment<'static> {
     let mut env = Environment::new();
     if let Ok(syntax) = SyntaxConfig::builder().keep_trailing_newline(true).build() {
@@ -232,6 +250,22 @@ fn environment() -> Environment<'static> {
         Ok(py_repr(&v))
     });
     env.add_filter("tojson_compact", |v: Value| py_json(&v));
+    env.add_filter(
+        "pycomment",
+        |v: Value| -> Result<String, minijinja::Error> {
+            if v.is_undefined() {
+                return Err(minijinja::Error::new(
+                    minijinja::ErrorKind::UndefinedError,
+                    "variable sin definir en pycomment",
+                ));
+            }
+            // `str(value)` in Python: strings as they are, anything else as its text.
+            Ok(match v.as_str() {
+                Some(s) => py_comment(s),
+                None => py_comment(&v.to_string()),
+            })
+        },
+    );
     for (name, source) in embedded::TEMPLATES {
         // A broken template only fails when it is rendered (see `render_named`).
         let _ = env.add_template(name, source);
@@ -279,6 +313,29 @@ mod tests {
             py_repr(&v),
             r#"["a'b", 'tulipán', 0.3, 2.5e-07, 3, None, True, 1.0, 'x"y\'z']"#
         );
+    }
+
+    #[test]
+    fn pycomment_is_safe_in_comments_and_docstrings() {
+        assert_eq!(py_comment("datos.csv"), "datos.csv");
+        assert_eq!(py_comment("a\r\nb\nc"), "abc");
+        assert_eq!(py_comment(r#"x"""y"#), "xy");
+        // Removing the line break forms a triple quote, and removing one forms another.
+        assert_eq!(py_comment("\"\"\n\""), "");
+        assert_eq!(py_comment(&"\"".repeat(5)), "\"\""); // like Python's str.replace
+        assert_eq!(py_comment(&"\"".repeat(6)), "");
+        assert_eq!(py_comment(r"C:\Nuevos\x.csv"), r"C:\\Nuevos\\x.csv");
+        let env = environment();
+        let out = env
+            .render_str(
+                "{{ a | pycomment }}|{{ n | pycomment }}",
+                Value::from(Serde(serde_json::json!({"a": "p\"\"\"q\n", "n": 3}))),
+            )
+            .unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(out, "pq|3");
+        assert!(env
+            .render_str("{{ missing | pycomment }}", Value::from(()))
+            .is_err());
     }
 
     #[test]

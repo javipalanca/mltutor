@@ -32,9 +32,12 @@ pub use reader::{
 };
 pub use text::TextColumn;
 
+pub use crate::dataset::{CsvDialect, CsvEncoding};
+
 use crate::dataset::{ColumnKind, Dataset, LabelColumn, Target, TaskChoice, TaskType};
 use crate::error::CsvError;
 use crate::frame::{Cell, DescribeTable, TablePreview};
+use crate::model::MAX_CLASSES;
 use crate::pyfmt::py_float_repr;
 use crate::stats::{self, describe_column};
 
@@ -364,8 +367,14 @@ pub fn suggest_task(nunique: usize, n_rows: usize) -> TaskType {
 /// The `"auto"` rule of `load_dataset_from_file`: Classification if
 /// `len(y.unique()) < max(5, 0.05 · n_rows)` (NaN counts as one value). It is not
 /// the same rule as [`suggest_task`]; both are kept, as in Python.
+///
+/// Difference with Python: with more than [`MAX_CLASSES`] distinct values it is
+/// always Regression (a 20 000-row CSV with 900 prices would otherwise become a
+/// 900-class problem that no classification view can show).
 pub fn auto_task(n_unique_with_nan: usize, n_rows: usize) -> TaskType {
-    if (n_unique_with_nan as f64) < 5.0_f64.max(n_rows as f64 * 0.05) {
+    if n_unique_with_nan <= MAX_CLASSES
+        && (n_unique_with_nan as f64) < 5.0_f64.max(n_rows as f64 * 0.05)
+    {
         TaskType::Classification
     } else {
         TaskType::Regression
@@ -725,7 +734,31 @@ impl RawTable {
             target_column: target_col.name.clone(),
             target,
             description,
+            csv_dialect: Some(self.dialect()),
         })
+    }
+
+    /// The separator, decimal mark and encoding the reader detected (I1).
+    pub fn dialect(&self) -> CsvDialect {
+        let decimal = if self
+            .notices
+            .iter()
+            .any(|n| matches!(n, CsvNotice::DecimalComma { .. }))
+        {
+            ','
+        } else {
+            '.'
+        };
+        let encoding = if self.notices.contains(&CsvNotice::Windows1252) {
+            CsvEncoding::Windows1252
+        } else {
+            CsvEncoding::Utf8
+        };
+        CsvDialect {
+            separator: self.separator,
+            decimal,
+            encoding,
+        }
     }
 }
 
@@ -789,6 +822,53 @@ mod tests {
         // seven_levels_100_rows: 7 levels in 100 rows.
         assert_eq!(suggest_task(7, 100), TaskType::Classification);
         assert_eq!(auto_task(7, 100), TaskType::Regression);
+    }
+
+    #[test]
+    fn dataset_records_the_csv_dialect() {
+        let dialect = |bytes: &[u8]| {
+            read_csv(bytes)
+                .and_then(|t| t.to_dataset("y", TaskChoice::Auto, "f.csv"))
+                .unwrap_or_else(|e| panic!("{e}"))
+                .csv_dialect
+        };
+        assert_eq!(
+            dialect(b"x,y\n1.5,1\n2,0\n"),
+            Some(CsvDialect {
+                separator: ',',
+                decimal: '.',
+                encoding: CsvEncoding::Utf8
+            })
+        );
+        assert_eq!(
+            dialect(b"x;y\n1,5;1\n2;0\n"),
+            Some(CsvDialect {
+                separator: ';',
+                decimal: ',',
+                encoding: CsvEncoding::Utf8
+            })
+        );
+        // Tab separator and Latin-1 bytes (0xF1 = ñ); then `;` without decimal commas.
+        assert_eq!(
+            dialect(b"a\xF1o\ty\n1\t1\n2\t0\n"),
+            Some(CsvDialect {
+                separator: '\t',
+                decimal: '.',
+                encoding: CsvEncoding::Windows1252
+            })
+        );
+        assert_eq!(dialect(b"x;y\n1.5;1\n2;0\n").map(|d| d.decimal), Some('.'));
+        let iris =
+            crate::dataset::load_builtin(crate::DatasetId::Iris).unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(iris.csv_dialect, None);
+    }
+
+    #[test]
+    fn auto_task_caps_the_number_of_classes() {
+        // Python: 900 < max(5, 0.05 · 20 000) = 1000 → classification.
+        assert_eq!(auto_task(900, 20_000), TaskType::Regression);
+        assert_eq!(auto_task(MAX_CLASSES + 1, 20_000), TaskType::Regression);
+        assert_eq!(auto_task(MAX_CLASSES, 20_000), TaskType::Classification);
     }
 
     #[test]

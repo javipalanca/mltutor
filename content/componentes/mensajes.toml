@@ -152,6 +152,9 @@ expander = "ℹ️ ¿Cómo interpretar el Análisis de Umbrales?"   # umbrales.m
 actual = "Umbral Actual"                                       # valor fijo "0.50"
 optimo = "Umbral Óptimo (F1)"                                  # {:.2f}
 consejo = "💡 Considera ajustar el umbral a {umbral:.2f} para mejorar el F1-Score"   # si |óptimo − 0.5| > 0.1
+# NUEVO (revisión ML de F2, 2026-10-14): st.caption justo debajo de `consejo` (mismas
+# condiciones). El umbral óptimo se calcula con el conjunto de prueba: elegirlo así es fuga de datos.
+consejo_aviso = "⚠️ Este umbral se ha elegido mirando el conjunto de prueba, así que su F1 sale optimista. En un proyecto real, elígelo con datos de **validación** (o validación cruzada), no con la prueba, y usa la prueba solo para la evaluación final."
 tabla_titulo = "**Comparación de Umbrales:**"
 tabla_columnas = ["Umbral", "Accuracy", "Precision", "Recall", "F1-Score"]   # Umbral {:.1f} (Python no lo formateaba: con D21 saldría 0.30000000000000004), resto {:.3f}
 # D21: filas 0.3, 0.5 y 0.7, como pretendía el código (en Python, por la coma flotante de

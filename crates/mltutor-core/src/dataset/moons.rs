@@ -79,5 +79,6 @@ pub fn moons_dataset(seed: u32) -> Result<Dataset, DatasetError> {
             class_names,
         },
         description: meta.description,
+        csv_dialect: None,
     })
 }

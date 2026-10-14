@@ -9,9 +9,15 @@ export type DecisionGrid = { x: Array<number>, y: Array<number>, values: GridVal
  */
 points: Matrix, 
 /**
- * Class code (classification) or value (regression) of each point.
+ * Target value of each point (regression colours; the class *value* in
+ * classification, e.g. 3 or 6).
  */
-point_target: Array<number>, feature_names: [string, string], class_names: Array<string> | null, 
+point_target: Array<number>, 
+/**
+ * Classification: class code of each point (index into `class_names`); the UI
+ * colours the points with it. `None` for regressors.
+ */
+point_codes: Array<number> | null, feature_names: [string, string], class_names: Array<string> | null, 
 /**
  * More than 2 features: the 2D model is a simplification.
  */

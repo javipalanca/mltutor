@@ -14,6 +14,7 @@
   import RocPrCharts from "../../components/ml/RocPrCharts.svelte";
   import { regRaw, regText } from "../../content";
   import { escapeMarkdown } from "../../escape";
+  import { classOfRow } from "../../ml/modelClasses";
   import { models } from "../../ml/modelSession.svelte";
   import { ViewLoader } from "../../ml/viewLoader.svelte";
   import ModelBanner from "./ModelBanner.svelte";
@@ -97,7 +98,7 @@
           lessonState.rocAverages = averages;
         }}
         idPrefix="regresion"
-        negativeClass={info.class_names?.[0] ?? "0"}
+        negativeClass={classOfRow(info, 0)}
       />
     {:else}
       <Spinner label="Calculando las curvas…" />

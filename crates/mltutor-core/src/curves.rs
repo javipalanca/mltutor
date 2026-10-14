@@ -256,7 +256,12 @@ pub fn binary_curves(y_true: &[usize], score: &[f64], positive_class: usize) -> 
 pub struct MulticlassCurves {
     /// One-vs-rest curves of each model class present in the test set.
     pub per_class: Vec<ClassCurves>,
-    /// All the one-vs-rest problems flattened (`y_bin.ravel()`, `proba.ravel()`).
+    /// All the one-vs-rest problems flattened (`y_bin.ravel()`, `proba.ravel()`),
+    /// over the classes **present in the test set** only. Decision (D20, as the
+    /// generated script does with `Y_test[:, presentes]`, `proba[:, presentes]`): an
+    /// absent class adds only negatives, which would lower the micro FPR with
+    /// scores of a class that cannot be evaluated. With every class present (the
+    /// built-in datasets) it is exactly scikit-learn's micro-average.
     pub micro: ClassCurves,
     /// Union of the per-class FPRs and the mean of the interpolated TPRs.
     pub macro_roc: Curve,
@@ -274,6 +279,10 @@ pub struct MulticlassCurves {
 
 /// `plot_roc_curve` for 3+ classes. `proba` has one column per entry of `classes`
 /// (the model's `classes_`, as class codes).
+///
+/// Classes of the model without samples in `y_true` are listed in
+/// `absent_classes` and excluded from the per-class curves and from **every**
+/// average, the micro-average included (D20; see [`MulticlassCurves::micro`]).
 pub fn multiclass_curves(
     y_true: &[usize],
     proba: ArrayView2<'_, f64>,

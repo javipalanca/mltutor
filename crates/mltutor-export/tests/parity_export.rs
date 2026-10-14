@@ -199,6 +199,20 @@ fn python_package_matches_the_fixture() {
             match k.as_str() {
                 // Fitted numbers: our optimum vs the app's (parity_linear_models.rs).
                 "coef_" | "intercept_" | "n_iter_" => {}
+                // The fixture records the app's lbfgs/tol=1e-4; the package describes
+                // our model (the optimum), refittable with newton-cholesky.
+                "params" if want["params"]["solver"] == "lbfgs" => {
+                    let mut ours_p = ours["params"].clone();
+                    assert_eq!(ours_p["solver"], package::LOGISTIC_SOLVER);
+                    assert_eq!(ours_p["tol"], package::LOGISTIC_TOL);
+                    ours_p["solver"] = want["params"]["solver"].clone();
+                    ours_p["tol"] = want["params"]["tol"].clone();
+                    assert_eq!(ours_p, want["params"], "{name}: params");
+                    let n_iter = ours["n_iter_"][0].as_i64().unwrap();
+                    let report = c.model.fit_report().unwrap();
+                    assert_eq!(n_iter as u64, report.n_iter, "{name}: n_iter_");
+                    assert!(n_iter >= 1 && n_iter as u64 <= report.max_iter);
+                }
                 "check" => {
                     assert_eq!(ours["check"]["X"], want["check"]["X"], "{name}: check.X");
                     if want["check"]["prediction"][0].is_i64() {
@@ -210,6 +224,15 @@ fn python_package_matches_the_fixture() {
             }
         }
         assert!(pkg.readme.contains(&c.ds.feature_display[0]));
+        if let Some(names) = c.ds.class_names() {
+            for (code, name) in names.iter().enumerate() {
+                assert!(
+                    pkg.readme.contains(&format!("  {code} = {name}\n")),
+                    "{name}: LEEME classes\n{}",
+                    pkg.readme
+                );
+            }
+        }
         let zip = pkg.to_zip().unwrap();
         assert_eq!(zip, pkg.to_zip().unwrap(), "deterministic");
         let mut archive = zip::ZipArchive::new(std::io::Cursor::new(zip)).unwrap();

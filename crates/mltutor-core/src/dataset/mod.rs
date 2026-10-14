@@ -168,6 +168,29 @@ impl Target {
     }
 }
 
+/// Text encoding a CSV was read with ([`CsvDialect::encoding`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CsvEncoding {
+    /// UTF-8 (with or without BOM): `pd.read_csv(..., encoding="utf-8")`.
+    Utf8,
+    /// Not valid UTF-8, read as Windows-1252: `encoding="cp1252"`.
+    Windows1252,
+}
+
+/// How a user CSV was read, so that the generated Python code can read it the
+/// same way (`pd.read_csv(path, sep=..., decimal=..., encoding=...)`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct CsvDialect {
+    /// Field separator: `,`, `;` or tab.
+    pub separator: char,
+    /// Decimal mark: `,` only when some column was read with the decimal comma
+    /// (possible with the `;` separator), `.` otherwise.
+    pub decimal: char,
+    /// Text encoding.
+    pub encoding: CsvEncoding,
+}
+
 /// A dataset ready for exploration and training. Rows are aligned by position
 /// (the Python Penguins misalignment is not reproduced).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -192,6 +215,9 @@ pub struct Dataset {
     pub target: Target,
     /// `dataset_info["description"]` (or the CSV's "Dataset personalizado: …").
     pub description: String,
+    /// How the CSV was read (user CSVs); `None` for the built-in datasets.
+    #[serde(default)]
+    pub csv_dialect: Option<CsvDialect>,
 }
 
 impl Dataset {

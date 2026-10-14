@@ -36,7 +36,7 @@ pub fn export(model: &CoreModel, format: ExportFormat) -> Result<Vec<u8>, Comman
                 random_state: SEED,
                 n_train: source.n_train,
                 n_test: source.x_test.nrows(),
-                x_test: source.x_test,
+                x_test: source.x_test.view(),
             };
             package::python_package(&input)
                 .and_then(|p| p.to_zip())

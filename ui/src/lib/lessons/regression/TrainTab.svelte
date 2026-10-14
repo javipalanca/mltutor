@@ -8,7 +8,7 @@
   import Spinner from "../../../components/Spinner.svelte";
   import * as backend from "../../backend";
   import type { DatasetSummary } from "../../bindings/DatasetSummary";
-  import { md, regText } from "../../content";
+  import { md, optionalText, regRaw, regText } from "../../content";
   import { escapeMarkdown } from "../../escape";
   import { fmt } from "../../fmt";
   import { models } from "../../ml/modelSession.svelte";
@@ -59,6 +59,8 @@
   const notConverged = $derived(
     lessonState.justTrained ? (lessonState.info?.notices.find((n) => n.kind === "not_converged") ?? null) : null,
   );
+  /** Caption under "Máximo de Iteraciones": the solver usually reaches the optimum first. */
+  const maxIterNote = optionalText(regRaw, "entrenamiento", "max_iter_nota", "");
   const label = $derived(session.entry(session.selected)?.label ?? summary?.label ?? "");
 
   function train(): void {
@@ -108,6 +110,9 @@
             value={regression.maxIter}
             onchange={(v) => (regression.maxIter = Math.round(v))}
           />
+          {#if maxIterNote}
+            <p class="caption" data-max-iter-note><Markdown inline source={maxIterNote} /></p>
+          {/if}
         {:else}
           <Notice severity="info" markdown={t("lineal_sin_iteraciones")} />
         {/if}
@@ -173,6 +178,13 @@
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 28px;
     align-items: start;
+  }
+
+  .caption {
+    margin: -4px 2px 8px;
+    color: var(--color-text-muted);
+    font-size: 13px;
+    line-height: 1.45;
   }
 
   .train-button {

@@ -125,5 +125,6 @@ pub fn from_raw_table(
         target_column: meta.target.clone(),
         target,
         description: meta.description.clone(),
+        csv_dialect: None,
     })
 }

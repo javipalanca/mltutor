@@ -22,6 +22,8 @@
   let { thresholds, best, shown, idPrefix }: Props = $props();
 
   const t = compText;
+  /** The best threshold is chosen on the test set: say it is optimistic (data leakage). */
+  const bestWarning = optionalText(compRaw, "umbrales", "consejo_aviso", "");
   const rows = $derived(thresholds.filter((r) => shown.some((s) => Math.abs(s - r.threshold) < 1e-9)));
   const text = (v: string): Cell => ({ kind: "text", v });
   const cells = $derived(
@@ -42,6 +44,9 @@
           <Metric label={t("umbrales", "optimo")} value={fixed(best, 2)} />
           {#if Math.abs(best - 0.5) > 0.1}
             <Notice severity="info" markdown={fmt(t("umbrales", "consejo"), { umbral: best })} />
+            {#if bestWarning}
+              <p class="caption" data-threshold-warning><Markdown inline source={bestWarning} /></p>
+            {/if}
           {/if}
         {/if}
       </div>

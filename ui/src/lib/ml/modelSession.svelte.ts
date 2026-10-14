@@ -12,6 +12,7 @@ import type { TrainedModelInfo } from "../bindings/TrainedModelInfo";
 import type { DatasetRef } from "../bindings/DatasetRef";
 import type { LessonId } from "../content";
 import { datasetKey } from "../session.svelte";
+import { coefficientRows } from "./modelClasses";
 import type { Average } from "../components/ml/figures";
 
 export interface ModelLessonState {
@@ -109,8 +110,8 @@ class ModelSession {
     if (!previous || previous.feature_names.join("\u0000") !== info.feature_names.join("\u0000") || a >= n || b >= n) {
       state.pair = [0, Math.min(1, n - 1)];
     }
-    const classes = info.class_names?.length ?? 0;
-    if (state.coefClass >= Math.max(1, classes)) {
+    // `coefClass` is a row of `coef_` (one per class the model saw).
+    if (state.coefClass >= Math.max(1, coefficientRows(info))) {
       state.coefClass = 0;
     }
   }

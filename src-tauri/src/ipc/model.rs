@@ -86,8 +86,12 @@ pub struct TrainedModelInfo {
     pub feature_columns: Vec<String>,
     /// Friendly names (tables, selectors, charts).
     pub feature_names: Vec<String>,
-    /// Classes of the model (logistic) or of the dataset.
+    /// Classes of the dataset (indexed by class code).
     pub class_names: Option<Vec<String>>,
+    /// `classes_` of a classifier: the codes (indices into `class_names`) seen in the
+    /// train set, sorted. Row `i` of `coef_` belongs to `model_classes[i]`; with 2 of 3
+    /// classes the model is binary and `model_classes[1]` is the positive class.
+    pub model_classes: Option<Vec<u32>>,
     pub notices: Vec<TrainNotice>,
 }
 
@@ -343,8 +347,12 @@ pub struct DecisionGrid {
     pub notices: Vec<GridNotice>,
     /// Training points, 2 columns.
     pub points: Matrix,
-    /// Class code (classification) or value (regression) of each point.
+    /// Target value of each point (regression colours; the class *value* in
+    /// classification, e.g. 3 or 6).
     pub point_target: Vec<f64>,
+    /// Classification: class code of each point (index into `class_names`); the UI
+    /// colours the points with it. `None` for regressors.
+    pub point_codes: Option<Vec<u32>>,
     pub feature_names: [String; 2],
     pub class_names: Option<Vec<String>>,
     /// More than 2 features: the 2D model is a simplification.
@@ -410,6 +418,9 @@ pub struct CoefficientsView {
     pub rows: Vec<CoefficientRow>,
     /// Row of `coef_` shown (logistic multiclass).
     pub class_index: Option<u32>,
+    /// `classes_` of the model (codes into the dataset's `class_names`); see
+    /// `TrainedModelInfo::model_classes`.
+    pub model_classes: Option<Vec<u32>>,
     /// Rows of `coef_`: 1 for linear and binary logistic, one per class otherwise.
     pub n_rows: u32,
     /// D27: of the chosen class.

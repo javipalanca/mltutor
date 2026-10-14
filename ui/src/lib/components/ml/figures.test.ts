@@ -171,6 +171,7 @@ describe("C8 figures", () => {
     notices: [{ kind: "created", rows: 2, cols: 3 }],
     points: { rows: 2, cols: 2, values: [0.5, 0.5, 1.5, 0.5] },
     point_target: [0, 1],
+    point_codes: classNames ? [0, 1] : null,
     feature_names: ["a", "b"],
     class_names: classNames,
     show_2d_warning: true,
@@ -190,6 +191,41 @@ describe("C8 figures", () => {
     expect(names(fig.data).slice(1)).toEqual(["no", "sí"]);
     expect((trace(fig.data, 2)["marker"] as Trace)["color"]).toBe(RDBU_BINARY[1]);
     expect((fig.layout.title as Trace)["text"]).toBe("Frontera de Decisión para a vs b");
+  });
+
+  /** Points of each legend trace (name → x coordinates). */
+  const pointsByClass = (fig: ReturnType<typeof boundaryFigure>): Record<string, unknown> =>
+    Object.fromEntries(fig.data.slice(1).map((t) => [(t as Trace)["name"], (t as Trace)["x"]]));
+
+  it("colours the points by class code, not by target value (classes {3, 6})", () => {
+    const g: DecisionGrid = {
+      ...grid({ kind: "classes", z: [0, 0, 1, 0, 1, 1] }, ["3", "6"]),
+      points: { rows: 3, cols: 2, values: [0.5, 0.5, 1.5, 0.5, 1.8, 1.0] },
+      point_target: [3, 6, 6],
+      point_codes: [0, 1, 1],
+    };
+    const fig = boundaryFigure(g, undefined, false);
+    expect(names(fig.data).slice(1)).toEqual(["3", "6"]);
+    expect(pointsByClass(fig)).toEqual({ "3": [0.5], "6": [1.5, 1.8] });
+    // No phantom traces for the target values 3..6.
+    expect(fig.data).toHaveLength(3);
+  });
+
+  it("colours the points by class code with classes 3..8 (multiclass)", () => {
+    const labels = ["3", "4", "5", "6", "7", "8"];
+    const codes = [0, 1, 2, 3, 4, 5, 5, 0];
+    const g: DecisionGrid = {
+      ...grid({ kind: "classes", z: [0, 1, 2, 3, 4, 5] }, labels),
+      points: { rows: codes.length, cols: 2, values: codes.flatMap((c, i) => [i, c]) },
+      point_target: codes.map((c) => c + 3),
+      point_codes: codes,
+    };
+    const fig = boundaryFigure(g, undefined, false);
+    expect(names(fig.data).slice(1)).toEqual(labels);
+    expect(pointsByClass(fig)).toEqual({ "3": [0, 7], "4": [1], "5": [2], "6": [3], "7": [4], "8": [5, 6] });
+    labels.forEach((_, i) => {
+      expect((trace(fig.data, i + 1)["marker"] as Trace)["color"]).toBe(classColor(i, labels.length));
+    });
   });
 
   it("uses Set3 in multiclass and a flat band per class", () => {

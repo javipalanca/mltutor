@@ -32,11 +32,22 @@ pub const PROGRESS_EVENT: &str = "task-progress";
 /// Message of D26 (logistic regression on a regression target).
 pub const LOGISTIC_NEEDS_CLASSES: &str = "La regresión logística necesita una variable objetivo con clases. Elige 📈 Regresión Lineal o un dataset de clasificación.";
 
-/// Message of D19 (same text as `content/regresion/mensajes.toml`, which the UI shows).
+/// Message of D19: `[entrenamiento] aviso_no_convergencia` of
+/// `content/regresion/mensajes.toml` (the same text the UI shows), with `{max_iter}`.
 pub fn not_converged_message(max_iter: u32) -> String {
-    format!(
-        "⚠️ El optimizador no ha convergido en {max_iter} iteraciones. Prueba a aumentar el máximo de iteraciones o a escalar las características."
-    )
+    static TEMPLATE: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    let template = TEMPLATE.get_or_init(|| {
+        mltutor_core::content::Messages::regression()
+            .and_then(|m| {
+                m.text("entrenamiento", "aviso_no_convergencia")
+                    .map(str::to_owned)
+            })
+            .unwrap_or_else(|error| {
+                log::error!("contenido: {error}");
+                "⚠️ El optimizador no ha convergido en {max_iter} iteraciones.".to_owned()
+            })
+    });
+    template.replace("{max_iter}", &max_iter.to_string())
 }
 
 /// A model of a lesson and what it was trained on.
@@ -67,6 +78,9 @@ impl TrainedModel {
             feature_columns: summary.feature_columns,
             feature_names: summary.feature_names,
             class_names: summary.class_names,
+            model_classes: summary
+                .model_classes
+                .map(|c| c.into_iter().map(crate::ipc::to_u32).collect()),
             notices: with_mismatch(summary.notices, summary.model_task, summary.dataset_task),
         }
     }
@@ -107,21 +121,24 @@ pub enum StoreError {
 pub struct LessonModels {
     slots: HashMap<LessonId, Arc<TrainedModel>>,
     next_id: u32,
-    /// Newest `seq` requested per lesson and the cancel token of that training.
+    /// Newest `seq` ever accepted per lesson. Never removed (like `session.select`): a
+    /// request that arrives after a newer one has finished must still be rejected.
+    last_seq: HashMap<LessonId, u64>,
+    /// The training in flight per lesson (its `seq` and cancel token).
     pending: HashMap<LessonId, (u64, CancelToken)>,
 }
 
 impl LessonModels {
     /// Registers a training request. A newer request cancels the one in flight; an older
-    /// one (it arrived late) is rejected with `false`.
+    /// or repeated one (it arrived late) is rejected with `false`.
     pub fn begin(&mut self, lesson: LessonId, seq: u64, token: CancelToken) -> bool {
-        if let Some((current, old)) = self.pending.get(&lesson) {
-            if seq <= *current {
-                return false;
-            }
+        if self.last_seq.get(&lesson).is_some_and(|&last| seq <= last) {
+            return false;
+        }
+        self.last_seq.insert(lesson, seq);
+        if let Some((_, old)) = self.pending.insert(lesson, (seq, token)) {
             old.store(true, std::sync::atomic::Ordering::SeqCst);
         }
-        self.pending.insert(lesson, (seq, token));
         true
     }
 
@@ -133,7 +150,8 @@ impl LessonModels {
         seq: u64,
         make: impl FnOnce(u32) -> TrainedModel,
     ) -> Result<(Arc<TrainedModel>, Option<Arc<TrainedModel>>), StoreError> {
-        if self.pending.get(&lesson).map(|(s, _)| *s) != Some(seq) {
+        let newest = self.last_seq.get(&lesson) == Some(&seq);
+        if !newest || self.pending.get(&lesson).map(|(s, _)| *s) != Some(seq) {
             return Err(StoreError::Superseded);
         }
         self.pending.remove(&lesson);
@@ -143,7 +161,8 @@ impl LessonModels {
         Ok((model, old))
     }
 
-    /// The training of `seq` ended without a model (error or cancellation).
+    /// The training of `seq` ended without a model (error or cancellation). `last_seq`
+    /// is kept, so the same or an older request cannot start again.
     pub fn abandon(&mut self, lesson: LessonId, seq: u64) {
         if self.pending.get(&lesson).map(|(s, _)| *s) == Some(seq) {
             self.pending.remove(&lesson);
@@ -248,14 +267,21 @@ impl ModelState {
     }
 }
 
+/// Range of the "Máximo de Iteraciones" slider.
+const MIN_MAX_ITER: u32 = 100;
+const MAX_MAX_ITER: u32 = 2000;
+
 fn validate_train(req: &TrainRequest) -> Result<(), CommandError> {
-    if !(req.test_size.is_finite() && (0.05..=0.95).contains(&req.test_size)) {
+    // Same ranges as the sliders and the messages (contract §5.3); a small epsilon
+    // accepts the float steps of the slider (0.1 + 0.1 + 0.1…).
+    const EPS: f64 = 1e-9;
+    if !(req.test_size.is_finite() && (0.1 - EPS..=0.5 + EPS).contains(&req.test_size)) {
         return Err(CommandError::invalid_selection(
             "El tamaño del conjunto de prueba debe estar entre 0,1 y 0,5.",
         ));
     }
     if let ModelConfig::Logistic { max_iter } = req.config {
-        if !(1..=100_000).contains(&max_iter) {
+        if !(MIN_MAX_ITER..=MAX_MAX_ITER).contains(&max_iter) {
             return Err(CommandError::invalid_selection(
                 "El máximo de iteraciones debe estar entre 100 y 2000.",
             ));
@@ -319,6 +345,38 @@ fn models(state: &State<'_, ModelState>) -> ModelState {
     state.inner().clone()
 }
 
+/// Minimum time between two `task-progress` events with the same integer percentage.
+const PROGRESS_INTERVAL: std::time::Duration = std::time::Duration::from_millis(100);
+
+/// Rate limit of `task-progress`: L-BFGS reports every iteration (thousands per second),
+/// but the UI only needs a new event when the integer percentage or the message changes,
+/// or every [`PROGRESS_INTERVAL`] as a heartbeat.
+#[derive(Default)]
+pub struct ProgressThrottle {
+    last: Mutex<Option<(Option<i32>, String, std::time::Instant)>>,
+}
+
+impl ProgressThrottle {
+    /// Whether an update must be emitted now (and records it if so).
+    pub fn admit(&self, message: &str, percent: Option<f32>, now: std::time::Instant) -> bool {
+        // A poisoned throttle only means a panicked emitter: its last value is still valid.
+        let mut last = self.last.lock().unwrap_or_else(|p| p.into_inner());
+        let whole = percent.map(|p| p.floor() as i32);
+        let emit = match last.as_ref() {
+            None => true,
+            Some((previous, text, at)) => {
+                *previous != whole
+                    || text != message
+                    || now.saturating_duration_since(*at) >= PROGRESS_INTERVAL
+            }
+        };
+        if emit {
+            *last = Some((whole, message.to_owned(), now));
+        }
+        emit
+    }
+}
+
 fn emit_progress(app: &AppHandle, task_id: u32, message: &str, percent: Option<f32>) {
     let payload = TaskProgress {
         task_id,
@@ -342,8 +400,11 @@ pub async fn train_model(
     let guard = data.tasks.start(req.task_id);
     let task_id = req.task_id;
     blocking(move || {
+        let throttle = ProgressThrottle::default();
         let progress = |message: &str, percent: Option<f32>| {
-            emit_progress(&app, task_id, message, percent);
+            if throttle.admit(message, percent, std::time::Instant::now()) {
+                emit_progress(&app, task_id, message, percent);
+            }
         };
         progress("Entrenando modelo...", Some(0.0));
         let result = models.train(&data, &req, &guard.token(), &progress);
@@ -437,8 +498,11 @@ pub async fn decision_grid(
     let task_id = req.task_id;
     with_model("decision_grid", &models, req.model_id, move |m| {
         let (x, y) = validate_pair(m, req.feature_x, req.feature_y)?;
+        let throttle = ProgressThrottle::default();
         let progress = |message: &str, percent: Option<f32>| {
-            emit_progress(&app, task_id, message, percent);
+            if throttle.admit(message, percent, std::time::Instant::now()) {
+                emit_progress(&app, task_id, message, percent);
+            }
         };
         m.model.decision_grid(x, y, &progress, &guard.token())
     })
@@ -454,8 +518,9 @@ pub async fn coefficients_view(
     with_model("coefficients_view", &models, model_id, move |m| {
         let class = match class_index {
             None => None,
+            // A row of `coef_`: indexed by `classes_`, not by the dataset's classes.
             Some(index) => {
-                let n = m.model.summary().class_names.map_or(0, |c| c.len());
+                let n = m.model.summary().model_classes.map_or(0, |c| c.len());
                 if index as usize >= n.max(1) {
                     return Err(CommandError::invalid_selection(
                         "La clase elegida no existe en este modelo.",
@@ -673,6 +738,70 @@ mod tests {
         assert!(models.by_id(newer.id).is_some());
     }
 
+    fn blank(id: u32) -> TrainedModel {
+        TrainedModel {
+            id,
+            lesson: LessonId::Regression,
+            dataset: DatasetRef::default(),
+            dataset_label: String::new(),
+            config: ModelConfig::Linear,
+            test_size: 0.3,
+            model: dummy(),
+        }
+    }
+
+    /// The most adverse order: the newer request starts and finishes before the older
+    /// one even registers. The late one must not replace the newer model.
+    #[test]
+    fn a_late_older_training_never_replaces_a_finished_newer_one() {
+        let mut models = LessonModels::default();
+        assert!(models.begin(LessonId::Regression, 20, CancelToken::default()));
+        let (newer, _) = models.finish(LessonId::Regression, 20, blank).unwrap();
+        // Nothing is pending now; the late request 10 (and a repeated 20) are rejected.
+        assert!(!models.begin(LessonId::Regression, 10, CancelToken::default()));
+        assert!(!models.begin(LessonId::Regression, 20, CancelToken::default()));
+        assert_eq!(
+            models.finish(LessonId::Regression, 10, blank).err(),
+            Some(StoreError::Superseded)
+        );
+        assert_eq!(
+            models.current(LessonId::Regression).map(|m| m.id),
+            Some(newer.id)
+        );
+        // A failed newer request keeps the barrier too.
+        assert!(models.begin(LessonId::Regression, 30, CancelToken::default()));
+        models.abandon(LessonId::Regression, 30);
+        assert!(!models.begin(LessonId::Regression, 25, CancelToken::default()));
+        // Other lessons have their own sequence.
+        assert!(models.begin(LessonId::Knn, 1, CancelToken::default()));
+        assert!(models.begin(LessonId::Regression, 31, CancelToken::default()));
+    }
+
+    /// Same order through `ModelState::train`, with real trainings.
+    #[test]
+    fn late_training_requests_are_cancelled_end_to_end() {
+        let (data, models) = setup();
+        let diabetes = DatasetRef::Builtin {
+            id: DatasetId::Diabetes,
+        };
+        let newer = models
+            .train(
+                &data,
+                &request(diabetes, ModelConfig::Linear, 5),
+                &CancelToken::default(),
+                &quiet,
+            )
+            .unwrap();
+        let late = models.train(
+            &data,
+            &request(iris(), ModelConfig::Logistic { max_iter: 1000 }, 4),
+            &CancelToken::default(),
+            &quiet,
+        );
+        assert_eq!(late, Err(CommandError::cancelled()));
+        assert_eq!(models.lesson_model(LessonId::Regression), Some(newer));
+    }
+
     fn dummy() -> ModelHandle {
         let (data, _) = setup();
         let (dataset, _) = data.resolve(DatasetRef::default()).unwrap();
@@ -751,12 +880,59 @@ mod tests {
         let mut bad = request(iris(), ModelConfig::Linear, 1);
         bad.test_size = f64::NAN;
         assert!(validate_train(&bad).is_err());
-        bad.test_size = 0.3;
-        bad.config = ModelConfig::Logistic { max_iter: 0 };
-        assert!(validate_train(&bad).is_err());
+        for test_size in [0.05, 0.09, 0.51, 0.95] {
+            bad.test_size = test_size;
+            assert!(validate_train(&bad).is_err(), "{test_size}");
+        }
+        for test_size in [0.1, 0.1 + 0.1 + 0.1, 0.5] {
+            bad.test_size = test_size;
+            assert!(validate_train(&bad).is_ok(), "{test_size}");
+        }
+        for max_iter in [0, 1, 99, 2001, 100_000] {
+            bad.config = ModelConfig::Logistic { max_iter };
+            assert!(validate_train(&bad).is_err(), "{max_iter}");
+        }
+        for max_iter in [100, 1000, 2000] {
+            bad.config = ModelConfig::Logistic { max_iter };
+            assert!(validate_train(&bad).is_ok(), "{max_iter}");
+        }
         assert!(validate_values(&[1.0, f64::NAN], 2).is_err());
         assert!(validate_values(&[1.0], 2).is_err());
         assert!(validate_values(&[1.0, 2.0], 2).is_ok());
+    }
+
+    #[test]
+    fn progress_is_throttled_by_whole_percent_or_time() {
+        let throttle = ProgressThrottle::default();
+        let t0 = std::time::Instant::now();
+        let ms = |n: u64| t0 + std::time::Duration::from_millis(n);
+        let msg = "Entrenando modelo...";
+        assert!(throttle.admit(msg, Some(0.0), t0));
+        // Same whole percent within 100 ms: dropped.
+        assert!(!throttle.admit(msg, Some(0.4), ms(10)));
+        assert!(!throttle.admit(msg, Some(0.9), ms(99)));
+        // A new whole percent: emitted at once.
+        assert!(throttle.admit(msg, Some(1.0), ms(100)));
+        assert!(!throttle.admit(msg, Some(1.5), ms(150)));
+        // Heartbeat after 100 ms without changes.
+        assert!(throttle.admit(msg, Some(1.6), ms(200)));
+        // A thousand iterations in the same millisecond produce at most 100 events.
+        let emitted = (0..1000)
+            .filter(|&i| throttle.admit(msg, Some(i as f32 / 10.0), ms(201)))
+            .count();
+        assert!(emitted <= 100, "{emitted}");
+        // A different message (or the final 100 %) always goes through.
+        assert!(throttle.admit("Modelo entrenado", Some(100.0), ms(201)));
+    }
+
+    #[test]
+    fn not_converged_message_comes_from_the_content() {
+        let message = not_converged_message(300);
+        assert!(message.contains("300 iteraciones"), "{message}");
+        assert!(!message.contains("{max_iter}"));
+        let toml = mltutor_core::content::Messages::regression().unwrap();
+        let template = toml.text("entrenamiento", "aviso_no_convergencia").unwrap();
+        assert_eq!(message, template.replace("{max_iter}", "300"));
     }
 
     #[test]

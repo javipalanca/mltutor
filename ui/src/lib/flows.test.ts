@@ -28,6 +28,7 @@ const backend = await import("./backend");
 const { session } = await import("./session.svelte");
 const { busy } = await import("./busy.svelte");
 const StatusBar = (await import("../components/StatusBar.svelte")).default;
+const { models } = await import("./ml/modelSession.svelte");
 
 const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -240,5 +241,45 @@ describe("status bar", () => {
     await flush();
     expect(busy.cancellable).toEqual([]);
     expect(screen.queryByRole("button", { name: "Cancelar" })).toBeNull();
+  });
+});
+
+describe("training errors and classes", () => {
+  it("shows the Spanish message of too_many_classes (I5)", async () => {
+    const done = models.train("regresion", IRIS, { kind: "logistic", max_iter: 1000 }, 0.3);
+    const message = "El objetivo tiene 58 clases y el máximo para clasificación es 50.";
+    take("train_model").reject({ kind: "too_many_classes", n_classes: 58, max: 50, message });
+    await done;
+    const state = models.lesson("regresion");
+    expect(state.trainError).toBe(message);
+    expect(state.trainErrorKind).toBe("too_many_classes");
+    expect(state.training).toBe(false);
+  });
+
+  it("keeps the coefficient row within the classes the model saw", async () => {
+    const state = models.lesson("regresion");
+    state.coefClass = 2;
+    const done = models.train("regresion", IRIS, { kind: "logistic", max_iter: 1000 }, 0.3);
+    take("train_model").resolve({
+      model_id: 7,
+      lesson: "regression",
+      dataset: IRIS,
+      dataset_label: "Iris",
+      config: { kind: "logistic", max_iter: 1000 },
+      test_size: 0.3,
+      model_task: "classification",
+      dataset_task: "classification",
+      n_train: 4,
+      n_test: 2,
+      feature_columns: ["a", "b"],
+      feature_names: ["a", "b"],
+      class_names: ["setosa", "versicolor", "virginica"],
+      // 2 of 3 classes in the train set: a binary model with one row of coefficients.
+      model_classes: [0, 2],
+      notices: [],
+    });
+    await done;
+    expect(state.info?.model_id).toBe(7);
+    expect(state.coefClass).toBe(0);
   });
 });

@@ -31,6 +31,9 @@ pub fn model_error(error: ModelError) -> CommandError {
             CommandError::invalid_input(error.to_string())
         }
         ModelError::InvalidSelection { .. } => CommandError::invalid_selection(error.to_string()),
+        ModelError::TooManyClasses { n_classes, max } => {
+            CommandError::too_many_classes(n_classes, max, error.to_string())
+        }
         other => CommandError::training(other),
     }
 }
@@ -60,9 +63,10 @@ pub struct CoreModel {
     id: Option<core::DatasetId>,
     spec: TrainSpec,
     model: Box<dyn Predictor>,
-    x_train: Array2<f64>,
+    /// Rows of the split (§5.2): the feature matrices are selected on demand from the
+    /// shared dataset instead of keeping a copy per model.
+    split: core::split::TrainTestSplit,
     y_train: core::Target,
-    x_test: Array2<f64>,
     y_test: core::Target,
     notices: Vec<TrainNotice>,
     outputs: OnceLock<Result<TestOutputs, CommandError>>,
@@ -77,11 +81,19 @@ pub fn train(
     progress: &Progress<'_>,
     cancel: &AtomicBool,
 ) -> Result<ModelHandle, CommandError> {
+    Ok(Arc::new(fit(dataset, id, spec, progress, cancel)?))
+}
+
+fn fit(
+    dataset: &Arc<core::Dataset>,
+    id: Option<core::DatasetId>,
+    spec: &TrainSpec,
+    progress: &Progress<'_>,
+    cancel: &AtomicBool,
+) -> Result<CoreModel, CommandError> {
     let split = core::split::train_test_split(dataset.n_rows(), spec.test_size, SEED)
         .map_err(crate::real_facade::dataset_error)?;
-    let rows = |idx: &[usize]| dataset.features.select(Axis(0), idx);
-    let x_train = rows(&split.train);
-    let x_test = rows(&split.test);
+    let x_train = dataset.features.select(Axis(0), &split.train);
     let y_train = dataset.target.select(&split.train);
     let y_test = dataset.target.select(&split.test);
     let report = |p: TrainProgress| {
@@ -105,19 +117,26 @@ pub fn train(
             });
         }
     }
-    Ok(Arc::new(CoreModel {
+    Ok(CoreModel {
         dataset: dataset.clone(),
         id,
         spec: spec.clone(),
         model,
-        x_train,
+        split,
         y_train,
-        x_test,
         y_test,
         notices,
         outputs: OnceLock::new(),
         form: OnceLock::new(),
-    }))
+    })
+}
+
+/// `encoding=` of `pd.read_csv` for the encoding the app detected.
+fn python_encoding(encoding: core::dataset::CsvEncoding) -> &'static str {
+    match encoding {
+        core::dataset::CsvEncoding::Utf8 => "utf-8",
+        core::dataset::CsvEncoding::Windows1252 => "cp1252",
+    }
 }
 
 fn histogram(h: core::stats::Histogram) -> ipc::Histogram {
@@ -145,6 +164,14 @@ fn level(l: core::coefficients::Level) -> ipc::Level {
 }
 
 impl CoreModel {
+    fn x_train(&self) -> Array2<f64> {
+        self.dataset.features.select(Axis(0), &self.split.train)
+    }
+
+    fn x_test(&self) -> Array2<f64> {
+        self.dataset.features.select(Axis(0), &self.split.test)
+    }
+
     fn class_names(&self) -> Option<Vec<String>> {
         self.dataset.class_names().map(<[String]>::to_vec)
     }
@@ -159,13 +186,11 @@ impl CoreModel {
     fn outputs(&self) -> Result<&TestOutputs, CommandError> {
         self.outputs
             .get_or_init(|| {
-                let prediction = self
-                    .model
-                    .predict(self.x_test.view())
-                    .map_err(model_error)?;
+                let x_test = self.x_test();
+                let prediction = self.model.predict(x_test.view()).map_err(model_error)?;
                 let proba = self
                     .model
-                    .predict_proba(self.x_test.view())
+                    .predict_proba(x_test.view())
                     .transpose()
                     .map_err(model_error)?;
                 Ok(TestOutputs { prediction, proba })
@@ -199,12 +224,14 @@ impl CoreModel {
                     None
                 }
             });
-            core::form::build(self.x_train.view(), &self.dataset, metadata.as_ref())
+            core::form::build(self.x_train().view(), &self.dataset, metadata.as_ref())
         })
     }
 
     fn training_context(&self) -> core::codegen::RegressionTrainingContext {
         let csv = self.id.is_none();
+        // How the app read the CSV, so that `pd.read_csv` reads the same table (I1).
+        let dialect = self.dataset.csv_dialect.as_ref().filter(|_| csv);
         core::codegen::RegressionTrainingContext {
             dataset: self
                 .id
@@ -212,9 +239,9 @@ impl CoreModel {
             dataset_label: self.spec.dataset_label.clone(),
             csv_file: csv.then(|| self.spec.dataset_label.trim_start_matches("📄 ").to_owned()),
             csv_target: csv.then(|| self.dataset.target_column.clone()),
-            csv_sep: None,
-            csv_decimal: None,
-            csv_encoding: None,
+            csv_sep: dialect.map(|d| d.separator.to_string()),
+            csv_decimal: dialect.map(|d| d.decimal.to_string()),
+            csv_encoding: dialect.map(|d| python_encoding(d.encoding).to_owned()),
             model: match self.spec.config {
                 ModelConfig::Linear => "linear".to_owned(),
                 ModelConfig::Logistic { .. } => "logistic".to_owned(),
@@ -224,7 +251,9 @@ impl CoreModel {
                 ModelConfig::Logistic { max_iter } => Some(max_iter),
             },
             test_size: self.spec.test_size,
-            feature_names: self.dataset.feature_columns.clone(),
+            // The names MLTutor shows (Titanic: "Sexo (0=Mujer, 1=Hombre)", not
+            // `sex_encoded`); the script uses them for its tables.
+            feature_names: self.dataset.feature_display.clone(),
             class_names: self.class_names(),
             sample: None,
         }
@@ -236,11 +265,12 @@ impl ModelView for CoreModel {
         ModelSummary {
             model_task: task(self.model.task()),
             dataset_task: task(self.dataset.task()),
-            n_train: self.x_train.nrows(),
-            n_test: self.x_test.nrows(),
+            n_train: self.split.train.len(),
+            n_test: self.split.test.len(),
             feature_columns: self.dataset.feature_columns.clone(),
             feature_names: self.dataset.feature_display.clone(),
             class_names: self.class_names(),
+            model_classes: self.model.classes().map(<[usize]>::to_vec),
             notices: self.notices.clone(),
         }
     }
@@ -443,7 +473,7 @@ impl ModelView for CoreModel {
         let control = TrainControl::none().with_cancel(cancel);
         let grid = core::grid::decision_grid(
             self.model.as_ref(),
-            self.x_train.view(),
+            self.x_train().view(),
             &self.y_train,
             x,
             y,
@@ -478,6 +508,10 @@ impl ModelView for CoreModel {
             y: grid.axes.y,
             points: Matrix::from_f64(n, 2, grid.points.iter().copied().collect::<Vec<_>>()),
             point_target: grid.point_target,
+            point_codes: grid
+                .point_codes
+                .filter(|_| classifier)
+                .map(|codes| codes.into_iter().map(to_u32).collect()),
             feature_names: [
                 self.dataset.feature_display[x].clone(),
                 self.dataset.feature_display[y].clone(),
@@ -518,6 +552,10 @@ impl ModelView for CoreModel {
                 })
                 .collect(),
             class_index: v.class_index.map(to_u32),
+            model_classes: self
+                .model
+                .classes()
+                .map(|c| c.iter().copied().map(to_u32).collect()),
             n_rows: to_u32(v.n_rows),
             intercept: v.intercept,
             intercept_odds: v.intercept_odds,
@@ -652,7 +690,8 @@ pub struct ExportSource<'a> {
     pub model: &'a dyn Predictor,
     pub dataset: &'a core::Dataset,
     pub spec: &'a TrainSpec,
-    pub x_test: ArrayView2<'a, f64>,
+    /// Selected from the dataset for this export only.
+    pub x_test: Array2<f64>,
     pub n_train: usize,
 }
 
@@ -662,8 +701,8 @@ impl CoreModel {
             model: self.model.as_ref(),
             dataset: &self.dataset,
             spec: &self.spec,
-            x_test: self.x_test.view(),
-            n_train: self.x_train.nrows(),
+            x_test: self.x_test(),
+            n_train: self.split.train.len(),
         }
     }
 }
@@ -871,6 +910,179 @@ mod tests {
             .err()
             .unwrap();
         assert!(matches!(error, CommandError::InvalidTarget { .. }));
+    }
+
+    fn core_model(id: core::DatasetId, config: ModelConfig) -> CoreModel {
+        let dataset = Arc::new(core::dataset::load_builtin(id).unwrap());
+        let spec = TrainSpec {
+            config,
+            test_size: 0.3,
+            dataset_label: String::new(),
+        };
+        fit(
+            &dataset,
+            Some(id),
+            &spec,
+            &|_, _| {},
+            &AtomicBool::new(false),
+        )
+        .unwrap()
+    }
+
+    /// §5.2: the model keeps the split indices, and the rows it selects on demand are
+    /// those of `train_test_split(random_state=42)`.
+    #[test]
+    fn models_keep_split_indices_instead_of_matrices() {
+        let model = core_model(core::DatasetId::Iris, LOGISTIC);
+        let split = core::split::train_test_split(150, 0.3, SEED).unwrap();
+        assert_eq!(model.split, split);
+        assert_eq!(
+            model.x_train(),
+            model.dataset.features.select(Axis(0), &split.train)
+        );
+        assert_eq!(
+            model.x_test(),
+            model.dataset.features.select(Axis(0), &split.test)
+        );
+        let summary = model.summary();
+        assert_eq!((summary.n_train, summary.n_test), (105, 45));
+        assert_eq!(model.export_source().x_test.nrows(), 45);
+        assert_eq!(summary.model_classes, Some(vec![0, 1, 2]));
+    }
+
+    /// The script shows the names of the app, not the encoded columns.
+    #[test]
+    fn training_script_uses_the_display_names() {
+        let model = core_model(core::DatasetId::Titanic, LOGISTIC);
+        let context = model.training_context();
+        assert_eq!(context.feature_names, model.dataset.feature_display);
+        assert!(model
+            .dataset
+            .feature_columns
+            .iter()
+            .any(|c| c == "sex_encoded"));
+        assert!(!context.feature_names.iter().any(|c| c == "sex_encoded"));
+        // Built-in datasets are not read with pandas options.
+        assert_eq!(
+            (context.csv_sep, context.csv_decimal, context.csv_encoding),
+            (None, None, None)
+        );
+    }
+
+    fn csv_model(bytes: &[u8], task: core::TaskChoice, config: ModelConfig) -> CoreModel {
+        let dataset = core::csv::read_csv(bytes)
+            .and_then(|t| t.to_dataset("y", task, "datos.csv"))
+            .unwrap();
+        let spec = TrainSpec {
+            config,
+            test_size: 0.3,
+            dataset_label: "📄 datos.csv".into(),
+        };
+        fit(
+            &Arc::new(dataset),
+            None,
+            &spec,
+            &|_, _| {},
+            &AtomicBool::new(false),
+        )
+        .unwrap()
+    }
+
+    /// `y` with classes {3, 6}, 40 rows, `;` separator, decimal comma and Latin-1.
+    fn csv_3_6() -> Vec<u8> {
+        let mut bytes = b"x\xF1;z;y\n".to_vec();
+        for i in 0..40 {
+            let class = if i % 2 == 0 { 3 } else { 6 };
+            bytes.extend(format!("{i},5;{};{class}\n", (i * 7) % 11).as_bytes());
+        }
+        bytes
+    }
+
+    /// I1: the generated script reads the CSV as the app did.
+    #[test]
+    fn training_script_reads_the_csv_with_its_dialect() {
+        let model = csv_model(&csv_3_6(), core::TaskChoice::Classification, LOGISTIC);
+        let context = model.training_context();
+        assert_eq!(
+            (
+                context.csv_sep.as_deref(),
+                context.csv_decimal.as_deref(),
+                context.csv_encoding.as_deref()
+            ),
+            (Some(";"), Some(","), Some("cp1252"))
+        );
+        assert_eq!(context.csv_file.as_deref(), Some("datos.csv"));
+        let script = model.code(CodeTemplate::RegressionCode, None).unwrap();
+        assert!(
+            script.contains("pd.read_csv('datos.csv', sep=';', decimal=',', encoding='cp1252')"),
+            "{script}"
+        );
+        let utf8 = csv_model(
+            b"x,y\n1.5,1\n2,0\n3,1\n4,0\n5,1\n6,0\n7,1\n",
+            core::TaskChoice::Classification,
+            LOGISTIC,
+        );
+        let context = utf8.training_context();
+        assert_eq!(context.csv_encoding.as_deref(), Some("utf-8"));
+        assert_eq!(context.csv_sep.as_deref(), Some(","));
+    }
+
+    /// I2: the boundary points carry class codes (0, 1), not the values 3 and 6.
+    #[test]
+    fn decision_grid_points_carry_class_codes() {
+        let model = csv_model(&csv_3_6(), core::TaskChoice::Classification, LOGISTIC);
+        let go = AtomicBool::new(false);
+        let grid = model.decision_grid(0, 1, &|_, _| {}, &go).unwrap();
+        let codes = grid.point_codes.expect("classification has point codes");
+        assert_eq!(codes.len(), grid.points.rows as usize);
+        assert!(codes.iter().all(|&c| c <= 1), "{codes:?}");
+        assert!(codes.contains(&0) && codes.contains(&1));
+        assert!(grid.point_target.iter().all(|&t| t == 3.0 || t == 6.0));
+        let regression = core_model(core::DatasetId::Diabetes, ModelConfig::Linear);
+        let surface = regression.decision_grid(0, 1, &|_, _| {}, &go).unwrap();
+        assert_eq!(surface.point_codes, None);
+    }
+
+    /// I5: more than 50 classes is a `TooManyClasses` command error in Spanish.
+    #[test]
+    fn too_many_classes_is_a_command_error() {
+        let mut bytes = b"x,y\n".to_vec();
+        for i in 0..240 {
+            bytes.extend(format!("{i},c{}\n", i % 60).as_bytes());
+        }
+        let dataset = core::csv::read_csv(&bytes)
+            .and_then(|t| t.to_dataset("y", core::TaskChoice::Classification, "f.csv"))
+            .unwrap();
+        let spec = TrainSpec {
+            config: LOGISTIC,
+            test_size: 0.3,
+            dataset_label: String::new(),
+        };
+        let error = fit(
+            &Arc::new(dataset),
+            None,
+            &spec,
+            &|_, _| {},
+            &AtomicBool::new(false),
+        )
+        .err()
+        .unwrap();
+        match &error {
+            CommandError::TooManyClasses {
+                n_classes,
+                max,
+                message,
+            } => {
+                // Classes seen in the train split (some of the 60 are only in the test).
+                assert!(*n_classes > 50 && *n_classes <= 60, "{n_classes}");
+                assert_eq!(*max, 50);
+                assert!(
+                    message.contains(&format!("{n_classes} clases")),
+                    "{message}"
+                );
+            }
+            other => panic!("{other:?}"),
+        }
     }
 
     #[test]

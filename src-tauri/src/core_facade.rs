@@ -68,6 +68,9 @@ pub struct ModelSummary {
     pub feature_columns: Vec<String>,
     pub feature_names: Vec<String>,
     pub class_names: Option<Vec<String>>,
+    /// Class codes the classifier saw in the train set (`classes_`, sorted): indices
+    /// into `class_names`. `None` for regressors.
+    pub model_classes: Option<Vec<usize>>,
     pub notices: Vec<TrainNotice>,
 }
 

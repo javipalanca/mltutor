@@ -52,6 +52,24 @@ impl Prediction {
     }
 }
 
+/// Largest number of classes of a classification problem (I5). Above it the
+/// confusion matrix, the curves and the boundary colours stop being readable, and a
+/// target with so many distinct values is almost always a number to regress.
+pub const MAX_CLASSES: usize = 50;
+
+/// `Err(TooManyClasses)` when `n_classes > MAX_CLASSES`: training and every
+/// classification view call it.
+pub fn check_n_classes(n_classes: usize) -> Result<(), ModelError> {
+    if n_classes > MAX_CLASSES {
+        Err(ModelError::TooManyClasses {
+            n_classes,
+            max: MAX_CLASSES,
+        })
+    } else {
+        Ok(())
+    }
+}
+
 /// Errors of training, prediction and the model views. Messages are in Spanish
 /// because they can reach the student; `src-tauri` maps each variant to its own
 /// `CommandError`.
@@ -61,6 +79,9 @@ pub enum ModelError {
     /// D26: logistic regression on a regression target.
     #[error("La regresión logística necesita una variable objetivo con clases. Elige 📈 Regresión Lineal o un dataset de clasificación.")]
     InvalidTarget,
+    /// More than [`MAX_CLASSES`] classes.
+    #[error("El objetivo tiene {n_classes} clases y el máximo para clasificación es {max}. Si es una variable numérica, elige 📈 Regresión Lineal (o el tipo de tarea Regresión al cargar el CSV).")]
+    TooManyClasses { n_classes: usize, max: usize },
     /// Fewer than two classes in the training data.
     #[error("Se necesitan al menos 2 clases en los datos de entrenamiento y hay {found}")]
     TooFewClasses { found: usize },
@@ -276,6 +297,20 @@ mod tests {
     fn argmax_keeps_first_tie() {
         assert_eq!(argmax([0.2, 0.5, 0.5]), 1);
         assert_eq!(argmax([1.0]), 0);
+    }
+
+    #[test]
+    fn class_limit() {
+        assert_eq!(check_n_classes(MAX_CLASSES), Ok(()));
+        let err = check_n_classes(51).unwrap_err();
+        assert_eq!(
+            err,
+            ModelError::TooManyClasses {
+                n_classes: 51,
+                max: 50
+            }
+        );
+        assert!(err.to_string().contains("📈 Regresión Lineal"));
     }
 
     #[test]

@@ -16,18 +16,27 @@
 //! The *minimiser* is scikit-learn's; the path to it is not (fase2-regresion.md D19):
 //!
 //! * **Damped Newton** (exact Hessian, Cholesky, Armijo backtracking) when the
-//!   problem has at most [`NEWTON_MAX_PARAMS`] parameters (`k·(p+1)`): every
-//!   built-in classification dataset except Digits. It converges in ~10–30
-//!   iterations even on unscaled, collinear data such as Breast Cancer, where
-//!   scipy's L-BFGS (scikit-learn) stops at `max_iter=1000` 0.20 away from the
-//!   optimum in probability, and where L-BFGS needs >20 000 iterations.
+//!   problem has at most [`NEWTON_MAX_PARAMS`] parameters (`k·(p+1)`) and one
+//!   Hessian costs at most [`NEWTON_MAX_WORK`]: every built-in classification
+//!   dataset, Digits included. It converges in ~5–15 iterations even on unscaled,
+//!   collinear data such as Breast Cancer, where scipy's L-BFGS (scikit-learn)
+//!   stops at `max_iter=1000` 0.20 away from the optimum in probability, and where
+//!   L-BFGS needs >20 000 iterations. On Digits (650 parameters) Newton reaches the
+//!   optimum in 12 iterations (~0.5 s); our L-BFGS was still 2.8e-3 away after
+//!   1000 (and scikit-learn's own model, which stops after 139, 0.25 away).
 //! * **L-BFGS** (10 correction pairs, More–Thuente line search, from `argmin`:
 //!   exactly what `linfa-logistic` builds) for larger problems. We drive argmin's
 //!   loop ourselves instead of calling `linfa-logistic`, because `linfa` neither
-//!   lets us cancel the training nor reports iterations or convergence.
+//!   lets us cancel the training nor reports iterations or convergence. It stops
+//!   at `max_iter`, at the noise floor, or once scikit-learn's criterion holds and
+//!   the objective no longer decreases (relative [`LBFGS_FTOL`]).
 //!
 //! Both work on **standardised features** (a change of variables `vⱼ = wⱼ·sⱼ`,
-//! with the penalty still on `wⱼ = vⱼ/sⱼ`: same minimiser, better conditioning),
+//! with the penalty still on `wⱼ = vⱼ/sⱼ`: same minimiser, better conditioning).
+//! The mean and standard deviation are computed on each column divided by its
+//! largest `|x|`, so that values as large as `1e300` do not overflow; if the
+//! objective still becomes non-finite, the error asks the student to scale the
+//! features. The solvers then
 //! start from zero like scikit-learn and run until the gradient is at the noise
 //! floor ([`INNER_GRADIENT_TOL`]) or `max_iter` is reached. scikit-learn stops much
 //! earlier (`max|∇f| ≤ tol = 1e-4`) at a point that depends on its path (MEMORY:
@@ -47,7 +56,9 @@
 
 use std::any::Any;
 
-use argmin::core::{CostFunction, Gradient, IterState, Problem, Solver, State, TerminationStatus};
+use argmin::core::{
+    CostFunction, Gradient, IterState, Problem, Solver, State, TerminationReason, TerminationStatus,
+};
 use argmin::solver::linesearch::MoreThuenteLineSearch;
 use argmin::solver::quasinewton::LBFGS;
 use ndarray::{s, Array1, Array2, ArrayView1, ArrayView2, Axis};
@@ -55,8 +66,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::dataset::{Target, TaskType};
 use crate::model::{
-    argmax, check_input, FitReport, LinearCoefficients, ModelError, Prediction, Predictor,
-    TrainControl, TrainProgress,
+    argmax, check_input, check_n_classes, FitReport, LinearCoefficients, ModelError, Prediction,
+    Predictor, TrainControl, TrainProgress,
 };
 use crate::stats::pairwise_sum;
 
@@ -64,9 +75,18 @@ use crate::stats::pairwise_sum;
 /// solver stops before `max_iter`.
 pub const INNER_GRADIENT_TOL: f64 = 1e-10;
 
-/// Largest number of parameters (`k·(p+1)`) solved with Newton's method; above
-/// it the Hessian (`n·d²` per iteration) is too expensive and L-BFGS is used.
-pub const NEWTON_MAX_PARAMS: usize = 300;
+/// Largest number of parameters (`d = k·(p+1)`) solved with Newton's method
+/// (Digits has 650). Above it, or above [`NEWTON_MAX_WORK`], L-BFGS is used.
+pub const NEWTON_MAX_PARAMS: usize = 700;
+
+/// Largest `n·d²` (multiply-adds to build one Hessian) solved with Newton's
+/// method: Digits needs 5.3e8 (~45 ms per iteration in release). A CSV with a
+/// million rows and 300 parameters (9e10) goes to L-BFGS instead.
+pub const NEWTON_MAX_WORK: f64 = 2e9;
+
+/// Relative decrease of the objective in one L-BFGS iteration below which the
+/// solver stops, once scikit-learn's criterion (`max|∇f| ≤ tol`) also holds.
+pub const LBFGS_FTOL: f64 = 1e-10;
 
 /// L-BFGS memory (scikit-learn/scipy and linfa use 10).
 const LBFGS_MEMORY: usize = 10;
@@ -135,6 +155,7 @@ impl LogisticRegression {
                 found: classes.len(),
             });
         }
+        check_n_classes(classes.len())?;
         // Column of each row in the one-hot target (position in `classes`).
         let y_idx: Vec<usize> = y
             .iter()
@@ -148,16 +169,20 @@ impl LogisticRegression {
             x: xs.view(),
             y: &y_idx,
             k,
-            inv_scale_sq: scaling.std.mapv(|s| 1.0 / (s * s)),
+            inv_scale_sq: scaling.inv_scale_sq(),
             lambda: 1.0 / (params.c * n as f64),
         };
 
         let max_iter = u64::from(params.max_iter);
         let n_params = k * (p + 1);
-        let (theta, n_iter) = if n_params <= NEWTON_MAX_PARAMS {
+        let (theta, n_iter) = if use_newton(n, n_params) {
             run_newton(&problem, n_params, max_iter, control)?
         } else {
-            run_lbfgs(problem.clone(), n_params, max_iter, control)?
+            let stop = SklearnStop {
+                scaling: &scaling,
+                tol: params.tol,
+            };
+            run_lbfgs(problem.clone(), n_params, max_iter, &stop, control)?
         };
 
         let (coef, intercept) = scaling.unscale(theta.view(), k, p);
@@ -293,31 +318,57 @@ fn softmax_in_place(mut row: ndarray::ArrayViewMut1<'_, f64>) {
 /// Standardisation used as a preconditioner.
 #[derive(Debug, Clone)]
 struct Scaling {
+    /// Mean of each column.
     mean: Array1<f64>,
     /// Standard deviation (ddof 0); 1 for constant columns.
     std: Array1<f64>,
+    /// Largest `|x|` of each column (1 for all-zero columns): the statistics are
+    /// computed on `x / max_abs`, in `[-1, 1]`, so that no square overflows.
+    max_abs: Array1<f64>,
 }
 
 impl Scaling {
     fn new(x: ArrayView2<'_, f64>) -> Self {
         let n = x.nrows() as f64;
-        let mut mean = Array1::zeros(x.ncols());
-        let mut std = Array1::ones(x.ncols());
+        let p = x.ncols();
+        let mut mean = Array1::zeros(p);
+        let mut std = Array1::ones(p);
+        let mut max_abs = Array1::ones(p);
         for (j, col) in x.axis_iter(Axis(1)).enumerate() {
-            let values = col.to_vec();
+            let c = col.iter().fold(0.0_f64, |m, v| m.max(v.abs()));
+            let c = if c > 0.0 && c.is_finite() { c } else { 1.0 };
+            let values: Vec<f64> = col.iter().map(|v| v / c).collect();
             let m = pairwise_sum(&values) / n;
             let var =
                 pairwise_sum(&values.iter().map(|v| (v - m) * (v - m)).collect::<Vec<_>>()) / n;
-            mean[j] = m;
+            max_abs[j] = c;
+            mean[j] = m * c;
             if var.is_finite() && var > 0.0 {
-                std[j] = var.sqrt();
+                std[j] = var.sqrt() * c;
             }
         }
-        Self { mean, std }
+        Self { mean, std, max_abs }
     }
 
+    /// `(x − mean) / std`, computed as `(x/c − mean/c) / (std/c)` (`c = max_abs`)
+    /// so that it cannot overflow.
     fn apply(&self, x: ArrayView2<'_, f64>) -> Array2<f64> {
-        (&x - &self.mean) / &self.std
+        let mut out = x.to_owned();
+        for (j, mut col) in out.axis_iter_mut(Axis(1)).enumerate() {
+            let c = self.max_abs[j];
+            let (m, s) = (self.mean[j] / c, self.std[j] / c);
+            col.mapv_inplace(|v| (v / c - m) / s);
+        }
+        out
+    }
+
+    /// `1/sⱼ²`, the penalty weight of `vⱼ`. Clamped to `f64::MAX` so that a
+    /// tiny `sⱼ` gives a huge (not infinite) penalty and `0·penalty` stays 0.
+    fn inv_scale_sq(&self) -> Array1<f64> {
+        self.std.mapv(|s| {
+            let inv = 1.0 / s;
+            (inv * inv).min(f64::MAX)
+        })
     }
 
     /// From the solver's `θ` (k blocks of `[v₀…v_{p−1}, c]`) to `coef_`, `intercept_`.
@@ -598,6 +649,16 @@ fn cholesky_solve(a: &Array2<f64>, b: &Array1<f64>) -> Option<Array1<f64>> {
     Some(y)
 }
 
+/// The objective or its gradient overflowed: in practice, features with huge
+/// values. A message the student can act on.
+fn values_too_large() -> ModelError {
+    ModelError::Numerical {
+        message: "valores demasiado grandes; escala las características (por ejemplo, \
+                  con StandardScaler o cambiando las unidades)"
+            .to_owned(),
+    }
+}
+
 /// Damped Newton from `θ = 0`: `H·Δ = −∇f`, then backtracking until the Armijo
 /// condition holds. Stops when the gradient reaches [`INNER_GRADIENT_TOL`], when no
 /// step decreases `f` any more (noise floor) or after `max_iter` iterations.
@@ -620,10 +681,8 @@ fn run_newton(
     while iter < max_iter {
         let g = objective.grad(theta.view());
         let g_norm = g.dot(&g).sqrt();
-        if !g_norm.is_finite() {
-            return Err(ModelError::Numerical {
-                message: "gradiente no finito".to_owned(),
-            });
+        if !g_norm.is_finite() || !f.is_finite() {
+            return Err(values_too_large());
         }
         if g_norm < INNER_GRADIENT_TOL {
             break;
@@ -665,6 +724,53 @@ fn run_newton(
     Ok((theta, iter))
 }
 
+/// Whether to use Newton's method (small problems, see [`NEWTON_MAX_PARAMS`] and
+/// [`NEWTON_MAX_WORK`]) or L-BFGS.
+fn use_newton(n_rows: usize, n_params: usize) -> bool {
+    let work = n_rows as f64 * (n_params as f64) * (n_params as f64);
+    n_params <= NEWTON_MAX_PARAMS && work <= NEWTON_MAX_WORK
+}
+
+/// Early stop of L-BFGS: scikit-learn's criterion (`max|∇f| ≤ tol` in the original
+/// variables, as in [`FitReport::converged`]) **and** a relative decrease of the
+/// objective below [`LBFGS_FTOL`] in the last iteration. The second condition keeps
+/// the solver going while it still makes progress (scikit-learn stops on the first
+/// one, far from the optimum on ill-conditioned data), and stops it once only noise
+/// is left instead of running to `max_iter`.
+struct SklearnStop<'a> {
+    scaling: &'a Scaling,
+    tol: f64,
+}
+
+impl SklearnStop<'_> {
+    fn holds(&self, grad: &Array1<f64>, f_prev: f64, f_new: f64, n_params: usize) -> bool {
+        let scale = f_prev.abs().max(f_new.abs()).max(1.0);
+        let decrease = f_prev - f_new;
+        // NaN (no cost yet) never stops the solver.
+        let stalled = decrease.is_finite() && decrease <= LBFGS_FTOL * scale;
+        if !stalled {
+            return false;
+        }
+        let p = self.scaling.std.len();
+        if grad.len() != n_params || p == 0 || n_params % (p + 1) != 0 {
+            return false;
+        }
+        // ∂f/∂wⱼ = sⱼ·∂f/∂vⱼ + μⱼ·∂f/∂c and ∂f/∂b = ∂f/∂c (see `gradient_original`).
+        grad.as_slice()
+            .map(|g| {
+                g.chunks_exact(p + 1).all(|block| {
+                    let gc = block[p];
+                    gc.abs() <= self.tol
+                        && (0..p).all(|j| {
+                            let gw = self.scaling.std[j] * block[j] + self.scaling.mean[j] * gc;
+                            gw.abs() <= self.tol
+                        })
+                })
+            })
+            .unwrap_or(false)
+    }
+}
+
 type Lbfgs =
     LBFGS<MoreThuenteLineSearch<Array1<f64>, Array1<f64>, f64>, Array1<f64>, Array1<f64>, f64>;
 type LbfgsState = IterState<Array1<f64>, Array1<f64>, (), (), (), f64>;
@@ -681,6 +787,7 @@ fn run_lbfgs(
     objective: Objective<'_>,
     n_params: usize,
     max_iter: u64,
+    stop: &SklearnStop<'_>,
     control: &TrainControl<'_>,
 ) -> Result<(Array1<f64>, u64), ModelError> {
     let numerical = |e: argmin::core::Error| ModelError::Numerical {
@@ -703,6 +810,9 @@ fn run_lbfgs(
     });
     let (mut state, _) = solver.init(&mut problem, state).map_err(numerical)?;
     state.update();
+    if !state.get_cost().is_finite() {
+        return Err(values_too_large());
+    }
 
     loop {
         if !state.terminated() {
@@ -720,6 +830,7 @@ fn run_lbfgs(
         }
         control.check()?;
         let fallback = (state.get_best_param().cloned(), state.get_iter());
+        let f_prev = state.get_cost();
         match solver.next_iter(&mut problem, state) {
             Ok((next, _)) => state = next,
             Err(_) => {
@@ -730,6 +841,11 @@ fn run_lbfgs(
         }
         state.update();
         state.increment_iter();
+        if let Some(g) = state.get_gradient() {
+            if stop.holds(g, f_prev, state.get_cost(), n_params) {
+                state = state.terminate_with(TerminationReason::SolverConverged);
+            }
+        }
         control.report(TrainProgress {
             iteration: state.get_iter(),
             max_iter,
@@ -877,6 +993,106 @@ mod tests {
             ),
             Err(ModelError::TooFewClasses { found: 1 })
         );
+    }
+
+    #[test]
+    fn rejects_too_many_classes() {
+        let n = 2 * (crate::model::MAX_CLASSES + 1);
+        let x = Array2::from_shape_fn((n, 1), |(i, _)| i as f64);
+        let y: Vec<usize> = (0..n).map(|i| i / 2).collect();
+        assert_eq!(
+            LogisticRegression::fit(
+                x.view(),
+                &y,
+                LogisticParams::default(),
+                &TrainControl::none()
+            ),
+            Err(ModelError::TooManyClasses {
+                n_classes: crate::model::MAX_CLASSES + 1,
+                max: crate::model::MAX_CLASSES
+            })
+        );
+    }
+
+    #[test]
+    fn huge_feature_values_train_like_scaled_ones() {
+        // Item 7 of the F2 review: 1e300·x used to give "gradiente no finito".
+        let (x, y) = toy();
+        let fit = |x: &Array2<f64>| {
+            LogisticRegression::fit(
+                x.view(),
+                &y,
+                LogisticParams::default(),
+                &TrainControl::none(),
+            )
+            .unwrap_or_else(|e| panic!("{e}"))
+        };
+        let small = fit(&x);
+        let big = fit(&x.mapv(|v| v * 1e300));
+        let p_small = small.proba(x.view()).unwrap_or_else(|e| panic!("{e}"));
+        let p_big = big
+            .proba(x.mapv(|v| v * 1e300).view())
+            .unwrap_or_else(|e| panic!("{e}"));
+        // Not the same model (the penalty is on w, which scales by 1e-300, so the
+        // big one is unregularised), but finite and a valid probability.
+        assert!(p_big
+            .iter()
+            .all(|v| v.is_finite() && (0.0..=1.0).contains(v)));
+        assert!(p_small.iter().all(|v| v.is_finite()));
+        // Tiny values: huge penalty, the coefficients stay ~0 instead of NaN.
+        let tiny = fit(&x.mapv(|v| v * 1e-300));
+        assert!(tiny.coef().iter().all(|v| v.is_finite()));
+        assert!(tiny.intercept().iter().all(|v| v.is_finite()));
+    }
+
+    #[test]
+    fn digits_uses_newton_and_bounds_its_cost() {
+        assert!(use_newton(1257, 650)); // Digits: 10 classes × 65.
+        assert!(!use_newton(1257, NEWTON_MAX_PARAMS + 1));
+        assert!(!use_newton(1_000_000, 300));
+        assert!(use_newton(1_000_000, 21));
+    }
+
+    #[test]
+    fn lbfgs_early_stop_needs_both_criteria() {
+        let x = array![[1.0, 10.0], [3.0, 20.0]];
+        let scaling = Scaling::new(x.view());
+        let stop = SklearnStop {
+            scaling: &scaling,
+            tol: 1e-4,
+        };
+        let small = Array1::from(vec![1e-6, 1e-6, 1e-6]);
+        let large = Array1::from(vec![1e-2, 0.0, 0.0]);
+        assert!(stop.holds(&small, 0.5, 0.5, 3));
+        assert!(!stop.holds(&small, 0.5, 0.4, 3)); // still decreasing
+        assert!(!stop.holds(&large, 0.5, 0.5, 3)); // sklearn's criterion fails
+    }
+
+    #[test]
+    fn lbfgs_reaches_newton_optimum() {
+        let (x, y) = toy();
+        let scaling = Scaling::new(x.view());
+        let xs = scaling.apply(x.view());
+        let problem = Objective {
+            x: xs.view(),
+            y: &y,
+            k: 1,
+            inv_scale_sq: scaling.inv_scale_sq(),
+            lambda: 1.0 / 8.0,
+        };
+        let ctl = TrainControl::none();
+        let (newton, _) = run_newton(&problem, 3, 100, &ctl).unwrap_or_else(|e| panic!("{e}"));
+        let stop = SklearnStop {
+            scaling: &scaling,
+            tol: 1e-4,
+        };
+        let (lbfgs, it) =
+            run_lbfgs(problem.clone(), 3, 1000, &stop, &ctl).unwrap_or_else(|e| panic!("{e}"));
+        assert!(it < 1000);
+        let diff = (&newton - &lbfgs)
+            .iter()
+            .fold(0.0_f64, |m, v| m.max(v.abs()));
+        assert!(diff < 1e-5, "{diff}");
     }
 
     #[test]

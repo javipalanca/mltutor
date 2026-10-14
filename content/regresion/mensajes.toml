@@ -23,6 +23,10 @@ error_carga = "Error al cargar el dataset: {error}"          # st.error
 parametros_titulo = "### Parámetros del Modelo"
 max_iter_label = "Máximo de Iteraciones:"                    # slider 100..2000 paso 100, 1000; solo logística
 max_iter_help = "Número máximo de iteraciones para el optimizador de regresión logística."
+# NUEVO (revisión ML de F2, 2026-10-14): st.caption debajo del deslizador (solo logística). El
+# solver de Rust (Newton; L-BFGS si hay más de 300 parámetros) converge casi siempre en pocas
+# iteraciones, así que el deslizador apenas cambia el resultado y hay que explicarlo.
+max_iter_nota = "ℹ️ En cada iteración el optimizador corrige los coeficientes para reducir la pérdida. MLTutor usa un método de **segundo orden** (Newton), que además de la pendiente tiene en cuenta la curvatura de la pérdida: en casi todos los datasets llega al mínimo en menos de 30 iteraciones, así que mover este deslizador apenas cambia el modelo. Incluso 🔢 Dígitos (650 parámetros) converge en unas 12 iteraciones. Solo con problemas muy grandes (más de 700 parámetros, por ejemplo un CSV con muchas columnas y clases) se usa L-BFGS, un método más ligero que necesita cientos de iteraciones; ahí un máximo bajo puede dejar el modelo sin converger."
 lineal_sin_iteraciones = "La regresión lineal no requiere configuración adicional de iteraciones."   # st.info en lugar del slider
 test_size_label = "Tamaño del Conjunto de Prueba:"           # slider 0.1..0.5 paso 0.05, 0.3
 test_size_help = "Proporción de datos que se usará para evaluar el modelo."
@@ -33,7 +37,7 @@ error_entrenar = "Error al entrenar el modelo: {error}"      # st.error
 error_sin_dataset = "Por favor, carga un dataset válido primero."
 # NUEVO (D19): st.warning debajo del st.success cuando el optimizador agota max_iter sin
 # converger (TrainNotice::NotConverged). Expander debajo: no-convergencia.md.
-aviso_no_convergencia = "⚠️ El optimizador no ha convergido en {max_iter} iteraciones. Prueba a aumentar el máximo de iteraciones o a escalar las características."
+aviso_no_convergencia = "⚠️ El optimizador no ha convergido en {max_iter} iteraciones. Prueba a aumentar el máximo de iteraciones."
 no_convergencia_expander = "ℹ️ ¿Qué significa que el modelo no converja?"   # cerrado; no-convergencia.md
 # NUEVO (D26): st.error que sustituye al entrenamiento cuando se elige 🏷️ Regresión Logística con un
 # dataset (o CSV) de regresión. Python entrenaba 192 clases en Diabetes y fallaba en inglés en
@@ -121,14 +125,16 @@ log_disminuyen = "#### 📉 **Características que MÁS disminuyen la probabilid
 # característica + 1 (en 🌸 Iris, "3." para la primera de la lista).
 # NUEVO (D27): en multiclase, debajo de analisis_titulo, para que "odds" no se lea como en binaria.
 nota_odds_multiclase = "ℹ️ **En multiclase** cada clase tiene su propio vector de coeficientes y las «odds» de la clase **{clase}** se miden frente a una clase promedio (la media geométrica de las probabilidades de todas las clases). Para comparar dos clases concretas *k* y *l*, el odds ratio de una característica es e^(βₖ − βₗ), con los coeficientes de esa característica en cada clase."
+# CORREGIDO (revisión ML de F2): log_item_pos/log_item_neg añaden ", si las demás no cambian"
+# (el odds ratio de un coeficiente es el efecto con las demás características fijas).
 log_item_pos = """**{n}. {caracteristica}** {intensidad}
 - Coeficiente: `{coef:.4f}`
 - Odds Ratio: `{odds:.3f}`
-- **Impacto:** Cada unidad adicional **multiplica las odds por {odds:.2f}** (aumenta {cambio:+.1f}%)"""
+- **Impacto:** Cada unidad adicional **multiplica las odds por {odds:.2f}** (aumenta {cambio:+.1f}%), si las demás no cambian"""
 log_item_neg = """**{n}. {caracteristica}** {intensidad}
 - Coeficiente: `{coef:.4f}`
 - Odds Ratio: `{odds:.3f}`
-- **Impacto:** Cada unidad adicional **reduce las odds en {reduccion:.1f}%**"""
+- **Impacto:** Cada unidad adicional **reduce las odds en {reduccion:.1f}%**, si las demás no cambian"""
 intensidad_fuerte = "🔥 **FUERTE**"      # logística +: OR > 3; −: OR < 0.33. Lineal: |coef| > cuantil 0.8
 intensidad_moderado = "🔶 **MODERADO**"  # logística +: OR > 1.5; −: OR < 0.67. Lineal: > cuantil 0.6
 intensidad_debil = "🔹 **DÉBIL**"

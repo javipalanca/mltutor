@@ -27,6 +27,12 @@ feature_columns: Array<string>,
  */
 feature_names: Array<string>, 
 /**
- * Classes of the model (logistic) or of the dataset.
+ * Classes of the dataset (indexed by class code).
  */
-class_names: Array<string> | null, notices: Array<TrainNotice>, };
+class_names: Array<string> | null, 
+/**
+ * `classes_` of a classifier: the codes (indices into `class_names`) seen in the
+ * train set, sorted. Row `i` of `coef_` belongs to `model_classes[i]`; with 2 of 3
+ * classes the model is binary and `model_classes[1]` is the positive class.
+ */
+model_classes: Array<number> | null, notices: Array<TrainNotice>, };

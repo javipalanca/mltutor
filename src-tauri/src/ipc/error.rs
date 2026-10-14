@@ -79,6 +79,13 @@ pub enum CommandError {
     InvalidInput {
         message: String,
     },
+    /// The target has more classes than a classifier of the app accepts (the column
+    /// is probably an identifier or a continuous value read as classes).
+    TooManyClasses {
+        n_classes: u32,
+        max: u32,
+        message: String,
+    },
     /// Training failed (singular system, optimizer error…).
     Training {
         message: String,
@@ -206,6 +213,15 @@ impl CommandError {
         }
     }
 
+    /// `message` is the core's (`ModelError::TooManyClasses`), already in Spanish.
+    pub fn too_many_classes(n_classes: usize, max: usize, message: impl Into<String>) -> Self {
+        Self::TooManyClasses {
+            n_classes: u32::try_from(n_classes).unwrap_or(u32::MAX),
+            max: u32::try_from(max).unwrap_or(u32::MAX),
+            message: message.into(),
+        }
+    }
+
     pub fn training(error: impl std::fmt::Display) -> Self {
         Self::Training {
             message: format!("Error al entrenar el modelo: {error}"),
@@ -245,6 +261,7 @@ impl CommandError {
             | Self::NotRegressor { message }
             | Self::GridTooSmall { message }
             | Self::InvalidInput { message }
+            | Self::TooManyClasses { message, .. }
             | Self::Training { message }
             | Self::Export { message }
             | Self::Internal { message } => message,
@@ -309,6 +326,16 @@ mod tests {
         assert_eq!(
             CommandError::internal("detalle").message(),
             INTERNAL_MESSAGE
+        );
+        let error = CommandError::too_many_classes(192, 50, "192 clases");
+        let json = serde_json::to_value(&error).unwrap();
+        assert_eq!(
+            (&json["kind"], &json["n_classes"], &json["max"]),
+            (
+                &serde_json::json!("too_many_classes"),
+                &serde_json::json!(192),
+                &serde_json::json!(50)
+            )
         );
         assert!(
             CommandError::csv_too_large(150 * 1_048_576, 100 * 1_048_576)

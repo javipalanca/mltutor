@@ -22,6 +22,7 @@
   import { escapeMarkdown } from "../../escape";
   import { fmt, toFixedPython, type FmtValue } from "../../fmt";
   import { fixed } from "../../format";
+  import { classOfRow, coefficientClasses } from "../../ml/modelClasses";
   import { models } from "../../ml/modelSession.svelte";
   import { ViewLoader } from "../../ml/viewLoader.svelte";
   import { theme } from "../../theme.svelte";
@@ -35,9 +36,11 @@
 
   const info = $derived(lessonState.info);
   const logistic = $derived(info?.config.kind === "logistic");
-  const classes = $derived(info?.class_names ?? []);
-  const multiclass = $derived(logistic && classes.length > 2);
-  const classIndex = $derived(multiclass ? Math.min(lessonState.coefClass, classes.length - 1) : null);
+  /** Rows of `coef_` follow the model's `classes_`, not the dataset's classes. */
+  const modelClasses = $derived(info ? coefficientClasses(info) : null);
+  const classOptions = $derived(modelClasses?.options ?? []);
+  const multiclass = $derived(logistic && (modelClasses?.multiclass ?? false));
+  const classIndex = $derived(multiclass ? Math.min(lessonState.coefClass, classOptions.length - 1) : null);
   const key = $derived(info ? `${info.model_id}|${classIndex ?? ""}` : "");
 
   $effect(() => {
@@ -51,7 +54,9 @@
 
   const data = $derived(view.for(key) ?? (view.loading ? view.data : null));
   /** The class the odds refer to: the chosen one (multiclass) or the positive one (binary). */
-  const targetClass = $derived(multiclass ? (classes[classIndex ?? 0] ?? "") : (classes[1] ?? "1"));
+  const targetClass = $derived(
+    !info ? "" : multiclass ? classOfRow(info, classIndex ?? 0) : (modelClasses?.positive ?? "1"),
+  );
 
   const text = (v: string): Cell => ({ kind: "text", v });
   const effectText = (r: CoefficientRow): string => t(r.effect === "positive" ? "efecto_positivo" : "efecto_negativo");
@@ -182,11 +187,11 @@
     <Markdown source={md(logistic ? "regresion/coeficientes-logistica.md" : "regresion/coeficientes-lineal.md")} />
   </Expander>
   {#if multiclass}
-    <Notice severity="info" markdown={fmt(t("nota_multiclase"), { n_clases: classes.length, clase: targetClass })} />
+    <Notice severity="info" markdown={fmt(t("nota_multiclase"), { n_clases: classOptions.length, clase: targetClass })} />
     <Select
       id="regresion-coef-clase"
       label={t("selector_clase")}
-      options={classes.map((label, value) => ({ label, value }))}
+      options={classOptions}
       value={classIndex ?? 0}
       onchange={(value) => (lessonState.coefClass = value)}
     />

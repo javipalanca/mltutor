@@ -247,6 +247,40 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
   - El formulario de predicción de Python usa float32; Rust usa f64 (D31).
     `onnx.reference.ReferenceEvaluator` evalúa LinearClassifier/LinearRegressor sin onnxruntime.
   - Capturas de F2: `uv run python tools/capture_qt.py --phase 2 --quantize`, unos 75 s.
+- **OLS (2026-10-14, revisión F2):** sklearn usa `scipy.linalg.lstsq` con `cond = max(n,p)·eps`, no
+  eps. Con `eps·σ_max`, las columnas derivadas (`0.1·x0 + 0.7·x2`, `x0/3`) conservan valores
+  singulares de ruido y dan coeficientes de unos 1e12 (y un ONNX que falla en millones). Rust usa una
+  QR de Householder propia más la SVD de R (O(n·p²), cancelable): 100k×200 pasa de 36 s a 1,2 s. Ya no
+  se usa linfa-linear. La SVD de linfa-linalg no ordena los valores singulares.
+- **Logística en Dígitos:** está tan mal condicionada que L-BFGS sigue a 2,8e-3 del óptimo tras 1000
+  iteraciones, y el lbfgs de sklearn se para a las 139, a 0,25. Newton la resuelve en 12 iteraciones
+  (unos 0,6 s). Newton se usa si d ≤ 700 y n·d² ≤ 2e9; si no, L-BFGS con el criterio de sklearn y un
+  ftol relativo de 1e-10. Se estandariza sobre x/max|x| para que valores de 1e300 no desborden.
+- **Límites:** `MAX_CLASSES = 50` (`ModelError::TooManyClasses`). El CSV "auto" elige Regresión con más
+  de 50 valores distintos (diferencia deliberada con Python). `onnx_class_labels` usa los valores de
+  clase solo si todos son enteros distintos; si no, los códigos. `CsvDialect` se deduce de los avisos
+  del lector y se pasa al script generado.
+- **Script con newton-cholesky (2026-10-14, revisión ML de F2):** `regresion_entrenamiento.py.j2`
+  usa `LogisticRegression(solver="newton-cholesky", tol=1e-8)`. lbfgs sin escalar no llega al óptimo
+  de Rust (Cáncer queda a 0,20) y con el tol por defecto Iris queda a 7,4e-5. `export_golden`
+  compara la logística del script con el óptimo (newton-cholesky, tol=1e-14), no con la app
+  Python. Requiere `scikit-learn>=1.6`.
+- **Escalar NO es equivalente con L2:** `StandardScaler` + `LogisticRegression` es otro modelo (en
+  Cáncer, hasta 0,907 de diferencia en probabilidades). Rust estandariza solo como cambio de
+  variables, con la penalización sobre los coeficientes originales.
+- **`pycomment` (filtro de plantillas):** quita CR/LF, elimina `"""` en bucle (`""\n"` volvería a
+  formar comillas triples) y duplica `\`.
+- **Titanic:** `class_encoded` = `pclass` − 1 (colinealidad exacta); la L2 reparte el efecto (−0,416
+  cada una).
+- **`seq` de entrenamiento (2026-10-14):** `LessonModels.last_seq` es por lección y no se borra
+  nunca; si se borrara, una petición antigua que llegara después de terminar la nueva la
+  sustituiría. `task-progress` se limita con `ProgressThrottle` (solo si cambia el % entero o el
+  mensaje, o cada ≥100 ms), y la UI solo acepta eventos del `task_id` activo.
+- **Clases del modelo frente a las del dataset:** `class_names` se indexa por el código del
+  dataset; las filas de `coef_` y las columnas de `proba`, por `model_classes` (`classes_`). Si
+  falta una clase en el train, el modelo puede ser binario (positiva = `classes_[1]`). Para
+  colorear la frontera hay que usar `point_codes`, nunca el valor del objetivo. Los textos de
+  avisos del backend se leen de `content/` con `mltutor_core::content::Messages`; no se duplican.
 - **UI de F2 (2026-10-14):** WKWebView no avanza las transiciones CSS en ventanas ocultas o
   con `--full-page`, y las capturas salían con botones a medio cambiar. En modo automatizado,
   `startup.ts` pone `data-automation` en `<html>` y `theme.css` desactiva las transiciones. En

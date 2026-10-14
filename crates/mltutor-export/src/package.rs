@@ -26,6 +26,13 @@ pub const ZIP_NAME: &str = "modelo_regresion.zip";
 pub const FORMAT_VERSION: u32 = 1;
 /// Rows of the test set embedded in `check` (`X_test.head(5)`).
 pub const CHECK_ROWS: usize = 5;
+/// `solver` written in the logistic `params`: MLTutor's model is the optimum of
+/// scikit-learn's objective (Newton's method, see `mltutor_core::linear::logistic`),
+/// which `newton-cholesky` also reaches; `lbfgs` with `tol=1e-4` stops elsewhere.
+pub const LOGISTIC_SOLVER: &str = "newton-cholesky";
+/// `tol` written with [`LOGISTIC_SOLVER`] (the one `reconstruir_modelo.py` and the
+/// training script use to refit).
+pub const LOGISTIC_TOL: f64 = 1e-8;
 
 /// What the package needs besides the model.
 #[derive(Debug, Clone, Copy)]
@@ -95,7 +102,8 @@ pub fn model_json(input: &PackageInput<'_>) -> Result<Value, ExportError> {
                 "C": p.c, "class_weight": null, "dual": false, "fit_intercept": true,
                 "intercept_scaling": 1, "l1_ratio": null, "max_iter": p.max_iter,
                 "multi_class": "deprecated", "n_jobs": null, "penalty": "l2",
-                "random_state": input.random_state, "solver": "lbfgs", "tol": p.tol,
+                "random_state": input.random_state, "solver": LOGISTIC_SOLVER,
+                "tol": LOGISTIC_TOL,
                 "verbose": 0, "warm_start": false
             }),
         );
@@ -164,7 +172,10 @@ pub fn model_json(input: &PackageInput<'_>) -> Result<Value, ExportError> {
             })
             .collect();
         doc.insert("class_names".into(), json!(names));
+        // `n_iter_` of newton-cholesky: the Newton iterations of our solver (int32,
+        // shape (1,), at most max_iter), coherent with `solver` above.
         let n_iter = model.fit_report().map_or(0, |r| r.n_iter);
+        let n_iter = i32::try_from(n_iter).unwrap_or(i32::MAX);
         doc.insert("n_iter_".into(), json!([n_iter]));
     }
     Ok(Value::Object(doc))
@@ -179,11 +190,23 @@ struct ScriptContext<'a> {
     pkl_name: &'a str,
 }
 
+/// One entry of `classes` in `paquete_leeme.txt.j2` (I4).
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ReadmeClass {
+    /// The value of `classes_`, what `predict` returns (`3`, `6`, `2.5`…).
+    pub value: Value,
+    /// Readable name.
+    pub name: String,
+}
+
 #[derive(Serialize)]
 struct ReadmeContext<'a> {
     estimator: &'a str,
     dataset: &'a str,
     feature_names: &'a [String],
+    /// I4: `[{value, name}]` in the order of `classes_`; `None` in regression.
+    classes: Option<Vec<ReadmeClass>>,
+    /// Kept for compatibility with older templates (the names alone).
     class_names: Option<Vec<String>>,
     n_train: usize,
     n_test: usize,
@@ -231,16 +254,9 @@ pub fn python_package(input: &PackageInput<'_>) -> Result<PythonPackage, ExportE
             estimator,
             dataset: input.dataset_label,
             feature_names: input.display_names,
-            class_names: classifier.then(|| {
-                doc["class_names"]
-                    .as_array()
-                    .map(|a| {
-                        a.iter()
-                            .filter_map(|v| v.as_str().map(str::to_owned))
-                            .collect()
-                    })
-                    .unwrap_or_default()
-            }),
+            classes: classifier.then(|| readme_classes(&doc)),
+            class_names: classifier
+                .then(|| readme_classes(&doc).into_iter().map(|c| c.name).collect()),
             n_train: input.n_train,
             n_test: input.n_test,
             test_size: input.test_size,
@@ -256,6 +272,24 @@ pub fn python_package(input: &PackageInput<'_>) -> Result<PythonPackage, ExportE
         script,
         readme,
     })
+}
+
+/// `classes_` with their names, from `modelo.json` (so that the LEEME shows
+/// exactly what `predict` returns: 3 and 6 in a CSV with those classes, not 0/1).
+pub fn readme_classes(doc: &Value) -> Vec<ReadmeClass> {
+    let values = doc["classes_"].as_array().cloned().unwrap_or_default();
+    let names = doc["class_names"].as_array().cloned().unwrap_or_default();
+    values
+        .into_iter()
+        .enumerate()
+        .map(|(i, value)| ReadmeClass {
+            name: names
+                .get(i)
+                .and_then(Value::as_str)
+                .map_or_else(|| value.to_string(), str::to_owned),
+            value,
+        })
+        .collect()
 }
 
 /// A ZIP with `files` (name, bytes), deflated, with the fixed 1980-01-01 date so
@@ -275,4 +309,70 @@ pub fn python_zip(files: &[(&str, &[u8])]) -> Result<Vec<u8>, ExportError> {
         })?;
     }
     Ok(writer.finish().map_err(zip_err)?.into_inner())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mltutor_core::model::TrainControl;
+    use mltutor_core::{Target, TaskChoice};
+
+    /// Review F2 (high): the LEEME must list what `predict` returns (3 and 6),
+    /// and modelo.json must name the solver that reproduces our model.
+    #[test]
+    fn package_of_csv_with_classes_3_and_6() {
+        let mut text = String::from("a,b,y\n");
+        for i in 0..30 {
+            let y = if i % 3 == 0 { 6 } else { 3 };
+            text.push_str(&format!("{},{},{y}\n", i % 7, f64::from(i) * 0.5));
+        }
+        let ds = mltutor_core::csv::read_csv(text.as_bytes())
+            .and_then(|t| t.to_dataset("y", TaskChoice::Classification, "c.csv"))
+            .unwrap_or_else(|e| panic!("{e}"));
+        let Target::Classes { class_values, .. } = &ds.target else {
+            panic!("classification expected")
+        };
+        let model = mltutor_core::linear::fit(
+            mltutor_core::linear::ModelConfig::Logistic { max_iter: 1000 },
+            ds.features.view(),
+            &ds.target,
+            &TrainControl::none(),
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        let input = PackageInput {
+            model: model.as_ref(),
+            feature_columns: &ds.feature_columns,
+            display_names: &ds.feature_display,
+            class_values: Some(class_values),
+            class_names: ds.class_names(),
+            dataset_label: &ds.label,
+            test_size: 0.3,
+            random_state: 42,
+            n_train: 30,
+            n_test: 0,
+            x_test: ds.features.view(),
+        };
+        let pkg = python_package(&input).unwrap_or_else(|e| panic!("{e}"));
+        assert!(pkg.readme.contains("  3 = Clase 3\n"), "{}", pkg.readme);
+        assert!(pkg.readme.contains("  6 = Clase 6\n"), "{}", pkg.readme);
+        let doc: Value = serde_json::from_str(&pkg.model_json).unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(doc["classes_"], json!([3, 6]));
+        assert_eq!(doc["params"]["solver"], "newton-cholesky");
+        assert_eq!(doc["params"]["tol"], json!(1e-8));
+        let n_iter = model.fit_report().map(|r| r.n_iter).unwrap_or(0);
+        assert_eq!(doc["n_iter_"], json!([n_iter]));
+        assert_eq!(
+            readme_classes(&doc),
+            vec![
+                ReadmeClass {
+                    value: json!(3),
+                    name: "Clase 3".to_owned()
+                },
+                ReadmeClass {
+                    value: json!(6),
+                    name: "Clase 6".to_owned()
+                }
+            ]
+        );
+    }
 }

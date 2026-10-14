@@ -60,7 +60,7 @@ export async function startup(): Promise<void> {
     onError(`CSP bloquea ${event.violatedDirective}: ${event.blockedURI || "(en línea)"}`);
   });
 
-  void backend.onTaskProgress((progress) => status.onProgress(progress.message, progress.percent));
+  void backend.onTaskProgress((progress) => status.onProgress(progress));
 
   try {
     await loadDatasets();

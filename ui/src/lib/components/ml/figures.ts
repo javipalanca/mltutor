@@ -672,7 +672,10 @@ export function boundaryFigure(grid: DecisionGrid, theme: ChartTheme = LIGHT_THE
     return surfaceFigure(grid, theme, webgl);
   }
   const names = grid.class_names ?? [];
-  const n = Math.max(names.length, 1 + Math.max(0, ...grid.values.z), 1);
+  // Class codes of the points (indices into `class_names`), never the target values:
+  // a dataset with classes {3, 6} has codes {0, 1}.
+  const codes = grid.point_codes ?? [];
+  const n = Math.max(names.length, 1 + Math.max(0, ...grid.values.z), 1 + Math.max(0, ...codes), 1);
   const colors = Array.from({ length: n }, (_, i) => classColor(i, n));
   const [fx, fy] = grid.feature_names;
   const layout = baseLayout(theme, label(compText("frontera", "title_frontera"), { f1: fx, f2: fy }));
@@ -703,8 +706,8 @@ export function boundaryFigure(grid: DecisionGrid, theme: ChartTheme = LIGHT_THE
   classNames.forEach((name, classIndex) => {
     const px: number[] = [];
     const py: number[] = [];
-    grid.point_target.forEach((target, i) => {
-      if (Math.round(target) === classIndex) {
+    codes.forEach((code, i) => {
+      if (code === classIndex) {
         px.push(xs[i] ?? Number.NaN);
         py.push(ys[i] ?? Number.NaN);
       }

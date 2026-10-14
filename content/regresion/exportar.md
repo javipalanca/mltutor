@@ -1,8 +1,10 @@
 <!-- NUEVO (D1/D28, Fase 2): no existe en la versión Python, que solo ofrecía "📄 Generar Código" y "📥 Descargar Modelo (Pickle)". Pestaña 💾 Exportar, debajo de los tres botones. Expander cerrado. Título: "ℹ️ ¿Qué formato elijo?" (mensajes.toml [exportar] ayuda_expander). Nombres de entrada/salida del ONNX: contrato C11 de fase2-regresion.md (float_input; label + probabilities o variable). -->
 **📄 Generar Código** — un script de Python que **repite el entrenamiento** con scikit-learn:
-carga los mismos datos, hace el mismo split (`random_state=42`), entrena el mismo modelo y
-calcula las mismas métricas. Úsalo para aprender a hacerlo tú y como punto de partida para
-probar cambios (escalar, otras características, otro modelo).
+carga los mismos datos, hace el mismo split (`random_state=42`), entrena el mismo modelo (en
+la logística, con `solver="newton-cholesky"`, que llega al mismo óptimo que MLTutor) y calcula
+las mismas métricas. Úsalo para aprender a hacerlo tú y como punto de partida para probar
+cambios (escalar, otras características, otro modelo); ten en cuenta que escalar una regresión
+logística regularizada da un modelo distinto, no solo unos coeficientes en otras unidades.
 
 **💾 Exportar a ONNX** — el modelo **ya entrenado**, en un formato abierto que no depende de
 MLTutor ni de scikit-learn. Sirve para usarlo en otra aplicación (Python, C#, Java, JavaScript…).

@@ -81,8 +81,8 @@ pub mod split;
 pub mod stats;
 
 pub use dataset::{
-    ColumnKind, Dataset, DatasetEntry, DatasetId, DatasetSummary, LabelColumn, Target, TaskChoice,
-    TaskType,
+    ColumnKind, CsvDialect, CsvEncoding, Dataset, DatasetEntry, DatasetId, DatasetSummary,
+    LabelColumn, Target, TaskChoice, TaskType,
 };
 pub use error::{ContentError, CsvError, DatasetError};
 pub use frame::{Cell, DescribeTable, TablePreview};

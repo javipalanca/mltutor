@@ -1941,21 +1941,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "linfa-linear"
-version = "0.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52ca593414e4cb3d403606f24084755c368eca269791906870ec8f63563d1205"
-dependencies = [
- "argmin",
- "argmin-math",
- "linfa",
- "linfa-linalg",
- "ndarray",
- "num-traits",
- "thiserror 2.0.21",
-]
-
-[[package]]
 name = "linfa-logistic"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2124,7 +2109,6 @@ dependencies = [
  "libc",
  "linfa",
  "linfa-linalg",
- "linfa-linear",
  "linfa-logistic",
  "minijinja",
  "ndarray",

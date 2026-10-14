@@ -1,12 +1,13 @@
 {#- NUEVO (decisión D1, Fase 2): no existe en la versión Python. Script del "paquete Python"
     que exporta la lección 📊 Regresión. Lee modelo.json, reconstruye el objeto de
     scikit-learn sin reentrenar, comprueba que predice lo mismo que MLTutor y lo guarda en
-    formato pickle. Contexto: estimator, dataset, classifier (bool), json_name, pkl_name. -#}
+    formato pickle. Contexto: estimator, dataset, classifier (bool), json_name, pkl_name.
+    `dataset` es texto del usuario (nombre de un CSV): va con `pycomment` dentro del docstring. -#}
 """
 Reconstruye el modelo entrenado en MLTutor como un objeto de scikit-learn.
 
 Modelo: {{ estimator }}
-Dataset: {{ dataset }}
+Dataset: {{ dataset | pycomment }}
 
 Uso (en la carpeta donde has descomprimido el ZIP):
     pip install scikit-learn numpy

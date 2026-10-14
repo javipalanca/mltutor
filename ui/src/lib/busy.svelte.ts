@@ -14,6 +14,11 @@ class Busy {
     return this.pending > 0;
   }
 
+  /** The newest cancellable task still running (the one the status bar follows). */
+  get activeTask(): number | null {
+    return this.cancellable.at(-1) ?? null;
+  }
+
   get canCancel(): boolean {
     return this.cancellable.length > 0;
   }
@@ -36,7 +41,12 @@ class Busy {
         this.progress = null;
       }
       if (task !== undefined) {
+        const wasActive = this.activeTask === task;
         this.cancellable = this.cancellable.filter((id) => id !== task);
+        // Its last message must not linger under the next task.
+        if (wasActive) {
+          this.progress = null;
+        }
       }
     });
   }

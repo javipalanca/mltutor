@@ -107,6 +107,16 @@ describe("ThresholdAnalysis (C6)", () => {
     expect(screen.getByText("0.3")).toBeTruthy();
     expect(screen.getByText("0.80")).toBeTruthy();
     expect(screen.getByText(/ajustar el umbral a 0.80/)).toBeTruthy();
+    // The best threshold comes from the test set: the leakage warning sits under the advice.
+    const warning = document.querySelector("[data-threshold-warning]");
+    expect(warning?.textContent).toContain("validación");
+  });
+
+  it("shows neither the advice nor its warning when the optimum is close to 0.5", () => {
+    const row = (threshold: number) => ({ threshold, accuracy: 0.9, precision: 0.9, recall: 0.9, f1: 0.9 });
+    render(ThresholdAnalysis, { thresholds: [row(0.5)], best: 0.55, shown: [0.5], idPrefix: "t" });
+    expect(screen.queryByText(/ajustar el umbral/)).toBeNull();
+    expect(document.querySelector("[data-threshold-warning]")).toBeNull();
   });
 });
 

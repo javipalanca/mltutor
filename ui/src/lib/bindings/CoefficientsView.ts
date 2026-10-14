@@ -12,6 +12,11 @@ rows: Array<CoefficientRow>,
  */
 class_index: number | null, 
 /**
+ * `classes_` of the model (codes into the dataset's `class_names`); see
+ * `TrainedModelInfo::model_classes`.
+ */
+model_classes: Array<number> | null, 
+/**
  * Rows of `coef_`: 1 for linear and binary logistic, one per class otherwise.
  */
 n_rows: number, 

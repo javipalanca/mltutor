@@ -20,7 +20,7 @@ use ndarray::{Array2, ArrayView2, Axis};
 use serde::{Deserialize, Serialize};
 
 use crate::dataset::{Target, TaskType};
-use crate::model::{ModelError, Prediction, Predictor, TrainControl};
+use crate::model::{check_n_classes, ModelError, Prediction, Predictor, TrainControl};
 use crate::stats::linspace;
 
 /// Default grid step (`h = 0.02`).
@@ -168,8 +168,14 @@ pub struct DecisionGrid {
     pub features: [usize; 2],
     /// Training points on those two features (`n × 2`).
     pub points: Array2<f64>,
-    /// Their target (class codes as numbers, or values).
+    /// Their numeric target, as Python keeps it in `y` (`Target::numeric`): the
+    /// class *values* (e.g. 3 and 6 in a CSV) or the regression values.
     pub point_target: Vec<f64>,
+    /// Class codes (`0..k`, those of `GridValues::Classes::z`) of the same points
+    /// when the target has classes (`y_train.class_codes()`); `None` in regression.
+    /// Colour the points with these, not with `point_target`: with classes {3, 6}
+    /// the grid says 0/1 and the values say 3/6.
+    pub point_codes: Option<Vec<usize>>,
     /// Coefficients of the 2-feature model, when it is linear (tests, code).
     pub model_2d: Option<crate::model::LinearCoefficients>,
     /// `st.warning` "⚠️ Esta visualización solo muestra 2 características…" when
@@ -212,6 +218,9 @@ pub fn decision_grid(
             reason: format!("el modelo tiene {p} características"),
         });
     }
+    if let Some(classes) = model.classes() {
+        check_n_classes(classes.len())?;
+    }
     control.check()?;
     let points = x_train.select(Axis(1), &[fx, fy]);
     let model_2d = model.refit(points.view(), y_train, control)?;
@@ -252,6 +261,7 @@ pub fn decision_grid(
         values,
         features: [fx, fy],
         point_target: y_train.numeric(),
+        point_codes: y_train.class_codes(),
         model_2d: model_2d.linear_coefficients().cloned(),
         points,
         show_2d_warning: p > 2,
@@ -277,5 +287,70 @@ mod tests {
             .unwrap_or_else(|e| panic!("{e}"));
         assert_eq!(axes.x.len(), 200);
         assert!(matches!(axes.notices[1], GridNotice::TooLarge { .. }));
+    }
+
+    /// Review F2 (high): a CSV whose classes are 3 and 6. The grid predicts codes
+    /// 0/1; the points must carry the same codes (and keep 3/6 as values).
+    #[test]
+    fn csv_classes_3_and_6_have_matching_point_codes() {
+        let mut text = String::from("a,b,y\n");
+        for i in 0..40 {
+            let (a, b) = (f64::from(i) * 0.25, f64::from(i % 7));
+            let y = if i < 20 { 3 } else { 6 };
+            text.push_str(&format!("{a},{b},{y}\n"));
+        }
+        let ds = crate::csv::read_csv(text.as_bytes())
+            .and_then(|t| t.to_dataset("y", crate::TaskChoice::Classification, "c.csv"))
+            .unwrap_or_else(|e| panic!("{e}"));
+        let ctl = TrainControl::none();
+        let model = crate::linear::fit(
+            crate::linear::ModelConfig::Logistic { max_iter: 1000 },
+            ds.features.view(),
+            &ds.target,
+            &ctl,
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        let grid = decision_grid(
+            model.as_ref(),
+            ds.features.view(),
+            &ds.target,
+            0,
+            1,
+            GridOptions::default(),
+            &ctl,
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        let GridValues::Classes { z } = &grid.values else {
+            panic!("expected classes")
+        };
+        assert!(z.iter().all(|&c| c <= 1));
+        assert!(z.contains(&0) && z.contains(&1));
+        let codes = grid.point_codes.unwrap_or_else(|| panic!("point_codes"));
+        assert_eq!(codes[..20], [0; 20]);
+        assert_eq!(codes[20..], [1; 20]);
+        assert_eq!(grid.point_target[0], 3.0);
+        assert_eq!(grid.point_target[39], 6.0);
+    }
+
+    #[test]
+    fn regression_grid_has_no_point_codes() {
+        let x = ndarray::array![[0.0, 1.0], [1.0, 0.0], [2.0, 2.0], [3.0, 1.0]];
+        let y = Target::Values {
+            values: vec![1.0, 2.0, 3.0, 4.0],
+        };
+        let ctl = TrainControl::none();
+        let model = crate::linear::fit(crate::linear::ModelConfig::Linear, x.view(), &y, &ctl)
+            .unwrap_or_else(|e| panic!("{e}"));
+        let grid = decision_grid(
+            model.as_ref(),
+            x.view(),
+            &y,
+            0,
+            1,
+            GridOptions::default(),
+            &ctl,
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(grid.point_codes, None);
     }
 }

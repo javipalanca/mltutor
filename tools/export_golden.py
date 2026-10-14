@@ -1140,6 +1140,19 @@ def _onnx_reference(model, X_test: pd.DataFrame, classifier: bool) -> dict:
     return result
 
 
+def pycomment(value: Any) -> str:
+    """Interface I3: user text safe inside a Python docstring or a '#' comment.
+
+    Removes line breaks first, then every triple quote (repeatedly, so that removing one
+    cannot form another), and finally doubles backslashes (``\\N`` or ``\\x`` inside a docstring
+    are a SyntaxError). Same filter as minijinja's ``pycomment`` in mltutor-core.
+    """
+    text = str(value).replace("\r", "").replace("\n", "")
+    while '"""' in text:
+        text = text.replace('"""', "")
+    return text.replace("\\", "\\\\")
+
+
 def _render_code_template(name: str, context: dict) -> str:
     """Render ``content/code/<name>`` with jinja2 (stand-in for minijinja in Rust)."""
     import jinja2
@@ -1148,6 +1161,7 @@ def _render_code_template(name: str, context: dict) -> str:
                              keep_trailing_newline=True, undefined=jinja2.StrictUndefined,
                              autoescape=False)
     env.filters["pyrepr"] = repr
+    env.filters["pycomment"] = pycomment
     env.filters["tojson_compact"] = lambda v: json.dumps(v, ensure_ascii=False)
     return env.get_template(name).render(**context)
 
@@ -1615,6 +1629,19 @@ g = runpy.run_path(sys.argv[1], run_name="__main__")
 out = {k: float(g[k]) for k in ("accuracy", "precision", "recall", "f1", "auc", "ap", "auc_micro",
                                 "ap_micro", "ap_macro", "mse", "rmse", "mae", "r2") if k in g}
 out["y_pred"] = np.asarray(g["y_pred"], dtype=float).tolist()
+if "auc_macro" in g:
+    out["auc_macro"] = float(g["auc_macro"])
+m = g["modelo"]
+if hasattr(m, "predict_proba"):
+    out["proba"] = m.predict_proba(g["X_test"]).tolist()
+    out["coef"] = np.asarray(m.coef_, dtype=float).tolist()
+    out["intercept"] = np.asarray(m.intercept_, dtype=float).tolist()
+    out["n_iter"] = np.asarray(m.n_iter_).tolist()
+    out["solver"] = m.get_params()["solver"]
+    out["X_train"] = np.asarray(g["X_train"], dtype=float).tolist()
+    out["y_train"] = np.asarray(g["y_train"]).tolist()
+    out["X_test"] = np.asarray(g["X_test"], dtype=float).tolist()
+    out["y_test"] = np.asarray(g["y_test"]).tolist()
 out["test_positions"] = [int(g["X"].index.get_loc(i)) for i in g["X_test"].index]
 out["prediction"] = float(g["prediccion"])
 with open(sys.argv[2], "w", encoding="utf-8") as f:
@@ -1647,24 +1674,100 @@ def _training_script_context(spec: dict) -> tuple[dict, dict[str, bytes], dict]:
     return ctx, files, fixture
 
 
+def _classification_reference(ev: dict) -> dict[str, float]:
+    """Metrics of the 📈 Evaluación / 📉 Visualización tabs from _lr_classification_numbers."""
+    wa = ev["classification_report"]["weighted avg"]
+    ref = {"accuracy": ev["accuracy"], "precision": wa["precision"], "recall": wa["recall"],
+           "f1": wa["f1-score"]}
+    curves = ev["curves"]
+    if "binary" in curves:
+        ref["auc"] = curves["binary"]["roc"]["auc"]
+        ref["ap"] = curves["binary"]["pr"]["average_precision"]
+    else:
+        mc = curves["multiclass"]
+        ref["auc_micro"] = mc["micro"]["roc"]["auc"]
+        ref["auc_macro"] = mc["macro"]["roc"]["auc"]
+        ref["ap_micro"] = mc["micro"]["pr"]["average_precision"]
+        ref["ap_macro"] = mc["macro"]["average_precision"]
+    return ref
+
+
+# Logistic scripts are checked against the optimum, not against the Python app's model
+# (lbfgs stopped at tol=1e-4, or at max_iter in Breast Cancer: 0.20 away in probability).
+# Rust's Newton/L-BFGS solver lands on the optimum, and so does newton-cholesky.
+TRAINING_SCRIPT_OPTIMUM = ("LogisticRegression(solver='newton-cholesky', tol=1e-14, "
+                           "max_iter=1000) on the script's X_train/y_train")
+TRAINING_SCRIPT_TOL = {
+    "proba_abs_vs_optimum": 1e-6, "coef_abs_vs_optimum": 1e-5,
+    "proba_abs_vs_converged_reference": 1e-5, "coef_abs_vs_converged_reference": 1e-5,
+    "metrics_vs_optimum_rel": 1e-9,
+}
+# linear_models/breast_cancer: its converged_reference (lbfgs, tol=1e-12) stopped on the
+# function-value test before the optimum, so only a looser check against it makes sense.
+TRAINING_SCRIPT_REFERENCE_TOL = {"breast_cancer_logistic": {"proba": 1e-4, "coef": 1e-2}}
+
+
+def _logistic_optimum(got: dict, class_names: list) -> tuple[Any, dict]:
+    from sklearn.linear_model import LogisticRegression
+
+    X_train, X_test = np.asarray(got["X_train"]), np.asarray(got["X_test"])
+    y_train, y_test = np.asarray(got["y_train"]), np.asarray(got["y_test"])
+    opt = LogisticRegression(solver="newton-cholesky", tol=1e-14, max_iter=1000)
+    opt, warns = _fit_with_warnings(opt.fit, X_train, y_train)
+    if warns:
+        raise AssertionError(f"newton-cholesky optimum did not converge: {warns}")
+    ev = _lr_classification_numbers(opt, X_train, X_test, y_train, y_test, class_names)
+    return opt, ev
+
+
+def _check_logistic_script(name: str, spec: dict, got: dict, fixture: dict,
+                           class_names: list) -> dict:
+    """Script model vs the optimum and vs linear_models' converged_reference."""
+    opt, ev = _logistic_optimum(got, class_names)
+    X_test = np.asarray(got["X_test"])
+    proba = np.asarray(got["proba"])
+    coef, intercept = np.asarray(got["coef"]), np.asarray(got["intercept"])
+    conv = fixture["expected"]["converged_reference"]
+    rtol = TRAINING_SCRIPT_REFERENCE_TOL.get(spec["fixture"], {})
+    diffs = {
+        "proba_abs_vs_optimum": float(np.max(np.abs(proba - opt.predict_proba(X_test)))),
+        "coef_abs_vs_optimum": float(max(np.max(np.abs(coef - opt.coef_)),
+                                         np.max(np.abs(intercept - opt.intercept_)))),
+        "proba_abs_vs_converged_reference": float(np.max(np.abs(proba - np.asarray(conv["proba"])))),
+        "coef_abs_vs_converged_reference": float(max(
+            np.max(np.abs(coef - np.asarray(conv["coef"]))),
+            np.max(np.abs(intercept - np.asarray(conv["intercept"]))))),
+    }
+    limits = dict(TRAINING_SCRIPT_TOL)
+    limits["proba_abs_vs_converged_reference"] = rtol.get(
+        "proba", limits["proba_abs_vs_converged_reference"])
+    limits["coef_abs_vs_converged_reference"] = rtol.get(
+        "coef", limits["coef_abs_vs_converged_reference"])
+    for key, value in diffs.items():
+        if not value <= limits[key]:
+            raise AssertionError(f"{name}: {key} = {value:.3g} > {limits[key]:g}")
+    if got["y_pred"] != np.asarray(opt.predict(X_test), dtype=float).tolist():
+        raise AssertionError(f"{name}: predictions differ from the optimum's")
+    ref = _classification_reference(ev)
+    for key, value in ref.items():
+        if not math.isclose(got[key], value, rel_tol=limits["metrics_vs_optimum_rel"],
+                            abs_tol=1e-12):
+            raise AssertionError(f"{name}: {key} = {got[key]!r}, optimum = {value!r}")
+    app_pred = np.asarray(fixture["expected"]["y_pred"], dtype=float)
+    return {
+        "checked_numbers": {k: got[k] for k in ref},
+        "differences": {k: float(f"{v:.2g}") for k, v in diffs.items()},
+        "limits": {k: limits[k] for k in diffs},
+        "solver": got["solver"],
+        "n_iter": got["n_iter"],
+        "predictions_differing_from_python_app": int(np.sum(np.asarray(got["y_pred"]) != app_pred)),
+    }
+
+
 def _training_script_reference(fixture: dict) -> dict[str, float]:
-    """The app's numbers that the script must reproduce."""
+    """The Python app's numbers that a linear-regression script must reproduce."""
     exp = fixture["expected"]
     ev = exp.get("evaluation")
-    if fixture["input"]["model_type"] == "Logistic":
-        wa = ev["classification_report"]["weighted avg"]
-        ref = {"accuracy": ev["accuracy"], "precision": wa["precision"], "recall": wa["recall"],
-               "f1": wa["f1-score"]}
-        curves = ev["curves"]
-        if "binary" in curves:
-            ref["auc"] = curves["binary"]["roc"]["auc"]
-            ref["ap"] = curves["binary"]["pr"]["average_precision"]
-        else:
-            mc = curves["multiclass"]
-            ref["auc_micro"] = mc["micro"]["roc"]["auc"]
-            ref["ap_micro"] = mc["micro"]["pr"]["average_precision"]
-            ref["ap_macro"] = mc["macro"]["average_precision"]
-        return ref
     if ev is None:  # model/task mismatch: the fixture has y_test/y_pred, not the metrics
         from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
@@ -1698,6 +1801,19 @@ def case_code_regression_training(writer: Writer) -> None:
         exp = fixture["expected"]
         if got["test_positions"] != exp["test_indices"]:
             raise AssertionError(f"{name}: the script's split differs from the app's")
+        if ctx["model"] == "logistic":
+            check = _check_logistic_script(name, spec, got, fixture, ctx["class_names"])
+            out[name] = {
+                "context": ctx,
+                "text": script,
+                "stdout": proc.stdout,
+                "checked_against": {
+                    "optimum": TRAINING_SCRIPT_OPTIMUM,
+                    "converged_reference": f"{LR_MODULE}/{spec['fixture']}.json"},
+                **check,
+                "sample_prediction": got["prediction"],
+            }
+            continue
         if not np.allclose(got["y_pred"], np.asarray(exp["y_pred"], dtype=float),
                            rtol=1e-9, atol=1e-9):
             raise AssertionError(f"{name}: predictions differ from the app's")
@@ -1715,14 +1831,24 @@ def case_code_regression_training(writer: Writer) -> None:
         }
     doc = {
         "meta": make_meta(
-            {"text": "exact", "stdout": "informational (depends on the scikit-learn version)"},
+            {"text": "exact", "stdout": "informational (depends on the scikit-learn version)",
+             "logistic": TRAINING_SCRIPT_TOL,
+             "logistic_reference_overrides": TRAINING_SCRIPT_REFERENCE_TOL},
             "D29: the template is rendered with jinja2 (identical to minijinja for the constructs "
-            "it uses; checked with the minijinja Python bindings) and executed; its split, "
-            "predictions and metrics equal the app's (rel 1e-12). Rust must render 'text' "
-            "exactly from 'context' (filter pyrepr = Python repr())."),
+            "it uses; checked with the minijinja Python bindings) and executed; its split equals "
+            "the app's. Linear regression: predictions and metrics equal the Python app's "
+            "(rel 1e-12). Logistic regression (solver='newton-cholesky', like Rust's exact "
+            "solver): probabilities and coefficients are checked against the optimum "
+            "(newton-cholesky, tol=1e-14) and against linear_models' converged_reference "
+            "(lbfgs, tol=1e-12; looser in Breast Cancer, where it is not at the optimum), and "
+            "the metrics against the app's metric rules (_lr_classification_numbers, including "
+            "the interpolated macro ROC AUC) applied to the optimum. Not against the Python "
+            "app's model, which stops early (0.20 away in Breast Cancer). Rust must render "
+            "'text' exactly from 'context' (filters pyrepr = Python repr(), pycomment = remove "
+            "CR/LF and then every triple quote)."),
         "input": {"template": "content/code/regresion_entrenamiento.py.j2",
                   "engine": "jinja2 with keep_trailing_newline=True, StrictUndefined, "
-                            "filter pyrepr = repr()",
+                            "filters pyrepr = repr() and pycomment",
                   "context_keys": TRAINING_SCRIPT_CONTEXT_KEYS},
         "expected": out,
     }

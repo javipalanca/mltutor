@@ -1,10 +1,11 @@
-<!-- linear_regression_app.py, pestaña 🔍 Coeficientes, modelo logístico. Expander cerrado, primero de la pestaña. Título del expander: "ℹ️ ¿Cómo interpretar los coeficientes?". CORREGIDO en Rust (2026-10-14): (1) la escala de magnitudes solo daba los odds ratio de los coeficientes positivos; ahora es simétrica, como la columna "Fuerza del Efecto" (D27); (2) se dice cuál es la clase positiva; (3) nueva sección de multiclase: con softmax, e^β de una clase no es el odds ratio de "ser de esa clase frente a no serlo" (en Python se interpretaba como en binaria); (4) "negativos altos" era ambiguo. -->
+<!-- linear_regression_app.py, pestaña 🔍 Coeficientes, modelo logístico. Expander cerrado, primero de la pestaña. Título del expander: "ℹ️ ¿Cómo interpretar los coeficientes?". CORREGIDO en Rust (2026-10-14): (1) la escala de magnitudes solo daba los odds ratio de los coeficientes positivos; ahora es simétrica, como la columna "Fuerza del Efecto" (D27); (2) se dice cuál es la clase positiva; (3) nueva sección de multiclase: con softmax, e^β de una clase no es el odds ratio de "ser de esa clase frente a no serlo" (en Python se interpretaba como en binaria); (4) "negativos altos" era ambiguo; (5) revisión ML de F2: cada coeficiente es el efecto con las demás características fijas, y nota sobre la colinealidad de Clase_Pasajero y Clase_Social en Titanic. -->
 # 🎯 **Coeficientes en Regresión Logística**
 
 ## 🎯 **¿Qué representan los coeficientes?**
 
 En regresión logística, los coeficientes representan el **cambio en log-odds** 
-(logaritmo de las probabilidades) por cada unidad de cambio en la característica. 
+(logaritmo de las probabilidades) por cada unidad de cambio en la característica, 
+**manteniendo fijas las demás características**. 
 La fórmula es:
 
 ```
@@ -94,6 +95,15 @@ En 🌸 Iris, la longitud del pétalo tiene coeficiente ≈ −2.3 en *setosa* y
 2. **Asunciones de linealidad:** En el espacio log-odds, no en probabilidades
 3. **Interacciones ignoradas:** Los efectos pueden depender de otras variables
 4. **Escalas importantes:** Normalizar puede facilitar la interpretación
+5. **Características redundantes (colinealidad):** «manteniendo fijas las demás» solo tiene 
+   sentido si se puede mover una característica sin mover otra. En 🚢 Titanic, 
+   `Clase_Social` es la misma información que `Clase_Pasajero` menos 1 (Primera: 1 y 0; 
+   Segunda: 2 y 1; Tercera: 3 y 2), así que siempre cambian juntas. La regularización L2 
+   reparte el efecto a partes iguales: cada una sale con ≈ −0.416, y el efecto real de viajar 
+   una clase más abajo (de Primera a Segunda o de Segunda a Tercera) es la suma, ≈ −0.83 en 
+   el log-odds: las odds de sobrevivir se multiplican por 0.43. Ninguno de los dos 
+   coeficientes se puede leer por separado. Algo parecido, aunque sin ser idénticas, ocurre 
+   con `Sexo`, `Categoria_Persona` y `Hombre_Adulto`.
 
 ## 🎛️ **Cómo usar esta información:**
 

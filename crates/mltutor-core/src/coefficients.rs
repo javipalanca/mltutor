@@ -4,7 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::model::{ModelError, Predictor};
+use crate::model::{check_n_classes, ModelError, Predictor};
 use crate::stats::quantile_linear;
 use crate::TaskType;
 
@@ -112,6 +112,9 @@ pub fn view(
         .ok_or_else(|| ModelError::InvalidSelection {
             reason: "el modelo no tiene coeficientes".to_owned(),
         })?;
+    if let Some(classes) = model.classes() {
+        check_n_classes(classes.len())?;
+    }
     let n_rows = coefs.coef.nrows();
     let row = if n_rows > 1 {
         class_index.unwrap_or(0)
