@@ -17,8 +17,9 @@ function describe(reason: unknown): string {
 
 async function loadDatasets(): Promise<void> {
   const [datasets, selected] = await Promise.all([backend.listDatasets(), backend.getSelectedDataset()]);
+  backend.continueSeqAfter(selected.last_seq);
   session.datasets = datasets;
-  session.selected = selected;
+  session.selected = selected.dataset;
 }
 
 /** Height of the whole page for `--full-page` captures (CSS px). */

@@ -18,6 +18,8 @@ encoding_rs = "0.8"
 toml = { version = "0.8", default-features = false, features = ["parse"] }
 rand_mt = { version = "6.1", default-features = false }
 indexmap = "2"
+# TextColumn: hash table of codes over one string buffer (already used by indexmap).
+hashbrown = { version = "0.17", default-features = false }
 
 [dev-dependencies]
 serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }

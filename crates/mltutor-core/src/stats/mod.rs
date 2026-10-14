@@ -12,6 +12,7 @@ pub mod sum;
 pub mod value_counts;
 
 pub use correlation::{pearson, pearson_matrix, pearson_matrix_cancellable};
+pub(crate) use describe::describe_in_place;
 pub use describe::{describe_column, mean, quantile_linear, std_ddof1, DESCRIBE_STATS};
 pub use histogram::{
     histogram, histogram_bin_edges_auto, histogram_counts, linspace, Histogram, HIST_AUTO_MAX_BINS,

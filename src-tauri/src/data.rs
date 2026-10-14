@@ -14,13 +14,14 @@ use tauri::{AppHandle, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
 use crate::cli::Mode;
+use crate::core_facade::DatasetView;
 use crate::core_facade::{
     check_cancelled, validate_pairplot_features, CoreFacade, CsvDraftHandle, DatasetHandle,
 };
 use crate::ipc::{
     CommandError, CorrelationMatrix, CsvLoaded, CsvPreview, DatasetEntry, DatasetRef,
-    DatasetSummary, DescribeTable, PairplotData, PairplotRequest, TablePreview, TargetDistribution,
-    TargetInfo, TaskChoice,
+    DatasetSummary, DescribeTable, DiagKind, PairplotData, PairplotRequest, SelectedDataset,
+    TablePreview, TargetDistribution, TargetInfo, TaskChoice,
 };
 use crate::session::{CsvEntry, RegisterError, Session};
 use crate::state::AppState;
@@ -77,8 +78,17 @@ impl DataState {
         Ok(entries)
     }
 
+    #[cfg(test)]
     pub fn selected(&self) -> DatasetRef {
         self.session().selected
+    }
+
+    pub fn selection(&self) -> SelectedDataset {
+        let session = self.session();
+        SelectedDataset {
+            dataset: session.selected,
+            last_seq: session.last_seq(),
+        }
     }
 
     /// The dataset behind `dataset` and its label, parsing a built-in one on first use.
@@ -160,7 +170,8 @@ impl DataState {
     /// [`Self::set_csv_target`].
     pub fn load_csv(&self, path: &Path, cancel: &AtomicBool) -> Result<CsvPreview, CommandError> {
         // The previous draft is released first: only one file is kept in memory.
-        self.session().clear_draft();
+        let previous = self.session().clear_draft();
+        drop(previous); // Outside the lock: freeing a big table takes a while.
         let bytes = read_capped(path, CSV_MAX_BYTES, cancel)?;
         let file_name = path
             .file_name()
@@ -175,11 +186,14 @@ impl DataState {
         bytes: &[u8],
         cancel: &AtomicBool,
     ) -> Result<CsvPreview, CommandError> {
-        self.session().clear_draft();
+        let previous = self.session().clear_draft();
+        drop(previous);
         let draft = self.facade.read_csv(file_name, bytes, cancel)?;
         check_cancelled(cancel)?;
         let mut preview = draft.preview();
-        preview.draft_id = self.session().store_draft(draft);
+        let (draft_id, previous) = self.session().store_draft(draft);
+        drop(previous); // Another read raced this one: its draft goes, outside the lock.
+        preview.draft_id = draft_id;
         log::info!(
             "CSV leído: {file_name} ({} filas, {} columnas)",
             preview.n_rows,
@@ -197,9 +211,11 @@ impl DataState {
     }
 
     /// "Quitar archivo": releases the draft. The registered CSV stays selectable, as in
-    /// Python. Returns whether `draft_id` was still the current draft.
+    /// Python. Returns whether `draft_id` was still the current draft. The draft is
+    /// dropped after releasing the lock (callers run this on a blocking worker).
     pub fn discard_csv(&self, draft_id: u32) -> bool {
-        self.session().discard_draft(draft_id)
+        let discarded = self.session().discard_draft(draft_id);
+        discarded.is_some()
     }
 
     /// Confirms the target of draft `draft_id` and registers it for request `seq`.
@@ -219,8 +235,9 @@ impl DataState {
         // Not needed any more: the session keeps its own reference while it is current.
         drop(draft);
         let label = format!("📄 {file_name}");
+        let view: DatasetHandle = Arc::new(CachedViews::new(done.dataset.clone()));
         let mut session = self.session();
-        let registered = session
+        let (registered, released) = session
             .register_csv(draft_id, seq, &label, |dataset| CsvEntry {
                 entry: DatasetEntry {
                     dataset,
@@ -232,23 +249,75 @@ impl DataState {
                 file_name: file_name.clone(),
                 target: target.to_owned(),
                 task,
-                dataset: done.dataset.clone(),
+                dataset: view,
             })
             .map_err(|error| match error {
                 RegisterError::StaleDraft => stale_draft(),
                 RegisterError::Superseded => CommandError::cancelled(),
             })?;
+        let entry = registered.entry.clone();
+        let target = registered.target.clone();
+        drop(session);
+        // The previous CSV (another file, or this one with another target) is freed
+        // outside the lock.
+        drop(released);
         log::info!("CSV registrado y seleccionado: {label} (objetivo {target}, {task:?})");
         Ok(CsvLoaded {
-            dataset: registered.entry.clone(),
+            dataset: entry,
             task_choice: task,
             resolved_task: done.resolved_task,
             n_rows: crate::ipc::to_u32(done.n_rows),
             n_cols: crate::ipc::to_u32(done.n_cols),
-            target: registered.target.clone(),
+            target,
             describe: done.describe,
             target_stats: done.target_stats,
         })
+    }
+}
+
+/// The view of a registered CSV: `describe` and `target_distribution` are computed once
+/// (the 📊 Datos tab asks for them every time it is shown, in every lesson).
+struct CachedViews {
+    inner: DatasetHandle,
+    describe: OnceLock<DescribeTable>,
+    target_distribution: OnceLock<TargetDistribution>,
+}
+
+impl CachedViews {
+    fn new(inner: DatasetHandle) -> Self {
+        Self {
+            inner,
+            describe: OnceLock::new(),
+            target_distribution: OnceLock::new(),
+        }
+    }
+}
+
+impl DatasetView for CachedViews {
+    fn summary(&self) -> DatasetSummary {
+        self.inner.summary()
+    }
+
+    fn preview(&self, rows: usize) -> TablePreview {
+        self.inner.preview(rows)
+    }
+
+    fn describe(&self) -> DescribeTable {
+        self.describe.get_or_init(|| self.inner.describe()).clone()
+    }
+
+    fn target_distribution(&self) -> TargetDistribution {
+        self.target_distribution
+            .get_or_init(|| self.inner.target_distribution())
+            .clone()
+    }
+
+    fn correlation(&self, cancel: &AtomicBool) -> Result<CorrelationMatrix, CommandError> {
+        self.inner.correlation(cancel)
+    }
+
+    fn pairplot(&self, features: &[String], diag: DiagKind) -> Result<PairplotData, CommandError> {
+        self.inner.pairplot(features, diag)
     }
 }
 
@@ -320,8 +389,10 @@ pub async fn list_datasets(data: State<'_, DataState>) -> Result<Vec<DatasetEntr
 }
 
 #[tauri::command]
-pub async fn get_selected_dataset(data: State<'_, DataState>) -> Result<DatasetRef, CommandError> {
-    Ok(data.selected())
+pub async fn get_selected_dataset(
+    data: State<'_, DataState>,
+) -> Result<SelectedDataset, CommandError> {
+    Ok(data.selection())
 }
 
 #[tauri::command]
@@ -478,9 +549,11 @@ pub async fn set_csv_target(
     blocking(move || data.set_csv_target(draft_id, &target, task, seq, &guard.token())).await
 }
 
+/// Runs on a blocking worker: the released draft may be a big table.
 #[tauri::command]
 pub async fn discard_csv(data: State<'_, DataState>, draft_id: u32) -> Result<bool, CommandError> {
-    Ok(data.discard_csv(draft_id))
+    let data = state(&data);
+    blocking(move || Ok(data.discard_csv(draft_id))).await
 }
 
 #[cfg(test)]
@@ -809,6 +882,184 @@ mod tests {
         ));
         // The registered CSV stays in the selector, as in Python.
         assert_eq!(data.list_datasets().unwrap().len(), 13);
+    }
+
+    /// Counts drops of drafts and CSV datasets, and whether the session lock was held then.
+    #[derive(Default)]
+    struct LockProbe {
+        session: OnceLock<Arc<Mutex<Session>>>,
+        drops: std::sync::atomic::AtomicUsize,
+        drops_while_locked: std::sync::atomic::AtomicUsize,
+        describes: std::sync::atomic::AtomicUsize,
+        distributions: std::sync::atomic::AtomicUsize,
+    }
+
+    struct Probed<T> {
+        inner: T,
+        probe: Arc<LockProbe>,
+    }
+
+    impl<T> Drop for Probed<T> {
+        fn drop(&mut self) {
+            self.probe.drops.fetch_add(1, Ordering::SeqCst);
+            if let Some(session) = self.probe.session.get() {
+                if session.try_lock().is_err() {
+                    self.probe.drops_while_locked.fetch_add(1, Ordering::SeqCst);
+                }
+            }
+        }
+    }
+
+    impl CsvDraft for Probed<CsvDraftHandle> {
+        fn file_name(&self) -> &str {
+            self.inner.file_name()
+        }
+        fn preview(&self) -> CsvPreview {
+            self.inner.preview()
+        }
+        fn target_info(&self, target: &str) -> Result<TargetInfo, CommandError> {
+            self.inner.target_info(target)
+        }
+        fn finalize(
+            &self,
+            target: &str,
+            task: TaskChoice,
+            cancel: &AtomicBool,
+        ) -> Result<CsvFinal, CommandError> {
+            let mut done = self.inner.finalize(target, task, cancel)?;
+            done.dataset = Arc::new(Probed {
+                inner: done.dataset,
+                probe: self.probe.clone(),
+            });
+            Ok(done)
+        }
+    }
+
+    impl DatasetView for Probed<DatasetHandle> {
+        fn summary(&self) -> DatasetSummary {
+            self.inner.summary()
+        }
+        fn preview(&self, rows: usize) -> TablePreview {
+            self.inner.preview(rows)
+        }
+        fn describe(&self) -> DescribeTable {
+            self.probe.describes.fetch_add(1, Ordering::SeqCst);
+            self.inner.describe()
+        }
+        fn target_distribution(&self) -> TargetDistribution {
+            self.probe.distributions.fetch_add(1, Ordering::SeqCst);
+            self.inner.target_distribution()
+        }
+        fn correlation(&self, cancel: &AtomicBool) -> Result<CorrelationMatrix, CommandError> {
+            self.inner.correlation(cancel)
+        }
+        fn pairplot(
+            &self,
+            features: &[String],
+            diag: DiagKind,
+        ) -> Result<PairplotData, CommandError> {
+            self.inner.pairplot(features, diag)
+        }
+    }
+
+    struct ProbeFacade {
+        inner: FixtureFacade,
+        probe: Arc<LockProbe>,
+    }
+
+    impl CoreFacade for ProbeFacade {
+        fn name(&self) -> &'static str {
+            "ProbeFacade"
+        }
+        fn builtin_catalog(&self) -> Result<Vec<DatasetEntry>, CommandError> {
+            self.inner.builtin_catalog()
+        }
+        fn load_builtin(&self, id: DatasetId) -> Result<DatasetHandle, CommandError> {
+            self.inner.load_builtin(id)
+        }
+        fn read_csv(
+            &self,
+            file_name: &str,
+            bytes: &[u8],
+            cancel: &AtomicBool,
+        ) -> Result<CsvDraftHandle, CommandError> {
+            Ok(Arc::new(Probed {
+                inner: self.inner.read_csv(file_name, bytes, cancel)?,
+                probe: self.probe.clone(),
+            }))
+        }
+    }
+
+    fn probed() -> (DataState, Arc<LockProbe>) {
+        let probe = Arc::new(LockProbe::default());
+        let data = DataState::new(Arc::new(ProbeFacade {
+            inner: FixtureFacade::from_checkout(),
+            probe: probe.clone(),
+        }));
+        assert!(probe.session.set(data.session.clone()).is_ok());
+        (data, probe)
+    }
+
+    /// Big drafts and CSV tables are freed after releasing the session lock, so other
+    /// commands are not blocked meanwhile.
+    #[test]
+    fn released_drafts_and_csvs_are_dropped_outside_the_lock() {
+        let (data, probe) = probed();
+        let a = data.load_csv_bytes("a.csv", TIPS_CSV, &go()).unwrap();
+        data.set_csv_target(a.draft_id, "size", TaskChoice::Auto, 1, &go())
+            .unwrap();
+        // Same file again: the draft and the registered entry are replaced.
+        let again = data.load_csv_bytes("a.csv", TIPS_CSV, &go()).unwrap();
+        data.set_csv_target(again.draft_id, "tip", TaskChoice::Auto, 2, &go())
+            .unwrap();
+        // Another file: the previous CSV goes.
+        let b = data.load_csv_bytes("b.csv", TIPS_CSV, &go()).unwrap();
+        data.set_csv_target(b.draft_id, "size", TaskChoice::Auto, 3, &go())
+            .unwrap();
+        assert!(data.discard_csv(b.draft_id));
+        // a's draft, a's dataset, again's draft, again's dataset (replaced by b), b's draft.
+        assert_eq!(probe.drops.load(Ordering::SeqCst), 5);
+        assert_eq!(probe.drops_while_locked.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn describe_and_target_distribution_of_a_csv_are_cached() {
+        let (data, probe) = probed();
+        let a = data.load_csv_bytes("a.csv", TIPS_CSV, &go()).unwrap();
+        let loaded = data
+            .set_csv_target(a.draft_id, "size", TaskChoice::Auto, 1, &go())
+            .unwrap();
+        let csv = loaded.dataset.dataset;
+        let first = data.describe(csv).unwrap();
+        assert_eq!(data.describe(csv).unwrap(), first);
+        let dist = data.target_distribution(csv).unwrap();
+        assert_eq!(data.target_distribution(csv).unwrap(), dist);
+        assert_eq!(probe.describes.load(Ordering::SeqCst), 1);
+        assert_eq!(probe.distributions.load(Ordering::SeqCst), 1);
+        // A new registration (another target) computes them again.
+        data.set_csv_target(a.draft_id, "tip", TaskChoice::Auto, 2, &go())
+            .unwrap();
+        assert_ne!(data.target_distribution(csv).unwrap(), dist);
+        assert_eq!(probe.distributions.load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn the_last_applied_seq_is_exposed() {
+        let data = data();
+        assert_eq!(data.selection().last_seq, 0);
+        data.select(builtin(DatasetId::Wine), 10).unwrap();
+        data.select(builtin(DatasetId::Iris), 4).unwrap();
+        assert_eq!(
+            data.selection(),
+            SelectedDataset {
+                dataset: builtin(DatasetId::Wine),
+                last_seq: 10
+            }
+        );
+        let a = data.load_csv_bytes("a.csv", TIPS_CSV, &go()).unwrap();
+        data.set_csv_target(a.draft_id, "size", TaskChoice::Auto, 20, &go())
+            .unwrap();
+        assert_eq!(data.selection().last_seq, 20);
     }
 
     #[test]

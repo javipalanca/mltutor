@@ -1974,6 +1974,7 @@ dependencies = [
  "base64 0.22.1",
  "csv",
  "encoding_rs",
+ "hashbrown 0.17.1",
  "indexmap 2.14.2",
  "libc",
  "ndarray",

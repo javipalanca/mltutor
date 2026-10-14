@@ -16,6 +16,7 @@ import type { LaunchMode } from "./bindings/LaunchMode";
 import type { LogLevel } from "./bindings/LogLevel";
 import type { PairplotData } from "./bindings/PairplotData";
 import type { PairplotRequest } from "./bindings/PairplotRequest";
+import type { SelectedDataset } from "./bindings/SelectedDataset";
 import type { TablePreview } from "./bindings/TablePreview";
 import type { TargetDistribution } from "./bindings/TargetDistribution";
 import type { TargetInfo } from "./bindings/TargetInfo";
@@ -94,8 +95,14 @@ export function cancelAll(): void {
 
 // Requests that change the selection carry an increasing `seq`: the backend applies the
 // newest one even if an older one finishes later. Seeded with the clock so that a reload
-// of the page (the backend keeps its session) keeps increasing.
+// of the page (the backend keeps its session) keeps increasing; `continueSeqAfter` then
+// raises it above the last `seq` the backend applied, in case the clock went backwards.
 let requestSeq = Date.now() * 1000;
+
+/** Makes the next `seq` greater than `lastApplied` (from `get_selected_dataset`). */
+export function continueSeqAfter(lastApplied: number): void {
+  requestSeq = Math.max(requestSeq, Date.now() * 1000, lastApplied);
+}
 
 export function nextSeq(): number {
   requestSeq += 1;
@@ -147,7 +154,8 @@ export function listDatasets(): Promise<DatasetEntry[]> {
   return call("list_datasets");
 }
 
-export function getSelectedDataset(): Promise<DatasetRef> {
+/** The shared selection and the last `seq` the backend applied. */
+export function getSelectedDataset(): Promise<SelectedDataset> {
   return call("get_selected_dataset");
 }
 

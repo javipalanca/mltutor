@@ -30,6 +30,8 @@ export interface CsvPageState {
   task: TaskChoice | null;
   loaded: CsvLoaded | null;
   error: string | null;
+  /** The last registration was cancelled: the file is read but not registered. */
+  registerCancelled: boolean;
 }
 
 export function datasetKey(dataset: DatasetRef): string {
@@ -67,7 +69,14 @@ class Session {
   selected: DatasetRef = $state({ kind: "builtin", id: "iris" });
   /** `seq` of the request that set `selected` (see `backend.nextSeq`). */
   selectionSeq = 0;
-  csv: CsvPageState = $state({ preview: null, target: null, task: null, loaded: null, error: null });
+  csv: CsvPageState = $state({
+    preview: null,
+    target: null,
+    task: null,
+    loaded: null,
+    error: null,
+    registerCancelled: false,
+  });
 
   /** Selects `dataset` for request `seq` (the same `seq` goes to `select_dataset`). */
   choose(dataset: DatasetRef, seq: number): void {

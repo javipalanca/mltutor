@@ -287,3 +287,41 @@ fn cancellation_flags_are_honoured() {
     assert_eq!(read_csv_file_cancellable(&path, &unset).unwrap().n_rows, 1);
     assert_eq!(CsvError::Cancelled.to_string(), "Operación cancelada");
 }
+
+#[test]
+fn huge_target_range_gives_finite_histogram_edges() {
+    // Last round of the review: `hi - lo` overflowed and the edges were NaN/inf.
+    let t = table("x,y\n1,-1.7e308\n2,1.7e308\n3,0\n");
+    let CsvTargetStats::Numeric {
+        min,
+        max,
+        hist_edges,
+        hist_counts,
+        ..
+    } = t.target_stats("y", TaskChoice::Regression).unwrap()
+    else {
+        panic!("numeric target expected");
+    };
+    assert_eq!((min, max), (-1.7e308, 1.7e308));
+    assert_eq!(hist_edges.len(), 31);
+    assert!(hist_edges.iter().all(|e| e.is_finite()), "{hist_edges:?}");
+    assert_eq!(hist_counts.iter().sum::<u32>(), 3);
+}
+
+#[test]
+fn text_columns_are_dictionary_encoded() {
+    // Repeated strings are stored once; missing values have no code.
+    let t = table("a,y\nsi,1\nno,2\n,3\nsi,4\n");
+    let mltutor_core::csv::ColumnData::Text(col) = &t.column("a").unwrap().data else {
+        panic!("text column expected");
+    };
+    assert_eq!(col.n_unique(), 2);
+    assert_eq!(col.uniques().collect::<Vec<_>>(), vec!["si", "no"]);
+    assert_eq!(col.code(2), None);
+    assert_eq!(col.missing(), 1);
+    // The JSON is still a list of strings with null for missing values.
+    let json = serde_json::to_string(&t.columns[0].data).unwrap();
+    assert_eq!(json, r#"{"kind":"text","values":["si","no",null,"si"]}"#);
+    let back: mltutor_core::csv::ColumnData = serde_json::from_str(&json).unwrap();
+    assert_eq!(&back, &t.columns[0].data);
+}

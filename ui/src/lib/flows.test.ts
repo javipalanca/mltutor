@@ -23,7 +23,8 @@ vi.mock("@tauri-apps/api/core", () => ({
 }));
 
 const { chooseDataset } = await import("./selection");
-const { clearCsv, loadScenarioCsv, setTask } = await import("./csvFlow");
+const { clearCsv, loadScenarioCsv, retryRegistration, setTask } = await import("./csvFlow");
+const backend = await import("./backend");
 const { session } = await import("./session.svelte");
 const { busy } = await import("./busy.svelte");
 const StatusBar = (await import("../components/StatusBar.svelte")).default;
@@ -79,7 +80,7 @@ beforeEach(() => {
   calls.length = 0;
   session.selected = IRIS;
   session.selectionSeq = 0;
-  session.csv = { preview: null, target: null, task: null, loaded: null, error: null };
+  session.csv = { preview: null, target: null, task: null, loaded: null, error: null, registerCancelled: false };
 });
 
 afterEach(() => cleanup());
@@ -99,6 +100,14 @@ describe("dataset selection (scenario A)", () => {
     const answers = await Promise.all(results);
     expect(answers).toEqual([null, null, { dataset: WINE }]);
     expect(session.selected).toEqual(WINE);
+  });
+
+  it("continues above the last seq the backend applied (the clock went backwards)", () => {
+    const ahead = Date.now() * 1000 + 1e9;
+    backend.continueSeqAfter(ahead);
+    expect(backend.nextSeq()).toBe(ahead + 1);
+    backend.continueSeqAfter(5);
+    expect(backend.nextSeq()).toBe(ahead + 2);
   });
 });
 
@@ -181,6 +190,28 @@ describe("CSV page", () => {
     clearCsv();
     expect(take("discard_csv").args).toEqual({ draftId: 1 });
     expect(session.csv.preview).toBeNull();
+  });
+
+  it("a cancelled registration keeps the preview and offers 'Registrar de nuevo'", async () => {
+    await loadA();
+    const change = setTask("regression");
+    await flush();
+    take("set_csv_target").reject({ kind: "cancelled", message: "Operación cancelada" });
+    await change;
+    expect(session.csv.preview?.file_name).toBe("a.csv");
+    expect(session.csv.loaded).toBeNull();
+    expect(session.csv.registerCancelled).toBe(true);
+    expect(session.csv.error).toBeNull();
+    const retry = retryRegistration();
+    expect(session.csv.registerCancelled).toBe(false);
+    await flush();
+    const again = take("set_csv_target");
+    expect(again.args["task"]).toBe("regression");
+    again.resolve(loaded(1, "regression"));
+    await flush();
+    take("list_datasets").resolve([{ dataset: { kind: "csv", id: 1 } }]);
+    await retry;
+    expect(session.csv.loaded?.task_choice).toBe("regression");
   });
 
   it("a cancelled read empties the page without an error", async () => {

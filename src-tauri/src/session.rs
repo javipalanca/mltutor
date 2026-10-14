@@ -7,6 +7,9 @@
 //! window, increasing in the order the user acted). Commands run concurrently, so they
 //! may reach the session in another order: the request with the highest `seq` wins and
 //! older ones do not overwrite it.
+//!
+//! Methods that release a draft or a registered CSV hand it back instead of dropping it:
+//! freeing a big table takes a while, and the caller does it after releasing the lock.
 
 use std::collections::HashMap;
 
@@ -72,12 +75,14 @@ impl Session {
         self.csv.values()
     }
 
-    /// Replaces the current draft (the previous one is released).
-    pub fn store_draft(&mut self, draft: CsvDraftHandle) -> u32 {
+    /// Replaces the current draft; returns its id and the previous draft, to be dropped
+    /// outside the lock.
+    #[must_use]
+    pub fn store_draft(&mut self, draft: CsvDraftHandle) -> (u32, Option<CsvDraftHandle>) {
         self.next_draft_id = self.next_draft_id.wrapping_add(1);
         let id = self.next_draft_id;
-        self.draft = Some((id, draft));
-        id
+        let previous = self.draft.replace((id, draft)).map(|(_, old)| old);
+        (id, previous)
     }
 
     pub fn draft(&self, id: u32) -> Option<CsvDraftHandle> {
@@ -87,34 +92,44 @@ impl Session {
         }
     }
 
-    /// Releases the current draft (another file is about to be read).
-    pub fn clear_draft(&mut self) {
-        self.draft = None;
+    /// Takes the current draft out (another file is about to be read).
+    #[must_use]
+    pub fn clear_draft(&mut self) -> Option<CsvDraftHandle> {
+        self.draft.take().map(|(_, draft)| draft)
     }
 
-    /// Releases draft `id` if it is still the current one ("Quitar archivo").
-    pub fn discard_draft(&mut self, id: u32) -> bool {
-        let current = self
+    /// Takes draft `id` out if it is still the current one ("Quitar archivo").
+    #[must_use]
+    pub fn discard_draft(&mut self, id: u32) -> Option<CsvDraftHandle> {
+        if self
             .draft
             .as_ref()
-            .is_some_and(|(draft_id, _)| *draft_id == id);
-        if current {
-            self.draft = None;
+            .is_some_and(|(draft_id, _)| *draft_id == id)
+        {
+            self.clear_draft()
+        } else {
+            None
         }
-        current
+    }
+
+    /// The highest `seq` applied so far (selection or CSV registration). A reloaded page
+    /// continues from here even if the clock went backwards.
+    pub fn last_seq(&self) -> u64 {
+        self.selection_seq.max(self.csv_seq)
     }
 
     /// Registers the CSV of draft `draft_id` and selects it (unless a newer selection
     /// exists). A file with the same display name keeps its id and position, as
     /// `csv_datasets[name] = …` does; any other registered CSV is released, so the
     /// session holds at most one. `make` receives the id so the entry can reference itself.
+    /// Also returns the entries it replaced, to be dropped outside the lock.
     pub fn register_csv(
         &mut self,
         draft_id: u32,
         seq: u64,
         display_name: &str,
         make: impl FnOnce(DatasetRef) -> CsvEntry,
-    ) -> Result<&CsvEntry, RegisterError> {
+    ) -> Result<(&CsvEntry, Vec<CsvEntry>), RegisterError> {
         if self.draft(draft_id).is_none() {
             return Err(RegisterError::StaleDraft);
         }
@@ -131,7 +146,9 @@ impl Session {
             self.next_csv_id = self.next_csv_id.wrapping_add(1);
             self.next_csv_id
         });
-        self.csv.retain(|other, _| *other == id);
+        // Every previous entry goes: another file, or this one being replaced. With at
+        // most one entry, the position of a same-name file is kept trivially.
+        let released: Vec<CsvEntry> = std::mem::take(&mut self.csv).into_values().collect();
         let dataset = DatasetRef::Csv { id };
         self.csv.insert(id, make(dataset));
         let selected_csv_was_released = matches!(
@@ -142,7 +159,7 @@ impl Session {
             self.selected = dataset;
             self.selection_seq = self.selection_seq.max(seq);
         }
-        Ok(&self.csv[&id])
+        Ok((&self.csv[&id], released))
     }
 
     /// Selects `dataset` for request `seq`. Returns `false` for an unknown CSV id; an

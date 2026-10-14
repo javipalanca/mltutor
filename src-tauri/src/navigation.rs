@@ -7,13 +7,21 @@
 use tauri::plugin::{Builder, TauriPlugin};
 use tauri::{Manager, Runtime, Url};
 
+/// Whether the app is served from `http(s)://tauri.localhost`: only on Windows (WebView2
+/// cannot register custom schemes); macOS and Linux use `tauri://localhost`.
+const SERVED_OVER_HTTP: bool = cfg!(windows);
+
 /// Whether `url` belongs to the app: `tauri://localhost` (macOS, Linux),
-/// `http(s)://tauri.localhost` (Windows) or, in development, the origin of `devUrl`.
+/// `http(s)://tauri.localhost` (Windows only) or, in development, the origin of `devUrl`.
 pub fn is_allowed(url: &Url, dev_url: Option<&Url>) -> bool {
+    allowed_on(url, dev_url, SERVED_OVER_HTTP)
+}
+
+fn allowed_on(url: &Url, dev_url: Option<&Url>, served_over_http: bool) -> bool {
     let host = url.host_str();
     match url.scheme() {
         "tauri" => host == Some("localhost"),
-        "http" | "https" if host == Some("tauri.localhost") => true,
+        "http" | "https" if served_over_http && host == Some("tauri.localhost") => true,
         "about" => url.path() == "blank",
         _ => dev_url.is_some_and(|dev| dev.origin() == url.origin()),
     }
@@ -48,8 +56,6 @@ mod tests {
     #[test]
     fn only_the_app_origin_is_allowed() {
         assert!(is_allowed(&url("tauri://localhost/index.html"), None));
-        assert!(is_allowed(&url("http://tauri.localhost/"), None));
-        assert!(is_allowed(&url("https://tauri.localhost/#/csv"), None));
         assert!(is_allowed(&url("about:blank"), None));
         for blocked in [
             "https://example.com/",
@@ -63,6 +69,22 @@ mod tests {
         ] {
             assert!(!is_allowed(&url(blocked), None), "{blocked}");
         }
+    }
+
+    /// `http(s)://tauri.localhost` is the app origin only on Windows.
+    #[test]
+    fn tauri_localhost_over_http_only_on_windows() {
+        for app_url in ["http://tauri.localhost/", "https://tauri.localhost/#/csv"] {
+            assert!(allowed_on(&url(app_url), None, true), "{app_url}");
+            assert!(!allowed_on(&url(app_url), None, false), "{app_url}");
+            assert_eq!(is_allowed(&url(app_url), None), cfg!(windows), "{app_url}");
+        }
+        assert!(!allowed_on(
+            &url("https://tauri.localhost.evil.com/"),
+            None,
+            true
+        ));
+        assert!(allowed_on(&url("tauri://localhost/"), None, false));
     }
 
     #[test]

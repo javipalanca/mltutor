@@ -229,6 +229,29 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
 - **Cancelación:** `tasks.rs` guarda un `Arc<AtomicBool>` por `task_id`; `cancel_task` y el
   botón "Cancelar" de la barra de estado cubren la lectura del CSV, `set_csv_target` y la
   correlación. Un `Cancelled` no se muestra como error.
+- **CSV de texto con diccionario (2026-10-14):** `ColumnData::Text` es un `TextColumn`: un código
+  `u32` por fila (`u32::MAX` = faltante) y los valores distintos una sola vez, en orden de
+  primera aparición, que es el desempate de `value_counts` en pandas. Con 94 MiB de texto, el
+  pico pasa de 1253 a 515 MiB (5,5×) y el RSS de 1,8 a 0,58 GB. Una columna de ids todos
+  distintos sigue en unas 4,7×. El `"nan"` de los faltantes comparte clase con el texto literal
+  `"nan"`, como `astype(str)`. El asignador contador mide bytes pedidos, no RSS: un `String`
+  de 2 bytes ocupa 16 en malloc.
+- **`linspace` con rango que desborda:** si `stop - start` no es finito, se usa
+  `start·(1−t) + stop·t`; los rangos representables siguen la fórmula de numpy bit a bit.
+  `describe_in_place` calcula la media y la desviación ANTES de ordenar, para conservar la suma
+  por parejas de pandas.
+- **Liberar memoria fuera del lock (2026-10-14):** los métodos de `Session` que sueltan un
+  borrador o un CSV lo devuelven, y el que llama lo libera ya sin el lock. Trampa:
+  `self.session().clear_draft();` como sentencia suelta libera con el guard vivo; hay que
+  hacer `let old = …; drop(old);`.
+- **`save_file` y GTK (2026-10-14):** GTK solo pregunta si se reemplaza el nombre tal como se
+  escribió. Si se añade la extensión después, hay que volver a confirmar
+  (`dialog().message().blocking_show()`). Los diálogos que se abren desde Rust no necesitan
+  capabilities. `Request<'_>` solo presta el cuerpo, así que hace falta una copia para
+  `spawn_blocking`.
+- **`seq` tras recargar:** `get_selected_dataset` devuelve `last_seq` y la UI sigue con
+  `max(Date.now()*1000, last_seq+1)`. Así funciona aunque el reloj retroceda.
+- **`tauri.localhost` solo en Windows;** en macOS y Linux el origen es `tauri://localhost`.
 - **Doctests en Windows (2026-10-13):** con `cargo test --workspace`, cargo pasa a rustdoc las
   rutas nativas de TODOS los build scripts. En Windows, el `msvcrt.lib` que deja el build de
   Tauri rompe el enlace de los doctests de mltutor-core (`__CxxFrameHandler3`). En CI se usa

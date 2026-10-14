@@ -22,6 +22,12 @@ pub struct Histogram {
 
 /// `np.linspace(start, stop, num)` (endpoint included), with NumPy's formula
 /// `start + i * ((stop - start) / (num - 1))` and the last value set to `stop`.
+///
+/// **Deviation from numpy:** when `stop - start` overflows (finite ends of
+/// opposite sign near `f64::MAX`, e.g. `-1.7e308` and `1.7e308`) numpy returns
+/// `inf`/NaN; here the values are the convex combination
+/// `start · (1 − t) + stop · t` with `t = i / (num − 1)`, which cannot overflow.
+/// Any range that numpy can represent keeps numpy's formula (bit-for-bit parity).
 pub fn linspace(start: f64, stop: f64, num: usize) -> Vec<f64> {
     match num {
         0 => Vec::new(),
@@ -30,7 +36,14 @@ pub fn linspace(start: f64, stop: f64, num: usize) -> Vec<f64> {
             let div = (num - 1) as f64;
             let delta = stop - start;
             let step = delta / div;
-            let mut out: Vec<f64> = if step == 0.0 {
+            let mut out: Vec<f64> = if !delta.is_finite() && start.is_finite() && stop.is_finite() {
+                (0..num)
+                    .map(|i| {
+                        let t = i as f64 / div;
+                        start * (1.0 - t) + stop * t
+                    })
+                    .collect()
+            } else if step == 0.0 {
                 (0..num).map(|i| (i as f64 / div) * delta + start).collect()
             } else {
                 (0..num).map(|i| i as f64 * step + start).collect()
@@ -141,6 +154,29 @@ mod tests {
         let l = linspace(4.3, 7.9, 10);
         assert_eq!(l[5], 6.300_000_000_000_001);
         assert_eq!(l[9], 7.9);
+    }
+
+    #[test]
+    fn huge_ranges_do_not_overflow() {
+        // Review finding: `hi - lo` overflowed and the edges were NaN/inf.
+        let h = histogram(&[-1.7e308, 1.7e308, 0.0], 30);
+        assert_eq!(h.edges.len(), 31);
+        assert!(h.edges.iter().all(|e| e.is_finite()), "{:?}", h.edges);
+        assert!(h.edges.windows(2).all(|w| w[0] < w[1]));
+        assert_eq!(h.edges[0], -1.7e308);
+        assert_eq!(h.edges[15], 0.0);
+        assert_eq!(h.edges[30], 1.7e308);
+        let mut want = vec![0_u32; 30];
+        (want[0], want[15], want[29]) = (1, 1, 1);
+        assert_eq!(h.counts, want);
+        let auto = histogram_bin_edges_auto(&[-f64::MAX, f64::MAX]);
+        assert!(auto.iter().all(|e| e.is_finite()), "{auto:?}");
+        assert_eq!(
+            histogram_counts(&[-f64::MAX, f64::MAX], &auto)
+                .iter()
+                .sum::<u32>(),
+            2
+        );
     }
 
     #[test]

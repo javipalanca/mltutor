@@ -6,7 +6,8 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use super::{ColumnData, CsvNotice, RawColumn, RawTable};
+use super::text::TextColumnBuilder;
+use super::{ColumnData, CsvNotice, RawColumn, RawTable, TextColumn};
 use crate::error::CsvError;
 
 /// Largest CSV accepted (D10): 100 MB.
@@ -304,7 +305,7 @@ impl ColumnBuilder {
 
     /// The typed column, and whether it used the decimal comma. `Text` columns are
     /// filled in by the second pass (`texts`).
-    fn finish(self, texts: Option<Vec<Option<String>>>) -> (ColumnData, bool) {
+    fn finish(self, texts: Option<TextColumn>) -> (ColumnData, bool) {
         fn fit<T>(mut v: Vec<T>) -> Vec<T> {
             // The row estimate counts every line; give back a large excess only.
             if v.capacity() - v.len() > v.len() / 8 {
@@ -335,8 +336,8 @@ fn infer_column(fields: Vec<String>, decimal_comma: bool) -> (ColumnData, bool) 
     }
     let texts = builder.is_text().then(|| {
         fields
-            .into_iter()
-            .map(|f| if is_na(&f) { None } else { Some(f) })
+            .iter()
+            .map(|f| (!is_na(f)).then_some(f.as_str()))
             .collect()
     });
     builder.finish(texts)
@@ -417,7 +418,8 @@ pub fn read_csv(bytes: &[u8]) -> Result<RawTable, CsvError> {
 ///
 /// Memory: numeric columns are typed while reading (see `ColumnBuilder`), so a
 /// numeric CSV peaks at about the file size plus 8 bytes per value; text columns
-/// are read in a second pass. Measured in `tests/csv_memory.rs`.
+/// are read in a second pass into a dictionary ([`TextColumn`]: 4 bytes per row
+/// plus each distinct value once). Measured in `tests/csv_memory.rs`.
 pub fn read_csv_cancellable(bytes: &[u8], cancel: &AtomicBool) -> Result<RawTable, CsvError> {
     let len = bytes.len() as u64;
     if len > MAX_CSV_BYTES {
@@ -467,11 +469,11 @@ pub fn read_csv_cancellable(bytes: &[u8], cancel: &AtomicBool) -> Result<RawTabl
     let text_columns: Vec<usize> = (0..builders.len())
         .filter(|&c| builders[c].is_text())
         .collect();
-    let mut texts: Vec<Option<Vec<Option<String>>>> = (0..builders.len()).map(|_| None).collect();
+    let mut texts: Vec<Option<TextColumn>> = (0..builders.len()).map(|_| None).collect();
     if !text_columns.is_empty() {
-        let mut collected: Vec<Vec<Option<String>>> = text_columns
+        let mut collected: Vec<TextColumnBuilder> = text_columns
             .iter()
-            .map(|_| Vec::with_capacity(n_rows))
+            .map(|_| TextColumnBuilder::with_capacity(n_rows))
             .collect();
         for_each_record(&text, separator, cancel, |index, record| {
             if index == 0 {
@@ -479,11 +481,11 @@ pub fn read_csv_cancellable(bytes: &[u8], cancel: &AtomicBool) -> Result<RawTabl
             }
             for (out, &c) in collected.iter_mut().zip(&text_columns) {
                 let field = record.get(c).unwrap_or_default();
-                out.push((!is_na(field)).then(|| field.to_owned()));
+                out.push((!is_na(field)).then_some(field));
             }
         })?;
         for (values, &c) in collected.into_iter().zip(&text_columns) {
-            texts[c] = Some(values);
+            texts[c] = Some(values.finish());
         }
     }
 
@@ -641,11 +643,11 @@ mod tests {
                 return (ColumnData::Bool(bools), false);
             }
         }
-        let texts = fields
+        let texts: Vec<Option<String>> = fields
             .into_iter()
             .map(|f| if is_na(&f) { None } else { Some(f) })
             .collect();
-        (ColumnData::Text(texts), false)
+        (ColumnData::Text(texts.into()), false)
     }
 
     fn same(a: &ColumnData, b: &ColumnData) -> bool {
@@ -694,12 +696,7 @@ mod tests {
         let t = read_csv(b"a,b\n007,1\n1.50,2\nx,3\n,4\n").unwrap();
         assert_eq!(
             t.columns[0].data,
-            ColumnData::Text(vec![
-                Some("007".into()),
-                Some("1.50".into()),
-                Some("x".into()),
-                None
-            ])
+            ColumnData::Text(vec![Some("007"), Some("1.50"), Some("x"), None].into())
         );
         assert_eq!(t.columns[1].data, ColumnData::Int(vec![1, 2, 3, 4]));
     }

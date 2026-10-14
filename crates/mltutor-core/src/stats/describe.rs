@@ -90,6 +90,21 @@ pub fn describe_column(values: &[f64]) -> [f64; 8] {
     let mut sorted: Vec<f64> = Vec::with_capacity(values.len());
     sorted.extend(values.iter().copied().filter(|v| v.is_finite()));
     sorted.sort_by(f64::total_cmp);
+    summary(mean(values), std_ddof1(values), &sorted)
+}
+
+/// [`describe_column`] of an owned column without a sorted copy: the mean and
+/// the standard deviation are taken in the original order (pandas' summation
+/// order), then `values` keeps only its finite values, sorted ascending.
+pub(crate) fn describe_in_place(values: &mut Vec<f64>) -> [f64; 8] {
+    let (avg, std) = (mean(values), std_ddof1(values));
+    values.retain(|v| v.is_finite());
+    values.sort_by(f64::total_cmp);
+    summary(avg, std, values)
+}
+
+/// `describe()` from the mean, the standard deviation and the sorted finite values.
+fn summary(mean: f64, std: f64, sorted: &[f64]) -> [f64; 8] {
     let count = sorted.len();
     if count == 0 {
         return [
@@ -105,12 +120,12 @@ pub fn describe_column(values: &[f64]) -> [f64; 8] {
     }
     [
         count as f64,
-        mean(values),
-        std_ddof1(values),
+        mean,
+        std,
         sorted[0],
-        quantile_linear(&sorted, 0.25),
-        quantile_linear(&sorted, 0.5),
-        quantile_linear(&sorted, 0.75),
+        quantile_linear(sorted, 0.25),
+        quantile_linear(sorted, 0.5),
+        quantile_linear(sorted, 0.75),
         sorted[count - 1],
     ]
 }
@@ -136,6 +151,20 @@ mod tests {
         assert!((d[2] - 1.290_994_448_735_805_6).abs() < 1e-15);
         assert_eq!(&d[3..], &[1.0, 1.75, 2.5, 3.25, 4.0]);
         assert!(describe_column(&[f64::INFINITY])[1].is_nan());
+    }
+
+    #[test]
+    fn in_place_matches_the_copying_version() {
+        let values = vec![3.0, f64::NAN, -1.0, f64::INFINITY, 0.1, 0.2, 7.5, 0.3];
+        let mut owned = values.clone();
+        let a = describe_column(&values);
+        let b = describe_in_place(&mut owned);
+        for (x, y) in a.iter().zip(&b) {
+            assert_eq!(x.to_bits(), y.to_bits());
+        }
+        assert_eq!(owned, vec![-1.0, 0.1, 0.2, 0.3, 3.0, 7.5]);
+        let mut empty = vec![f64::NAN];
+        assert_eq!(describe_in_place(&mut empty)[0], 0.0);
     }
 
     #[test]

@@ -433,8 +433,8 @@ Python con él. "Rust" indica la propuesta.
 - **Matrices:** `Matrix { rows: u32, cols: u32, values: Vec<Option<f64>> }` en row-major.
   `Option` porque serde_json escribe NaN como `null` pero no lo vuelve a leer. Las series
   largas (densidades, columnas) van como `Vec<f64>`. **Nunca se envían imágenes:** las
-  descargas PNG las genera Plotly en el frontend (`Plotly.toImage`), y se guardan con el
-  diálogo y `plugin-fs` desde la UI.
+  descargas PNG las genera Plotly en el frontend (`Plotly.toImage`) y se guardan con
+  `save_file` (diálogo y escritura en Rust; la UI no tiene `plugin-fs`).
 - Los tipos de dominio viven en `mltutor-core` (sin Tauri). Los DTO del IPC viven en
   `src-tauri/src/ipc/` (módulo nuevo) y se convierten desde los tipos de core con `From`. Así
   core no depende de ts-rs. Alternativa: `ts-rs` como dependencia opcional de core con la
@@ -470,14 +470,18 @@ cualquier lección, y `create_dataset_selector`, al cargar un CSV; la leen las 4
 ```rust
 pub struct Session {
     pub selected: DatasetRef,                     // por defecto Builtin(Iris)
-    pub csv: IndexMap<CsvId, CsvEntry>,           // en orden de carga; CsvId = u32 creciente
-    pub csv_draft: Option<CsvDraft>,              // archivo leído aún sin objetivo confirmado
-    pub moons: Option<Arc<Dataset>>,              // generado una vez por sesión (D9)
-    pub cache: HashMap<DatasetRef, Arc<Dataset>>, // datasets ya parseados
+    selection_seq: u64, csv_seq: u64,             // último seq aplicado (selección / registro CSV)
+    csv: IndexMap<u32, CsvEntry>,                 // como mucho uno: otro archivo libera el anterior
+    draft: Option<(u32, CsvDraftHandle)>,         // archivo leído aún sin objetivo confirmado
+    cache: HashMap<DatasetId, DatasetHandle>,     // integrados ya parseados; Moons fijo (D9)
 }
-pub struct CsvEntry { display_name: String /* "📄 {archivo}" */, file_name: String,
-                      table: Arc<RawTable>, target: String, task: TaskChoice, dataset: Arc<Dataset> }
+pub struct CsvEntry { entry: DatasetEntry /* label "📄 {archivo}" */, file_name: String,
+                      target: String, task: TaskChoice,
+                      dataset: DatasetHandle /* describe y distribución en OnceLock */ }
 ```
+
+Los métodos que liberan un borrador o un CSV (`clear_draft`, `discard_draft`, `store_draft`,
+`register_csv`) lo devuelven, y `DataState` lo suelta después de liberar el lock.
 
 El estado **de interfaz** se queda en el frontend, en un store de Svelte por sesión: pestaña
 activa de cada lección (`activeTab[lessonId]`), `active_analysis`, tipo de diagonal,
@@ -603,19 +607,27 @@ pub struct CsvLoaded {
 
 | Comando | Entrada | Salida | Errores | Notas |
 |---|---|---|---|---|
-| `list_datasets()` | — | `Vec<DatasetEntry>` | — | 12 integrados en el orden del selector + CSV en orden de carga |
-| `get_selected_dataset()` | — | `DatasetRef` | — | El selector de cualquier lección lo lee al montarse |
-| `select_dataset(dataset)` | `DatasetRef` | `DatasetSummary` | `DatasetNotFound` | Escribe `Session.selected`. Si es Moons y no existe, lo genera (D9) |
+| `list_datasets()` | — | `Vec<DatasetEntry>` | — | 12 integrados en el orden del selector + el CSV registrado (como mucho uno) |
+| `get_selected_dataset()` | — | `SelectedDataset { dataset, last_seq }` | — | Lo lee la UI al arrancar (o al recargar la página). `last_seq` es el `seq` más alto aplicado; la UI sigue con `max(Date.now()·1000, last_seq + 1)` aunque el reloj haya retrocedido |
+| `select_dataset(dataset, seq)` | `DatasetRef`, `u64` | `DatasetSummary` | `DatasetNotFound` | Aplica la selección bajo el lock **antes** de calcular el resumen; gana el `seq` más alto (uno más viejo no la cambia, pero devuelve su resumen). Moons se genera una vez por sesión (D9) |
 | `dataset_summary(dataset)` | `DatasetRef` | `DatasetSummary` | `DatasetNotFound` | Para las métricas de §2.3 |
-| `dataset_preview(dataset, rows)` | `DatasetRef`, `u32` (10) | `TablePreview` | `DatasetNotFound` | `df_display.head(rows)`, con D8 |
-| `dataset_describe(dataset)` | `DatasetRef` | `DescribeTable` | ídem | |
-| `target_distribution(dataset)` | `DatasetRef` | `TargetDistribution` | ídem | |
-| `correlation_matrix(dataset)` | `DatasetRef` | `CorrelationMatrix` | ídem | |
+| `dataset_preview(dataset, rows)` | `DatasetRef`, `u32` (10; máx. 1000) | `TablePreview` | `DatasetNotFound` | `df_display.head(rows)`, con D8. NaN va como `missing` y ±inf como texto `inf`/`-inf`, como pandas |
+| `dataset_describe(dataset)` | `DatasetRef` | `DescribeTable` | ídem | En el CSV registrado se calcula una vez (`OnceLock` en la entrada) |
+| `target_distribution(dataset)` | `DatasetRef` | `TargetDistribution` | ídem | ídem |
+| `correlation_matrix(dataset, task_id)` | `DatasetRef`, `u32` | `CorrelationMatrix` | ídem, `Cancelled` | Cancelable |
 | `pairplot_data(req)` | `PairplotRequest` | `PairplotData` | `InvalidSelection` (0 o > 6 características, o nombres desconocidos), `DatasetNotFound` | Muestreo de §2.6 |
-| `load_csv(path)` | `String` (ruta del diálogo) | `CsvPreview` | `CsvEmpty`, `CsvTooFewColumns`, `CsvEncoding`, `CsvMalformed`, `CsvTooLarge`, `CsvIo` | El backend lee el archivo; el frontend solo pasa la ruta del `plugin-dialog`. Guarda un `CsvDraft` y **no** lo registra todavía |
-| `csv_target_info(draft_id, target)` | `u32`, `String` | `TargetInfo` | `UnknownColumn` | Al cambiar "Columna objetivo:" |
-| `set_csv_target(draft_id, target, task)` | `u32`, `String`, `TaskChoice` | `CsvLoaded` | `UnknownColumn`, `CsvIo` | Registra o actualiza `"📄 {archivo}"` (el mismo nombre reemplaza la entrada, como en Python) y lo deja como `selected` |
-| `regenerate_moons(seed?)` | `Option<u64>` | `DatasetSummary` | — | Solo si se aprueba en D9 |
+| `cancel_task(task_id)` | `u32` | `bool` | — | Activa el token de la operación `task_id`; `false` si ya terminó. La operación cancelada falla con `Cancelled` (la UI no lo muestra como error) |
+| `pick_and_load_csv(filter_name, task_id)` | `String` (etiqueta del filtro, máx. 80), `u32` | `Option<CsvPreview>` | `CsvEmpty`, `CsvTooFewColumns`, `CsvEncoding`, `CsvMalformed`, `CsvTooLarge` (> 100 MiB, D10), `CsvIo`, `Cancelled` | Abre el diálogo nativo "Abrir" y lee el archivo en Rust: **la ruta nunca pasa por JS**. `None` si se cierra el diálogo. Libera antes el borrador anterior y guarda uno nuevo, que **no** se registra todavía. Solo archivos normales (FIFO y dispositivos se rechazan) |
+| `load_scenario_csv(task_id)` | `u32` | `CsvPreview` | ídem, `InvalidSelection` | Solo con `--screenshot --scenario <nombre>:<ruta.csv>`: la ruta sale de la línea de órdenes |
+| `csv_target_info(draft_id, target)` | `u32`, `String` | `TargetInfo` | `UnknownColumn`, `CsvIo` (borrador ya sustituido) | Al cambiar "Columna objetivo:" |
+| `set_csv_target(draft_id, target, task, seq, task_id)` | `u32`, `String`, `TaskChoice`, `u64`, `u32` | `CsvLoaded` | `UnknownColumn`, `CsvIo` (borrador sustituido o descartado), `Cancelled` (cancelado o superado por un registro con `seq` mayor) | Registra o actualiza `"📄 {archivo}"` (el mismo nombre reutiliza el id, como en Python; otro archivo libera el anterior) y lo selecciona salvo que haya una selección más nueva. Si se cancela, la página CSV conserva la vista previa y ofrece "Registrar de nuevo" |
+| `discard_csv(draft_id)` | `u32` | `bool` | — | "Quitar archivo": libera el borrador (en un worker, fuera del lock). El CSV registrado sigue en el selector, como en Python |
+| `save_file` | cuerpo binario raw + cabeceras `x-mltutor-file-name` (`encodeURIComponent`) y `x-mltutor-file-kind` (`png` \| `python`) | `Option<String>` (nombre guardado) | `FileSave` | Diálogo nativo "Guardar" con el nombre y el filtro de la extensión; escribe en Rust (la UI no tiene permisos de FS). Si el usuario quita la extensión y `nombre.ext` existe, pide confirmación nativa antes de reemplazarlo. Máx. 64 MiB (se comprueba con el cuerpo ya en memoria) |
+
+Los comandos que cambian la selección llevan un `seq` creciente de la ventana (microsegundos
+del reloj + contador). Los que pueden tardar llevan un `task_id` que la barra de estado usa
+para "Cancelar" (`cancel_task`). Los borradores y CSV liberados se sueltan fuera del lock de
+la sesión. `regenerate_moons` no existe: D9 fija Moons por sesión.
 
 En Python, todas las vistas de §2.4 se calculan cada vez. En Rust, el frontend pide los 4
 primeros comandos en paralelo al montar la pestaña, y correlación y pairplot solo bajo

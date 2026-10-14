@@ -30,12 +30,24 @@ function register(): Promise<void> {
   registerSeq += 1;
   const mine = registerSeq;
   const seq = backend.nextSeq();
+  session.csv.registerCancelled = false;
   const run = async (): Promise<void> => {
     const csv = session.csv;
     if (mine !== registerSeq || !csv.preview || csv.target === null || csv.task === null) {
       return;
     }
-    const loaded = await backend.setCsvTarget(csv.preview.draft_id, csv.target, csv.task, seq).promise;
+    let loaded;
+    try {
+      loaded = await backend.setCsvTarget(csv.preview.draft_id, csv.target, csv.task, seq).promise;
+    } catch (error) {
+      if (mine === registerSeq && backend.isCancelled(error)) {
+        // The page keeps the preview, but this configuration is not registered: the
+        // results of an older one would be misleading ("Registrar de nuevo" retries).
+        csv.loaded = null;
+        csv.registerCancelled = true;
+      }
+      throw error;
+    }
     if (mine !== registerSeq) {
       return;
     }
@@ -70,7 +82,10 @@ async function guarded(work: (mine: number) => Promise<void>): Promise<void> {
       return;
     }
     if (backend.isCancelled(error)) {
-      status.flash(backend.errorMessage(error));
+      // A cancelled registration has its own notice on the page.
+      if (!session.csv.registerCancelled) {
+        status.flash(backend.errorMessage(error));
+      }
     } else {
       session.csv.error = backend.errorMessage(error);
     }
@@ -83,6 +98,7 @@ function clearPage(): void {
   csv.loaded = null;
   csv.target = null;
   csv.task = null;
+  csv.registerCancelled = false;
 }
 
 /** Reads a CSV with `request` (dialog or `--scenario`) and registers it. */
@@ -136,6 +152,11 @@ export function setTarget(target: string): Promise<void> {
     csv.task = taskChoiceOf(info.suggested_task);
     await register();
   });
+}
+
+/** "Registrar de nuevo" after a cancelled registration, with the current target and task. */
+export function retryRegistration(): Promise<void> {
+  return guarded(() => register());
 }
 
 export function setTask(task: TaskChoice): Promise<void> {

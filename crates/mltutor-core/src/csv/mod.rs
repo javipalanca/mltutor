@@ -17,6 +17,7 @@
 //! [`CsvNotice::NonFinite`] tells the student which columns have them.
 
 mod reader;
+mod text;
 
 use std::collections::HashSet;
 use std::hash::Hash;
@@ -29,6 +30,7 @@ pub use reader::{
     read_csv, read_csv_cancellable, read_csv_file, read_csv_file_cancellable, CANCEL_CHECK_ROWS,
     MAX_CSV_BYTES,
 };
+pub use text::TextColumn;
 
 use crate::dataset::{ColumnKind, Dataset, LabelColumn, Target, TaskChoice, TaskType};
 use crate::error::CsvError;
@@ -93,8 +95,9 @@ pub enum ColumnData {
     /// NaN = missing.
     Float(Vec<f64>),
     Bool(Vec<bool>),
-    /// `None` = missing.
-    Text(Vec<Option<String>>),
+    /// Dictionary-encoded strings ([`TextColumn`]); serialized as a list of
+    /// strings with `null` for missing values.
+    Text(TextColumn),
 }
 
 impl ColumnData {
@@ -143,7 +146,7 @@ impl ColumnData {
                 .map(|&x| (!x.is_nan()).then(|| py_float_repr(x)))
                 .collect(),
             ColumnData::Bool(v) => v.iter().map(|&b| Some(py_bool(b).to_owned())).collect(),
-            ColumnData::Text(v) => v.clone(),
+            ColumnData::Text(v) => v.iter().map(|s| s.map(str::to_owned)).collect(),
         }
     }
 
@@ -151,7 +154,7 @@ impl ColumnData {
     pub fn missing(&self) -> usize {
         match self {
             ColumnData::Float(v) => v.iter().filter(|x| x.is_nan()).count(),
-            ColumnData::Text(v) => v.iter().filter(|x| x.is_none()).count(),
+            ColumnData::Text(v) => v.missing(),
             ColumnData::Int(_) | ColumnData::Bool(_) => 0,
         }
     }
@@ -167,7 +170,7 @@ impl ColumnData {
             ColumnData::Bool(v) => {
                 usize::from(v.iter().any(|&b| b)) + usize::from(v.iter().any(|&b| !b))
             }
-            ColumnData::Text(v) => count_distinct(v.iter().flatten().map(String::as_str)),
+            ColumnData::Text(v) => v.n_unique(),
         }
     }
 
@@ -184,8 +187,16 @@ impl ColumnData {
             ColumnData::Bool(v) => {
                 counts_by_frequency(v.iter().copied(), |&b| py_bool(b).to_owned())
             }
+            // Codes are in order of first appearance, so the stable sort keeps ties in
+            // that order (as `counts_by_frequency` does), counting codes, not strings.
             ColumnData::Text(v) => {
-                counts_by_frequency(v.iter().flatten().map(String::as_str), |s| (*s).to_owned())
+                let mut out: Vec<(String, u32)> = v
+                    .uniques()
+                    .zip(v.counts())
+                    .map(|(s, c)| (s.to_owned(), c))
+                    .collect();
+                out.sort_by_key(|entry| std::cmp::Reverse(entry.1));
+                out
             }
         }
     }
@@ -207,10 +218,9 @@ impl ColumnData {
                 .map_or(Cell::Missing, |&x| Cell::Number { v: x as f64 }),
             ColumnData::Float(v) => v.get(row).map_or(Cell::Missing, |&x| Cell::number(x)),
             ColumnData::Bool(v) => v.get(row).map_or(Cell::Missing, |&b| Cell::Bool { v: b }),
-            ColumnData::Text(v) => match v.get(row) {
-                Some(Some(s)) => Cell::Text { v: s.clone() },
-                _ => Cell::Missing,
-            },
+            ColumnData::Text(v) => v
+                .get(row)
+                .map_or(Cell::Missing, |s| Cell::Text { v: s.to_owned() }),
         }
     }
 }
@@ -362,21 +372,74 @@ pub fn auto_task(n_unique_with_nan: usize, n_rows: usize) -> TaskType {
     }
 }
 
-/// `LabelEncoder().fit_transform(col.astype(str))`: missing values become `"nan"`,
-/// codes follow the sorted distinct strings. Returns `(codes, classes)`.
-fn label_encode(values: &[Option<String>]) -> (Vec<u32>, Vec<String>) {
-    let as_str: Vec<&str> = values
-        .iter()
-        .map(|v| v.as_deref().unwrap_or("nan"))
-        .collect();
-    let mut classes: Vec<&str> = as_str.clone();
-    classes.sort_unstable();
-    classes.dedup();
-    let codes = as_str
-        .iter()
-        .map(|s| classes.binary_search(s).map_or(0, |i| i as u32))
-        .collect();
-    (codes, classes.into_iter().map(str::to_owned).collect())
+/// `LabelEncoder().fit_transform(col.astype(str))` of a text column: missing
+/// values become `"nan"` and codes follow the sorted distinct strings.
+///
+/// Only the distinct values are sorted (k log k, by their dictionary code, without
+/// copying the strings); each row is then mapped through `rank`, the LabelEncoder
+/// code of each dictionary code.
+struct LabelEncoding {
+    /// Dictionary codes in sorted order of their strings.
+    order: Vec<u32>,
+    /// Position of `"nan"` in `classes_` when it is added for the missing values
+    /// (no distinct value is the string `"nan"`).
+    inserted_nan: Option<usize>,
+    /// LabelEncoder code of each [`TextColumn`] code.
+    rank: Vec<u32>,
+    /// LabelEncoder code of the missing values (that of `"nan"`).
+    missing_rank: u32,
+}
+
+impl LabelEncoding {
+    fn fit(column: &TextColumn) -> Self {
+        let k = u32::try_from(column.n_unique()).unwrap_or(u32::MAX);
+        let mut order: Vec<u32> = (0..k).collect();
+        // The distinct values are all different, so the order is total.
+        order.sort_unstable_by(|&a, &b| column.unique(a).cmp(&column.unique(b)));
+        let nan_pos = order.partition_point(|&c| column.unique(c) < Some("nan"));
+        let nan_is_a_value = order
+            .get(nan_pos)
+            .is_some_and(|&c| column.unique(c) == Some("nan"));
+        let inserted_nan = (column.missing() > 0 && !nan_is_a_value).then_some(nan_pos);
+        let to_u32 = |i: usize| u32::try_from(i).unwrap_or(u32::MAX);
+        let mut rank = vec![0_u32; order.len()];
+        for (pos, &code) in order.iter().enumerate() {
+            let shift = usize::from(inserted_nan.is_some_and(|nan| pos >= nan));
+            if let Some(r) = rank.get_mut(code as usize) {
+                *r = to_u32(pos + shift);
+            }
+        }
+        Self {
+            order,
+            inserted_nan,
+            rank,
+            missing_rank: to_u32(nan_pos),
+        }
+    }
+
+    /// `LabelEncoder.classes_`: the sorted strings, with `"nan"` if there are
+    /// missing values.
+    fn classes(&self, column: &TextColumn) -> Vec<String> {
+        let mut classes: Vec<String> = Vec::with_capacity(self.rank.len() + 1);
+        for (pos, &code) in self.order.iter().enumerate() {
+            if self.inserted_nan == Some(pos) {
+                classes.push("nan".to_owned());
+            }
+            classes.push(column.unique(code).unwrap_or_default().to_owned());
+        }
+        if self.inserted_nan == Some(self.order.len()) {
+            classes.push("nan".to_owned());
+        }
+        classes
+    }
+
+    /// The LabelEncoder code of each row.
+    fn transform<'a>(&'a self, column: &'a TextColumn) -> impl Iterator<Item = u32> + 'a {
+        (0..column.len()).map(move |row| match column.code(row) {
+            Some(c) => self.rank.get(c as usize).copied().unwrap_or(0),
+            None => self.missing_rank,
+        })
+    }
 }
 
 /// `sorted(y.unique())`: sorted distinct values, `-0.0` and `0.0` as one value
@@ -463,8 +526,8 @@ impl RawTable {
             match &c.data {
                 ColumnData::Float(v) => stats.push(describe_column(v)),
                 ColumnData::Int(v) => {
-                    let values: Vec<f64> = v.iter().map(|&x| x as f64).collect();
-                    stats.push(describe_column(&values));
+                    let mut values: Vec<f64> = v.iter().map(|&x| x as f64).collect();
+                    stats.push(stats::describe_in_place(&mut values));
                 }
                 ColumnData::Bool(_) | ColumnData::Text(_) => {
                     excluded.push(c.name.clone());
@@ -518,9 +581,11 @@ impl RawTable {
             });
         }
         // Missing and ±inf values are left out (module docs).
+        // The finite values first, so mean and std are those of the old
+        // `describe_column(&finite)`; then sorted in place (no second copy).
         let mut values: Vec<f64> = col.data.to_f64().unwrap_or_default();
         values.retain(|v| v.is_finite());
-        let d = stats::describe_column(&values);
+        let d = stats::describe_in_place(&mut values);
         let hist = stats::histogram(&values, CSV_TARGET_BINS);
         Ok(CsvTargetStats::Numeric {
             min: d[3],
@@ -583,8 +648,9 @@ impl RawTable {
             let out = features.column_mut(j).into_iter();
             match &col.data {
                 ColumnData::Text(values) => {
-                    let (codes, _) = label_encode(values);
-                    out.zip(codes).for_each(|(o, c)| *o = f64::from(c));
+                    let encoding = LabelEncoding::fit(values);
+                    out.zip(encoding.transform(values))
+                        .for_each(|(o, c)| *o = f64::from(c));
                     feature_kinds.push(ColumnKind::Int);
                 }
                 other => {
@@ -598,12 +664,18 @@ impl RawTable {
         // y as Python keeps it: codes for text, the values otherwise.
         let (y, text_classes): (Vec<f64>, Option<Vec<String>>) = match &target_col.data {
             ColumnData::Text(values) => {
-                let (codes, classes) = label_encode(values);
-                (codes.into_iter().map(f64::from).collect(), Some(classes))
+                let encoding = LabelEncoding::fit(values);
+                let codes = encoding.transform(values).map(f64::from).collect();
+                (codes, Some(encoding.classes(values)))
             }
             other => (other.to_f64().unwrap_or_default(), None),
         };
-        let unique = sorted_unique(&y);
+        // A text target is already encoded as 0..k, every code present: no need
+        // to sort a copy of y.
+        let unique = match &text_classes {
+            Some(classes) => (0..classes.len()).map(|c| c as f64).collect(),
+            None => sorted_unique(&y),
+        };
         let resolved = match task {
             TaskChoice::Auto => auto_task(unique.len(), n),
             TaskChoice::Classification => TaskType::Classification,
@@ -663,15 +735,53 @@ mod tests {
 
     #[test]
     fn label_encoder_sorts_strings_and_maps_missing_to_nan() {
-        let v = vec![
-            Some("si".to_owned()),
-            None,
-            Some("no".to_owned()),
-            Some("si".to_owned()),
-        ];
-        let (codes, classes) = label_encode(&v);
-        assert_eq!(classes, vec!["nan", "no", "si"]);
-        assert_eq!(codes, vec![2, 0, 1, 2]);
+        let v = TextColumn::from(vec![Some("si"), None, Some("no"), Some("si")]);
+        let encoding = LabelEncoding::fit(&v);
+        assert_eq!(encoding.classes(&v), vec!["nan", "no", "si"]);
+        assert_eq!(encoding.transform(&v).collect::<Vec<_>>(), vec![2, 0, 1, 2]);
+        // A literal "nan" and a missing value share a class, as with `astype(str)`.
+        let v = TextColumn::from(vec![Some("nan"), None, Some("a")]);
+        let encoding = LabelEncoding::fit(&v);
+        assert_eq!(encoding.classes(&v), vec!["a", "nan"]);
+        assert_eq!(encoding.transform(&v).collect::<Vec<_>>(), vec![1, 1, 0]);
+        // "nan" inserted at the end and in the middle.
+        let v = TextColumn::from(vec![Some("b"), None, Some("a")]);
+        let encoding = LabelEncoding::fit(&v);
+        assert_eq!(encoding.classes(&v), vec!["a", "b", "nan"]);
+        assert_eq!(encoding.transform(&v).collect::<Vec<_>>(), vec![1, 2, 0]);
+        let v = TextColumn::from(vec![Some("z"), None, Some("a"), Some("z")]);
+        let encoding = LabelEncoding::fit(&v);
+        assert_eq!(encoding.classes(&v), vec!["a", "nan", "z"]);
+        assert_eq!(encoding.transform(&v).collect::<Vec<_>>(), vec![2, 1, 0, 2]);
+    }
+
+    proptest::proptest! {
+        #[test]
+        fn label_encoding_matches_sorting_every_row(
+            values in proptest::collection::vec(
+                proptest::option::of(proptest::prop_oneof![
+                    proptest::strategy::Just("nan".to_owned()),
+                    proptest::strategy::Just(String::new()),
+                    "[a-cN]{1,2}",
+                    "[m-o]a[m-o]",
+                ]),
+                0..20,
+            ),
+        ) {
+            // The previous implementation: astype(str), sort, dedup, search each row.
+            let as_str: Vec<&str> = values.iter().map(|v| v.as_deref().unwrap_or("nan")).collect();
+            let mut want_classes = as_str.clone();
+            want_classes.sort_unstable();
+            want_classes.dedup();
+            let want_codes: Vec<u32> = as_str
+                .iter()
+                .map(|s| want_classes.binary_search(s).map_or(u32::MAX, |i| i as u32))
+                .collect();
+            let column: TextColumn = values.iter().map(Option::as_deref).collect();
+            let encoding = LabelEncoding::fit(&column);
+            proptest::prop_assert_eq!(encoding.classes(&column), want_classes);
+            proptest::prop_assert_eq!(encoding.transform(&column).collect::<Vec<_>>(), want_codes);
+        }
     }
 
     #[test]

@@ -11,7 +11,7 @@
   import type { TaskChoice } from "../lib/bindings/TaskChoice";
   import { csvTargetFigure } from "../lib/charts";
   import { CSV_EXAMPLES, csvList, csvText, headingText, md } from "../lib/content";
-  import { clearCsv, pickCsv, setTarget, setTask } from "../lib/csvFlow";
+  import { clearCsv, pickCsv, retryRegistration, setTarget, setTask } from "../lib/csvFlow";
   import { escapeMarkdown } from "../lib/escape";
   import { fmt, fmtText } from "../lib/fmt";
   import { isTauri } from "../lib/backend";
@@ -139,6 +139,13 @@
       {/if}
     </div>
 
+    {#if csv.registerCancelled}
+      <div class="cancelled" data-csv-register-cancelled>
+        <Notice severity="info" markdown="Registro del CSV cancelado: el archivo está leído, pero no se ha añadido con esta configuración." />
+        <button type="button" class="btn" onclick={() => void retryRegistration()}>Registrar de nuevo</button>
+      </div>
+    {/if}
+
     {#if loaded}
       <Notice severity="success" markdown={fmt(t("selector", "anadido"), { nombre: preview.file_name })} />
       <hr />
@@ -257,6 +264,10 @@
 
   .target-info :global(.md p) {
     margin-bottom: 12px;
+  }
+
+  .cancelled {
+    margin: 12px 0;
   }
 
   .count-line {

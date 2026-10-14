@@ -167,7 +167,7 @@ fn check_table(name: &str, table: &RawTable, exp: &Value, describe_err: &mut Max
                     // D10: original names (sorted like LabelEncoder) instead of "Clase i".
                     let mut names: Vec<String> = values
                         .iter()
-                        .map(|v| v.clone().unwrap_or_else(|| "nan".into()))
+                        .map(|v| v.unwrap_or("nan").to_owned())
                         .collect();
                     names.sort();
                     names.dedup();
@@ -219,7 +219,7 @@ fn csv_cases_match_python() {
                 assert_eq!(t.columns[1].name, "año");
                 assert_eq!(
                     t.columns[0].data,
-                    ColumnData::Text(vec![Some("Peña".into()), Some("Núñez".into())])
+                    ColumnData::Text(vec![Some("Peña"), Some("Núñez")].into())
                 );
                 assert_eq!(t.columns[2].data, ColumnData::Float(vec![1.5, 2.5]));
             }

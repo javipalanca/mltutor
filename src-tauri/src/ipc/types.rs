@@ -76,6 +76,17 @@ impl Default for DatasetRef {
     }
 }
 
+/// Answer of `get_selected_dataset`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[ts(export)]
+pub struct SelectedDataset {
+    pub dataset: DatasetRef,
+    /// Highest `seq` the backend has applied. A reloaded page starts its counter above
+    /// it, in case the clock went backwards. Always below 2^53 (microseconds of the clock).
+    #[ts(type = "number")]
+    pub last_seq: u64,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[serde(rename_all = "snake_case")]
 #[ts(export)]
@@ -173,11 +184,17 @@ pub enum Cell {
 }
 
 impl Cell {
+    /// NaN is a missing value; ±inf travels as the text pandas shows (`inf`, `-inf`),
+    /// because JSON has no infinity.
     pub fn number(v: f64) -> Self {
         if v.is_finite() {
             Self::Number { v }
-        } else {
+        } else if v.is_nan() {
             Self::Missing
+        } else {
+            Self::Text {
+                v: if v > 0.0 { "inf" } else { "-inf" }.to_owned(),
+            }
         }
     }
 }
@@ -483,6 +500,15 @@ mod tests {
             serde_json::to_value(Cell::number(f64::NAN)).unwrap(),
             serde_json::json!({ "kind": "missing" })
         );
+        assert_eq!(
+            serde_json::to_value(Cell::number(f64::INFINITY)).unwrap(),
+            serde_json::json!({ "kind": "text", "v": "inf" })
+        );
+        assert_eq!(
+            Cell::number(f64::NEG_INFINITY),
+            Cell::Text { v: "-inf".into() }
+        );
+        assert_eq!(Cell::number(-0.5), Cell::Number { v: -0.5 });
         assert_eq!(
             serde_json::to_value(Cell::Text { v: "a".into() }).unwrap(),
             serde_json::json!({ "kind": "text", "v": "a" })
