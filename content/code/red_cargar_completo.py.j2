@@ -1,0 +1,48 @@
+{#- LITERAL (Python): mltutor/algorithms/code_examples.py::LOAD_NN, "**Código para cargar el modelo:**" de
+    💾 Exportar → 📊 Modelo Completo. Sin variables. Carga neural_network_complete.pkl (pickle con el
+    modelo Keras, el scaler, el label encoder y la configuración) y llama a safe_get_output_size, que
+    no está definida (NameError en clasificación). Con D75 el "modelo completo" lo genera el paquete
+    Keras (paquete_modelo_red.py.j2) y este fragmento pasa a red_cargar_paquete.py.j2.
+#}
+import pickle
+import numpy as np
+
+# Cargar modelo completo
+with open('neural_network_complete.pkl', 'rb') as f:
+    loaded_model = pickle.load(f)
+
+model = loaded_model['model']
+scaler = loaded_model['scaler']
+label_encoder = loaded_model['label_encoder']
+config = loaded_model['config']
+
+# Hacer predicción con nuevos datos
+def predecir(nuevos_datos):
+    # nuevos_datos debe ser una lista con valores para cada característica
+    datos_escalados = scaler.transform([nuevos_datos])
+    prediccion = model.predict(datos_escalados)
+    
+    if config['task_type'] == 'Clasificación':
+        output_size = safe_get_output_size(config)
+        if output_size > 2:
+            clase_idx = np.argmax(prediccion[0])
+            if label_encoder:
+                clase = label_encoder.inverse_transform([clase_idx])[0]
+            else:
+                clase = f"Clase {clase_idx}"
+            confianza = prediccion[0][clase_idx]
+            return clase, confianza
+        else:
+            probabilidad = prediccion[0][0]
+            clase_idx = 1 if probabilidad > 0.5 else 0
+            if label_encoder:
+                clase = label_encoder.inverse_transform([clase_idx])[0]
+            else:
+                clase = f"Clase {clase_idx}"
+            return clase, probabilidad
+    else:
+        return prediccion[0][0]
+
+# Ejemplo de uso:
+# resultado = predecir([valor1, valor2, valor3, ...])
+# print(resultado)

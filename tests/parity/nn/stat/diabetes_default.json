@@ -1,0 +1,224 @@
+{
+  "meta": {
+    "format_version": 1,
+    "generator": "tools/export_golden.py",
+    "generated": "2026-10-15",
+    "versions": {
+      "python": "3.11.14",
+      "numpy": "1.26.4",
+      "pandas": "2.3.3",
+      "scipy": "1.16.3",
+      "scikit-learn": "1.7.2",
+      "seaborn": "0.13.2",
+      "platform": "Darwin-arm64"
+    },
+    "seed": 42,
+    "tolerance": {
+      "rust_mean_over_5_seeds": "inside acceptance[metric] = [min − m, max + m], m = max(3·std, floor) (accuracy 0.03, r2 0.05, errors 10 % of the mean)",
+      "each_rust_seed": "inside [min − 2m, max + 2m]"
+    },
+    "tolerance_rationale": "Level (b) of D69: Keras and Rust draw different initial weights, dropout masks and batch orders, so only the distribution of the final metrics can match. The app sets no seed (every Python run differs); the fixture fixes keras.utils.set_random_seed(seed) to be reproducible on this machine.",
+    "tensorflow": {
+      "tensorflow": "2.16.2",
+      "keras": "3.12.0",
+      "tf_devices": ["CPU"],
+      "op_determinism": true,
+      "intra_op_threads": 0,
+      "tensorflow-macos": "2.16.2",
+      "tensorflow-metal": "1.2.0",
+      "onnx": "1.17.0"
+    }
+  },
+  "input": {
+    "dataset": "datasets/diabetes.json",
+    "app_label": "🩺 Diabetes - Progresión (regresión)",
+    "nn_config": {
+      "architecture": [10, 10, 10, 1],
+      "activation": "relu",
+      "output_activation": "linear",
+      "dropout_rate": 0.2,
+      "batch_size": 64,
+      "optimizer": "adam",
+      "task_type": "Regresión",
+      "input_size": 10,
+      "output_size": 1
+    },
+    "lr": 0.001,
+    "epochs": 50,
+    "validation_split": 0.2,
+    "early_stopping": true,
+    "patience": 10,
+    "reduce_lr": true,
+    "lr_factor": 0.5,
+    "seeds": [0, 1, 2, 3, 4],
+    "shuffle": true
+  },
+  "expected": {
+    "runs": [
+      {
+        "seed": 0,
+        "epochs_trained": 50,
+        "final": {
+          "loss": 24341.033203125,
+          "mae": 138.6687469482422,
+          "val_loss": 17680.162109375,
+          "val_mae": 118.98363494873047,
+          "learning_rate": 0.0010000000474974513
+        },
+        "best_val_loss": 17680.162109375,
+        "best_epoch": 49,
+        "test": {
+          "mse": 20306.99996464327,
+          "rmse": 142.50263143059243,
+          "mae": 127.79705013318008,
+          "r2": -2.832846043024137,
+          "test_loss": 20307.0
+        }
+      },
+      {
+        "seed": 1,
+        "epochs_trained": 50,
+        "final": {
+          "loss": 26228.7578125,
+          "mae": 142.32264709472656,
+          "val_loss": 18521.30859375,
+          "val_mae": 119.19027709960938,
+          "learning_rate": 0.0010000000474974513
+        },
+        "best_val_loss": 18521.30859375,
+        "best_epoch": 49,
+        "test": {
+          "mse": 21527.48206637207,
+          "rmse": 146.72246612694346,
+          "mae": 128.58733006273764,
+          "r2": -3.063206017532327,
+          "test_loss": 21527.482421875
+        }
+      },
+      {
+        "seed": 2,
+        "epochs_trained": 50,
+        "final": {
+          "loss": 24732.1640625,
+          "mae": 137.3314666748047,
+          "val_loss": 17618.44921875,
+          "val_mae": 116.19029235839844,
+          "learning_rate": 0.0010000000474974513
+        },
+        "best_val_loss": 17618.44921875,
+        "best_epoch": 49,
+        "test": {
+          "mse": 20635.080314555737,
+          "rmse": 143.64915702695833,
+          "mae": 125.6934141362651,
+          "r2": -2.8947695902317694,
+          "test_loss": 20635.080078125
+        }
+      },
+      {
+        "seed": 3,
+        "epochs_trained": 50,
+        "final": {
+          "loss": 30310.03125,
+          "mae": 154.2266082763672,
+          "val_loss": 21248.748046875,
+          "val_mae": 129.25462341308594,
+          "learning_rate": 0.0010000000474974513
+        },
+        "best_val_loss": 21248.748046875,
+        "best_epoch": 49,
+        "test": {
+          "mse": 25295.40971896861,
+          "rmse": 159.04530712651854,
+          "mae": 141.07014247272792,
+          "r2": -3.7743837699724105,
+          "test_loss": 25295.41015625
+        }
+      },
+      {
+        "seed": 4,
+        "epochs_trained": 50,
+        "final": {
+          "loss": 28503.568359375,
+          "mae": 150.11070251464844,
+          "val_loss": 20340.482421875,
+          "val_mae": 126.74309539794922,
+          "learning_rate": 0.0010000000474974513
+        },
+        "best_val_loss": 20340.482421875,
+        "best_epoch": 49,
+        "test": {
+          "mse": 23943.901723472627,
+          "rmse": 154.73817151392421,
+          "mae": 137.6103913382198,
+          "r2": -3.5192933045333286,
+          "test_loss": 23943.904296875
+        }
+      }
+    ],
+    "bands": {
+      "mse": {
+        "min": 20306.99996464327,
+        "max": 25295.40971896861,
+        "mean": 22341.774757602463,
+        "std": 2179.848461863386
+      },
+      "rmse": {
+        "min": 142.50263143059243,
+        "max": 159.04530712651854,
+        "mean": 149.33154664498738,
+        "std": 7.2339420631505975
+      },
+      "mae": {
+        "min": 125.6934141362651,
+        "max": 141.07014247272792,
+        "mean": 132.15166562862615,
+        "std": 6.758570338270122
+      },
+      "r2": {
+        "min": -3.7743837699724105,
+        "max": -2.832846043024137,
+        "mean": -3.2168997450587944,
+        "std": 0.41143564120708853
+      },
+      "test_loss": {
+        "min": 20307.0,
+        "max": 25295.41015625,
+        "mean": 22341.775390625,
+        "std": 2179.849087661159
+      },
+      "epochs_trained": {
+        "min": 50.0,
+        "max": 50.0,
+        "mean": 50.0,
+        "std": 0.0
+      }
+    },
+    "acceptance": {
+      "mse": {
+        "lo": 13767.454579053112,
+        "hi": 31834.95510455877
+      },
+      "rmse": {
+        "lo": 120.80080524114064,
+        "hi": 180.74713331597033
+      },
+      "mae": {
+        "lo": 105.41770312145474,
+        "hi": 161.34585348753828
+      },
+      "r2": {
+        "lo": -5.008690693593676,
+        "hi": -1.5985391194028715
+      },
+      "test_loss": {
+        "lo": 13767.452737016523,
+        "hi": 31834.957419233477
+      },
+      "epochs_trained": {
+        "lo": 25,
+        "hi": 50
+      }
+    }
+  }
+}

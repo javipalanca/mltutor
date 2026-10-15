@@ -1,0 +1,648 @@
+# Textos cortos de la lección 🧠 Redes Neuronales, literales (mltutor/apps/neural_network_app.py,
+# mltutor/viz/nn.py, mltutor/algorithms/model_training.py::train_neural_network,
+# mltutor/algorithms/model_evaluation.py::neural_network_diagnostics y siguientes,
+# mltutor/algorithms/export.py::show_neural_network_export, mltutor/ui.py::create_prediction_interface).
+# {llaves} = valores que se sustituyen; formato numérico con la sintaxis de Python ({x:.3f}, {n:,}).
+# Cabecera, subtítulo, pestañas y navbar: content/inicio/navegacion.toml [lessons.redes]. Expander de la
+# cabecera: intro.md. Textos largos: los .md de esta carpeta. Textos de los componentes compartidos
+# (evaluación C1/C2/C3, formulario C9, bloques de código): content/componentes/mensajes.toml.
+#
+# Marcas:  "NUEVO (Dnn)" = no existe en Python, lo exige una decisión de fase5-redes.md §10.
+# "CORREGIDO (Dnn)" = el texto de Python era incorrecto; el literal original queda en el comentario
+# "Python:". "(inalcanzable)" = existe en el código Python pero el estudiante nunca lo ve (§12).
+# Los tests de paridad de textos (tests/parity/nn/*.json) usan el literal de Python para las claves sin marca.
+
+[comun]
+# Pestañas 1..6: st.info + "---" encima del contenido (la pestaña 0 no lo muestra)
+dataset_actual = "📊 **Dataset actual:** {dataset}"
+# st.warning en 3, 4, 5 y 6 sin modelo; en 3 va seguido del botón
+sin_entrenar = "⚠️ Primero debes entrenar un modelo."
+btn_ir_entrenamiento = "🔙 Ir a Entrenamiento"            # solo en 📈 Evaluación
+# show_neural_network_export (inalcanzable: la pestaña ya comprobó model_trained_nn)
+sin_entrenar_exportar = "⚠️ Primero debes entrenar un modelo en la pestaña 'Entrenamiento'"
+# Navbar (texto del botón tras "🔙 " / "🔜 "): 0 (—, "Continuar a Arquitectura");
+# 1 ("Volver a Datos", "Continuar a Entrenamiento") + nota bajo el botón siguiente;
+# 2 ("Volver a Arquitectura", "Ver Evaluación" solo si model_trained_nn, si no —);
+# 3 ("Volver a Entrenamiento", "Ver Visualización") solo con modelo;
+# 4 ("Volver a Evaluación", "Ver Predicciones") siempre; 5 y 6: SIN navbar.
+nota_arquitectura = "**¿Listo para entrenar?** ¡Tu arquitectura está configurada!"
+
+[datos]
+header = "📊 Selección y Preparación de Datos"   # st.header; después st.info(datos-consejos.md), selector y exploración (F1)
+
+[arquitectura]
+header = "🏗️ Diseño de la Arquitectura de la Red"
+titulo = "### 🎛️ Configuración de la Red Neuronal"
+error_carga = "Error al cargar el dataset: {error}"            # st.error
+# st.info según la tarea; {entrada} = nº de características, {salida} = neuronas de salida
+info_binaria = "📊 **Entrada**: {entrada} características → **Salida**: {salida} neurona (clasificación binaria)"
+info_multiclase = "📊 **Entrada**: {entrada} características → **Salida**: {salida} clases"
+info_regresion = "📊 **Entrada**: {entrada} características → **Salida**: {salida} valor numérico"
+tamano_expander = "💡 ¿Cómo decidir el tamaño de la red?"      # arquitectura-tamano.md (cerrado)
+capas_titulo = "#### ⚙️ Configuración de Capas"
+capas_label = "Número de capas ocultas"                        # slider 1..5, 2, SIN key
+capas_help = "💡 Más capas = mayor capacidad de aprender patrones complejos, pero también mayor riesgo de sobreajuste"
+capas_1 = "🟦 **1 capa**: Ideal para problemas linealmente separables"        # st.caption
+capas_2 = "🟨 **2 capas**: Recomendado para la mayoría de problemas"
+capas_3_mas = "🟥 **3+ capas**: Solo para problemas muy complejos con muchos datos"
+# slider 1..256 por capa, key layer_{i} (i desde 0); valor = min(sugerencia, 64) con
+# sugerencia = max(10, entrada // (i+1)) y, en multiclase, max(sugerencia, 2·clases)
+neuronas_label = "Neuronas en capa oculta {n}"                 # {n} = i + 1
+neuronas_help = "💡 Sugerencia para capa {n}: {sugerencia} neuronas"
+activacion_titulo = "#### 🧮 Función de Activación (Capas Ocultas)"
+activacion_label = "Función de activación"                     # selectbox relu|tanh|sigmoid, índice 0, SIN key
+activacion_help = "💡 ReLU es la más popular y efectiva para la mayoría de problemas"
+activacion_relu = "✅ **ReLU**: Rápida, evita el problema del gradiente que desaparece. Recomendada."   # st.success
+activacion_tanh = "ℹ️ **Tanh**: Salida entre -1 y 1. Buena para datos normalizados."               # st.info
+activacion_sigmoid = "⚠️ **Sigmoid**: Puede causar gradientes que desaparecen. Úsala solo si es necesario."   # st.warning
+salida_titulo = "#### 🎯 Función de Activación de Salida"
+salida_label = "Función de activación de salida"               # selectbox, SIN key
+salida_opciones_clasificacion = ["sigmoid", "softmax", "linear", "tanh"]   # índice 0 en binaria, 1 en multiclase
+salida_opciones_regresion = ["linear", "sigmoid", "tanh", "softmax"]       # índice 0
+salida_help = "💡 Función recomendada para {tarea}: **{recomendada}**"     # {tarea} = "clasificación" | "regresión"
+# Mensajes según la combinación (st.success / st.warning / st.error al final de la columna)
+binaria_sigmoid = "✅ Sigmoid es ideal para clasificación binaria"                       # success
+binaria_softmax = "⚠️ Softmax no es recomendada para clasificación binaria (1 neurona). Considera usar Sigmoid."   # error
+binaria_linear = "⚠️ Linear puede causar problemas en clasificación. Considera usar Sigmoid."                        # error
+binaria_tanh = "⚠️ Tanh puede funcionar pero Sigmoid es más estándar para clasificación binaria."                     # error
+multiclase_softmax = "✅ Softmax es ideal para clasificación multiclase"                 # success
+multiclase_sigmoid = "⚠️ Sigmoid en multiclase requiere 'binary_crossentropy' por clase. Softmax es más estándar."   # warning
+multiclase_linear = "⚠️ Linear no es apropiada para clasificación. Usa Softmax."         # error
+multiclase_tanh = "⚠️ Tanh no es estándar para clasificación multiclase. Softmax es recomendada."   # error
+regresion_linear = "✅ Linear es ideal para regresión"                                   # success
+regresion_sigmoid = "⚠️ Sigmoid limita la salida a [0,1]. Solo útil si tus valores objetivo están en este rango."   # warning
+regresion_tanh = "⚠️ Tanh limita la salida a [-1,1]. Solo útil si tus valores objetivo están en este rango."         # warning
+regresion_softmax = "⚠️ Softmax no es apropiada para regresión. Las salidas suman 1. Usa Linear."                    # error
+# NUEVO (D71): st.error bajo el selector en las combinaciones que Python deja elegir pero no puede entrenar
+# (fallaban al pulsar "🧠 Entrenar Red Neuronal" con un error de TensorFlow en inglés, y después
+# 📈 Evaluación y 🎯 Visualización se rompían). El botón de entrenar queda deshabilitado.
+no_entrenable_multiclase_sigmoid = "🚫 Con {clases} clases y salida sigmoid, MLTutor no puede entrenar la red: la pérdida binary_crossentropy necesita una etiqueta 0/1 por neurona y aquí cada muestra tiene un solo número de clase. Usa softmax (o tanh)."
+no_entrenable_linear = "🚫 Con salida linear la red da números sin límite, no probabilidades, y la pérdida de clasificación no se puede calcular. Usa {recomendada}."
+no_entrenable_binaria_softmax = "🚫 Softmax con una sola neurona siempre vale 1: la red no puede distinguir las dos clases. Usa sigmoid."
+diagrama_titulo = "#### 🎨 Visualización de la Arquitectura"
+# Diagrama (create_neural_network_visualization, HTML canvas; D80: componente SVG nativo)
+diagrama_caja_titulo = "🧠 Arquitectura de Red Neuronal"
+diagrama_caja_texto = "Visualización dinámica de la estructura de la red para {tarea}"   # {tarea} en minúsculas
+diagrama_leyenda_entrada = "Capa de Entrada"
+diagrama_leyenda_ocultas = "Capas Ocultas ({activacion})"      # {activacion} en MAYÚSCULAS
+diagrama_leyenda_salida = "Capa de Salida ({activacion})"
+diagrama_etiqueta_entrada = "Entrada"                          # + "\n({n})" debajo de cada columna
+diagrama_etiqueta_oculta = "Oculta {i}"
+diagrama_etiqueta_salida = "Salida"
+diagrama_error = "Error en la visualización de red neuronal: {error}"
+# NUEVO (D80): tooltip del diagrama nativo (Python no tenía tooltip ni nº de parámetros en el diagrama)
+diagrama_tooltip_capa = "{capa}: {n} neuronas · {parametros:,} parámetros ({entradas} × {n} pesos + {n} sesgos)"
+diagrama_resumidas = "… y {n} neuronas más"
+adicional_titulo = "### ⚙️ Configuración Adicional"
+adicional_texto = "📚 **Parámetros importantes para el entrenamiento:**"
+regularizacion_titulo = "#### 🛡️ Regularización"
+dropout_label = "Tasa de Dropout"                             # slider 0.0..0.8 paso 0.1, 0.2, SIN key
+dropout_help = "💡 Dropout previene sobreajuste eliminando aleatoriamente neuronas durante entrenamiento"
+dropout_0 = "🔴 **Sin Dropout**: Mayor riesgo de sobreajuste"              # == 0.0
+dropout_ligero = "🟢 **Dropout Ligero**: Bueno para datasets grandes"       # <= 0.2
+dropout_moderado = "🟡 **Dropout Moderado**: Recomendado para la mayoría de casos"   # <= 0.5
+dropout_alto = "🟠 **Dropout Alto**: Solo para datasets muy pequeños"
+procesamiento_titulo = "#### 📦 Procesamiento"
+batch_label = "Tamaño de Batch"                                # selectbox [16, 32, 64, 128, 256], índice 2, SIN key
+batch_help = "💡 Número de muestras procesadas antes de actualizar los pesos"
+batch_grande = "🔴 **Batch Grande**: Puede ser lento pero más estable"     # batch >= n_muestras // 4
+batch_optimo = "🟢 **Batch Óptimo**: Buen balance velocidad/estabilidad"  # batch >= 32
+batch_pequeno = "🟡 **Batch Pequeño**: Más rápido pero más ruidoso"
+optimizacion_titulo = "#### 🚀 Optimización"
+optimizador_label = "Optimizador"                              # selectbox adam|sgd|rmsprop, índice 0, SIN key
+optimizador_help = "💡 Algoritmo para actualizar los pesos de la red"
+optimizador_adam = "🟢 **Adam**: Adaptativo, recomendado para la mayoría de casos"
+optimizador_sgd = "🟡 **SGD**: Clásico, requiere ajuste fino del learning rate"
+optimizador_rmsprop = "🟦 **RMSprop**: Bueno para RNNs y problemas específicos"
+consejos_expander = "💡 Tips para optimizar tu configuración"    # arquitectura-consejos.md (cerrado)
+resumen_titulo = "### 📋 Resumen de la Arquitectura"
+metrica_parametros = "🔢 Total de Parámetros"                   # valor {total:,}
+metrica_parametros_help = "Número total de pesos y sesgos que la red aprenderá"
+metrica_capas = "📚 Capas Totales"                              # valor len(architecture)
+metrica_capas_help = "Entrada + Ocultas + Salida"
+metrica_complejidad = "⚖️ Complejidad"                          # "Baja" (< 0.1) | "Media" (< 1) | "Alta"
+metrica_complejidad_help = "Ratio parámetros/datos: {ratio:.2f}"
+complejidad_niveles = ["Baja", "Media", "Alta"]
+metrica_tipo = "🧠 Tipo de Red"                                  # (en la misma columna que Complejidad)
+metrica_tipo_valor = "Perceptrón Multicapa"
+detalles_titulo = "#### 📊 Detalles por Capa"
+# Tabla: columnas Capa, Neuronas, Parámetros, Activación. CORREGIDO (D76): una fila por capa. Python
+# desplazaba las filas: le faltaba la última capa oculta, ponía en cada "Oculta i" los parámetros de la
+# capa siguiente y en "Salida" las neuronas de la última oculta (la suma no daba el total).
+detalles_columnas = ["Capa", "Neuronas", "Parámetros", "Activación"]
+detalles_entrada = "Entrada"                                   # Capa y Activación de la fila de entrada (0 parámetros)
+detalles_oculta = "Oculta {i}"
+detalles_salida = "Salida"
+complejidad_titulo = "#### 🔍 Análisis de Complejidad"
+complejidad_baja = "✅ **Complejidad Óptima**: Tu red tiene {total:,} parámetros para {n} muestras (ratio: {ratio:.3f}). Bajo riesgo de sobreajuste."   # success
+complejidad_media = "⚠️ **Complejidad Media**: Tu red tiene {total:,} parámetros para {n} muestras (ratio: {ratio:.3f}). Monitorea el sobreajuste."     # warning
+complejidad_alta = "🚨 **Complejidad Alta**: Tu red tiene {total:,} parámetros para {n} muestras (ratio: {ratio:.3f}). Alto riesgo de sobreajuste. Considera reducir el tamaño de la red."   # error
+codigo_titulo = "### 💻 Código Python"
+btn_codigo = "📝 Generar Código de la Arquitectura"
+codigo_generado = "#### 🐍 Código Python Generado"
+btn_descargar_codigo = "💾 Descargar Código Python"             # red_neuronal_arquitectura_{tarea en minúsculas}.py
+# NUEVO (D74): nota bajo el bloque de código (el script ya es red_entrenamiento.py.j2)
+codigo_nota = "El script reproduce esta arquitectura y la configuración de ⚙️ Entrenamiento que tengas elegida (learning rate, épocas, validación y callbacks). Keras parte de otros pesos iniciales, así que sus cifras serán parecidas a las de MLTutor, no idénticas."
+
+[entrenamiento]
+header = "⚙️ Entrenamiento de la Red Neuronal"
+# Sin nn_config (no se ha visitado 🏗️ Arquitectura). D90: en Rust la configuración por defecto
+# siempre existe y este aviso desaparece (se conserva por si se decide lo contrario).
+sin_configurar = "⚠️ Primero debes configurar la arquitectura de la red."
+btn_ir_arquitectura = "🔙 Ir a Arquitectura"
+# st.info(entrenamiento-conceptos.md)
+parametros_titulo = "### 🎛️ Parámetros de Entrenamiento"
+lr_titulo = "#### 📈 **Learning Rate**"
+lr_label = "Tasa de Aprendizaje"                               # selectbox [0.001, 0.01, 0.1, 0.3], índice 0, SIN key
+lr_help = "💡 0.001 es seguro para empezar. Valores más altos pueden acelerar el entrenamiento pero causar inestabilidad"
+lr_0001 = "🟢 **Conservador**: Aprendizaje lento pero estable"
+lr_001 = "🟡 **Moderado**: Buen balance velocidad/estabilidad"
+lr_01 = "🟠 **Agresivo**: Rápido pero puede ser inestable"
+lr_03 = "🔴 **Muy Alto**: Solo para casos especiales"
+epocas_titulo = "#### 🔄 **Épocas**"
+# slider 10..500 paso 10; valor = min(100, sugerencia), sugerencia = min(200, max(50, n_muestras // 10));
+# con n = 569 (Cáncer) el valor es 56, fuera de la rejilla de paso 10 (Qt lo acepta)
+epocas_label = "Épocas"
+epocas_help = "💡 Sugerencia para tu dataset: ~{sugerencia} épocas"
+epocas_pocas = "🟡 **Pocas épocas**: Puede que no aprenda completamente"    # < 50
+epocas_adecuadas = "🟢 **Épocas adecuadas**: Buen balance"                # <= 150
+epocas_muchas = "🟠 **Muchas épocas**: Monitorea el sobreajuste"
+validacion_titulo = "#### 🎯 **Validación**"
+validacion_label = "% Datos de Validación"                     # slider 10..40, 20, SIN key
+validacion_help = "💡 20% es estándar. Más datos = mejor validación, menos datos para entrenar"
+# CORREGIDO (D73). Python: train = int(n·(100−v)/100·0.8), val = int(n·v/100), test = n − train − val,
+# que no son los tamaños reales (Iris, 20 %: "Train=96, Val=30, Test=24"; en realidad 96/24/30).
+# Rust: test = ceil(0.2·n); entrenamiento = n − test; validación = entrenamiento − floor(entrenamiento·(1 − v/100)).
+distribucion = "📊 **Distribución**: Train={train}, Val={val}, Test={test}"
+avanzada_expander = "⚙️ Configuración Avanzada - Técnicas para Mejorar el Entrenamiento"   # cerrado
+avanzada_titulo = "#### 🛡️ Técnicas de Regularización y Optimización"
+es_titulo = "##### 🛑 Early Stopping"
+es_label = "Activar Parada Temprana"                           # checkbox, True, SIN key
+es_help = "💡 Recomendado: Evita sobreajuste parando cuando la validación no mejora"
+es_activado = "✅ **Early Stopping activado**: La red parará automáticamente cuando deje de mejorar"   # success
+paciencia_label = "Paciencia (épocas)"                         # slider 5..50, 10 (solo con early stopping)
+paciencia_help = "Épocas a esperar sin mejora antes de parar. Más paciencia = más oportunidades de mejorar"
+paciencia_baja = "🔴 **Impatiente**: Para rápido, puede interrumpir mejoras tardías"   # <= 5 (sic: "Impatiente")
+paciencia_media = "🟢 **Balanceado**: Buen equilibrio"                                # <= 15
+paciencia_alta = "🟡 **Paciente**: Da muchas oportunidades, pero puede sobreajustar"
+es_desactivado = "⚠️ **Sin Early Stopping**: La red entrenará todas las épocas. Riesgo de sobreajuste."   # warning
+rlr_titulo = "##### 📉 Learning Rate Scheduler"
+rlr_label = "Reducir Learning Rate Automáticamente"            # checkbox, True, SIN key
+rlr_help = "💡 Recomendado: Reduce la tasa de aprendizaje cuando no mejora"
+rlr_activado = "✅ **Scheduler activado**: La tasa de aprendizaje se reducirá automáticamente"   # success
+factor_label = "Factor de Reducción"                           # slider 0.1..0.9, 0.5, paso 0.01 (Qt), SIN key
+factor_help = "Factor por el que se multiplica la tasa. 0.5 = reduce a la mitad"
+factor_agresivo = "🔴 **Reducción agresiva**: Cambios dramáticos"     # <= 0.3
+factor_moderado = "🟢 **Reducción moderada**: Recomendado"            # <= 0.7
+factor_suave = "🟡 **Reducción suave**: Cambios graduales"
+rlr_desactivado = "ℹ️ **Learning rate fijo**: Se mantendrá constante durante todo el entrenamiento"   # info
+tecnicas_titulo = "#### 📚 ¿Por qué usar estas técnicas?"     # (tras "---"; texto: entrenamiento-tecnicas.md)
+iniciar_titulo = "### 🚀 Iniciar Entrenamiento"
+iniciar_texto = "**¿Todo listo?** Tu red está configurada y lista para aprender de los datos."
+btn_entrenar = "🧠 Entrenar Red Neuronal"                      # primary, ancho completo, SIN key
+spinner = "🧠 Entrenando la red neuronal... Esto puede tomar unos minutos."
+# Progreso por pasos (st.info dentro de un st.empty). En Qt solo se ve el resultado final; en Rust
+# (D82) se muestran en vivo, sin las pausas artificiales de 0,8 + 0,8 + 1,0 s.
+paso_1 = "🔄 **Paso 1/4**: Preparando y dividiendo los datos..."
+paso_2 = "🧠 **Paso 2/4**: Construyendo arquitectura de red neuronal con capas y neuronas..."
+paso_3 = "⚙️ **Paso 3/4**: Compilando modelo con optimizadores y funciones de pérdida..."
+paso_4 = "🚀 **Paso 4/4**: Entrenando red neuronal ({epocas} épocas máximo)... ¡Puede tardar unos minutos!"
+# Python: "🔄 **Paso 5/4**: Preparando modelo para visualizaciones..." (inalcanzable a la vista: lo tapa el éxito)
+paso_5 = "🔄 **Paso 5/4**: Preparando modelo para visualizaciones..."
+progreso_epoca = "Época {epoca}/{epocas} · pérdida: {perdida:.4f}"   # barra de estado de Qt (report_progress)
+completado = "✅ **¡Entrenamiento completado!** Red neuronal lista para usar"   # success (en el contenedor del progreso)
+exito = "🎉 ¡Red neuronal entrenada exitosamente!"                              # success
+error_contenedor = "❌ **Error durante el entrenamiento**"
+error_detalle = "❌ Error durante el entrenamiento: {error}"
+error_consejo = "Intenta ajustar los parámetros o verificar el dataset."
+# train_neural_network: st.error y devuelve None (la app marca el modelo como entrenado igualmente: D71)
+error_funcion = "Error durante el entrenamiento: {error}"
+error_tf = "❌ TensorFlow no está instalado. Las redes neuronales requieren TensorFlow."   # (no aplica en Rust)
+error_tf_instalar = "Instala TensorFlow con: `pip install tensorflow`"
+# Avisos durante la compilación (train_neural_network), en este orden de aparición
+aviso_softmax_1 = "⚠️ Softmax con 1 neurona detectada. Puede causar problemas."              # warning
+aviso_linear = "⚠️ Función linear detectada en clasificación. Rendimiento puede ser subóptimo."   # warning
+aviso_tanh = "⚠️ Función tanh detectada en clasificación. Comportamiento no estándar."         # warning
+aviso_sigmoid_regresion = "ℹ️ Sigmoid limitará las salidas a [0,1]. Asegúrate de que tus datos objetivo estén normalizados."   # info
+aviso_tanh_regresion = "ℹ️ Tanh limitará las salidas a [-1,1]. Asegúrate de que tus datos objetivo estén normalizados."         # info
+aviso_softmax_regresion = "⚠️ Softmax en regresión: las salidas sumarán 1. Esto raramente es lo deseado."                     # error
+# NUEVO (D83): al pulsar Cancelar (Python: "Operación cancelada" en la barra de estado y el modelo anterior intacto)
+cancelado = "⏹️ Entrenamiento cancelado en la época {epoca} de {epocas}. Se conserva el modelo anterior."
+# NUEVO (D90/D91): aviso si el dataset o la configuración cambiaron después de entrenar (como F2–F4)
+aviso_config_cambiada = "⚠️ La configuración ha cambiado desde el último entrenamiento: las pestañas siguientes muestran la red entrenada con {dataset}. Vuelve a entrenar para aplicar los cambios."
+
+[evaluacion]
+header = "📈 Evaluación del Modelo"
+resultados_titulo = "#### 📊 Resultados del Entrenamiento"
+# CORREGIDO (D86): es la exactitud (accuracy), no la precisión. Python: "🎯 Precisión en Test"
+metrica_accuracy = "🎯 Exactitud (accuracy) en Test"           # valor {:.3f}
+metrica_accuracy_help = "Porcentaje de predicciones correctas en datos nunca vistos"
+metrica_perdida = "📉 Pérdida en Test"                          # valor {:.3f}
+metrica_perdida_help = "Qué tan 'equivocada' está la red en promedio"
+metrica_error_regresion = "📉 Error en Test"                    # regresión: la pérdida (MSE), {:.3f}
+progreso_titulo = "### 📈 Progreso del Entrenamiento"
+# Gráfica (plot_training_history), Plotly 1×2, altura 400, eje x "Época", Entrenamiento azul, Validación rojo
+grafica_perdida = "Pérdida durante el Entrenamiento"
+grafica_precision = "Precisión durante el Entrenamiento"
+grafica_perdida_regresion = "Pérdida (MSE) durante el Entrenamiento"
+grafica_mae = "Error Absoluto Medio"
+serie_entrenamiento = "Entrenamiento"
+serie_validacion = "Validación"
+eje_epoca = "Época"
+eje_perdida = "Pérdida"
+eje_precision = "Precisión"
+eje_mse = "MSE"
+eje_mae = "MAE"
+grafica_error = "Error graficando historial: {error}"
+# Después: show_detailed_evaluation (C1/C2 + C3, F2) y el diagnóstico ([diagnostico])
+# NUEVO (D84, solo regresión): st.warning cuando el R² de prueba es negativo (con los valores por defecto
+# Diabetes queda en R² ≈ −3 y el diagnóstico de Python dice "✅ Error de regresión aceptable").
+aviso_r2_negativo = "⚠️ El R² en prueba es {r2:.2f}: la red predice peor que la media del objetivo. El diagnóstico compara el error con el de las primeras épocas, no con un buen modelo. Prueba un learning rate mayor (0.01 o 0.1) o más épocas."
+
+[diagnostico]
+titulo = "### 🔍 Diagnóstico del Entrenamiento"
+estado_titulo = "### 🎯 Estado General"
+tendencias_titulo = "### 📊 Tendencias"
+alertas_titulo = "### ⚠️ Alertas"
+recomendaciones_titulo = "### 💡 Recomendaciones"
+acciones_expander = "🔧 Acciones Sugeridas"                  # cerrado; cada acción como "• {accion}"
+# show_general_health: columna 1
+checklist = "**📋 Checklist de Salud:**"
+convergio = "✅ Modelo convergió con buen rendimiento"                 # success
+convergio_bajo = "⚠️ Pérdida convergió pero rendimiento bajo"          # warning
+no_convergio = "❌ Modelo no convergió suficientemente"                # error
+sin_sobreajuste = "✅ Sin signos de sobreajuste"                       # success
+sobreajuste_perdida = "❌ Sobreajuste en pérdida (gap: {gap:.1f}%)"     # error; {gap} = overfitting_gap·100
+sobreajuste_accuracy = "❌ Sobreajuste en accuracy (train: {train:.3f}, val: {val:.3f})"   # error
+estable = "✅ Entrenamiento estable"                                   # success
+inestable = "⚠️ Entrenamiento inestable (CV: {cv:.1f}%)"              # warning; {cv} = stability·100 ("inf" con < 5 épocas)
+val_excelente = "🌟 Excelente accuracy de validación"
+val_bueno = "✅ Buen accuracy de validación"
+solo_train = "⚠️ Solo buen accuracy en entrenamiento"
+accuracy_bajo = "❌ Accuracy bajo (modelo no está aprendiendo bien)"
+regresion_aceptable = "✅ Error de regresión aceptable"
+regresion_alto = "❌ Error de regresión alto"
+# columna 2
+puntuacion = "**🎯 Puntuación de Salud:**"
+salud_excelente = "🌟 Excelente: {pct:.0f}%"      # success; calidad excellent y >= 75
+salud_bueno = "👍 Bueno: {pct:.0f}%"               # info; calidad good y >= 60
+salud_moderado = "⚠️ Moderado: {pct:.0f}%"        # warning; calidad moderate
+salud_critico = "🚨 Crítico: {pct:.0f}%"           # error
+estado_excelente = "🌟 Modelo listo para producción"           # st.info
+estado_bueno = "👍 Modelo con buen rendimiento"
+estado_moderado = "⚠️ Modelo necesita validación adicional"
+estado_critico = "🚨 Modelo no está funcionando correctamente"
+metrica_val_accuracy = "🎯 Accuracy Validación"                  # {:.3f}
+metrica_val_accuracy_help = "Métrica más importante para clasificación"
+metrica_train_accuracy = "🎯 Accuracy Entrenamiento"             # (inalcanzable: siempre hay val_accuracy)
+metrica_train_accuracy_help = "Solo disponible accuracy de entrenamiento"
+metrica_val_mae = "📏 MAE Validación"                            # {:.4f}
+metrica_val_mae_help = "Error promedio en validación"
+# show_trend_analysis
+fases_titulo = "### 📈 Análisis de Tendencias por Fase"
+fases_expander = "📚 ¿Qué significan las tendencias de pérdida?"   # diagnostico-tendencias.md (cerrado)
+# Con >= 10 épocas: 3 métricas. Valor = pendiente {:.6f} (np.polyfit grado 1), delta = "{direccion} - {calidad}"
+inicio = "🟢 Inicio (33%)"
+medio = "🟡 Medio (33%)"
+final = "🔴 Final (33%)"
+descendente = "Descendente"
+ascendente = "Ascendente"
+inicio_calidad = ["🚀 Excelente", "✅ Bueno", "⚠️ Lento", "🚨 Problema"]         # < -0.1 | < -0.01 | < 0 | resto
+inicio_ayuda = ["Aprendizaje inicial muy efectivo", "Aprendizaje inicial satisfactorio", "Aprendizaje inicial lento - considera aumentar learning rate", "Pérdida aumentando - revisar learning rate y datos"]
+medio_calidad = ["📈 Progresando", "📊 Lento", "🎯 Plateau", "⚠️ Subiendo"]       # < -0.01 | < 0 | |t| < 0.001 | resto
+medio_ayuda = ["Aprendizaje continuo saludable", "Aprendizaje desacelerando - normal en fases medias", "Posible convergencia temprana", "Pérdida aumentando - posible sobreajuste"]
+final_calidad = ["🎯 Convergido", "📈 Mejorando", "📊 Lento", "🚨 Sobreajuste"]   # |t| < 0.001 | < -0.01 | < 0 | resto
+final_ayuda = ["Excelente - modelo estabilizado", "Aún aprendiendo - considera más épocas", "Mejora marginal - cerca de convergencia", "Pérdida aumentando - detener entrenamiento"]
+comparativo_titulo = "### 🔄 Análisis Comparativo"
+velocidad = "**📊 Velocidad de Aprendizaje:**"
+fase_activa = "🏃‍♂️ **Fase más activa:** {fase}"     # info; {fase} = "Inicial" | "Media" | "Final" (max |pendiente|, primera si empatan)
+fases_nombres = ["Inicial", "Media", "Final"]
+desaceleracion = "✅ Desaceleración natural - Patrón ideal"       # success: |i| > |m| > |f|
+aceleracion = "⚠️ Aceleración tardía - Revisar parámetros"        # warning: |f| > |i|
+mixto = "📊 Patrón mixto de aprendizaje"                           # info
+consistencia = "**🎯 Consistencia:**"
+consistencia_alta = "🎯 Alta consistencia - Aprendizaje estable"   # success: std(pendientes) < 0.01
+consistencia_media = "📊 Consistencia moderada - Normal"           # info: < 0.1
+consistencia_baja = "⚠️ Baja consistencia - Aprendizaje irregular" # warning
+patron_sobreajuste = "🚨 Patrón de sobreajuste detectado"          # error: i < 0, m < 0, f >= 0
+mejora_sostenida = "✅ Mejora sostenida en todas las fases"        # success: las tres < 0
+corto = "📊 Historial muy corto para análisis detallado"          # info (< 10 épocas) + diagnostico-historial-corto.md
+patrones_titulo = "### 🔄 Patrones de Comportamiento Detectados"
+patrones = "**🔍 Patrones Identificados:**"                       # cada uno como "• {patron}"
+patrones_recomendaciones = "**💡 Recomendaciones:**"
+plateau = "🎯 **Plateau alcanzado:** El modelo ha llegado a su límite de aprendizaje"   # (inalcanzable: 'plateau' nunca se calcula)
+plateau_rec = "💡 Considera early stopping o cambiar arquitectura"                       # (inalcanzable)
+convergencia_rapida = "🚀 **Convergencia rápida:** Excelente capacidad de aprendizaje"   # convergence_rate > 0.5
+convergencia_rapida_rec = "✅ Parámetros bien ajustados"
+convergencia_moderada = "📈 **Convergencia moderada:** Aprendizaje progresivo saludable"   # > 0.1
+convergencia_moderada_rec = "👍 Rendimiento satisfactorio"
+convergencia_lenta = "🐌 **Convergencia lenta:** Aprendizaje gradual"                      # > 0.01
+convergencia_lenta_rec = "⚠️ Considera aumentar learning rate o revisar datos"
+sin_convergencia = "❌ **Sin convergencia:** Modelo no está aprendiendo efectivamente"
+sin_convergencia_rec = "🚨 Revisar completamente configuración y datos"
+sobreajuste_progresivo = "📊 **Sobreajuste progresivo:** Gap train/val del {gap:.1f}%"
+sobreajuste_progresivo_rec = "🛑 Implementar regularización o early stopping"
+inestable_patron = "📈 **Entrenamiento inestable:** Variabilidad del {cv:.1f}%"
+inestable_patron_rec = "🔧 Reducir learning rate o aumentar batch size"
+sin_patrones = "🎉 No se detectaron patrones problemáticos - ¡Entrenamiento saludable!"   # (inalcanzable: siempre hay un patrón de convergencia)
+contexto_expander = "🎓 Contexto Educativo: ¿Cómo interpretar estos números?"   # diagnostico-contexto.md (cerrado)
+# show_training_alerts: "🚨 **{mensaje}**\n💡 {accion}" (error), "⚠️ …" (warning), "ℹ️ …" (info)
+sin_alertas = "🎉 ¡No se detectaron problemas significativos!"
+alerta_no_convergio = "Modelo no convergió suficientemente"
+alerta_no_convergio_accion = "Aumentar número de épocas o ajustar learning rate"
+alerta_sobreajuste = "Sobreajuste detectado (gap: {gap:.1f}%)"
+alerta_sobreajuste_accion = "Reducir complejidad del modelo, añadir regularización o más datos"
+alerta_inestable = "Entrenamiento inestable (variabilidad: {cv:.1f}%)"
+alerta_inestable_accion = "Reducir learning rate o aumentar batch size"
+alerta_plateau = "Plateau detectado en las últimas épocas"                       # (inalcanzable)
+alerta_plateau_accion = "El modelo puede haber alcanzado su límite de aprendizaje"
+# generate_training_recommendations: el texto va precedido de "🌟 " / "✅ " / "⚠️ " / "🚨 " según el nivel
+rec_excelente = "¡Entrenamiento excelente! Modelo con alto rendimiento y buenas curvas."
+rec_excelente_acciones = ["✅ El modelo está listo para producción", "📊 Considera hacer validación cruzada para confirmar robustez", "🚀 Puedes proceder a hacer predicciones con confianza"]
+rec_bueno = "Entrenamiento bueno con rendimiento satisfactorio."
+rec_bueno_sobreajuste = ["🔧 Añadir más regularización (dropout, L1/L2)", "📈 Aumentar datos de entrenamiento si es posible"]
+rec_bueno_estabilidad = ["📉 Reducir learning rate para mayor estabilidad", "📦 Aumentar batch size"]
+rec_bueno_otro = ["👍 Continuar con este enfoque"]
+rec_moderado = "Rendimiento moderado. El modelo funciona pero tiene limitaciones importantes."
+rec_moderado_acciones = ["📊 Revisar datos de validación - pueden no ser representativos", "🔄 Considerar reentrenar con diferentes hiperparámetros", "🎯 Evaluar si la arquitectura es apropiada para el problema"]
+# Python usa este texto también en regresión, donde no hay accuracy. CORREGIDO (D84) solo para regresión:
+rec_critico = "⚠️ CRÍTICO: El modelo tiene muy bajo rendimiento (accuracy ≤ 70%). Las curvas pueden verse bien pero el modelo no está aprendiendo correctamente."
+rec_critico_regresion = "⚠️ CRÍTICO: El error de validación no mejora respecto a las primeras épocas. Las curvas pueden verse bien pero el modelo no está aprendiendo correctamente."
+rec_multiples = "El entrenamiento tiene múltiples problemas serios."
+rec_critico_acciones = ["🚨 PRIORIDAD: Revisar datos de entrada y preprocesamiento", "🏗️ Simplificar arquitectura del modelo", "📚 Verificar que el problema sea realmente solucionable con estos datos", "🔄 Considerar cambiar completamente de enfoque"]
+rec_pobre_primera = "🎯 El modelo no está aprendiendo patrones útiles - revisar datos y arquitectura"   # se inserta al principio si la calidad es poor
+
+[visualizacion]
+header = "🎯 Visualizaciones"
+# st.info(visualizacion-intro.md); panel de botones (create_button_panel, estado por lección en Rust: D13)
+botones = [["📊 Historial", "Historial", "viz_history"], ["🧠 Análisis de Pesos", "Pesos", "viz_weights"], ["🎯 Superficie de Decisión", "Superficie", "viz_surface"], ["📉 Análisis de Activaciones", "Activaciones", "viz_activations"]]
+
+[historial]
+titulo = "📊 Historial de Entrenamiento"                 # st.subheader
+interpretar_expander = "💡 Interpretación del Entrenamiento"   # historial-interpretar.md (cerrado)
+# 4 métricas tras la gráfica de [evaluacion]
+perdida_final = "🔴 Pérdida Final"                      # valor {:.6f}, delta "-{mejora:.1f}%" (mejora = (inicial − final)/inicial·100)
+perdida_final_help = "Pérdida en la última época vs primera época"
+perdida_val = "🟡 Pérdida Validación"                   # valor {:.6f}, delta "Gap: {gap:.6f} ({gap_pct:+.1f}%)"; color normal si |gap_pct| < 10, si no inverse
+perdida_val_delta = "Gap: {gap:.6f} ({gap_pct:+.1f}%)"
+perdida_val_help = "Diferencia entre validación y entrenamiento indica sobreajuste"
+epocas = "⏱️ Épocas"
+epocas_help = "Número total de épocas de entrenamiento"
+# "{emoji} Estabilidad": valor "Estable" (CV < 1) 🎯 | "Moderado" (< 5) 📊 | "Variable" 📈; delta "{cv:.1f}% CV"
+# CV = std/mean·100 de las últimas min(5, épocas // 2) pérdidas
+estabilidad = "{emoji} Estabilidad"
+estabilidad_valores = [["🎯", "Estable"], ["📊", "Moderado"], ["📈", "Variable"]]
+estabilidad_delta = "{cv:.1f}% CV"
+estabilidad_help = "Variabilidad en las últimas épocas (menor = más estable)"
+
+[pesos]
+titulo = "🧠 Análisis de Pesos y Sesgos"
+interpretar_expander = "💡 Cómo interpretar esta pestaña"     # pesos-interpretar.md (cerrado)
+opciones_expander = "⚙️ Opciones de visualización"             # cerrado
+bins_pesos = "Bins pesos"                                     # slider 10..120, 50, key bins_weights
+bins_sesgos = "Bins sesgos"                                   # slider 5..60, 20, key bins_biases
+escala_log = "Escala log en frecuencia"                       # checkbox False, SIN key
+escala_log_help = "Útil si hay valores muy concentrados"
+# st.caption por cada capa densa. Python numera con el índice en model.layers + 1 (incluye InputLayer y
+# Dropout): "Capa 2", "Capa 4", "Capa 6"; y en "Distribución por Capa" usa 1, 2, 3. CORREGIDO (D77):
+# en Rust, los nombres de la arquitectura ("Oculta 1", "Oculta 2", "Salida") en los tres sitios.
+capa_cargada = "✅ {capa}: {forma_pesos} pesos, {forma_sesgos} sesgos"   # Python: "✅ Capa {i+1}: (4, 10) pesos, (10,) sesgos"
+resumen_titulo = "### 📋 Resumen por Capa"
+# Tabla: Capa, Forma Pesos, Media Pesos, Std Pesos, % |w|<1e-3 (redondeado a 1), Media Sesgos, Std Sesgos, Num Parámetros
+resumen_columnas = ["Capa", "Forma Pesos", "Media Pesos", "Std Pesos", "% |w|<1e-3", "Media Sesgos", "Std Sesgos", "Num Parámetros"]
+media_global = "Media global"                                 # {:.4f}
+std_global = "Std global"                                     # {:.4f}
+casi_cero_global = "% |w|<1e-3"                               # {:.1f}%
+capas_analizadas = "Capas analizadas"
+pesos_pequenos = "🟡 Muchos pesos muy pequeños: posible underfitting o regularización alta"   # warning: std global < 0.01
+pesos_varianza_alta = "⚠️ Pesos con varianza muy alta: posible inestabilidad del entrenamiento" # warning: > 2
+pesos_sanos = "✅ Varianza de pesos dentro de un rango saludable"                             # success
+distribucion_titulo = "### 🔍 Distribución por Capa"
+capa_titulo = "#### 📊 {capa}"                               # Python: "#### 📊 Capa {i+1}" (1, 2, 3)
+# Histogramas Plotly (altura 320, bargap 0.02): pesos #1f77b4 y sesgos #ff7f0e; línea gris en 0 y
+# línea verde discontinua en la media con la anotación "Media"
+hist_pesos_titulo = "Distribución Pesos {capa}"
+hist_sesgos_titulo = "Distribución Sesgos {capa}"
+eje_peso = "Valor de peso"
+eje_sesgo = "Valor de sesgo"
+eje_frecuencia = "Frecuencia"
+anotacion_media = "Media"
+pie_pesos = "Media={media:.4f} | Std={std:.4f} | %≈0={casi_cero:.1f}% | Rango=[{min:.3f}, {max:.3f}]"
+pie_sesgos = "Media={media:.4f} | Std={std:.4f} | Rango=[{min:.3f}, {max:.3f}]"
+evaluacion_titulo = "### 🩺 Evaluación General"
+# st.write("• {mensaje}") por cada uno que aplique, en este orden; si ninguno, el último
+insight_casi_cero = "Muchos pesos casi nulos → considera reducir regularización o entrenar más épocas."   # % casi cero global > 75
+insight_varianza_baja = "Varianza extremadamente baja → el modelo quizá no aprendió patrones útiles."    # std < 0.01
+insight_varianza_alta = "Varianza muy alta → riesgo de explosión de gradientes/saturación."              # std > 2
+insight_ok = "Distribución equilibrada de pesos y sesgos. No se detectan anomalías destacables."
+sin_capas = "⚠️ No se encontraron capas con pesos entrenables"      # (inalcanzable)
+error = "❌ Error analizando pesos: {error}"
+
+[superficie]
+titulo = "🎯 Superficie de Decisión"
+primera = "Primera característica:"                          # selectbox índice 0; key viz_f1 (clasificación) / viz_f1_reg (regresión)
+segunda = "Segunda característica:"                          # índice min(1, n−1); key viz_f2 / viz_f2_reg
+misma = "⚠️ Selecciona características diferentes"            # warning
+# Con 2 características (Moons, CSV de 2 columnas) no hay selects.
+titulo_clasificacion = "Superficie de Decisión: {f1} vs {f2}"   # matplotlib 10×8, contourf RdYlBu, 50 niveles, alpha 0.8 + colorbar; puntos de prueba RdYlBu con borde negro
+titulo_regresion = "Superficie de Decisión (Regresión): {f1} vs {f2}"   # 10×7, contourf viridis 100 niveles, colorbar "Valor predicho"
+colorbar_regresion = "Valor predicho"
+exito_clasificacion = "✅ Superficie generada exitosamente"
+exito_regresion = "✅ Superficie de regresión generada exitosamente"
+error_clasificacion = "❌ Error: {error}"
+error_regresion = "❌ Error generando superficie de regresión: {error}"
+error_regresion_info = "Se intentó predecir con el modelo; si la arquitectura espera otra dimensionalidad se usa un surrogate (KNN) entrenado con las predicciones del modelo."   # (inalcanzable en la práctica: D79)
+# NUEVO (D78): caption bajo la superficie
+nota_medias = "Las demás características se fijan en su media (de los datos de prueba). Los ejes están en las unidades originales; la red trabaja con los datos escalados."
+
+[activaciones]
+titulo = "📉 Análisis de Activaciones y Neuronas Muertas"
+que_veras_expander = "💡 ¿Qué verás aquí?"                     # activaciones-que-veras.md (cerrado)
+parametros_expander = "⚙️ Parámetros de Análisis"             # cerrado
+muestras = "Muestras"                                         # slider 10..200, 50 (las primeras filas de prueba), SIN key
+muestras_help = "Número de ejemplos de test usados para calcular activaciones"
+umbral_muerta = "Umbral muerta (<=)"                          # number_input 0.0..1.0 paso 0.01, 0.0
+umbral_muerta_help = "Si TODAS las activaciones de la neurona están por debajo o iguales a este valor, se marca como muerta"
+std_constante = "Std constante <"                             # number_input 1e-6..1.0, 1e-3, formato %.6f (Qt: paso 0.01)
+std_constante_help = "Si la desviación estándar de una neurona es menor a este valor, se considera casi constante"
+mostrar_mapa = "Mostrar mapa de red"                          # checkbox True
+dispersion = "Dispersión nodos"                               # slider 0..50, 18
+dispersion_help = "Separación horizontal aleatoria (sin aumentar altura). 0 = columnas rectas."
+conexiones = "% conexiones dibujadas"                         # slider 10..100, 70
+conexiones_help = "Para capas muy densas reduce líneas dibujadas manteniendo estructura (submuestreo determinista)"
+radio_adaptativo = "Radio adaptativo"                         # checkbox True
+radio_adaptativo_help = "Reduce el tamaño de nodos en capas con muchas neuronas para evitar solapamiento"
+agrupar = "Agrupar capas grandes"                             # checkbox True
+agrupar_help = "Divide internamente capas con muchas neuronas en varias subcolumnas para reducir apelotonamiento sin aumentar altura"
+espaciado = "Espaciado mínimo vertical"                       # slider 12..50, 22
+espaciado_help = "Altura mínima entre neuronas dentro de una subcolumna"
+subcolumnas = "Máx subcolumnas capa"                          # slider 1..6, 3
+subcolumnas_help = "Límite superior de subcolumnas usadas al agrupar capas grandes"
+sin_ocultas = "⚠️ No hay capas ocultas densas para analizar"   # (inalcanzable: siempre hay al menos una)
+error_capa = "Error capa {capa}: {error}"
+resumen_titulo = "### 📋 Resumen por Capa Oculta"
+# Tabla: Capa, Neuronas, Muertas, % Muertas, Constantes, % Const, % Saturación≈, Media Act., Std Act.
+resumen_columnas = ["Capa", "Neuronas", "Muertas", "% Muertas", "Constantes", "% Const", "% Saturación≈", "Media Act.", "Std Act."]
+muertas_alta = "🚨 Alta proporción de neuronas muertas ({pct:.1f}%) → Revisa LR, inicialización o arquitectura"   # error: > 50
+muertas_moderada = "⚠️ Proporción moderada de neuronas muertas ({pct:.1f}%)"                                       # warning: > 20
+muertas_ok = "✅ Neuronas muertas bajo control ({pct:.1f}%)"                                                        # success
+detalle_titulo = "### 🔍 Detalle de Activaciones"
+capa_expander = "{capa} ({nombre})"        # Python: "Capa {índice en model.layers + 1} ({layer.name})", p. ej. "Capa 2 (dense_1)" (D77)
+metrica_neuronas = "Neuronas"
+metrica_muertas = "Muertas"
+metrica_constantes = "Constantes"
+metrica_saturacion = "Saturación %"         # {:.1f}
+mostrar_histograma = "Mostrar histograma activaciones {capa}"   # checkbox, key hist_act_{índice}; Python: "… capa {i+1}"
+mostrar_medias = "Mostrar medias por neurona {capa}"            # checkbox, key means_{índice}
+hist_titulo = "Distribución Activaciones {capa}"               # Plotly histograma, 50 bins, altura 280
+medias_titulo = "Medias de Activación ({capa})"                # Plotly barras, altura 260, ejes "Neurona" / "Media"
+eje_neurona = "Neurona"
+eje_media = "Media"
+mapa_titulo = "### 🗺️ Mapa de Neuronas Muertas (💀) y Constantes (😴)"
+mapa_leyenda = "Leyenda: ● Activa  ● Inactiva  💀 Muerta  😴 Constante"   # "● Activa" en #1976d2, "● Inactiva" con opacidad 0.35
+mapa_etiqueta = "{capa} ({n})"           # "Entrada (4)", "Oculta 1 (10)", "Salida (3)"
+tooltip_entrada = "**Capa Entrada**\nÍndice: {i}"
+tooltip_neurona = "**Capa {capa}** · Neurona {i}\nBias: {bias}\nw̄: {media_w} | σ: {std_w}\n|w|max: {max_w}\nEstado: {estado}"   # valores {:.4f} o exponencial {:.2e} si |v| < 1e-4
+estados = ["activa", "muerta", "constante", "salida"]
+muertas_expander = "🧪 ¿Qué hacer si hay muchas neuronas muertas?"   # activaciones-muertas.md (cerrado)
+error = "❌ Error en análisis de activaciones: {error}"
+error_info = "Verifica que el modelo esté entrenado y que existan capas ocultas densas."
+
+[predicciones]
+header = "🔮 Predicciones"
+# create_prediction_interface (C9, F2) con los datos SIN escalar de todo el dataset; la entrada (float32)
+# se escala con el StandardScaler de la app antes de la red.
+# Binaria: tarjeta "Clase: {nombre}" + "Probabilidad clase positiva: {p:.4f}" (umbral >= 0.5; en Evaluación es > 0.5: D87)
+probabilidad_positiva = "Probabilidad clase positiva: {p:.4f}"
+# Multiclase: tarjeta "Clase: {nombre}" + tabla Clase / Probabilidad ({:.4f})
+error_prediccion = "Error durante la predicción: {error}"
+# NUEVO (D81, subvista "🎲 Exploración"): texto en exploracion-*.md y [exploracion]
+subvistas = [["🔮 Predicción individual", "Individual", "pred_single"], ["📊 Predicción por lotes", "Lotes", "pred_batch"], ["🎲 Exploración interactiva", "Exploracion", "pred_explore"]]
+
+# Las dos secciones siguientes existen en Python (viz/nn.py::show_neural_network_predictions) pero son
+# INALCANZABLES: la función no se llama nunca. D81: se portan como subvistas NUEVAS de 🔮 Predicciones.
+[lotes]
+titulo = "📊 Predicción por Lotes"
+texto = "Sube un archivo CSV con nuevos datos para hacer predicciones en lote:"
+uploader = "Selecciona archivo CSV"                           # D81: diálogo nativo "📂 Elegir CSV…"
+cargado = "✅ Archivo cargado: {filas} filas, {columnas} columnas"
+faltan = "❌ Faltan características: {columnas}"
+sobran = "⚠️ Características adicionales (serán ignoradas): {columnas}"
+btn_predecir = "🚀 Generar Predicciones"
+columna_prediccion = "Predicción"
+columna_probabilidad = "Probabilidad"
+columna_confianza = "Confianza"
+generadas = "✅ Predicciones generadas para {n} muestras"
+btn_descargar = "📥 Descargar Resultados"                      # predicciones_neural_network.csv
+error = "Error procesando archivo: {error}"
+formato = "📋 **Formato esperado del archivo CSV:**"           # + las 3 primeras filas del dataset
+columnas = "El archivo debe contener las siguientes columnas:"  # + st.code con las columnas separadas por ", "
+
+[exploracion]
+titulo = "🎲 Exploración Interactiva"
+que_es_expander = "ℹ️ ¿Qué es la Exploración Interactiva?"     # exploracion-que-es.md (cerrado)
+intro = "🎯 **Explora cómo cambian las predicciones al modificar diferentes características:**"
+paso_1 = "**1. 📍 Selecciona una muestra base:**"
+tip_base = "💡 **Tip:** La muestra base es tu punto de referencia. Todas las exploraciones mostrarán cómo cambian las predicciones desde este punto inicial."
+muestra_label = "Índice de muestra:"                          # selectbox 0..n−1, "Muestra {i}"
+muestra_opcion = "Muestra {i}"
+paso_2 = "**2. 📋 Valores base de la muestra:**"
+paso_2_caption = "Estos son los valores de todas las características para la muestra seleccionada:"
+base_multiclase = "🎯 **Predicción Base:** {clase} (Confianza: {confianza:.3f})"
+base_binaria = "🎯 **Predicción Base:** {clase} (Probabilidad: {p:.3f})"
+base_regresion = "🎯 **Predicción Base:** {valor:.6f}"
+paso_3 = "**3. 🔍 Explora el efecto de una característica:**"
+objetivo = "🎯 **Objetivo:** Verás cómo cambia la predicción cuando modificas solo UNA característica, manteniendo todas las demás constantes. Esto te ayuda a entender la importancia relativa de cada variable."
+caracteristica_label = "Característica a explorar:"
+caracteristica_help = "Selecciona la característica cuyo efecto quieres analizar en las predicciones"
+# Gráfico Plotly (altura 500), 50 valores de min a max de la característica; línea verde discontinua "Valor Base"
+grafica_multiclase = "Efecto de {caracteristica} en la Predicción"     # trazas "Clase Predicha" (eje izq.) y "Confianza" (eje der., rojo)
+grafica_binaria = "Efecto de {caracteristica} en la Probabilidad"      # traza "Probabilidad" + línea roja discontinua en 0.5 "Umbral de decisión"
+grafica_regresion = "Efecto de {caracteristica} en la Predicción"      # traza "Predicción", eje y "Valor Predicho"
+serie_clase = "Clase Predicha"
+serie_confianza = "Confianza"
+serie_probabilidad = "Probabilidad"
+serie_prediccion = "Predicción"
+eje_valor_predicho = "Valor Predicho"
+umbral = "Umbral de decisión"
+valor_base = "Valor Base"
+analisis = "**📈 Análisis de Resultados:**"
+rango_probabilidades = "Rango de Probabilidades"          # {:.3f}
+rango_probabilidades_help = "Diferencia entre la probabilidad máxima y mínima observada"
+volatilidad = "Volatilidad"                               # {:.3f}
+volatilidad_help = "Qué tan variables son las predicciones (desviación estándar)"
+rango_predicciones = "Rango de Predicciones"              # {:.6f}
+impacto_relativo = "Impacto Relativo"                     # {:.1f}%
+muy_influyente = "🎯 **Característica muy influyente:** '{caracteristica}' tiene un gran impacto en las predicciones"    # binaria: rango > 0.3
+moderada = "📊 **Característica moderadamente influyente:** '{caracteristica}' tiene un impacto moderado"                 # > 0.1
+poco_influyente = "📉 **Característica poco influyente:** '{caracteristica}' tiene poco impacto en las predicciones"
+muy_influyente_regresion = "🎯 **Característica muy influyente:** '{caracteristica}' causa cambios significativos"       # impacto > 20 %
+moderada_regresion = "📊 **Característica moderadamente influyente:** '{caracteristica}' tiene impacto moderado"           # > 5 %
+poco_influyente_regresion = "📉 **Característica poco influyente:** '{caracteristica}' tiene poco impacto"
+consejos_expander = "💡 Consejos para Interpretar los Resultados"     # exploracion-consejos.md ({caracteristica})
+# Python no tenía análisis para multiclase (solo la gráfica). NUEVO (D81): el mismo análisis con la
+# probabilidad de la clase base.
+multiclase_nota = "En multiclase se analiza la probabilidad de la clase de la muestra base ({clase})."
+error = "Error en las predicciones: {error}"
+
+[exportar]
+header = "💾 Exportar Modelo"
+info_titulo = "ℹ️ Información del Modelo"                      # st.subheader
+info_arquitectura = "**Arquitectura:**\n- Tipo: {tarea}\n- Capas: {n_capas}\n- Neuronas: {arquitectura}\n- Activación: {activacion}\n- Optimizador: {optimizador}"
+info_parametros = "**Parámetros:**\n- Total: {total:,}\n- Dropout: {dropout}\n- Batch size: {batch}\n- Fecha entrenamiento: {fecha}"   # Python: la fecha de AHORA, no la del entrenamiento (D75: la del entrenamiento)
+opciones_titulo = "📁 Opciones de Exportación"
+# Python: 4 botones (key global viz_type, D13): "🤖 Modelo TensorFlow" (Tensorflow, viz_tf), "📊 Modelo
+# Completo" (Completo, viz_complete), "📝 Código Python" (Python, viz_python), "📋 Metadatos" (Metadatos,
+# viz_metadata). CORREGIDO (D75): ver [exportar_rust].
+tf_titulo = "**Exportar solo el modelo de TensorFlow:**"
+tf_formato = "Formato:"                                       # radio, key nn_export_format
+tf_formatos = ["SavedModel (.pb)", "HDF5 (.h5)", "TensorFlow Lite (.tflite)"]
+tf_modo_seguro = "Modo seguro (desactivar traces)"            # checkbox True
+tf_modo_seguro_help = "Útil si hay capas Lambda / funciones personalizadas que impiden la serialización"
+btn_tf = "💾 Exportar Modelo TensorFlow"                      # primary
+tf_descargar_savedmodel = "📥 Descargar SavedModel (ZIP)"      # neural_network_savedmodel.zip
+tf_ok_savedmodel = "✅ SavedModel generado"
+tf_descargar_h5 = "📥 Descargar Modelo HDF5"                   # neural_network_model.h5
+tf_ok_h5 = "✅ HDF5 generado"
+tf_descargar_tflite = "📥 Descargar Modelo TFLite"             # neural_network_model.tflite
+tf_ok_tflite = "✅ TFLite generado"
+tf_tflite_info = "💡 TensorFlow Lite es ideal para dispositivos móviles y embebidos"
+tf_error = "Error exportando modelo: {error}"
+tf_error_detalles = "Detalles del error"                      # expander con el traceback y las capas
+completo_titulo = "**Exportar modelo completo con preprocesadores:**"
+completo_info = "Incluye el modelo, scaler, label encoder y configuración"
+btn_completo = "💾 Exportar Modelo Completo"
+completo_descargar = "📥 Descargar Modelo Completo"            # neural_network_complete.pkl
+completo_ok = "✅ Modelo completo exportado"
+completo_info_2 = "💡 Este archivo contiene todo lo necesario para hacer predicciones"
+completo_error = "Error exportando modelo completo: {error}"
+completo_codigo = "**Código para cargar el modelo:**"          # red_cargar_completo.py.j2
+python_titulo = "**Generar código Python independiente:**"
+btn_python = "📝 Generar Código"
+python_descargar = "📥 Descargar Código"                       # neural_network_predictor.py
+python_aviso = "⚠️ El código generado es una plantilla. Debes implementar los pesos específicos del modelo entrenado."   # warning (D75: ya no aplica)
+python_error = "Error generando código: {error}"
+metadatos_titulo = "**Exportar metadatos del modelo:**"        # + st.json(metadatos)
+metadatos_descargar = "📥 Descargar Metadatos"                 # neural_network_metadata.json
+adicional_titulo = "💡 Información Adicional"                  # st.subheader + st.info(exportar-recomendaciones.md)
+error = "Error en la exportación: {error}"
+error_info = "Asegúrate de que el modelo esté entrenado correctamente."
+
+# NUEVO (D75): 💾 Exportar en Rust. Mismo orden y estilo de botones (panel con estado por lección).
+[exportar_rust]
+botones = [["📦 Paquete Keras (.zip)", "Keras", "nn_export_keras"], ["💾 ONNX", "Onnx", "nn_export_onnx"], ["📝 Código Python", "Python", "nn_export_python"], ["📋 Metadatos", "Metadatos", "nn_export_metadata"]]
+keras_titulo = "**Exportar la red para usarla con TensorFlow/Keras:**"
+keras_texto = "El ZIP contiene los pesos de la red en modelo.json y un script que la reconstruye en Keras, comprueba que da las mismas salidas que MLTutor y la guarda como .keras, .h5, SavedModel y .tflite, junto con el escalador (scaler.pkl) y un modelo_completo.pkl como el de la versión anterior. Necesitas Python con TensorFlow instalado."
+btn_keras = "💾 Guardar paquete Keras…"                         # diálogo nativo, modelo_red.zip
+keras_ok = "✅ Paquete guardado en {ruta}"
+onnx_titulo = "**Exportar a ONNX (sin Python):**"
+onnx_texto = "Un único archivo .onnx con el escalado y la red (capas Gemm y sus activaciones). Se usa con onnxruntime en Python, C#, JavaScript o Java, y se puede convertir a TensorFlow Lite con onnx2tf. Recibe los datos sin escalar, en el orden de las características."
+btn_onnx = "💾 Guardar ONNX…"                                   # red_neuronal.onnx
+onnx_ok = "✅ Modelo ONNX guardado en {ruta}"
+onnx_salidas_clasificacion = "Salidas: `label` (la clase) y `probabilities` (la salida de la red)."
+onnx_salidas_regresion = "Salida: `variable` (el valor predicho)."
+python_texto = "La red entrenada escrita en NumPy: lee modelo.json (va en el paquete Keras), escala la entrada y aplica cada capa. Útil para ver qué calcula la red; no necesita TensorFlow."
+codigo_entrenamiento = "**🐍 Script para entrenar la misma red con Keras:**"   # red_entrenamiento.py.j2 (D74)
+metadatos_fecha_nota = "La fecha es la del entrenamiento."
+# Metadatos: el JSON de Python con dos correcciones (D75): data_info.num_classes = número de clases (Python
+# ponía output_size: 1 en binaria) y export_info.framework = "MLTutor (Rust) · compatible con Keras".

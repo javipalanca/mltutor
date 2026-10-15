@@ -8,6 +8,9 @@ Usage:
     uv run python tools/capture_qt.py docs/migration/capturas/qt/fase2 --phase 2
     uv run python tools/capture_qt.py docs/migration/capturas/qt/fase3 --phase 3
     uv run python tools/capture_qt.py docs/migration/capturas/qt/fase4 --phase 4
+    uv run python tools/capture_qt.py docs/migration/capturas/qt/fase5 --phase 5
+      (phase 5 also renders every WebEngine view — Plotly charts and HTML canvases, blank in
+      the Qt grab — with Chrome headless into NNN_web<k>.png)
     ... --quantize   # rewrite every PNG with a 256-colour palette (Pillow) before commit
 (QT_QPA_PLATFORM must NOT be offscreen: WebEngine and fonts need the real platform.)
 """
@@ -386,12 +389,115 @@ STEPS_F4 = [
     (kn(4), "43_caracteristicas_california"),
 ]
 
+
+NN = "🧠 Redes Neuronales"
+MOONS = "🌙 Moons - Clasificación sintética"
+
+
+def nn(tab, **extra):
+    return go(NN, active_tab_nn=tab, **extra)
+
+
+def nn_fresh(tab, dataset):
+    def run():
+        for key in ("nn_config", "nn_model", "nn_history", "model_trained_nn", "nn_test_data"):
+            state.pop(key, None)
+        state.update(navigation=NN, active_tab_nn=tab, selected_dataset=dataset,
+                     unified_dataset_selector=dataset, active_analysis=None)
+        window.evaluate()
+    return run
+
+
+def check(label, value):
+    return lambda: window.action(find("checkbox", label), value)
+
+
+# Phase 5: 🧠 Redes Neuronales. See docs/migration/fase5-redes.md §0.
+STEPS_F5 = [
+    (nn_fresh(2, IRIS), "00_entrenamiento_sin_configurar"),
+    (nn(3), "00b_evaluacion_sin_entrenar"),
+    (nn(4), "00c_visualizacion_sin_entrenar"),
+    (nn(5), "00d_predicciones_sin_entrenar"),
+    (nn(6), "00e_exportar_sin_entrenar"),
+    (nn(0), "01_datos_iris"),
+    (nn(1), "02_arquitectura_iris"),
+    (expand_all, "03_arquitectura_iris_expandido"),
+    (choose("linear", label="Función de activación de salida"), "04_arquitectura_salida_linear"),
+    (choose("sigmoid", label="Función de activación de salida"), "05_arquitectura_salida_sigmoid_multiclase"),
+    (choose("softmax", label="Función de activación de salida"), None),
+    (choose("sigmoid", label="Función de activación"), "06_arquitectura_oculta_sigmoid"),
+    (choose("relu", label="Función de activación"), None),
+    (slide("Número de capas ocultas", 1), "07_arquitectura_1_capa"),
+    (slide("Número de capas ocultas", 5), "08_arquitectura_5_capas"),
+    (slide("Número de capas ocultas", 2), None),
+    (click("📝 Generar Código de la Arquitectura"), "09_arquitectura_codigo"),
+    (nn(2), "10_entrenamiento_iris"),
+    (expand_all, "11_entrenamiento_iris_avanzado"),
+    (check("Activar Parada Temprana", False), None),
+    (check("Reducir Learning Rate Automáticamente", False), "12_entrenamiento_sin_callbacks"),
+    (check("Activar Parada Temprana", True), None),
+    (check("Reducir Learning Rate Automáticamente", True), None),
+    (click("🧠 Entrenar Red Neuronal"), "13_entrenado_iris"),
+    (nn(3), "14_evaluacion_iris"),
+    (expand_all, "15_evaluacion_iris_expandido"),
+    (nn(4, viz_type="Historial"), "16_historial_iris"),
+    (nn(4, viz_type="Pesos"), "17_pesos_iris"),
+    (expand_all, "18_pesos_iris_expandido"),
+    (nn(4, viz_type="Superficie"), "19_superficie_iris"),
+    (choose("petal length (cm)", key="viz_f1"), None),
+    (choose("petal width (cm)", key="viz_f2"), "20_superficie_petalos_iris"),
+    (nn(4, viz_type="Activaciones"), "21_activaciones_iris"),
+    (expand_all, "22_activaciones_iris_expandido"),
+    (nn(5), "23_prediccion_formulario_iris"),
+    (click("Realizar predicción"), "24_prediccion_resultado_iris"),
+    (nn(6, viz_type="Tensorflow"), "25_exportar_tensorflow"),
+    (click("💾 Exportar Modelo TensorFlow"), "26_exportar_savedmodel"),
+    (nn(6, viz_type="Completo"), "27_exportar_completo"),
+    (nn(6, viz_type="Python"), None),
+    (click("📝 Generar Código"), "28_exportar_python"),
+    (nn(6, viz_type="Metadatos"), "29_exportar_metadatos"),
+    # The output-activation select has no key: it keeps Iris' "softmax" on Cancer (binary) and
+    # training fails. Captured as found, then fixed by hand like a student would.
+    (nn_fresh(1, CANCER), "30_arquitectura_cancer_softmax_heredado"),
+    (nn(2), None),
+    (click("🧠 Entrenar Red Neuronal"), "30b_error_softmax_heredado_cancer"),
+    (nn(1), None),
+    (choose("sigmoid", label="Función de activación de salida"), "30c_arquitectura_cancer"),
+    (nn(2), None),
+    (click("🧠 Entrenar Red Neuronal"), "31_entrenado_cancer"),
+    (nn(3), "32_evaluacion_cancer"),
+    (nn(4, viz_type="Superficie", viz_f1=None, viz_f2=None), "33_superficie_cancer"),
+    (nn(5), None),
+    (click("Realizar predicción"), "34_prediccion_resultado_cancer"),
+    (nn_fresh(1, DIABETES), "35_arquitectura_diabetes"),
+    (nn(2), None),
+    (click("🧠 Entrenar Red Neuronal"), "36_entrenado_diabetes"),
+    (nn(3), "37_evaluacion_diabetes"),
+    (nn(4, viz_type="Historial"), "38_historial_diabetes"),
+    (nn(4, viz_type="Superficie"), "39_superficie_diabetes"),
+    (nn(4, viz_type="Activaciones"), "39b_activaciones_diabetes"),
+    (nn(5), None),
+    (click("Realizar predicción"), "40_prediccion_resultado_diabetes"),
+    (nn_fresh(1, MOONS), None),
+    (choose("sigmoid", label="Función de activación de salida"), None),
+    (nn(2), None),
+    (click("🧠 Entrenar Red Neuronal"), None),
+    (nn(4, viz_type="Superficie"), "41_superficie_moons"),
+    (nn_fresh(1, IRIS), None),
+    (choose("sigmoid", label="Función de activación de salida"), None),
+    (nn(2), None),
+    (click("🧠 Entrenar Red Neuronal"), "42_error_salida_sigmoid_iris"),
+    (nn(3), "43_evaluacion_tras_error"),
+]
+
 if PHASE == 2:
     STEPS = STEPS_F2
 elif PHASE == 3:
     STEPS = STEPS_F3
 elif PHASE == 4:
     STEPS = STEPS_F4
+elif PHASE == 5:
+    STEPS = STEPS_F5
 
 steps = iter(STEPS)
 pending = [None]
@@ -401,15 +507,43 @@ pending = [None]
 WINDOW_F2 = {"02_entrenado_logistica_iris", "05_roc_multiclase_iris", "33_residuos_diabetes"}
 WINDOW_F3 = {"02_entrenado_iris", "05_arbol_iris", "31_arbol_regresion_diabetes"}
 WINDOW_F4 = {"02_entrenado_iris", "09_interactiva_iris", "35_predicciones_residuos_diabetes"}
+WINDOW_F5 = {"02_arquitectura_iris", "13_entrenado_iris", "21_activaciones_iris"}
+CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+MAX_WEB_PER_SCREEN = 8
+
+
+def capture_web(name):
+    """Phase 5: render the WebEngine views of the screen (Plotly, canvases) with Chrome headless."""
+    import hashlib
+    import subprocess
+
+    if not Path(CHROME).exists():
+        return
+    k = 0
+    for node in walk(window.root_node):
+        if node.kind != "html" or k >= MAX_WEB_PER_SCREEN:
+            continue
+        body = node.props.get("html", "")
+        path = window.html_dir / (hashlib.sha256(body.encode()).hexdigest() + ".html")
+        if not path.exists():
+            continue
+        k += 1
+        height = int(node.props.get("height") or 520) + 40
+        subprocess.run([CHROME, "--headless=new", "--disable-gpu", "--hide-scrollbars",
+                        "--allow-file-access-from-files", f"--window-size=1100,{height}",
+                        "--virtual-time-budget=4000", f"--screenshot={OUT / f'{name}_web{k}.png'}",
+                        path.as_uri()], capture_output=True, timeout=60)
 
 
 def capture(name):
-    windows = {2: WINDOW_F2, 3: WINDOW_F3, 4: WINDOW_F4}.get(PHASE, set())
+    windows = {2: WINDOW_F2, 3: WINDOW_F3, 4: WINDOW_F4, 5: WINDOW_F5}.get(PHASE, set())
     if PHASE == 1 or name in windows:
         window.grab().save(str(OUT / f"{name}_ventana.png"))
     widget = window.content.widget()
     if widget is not None:
         widget.grab().save(str(OUT / f"{name}.png"))
+    if PHASE == 5:
+        capture_web(name)
     print("captured", name, flush=True)
 
 
@@ -451,7 +585,7 @@ def advance():
 
 window.page_ready.connect(ready)
 QTimer.singleShot(0, advance)
-QTimer.singleShot(600000, lambda: app.exit(2))
+QTimer.singleShot(1500000 if PHASE == 5 else 600000, lambda: app.exit(2))
 code = app.exec()
 if window.worker is not None:
     window.session.cancel.set()

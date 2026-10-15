@@ -1879,6 +1879,10 @@ def build_cases() -> dict[str, Callable[[Writer], None]]:
     import golden_knn
 
     golden_knn.register(cases, sys.modules[__name__])
+    # Phase 5: 🧠 Redes Neuronales (tools/golden_nn.py, tools/nn_reference.py; needs TensorFlow).
+    import golden_nn
+
+    golden_nn.register(cases, sys.modules[__name__])
     return cases
 
 

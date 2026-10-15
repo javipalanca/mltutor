@@ -1,0 +1,99 @@
+{#- LITERAL (Python): mltutor/algorithms/code_examples.py::generate_neural_network_code, botón
+    "📝 Generar Código" de 💾 Exportar → 📝 Código Python (descarga neural_network_predictor.py).
+    Es una PLANTILLA sin los pesos: predict() devuelve ceros y avisa de que hay que implementar los
+    pesos, y predict_class() llama a safe_get_output_size, que no está definida (NameError en
+    clasificación). D75 la sustituye por un predictor NumPy con los pesos reales; esta plantilla se
+    conserva para los tests de paridad de texto (tests/parity/nn/exact/*.json, views.exportar_python_click).
+
+    Variables:
+      fecha                str   datetime.now().strftime('%Y-%m-%d %H:%M:%S') (en los fixtures: <fecha>)
+      config_json          str   json.dumps(nn_config, indent=8) de Python: claves en el orden de
+                                 nn_config, ensure_ascii (Clasificación -> "Clasificaci\u00f3n")
+      tiene_label_encoder  str   "True" en clasificación, "False" en regresión (bool() de Python)
+      activation, output_activation  str
+      output_size          int
+#}
+# Código generado automáticamente para Red Neuronal
+# Fecha: {{ fecha }}
+
+import numpy as np
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+
+class NeuralNetworkPredictor:
+    def __init__(self):
+        # Configuración del modelo
+        self.config = {{ config_json }}
+
+        # Inicializar preprocesadores
+        self.scaler = StandardScaler()
+        self.label_encoder = LabelEncoder() if {{ tiene_label_encoder }} else None
+
+        # Configurar preprocesadores (reemplaza con tus datos de entrenamiento)
+        # self.scaler.fit(X_train)  # X_train son tus datos de entrenamiento
+        # if self.label_encoder:
+        #     self.label_encoder.fit(y_train)  # y_train son tus etiquetas
+
+    def activation_function(self, x, activation):
+        """Implementa funciones de activación"""
+        if activation == 'relu':
+            return np.maximum(0, x)
+        elif activation == 'sigmoid':
+            return 1 / (1 + np.exp(-np.clip(x, -500, 500)))
+        elif activation == 'tanh':
+            return np.tanh(x)
+        elif activation == 'softmax':
+            exp_x = np.exp(x - np.max(x, axis=1, keepdims=True))
+            return exp_x / np.sum(exp_x, axis=1, keepdims=True)
+        else:
+            return x  # linear
+
+    def predict(self, X):
+        """Hace predicciones con la red neuronal"""
+        # Normalizar entrada
+        X_scaled = self.scaler.transform(X)
+
+        # Forward pass a través de las capas
+        # NOTA: Debes implementar los pesos específicos de tu modelo entrenado
+
+        # Ejemplo de estructura (reemplaza con tus pesos reales):
+        # layer_1 = self.activation_function(np.dot(X_scaled, weights_1) + bias_1, '{{ activation }}')
+        # layer_2 = self.activation_function(np.dot(layer_1, weights_2) + bias_2, '{{ activation }}')
+        # output = self.activation_function(np.dot(layer_2, weights_out) + bias_out, '{{ output_activation }}')
+
+        # Placeholder para la implementación
+        print("⚠️ Implementa los pesos específicos del modelo en este método")
+        return np.zeros((X.shape[0], {{ output_size }}))
+
+    def predict_class(self, X):
+        """Predicción para clasificación"""
+        predictions = self.predict(X)
+
+        if self.config['task_type'] == 'Clasificación':
+            output_size = safe_get_output_size(self.config)
+            if output_size > 2:
+                class_indices = np.argmax(predictions, axis=1)
+                if self.label_encoder:
+                    return self.label_encoder.inverse_transform(class_indices)
+                else:
+                    return [f"Clase {i}" for i in class_indices]
+            else:
+                class_indices = (predictions > 0.5).astype(int).flatten()
+                if self.label_encoder:
+                    return self.label_encoder.inverse_transform(class_indices)
+                else:
+                    return [f"Clase {i}" for i in class_indices]
+        else:
+            return predictions.flatten()
+
+# Uso del modelo:
+# predictor = NeuralNetworkPredictor()
+# 
+# # Configura los preprocesadores con tus datos de entrenamiento
+# # predictor.scaler.fit(X_train)
+# # if predictor.label_encoder:
+# #     predictor.label_encoder.fit(y_train)
+# 
+# # Hacer predicciones
+# # nuevos_datos = [[valor1, valor2, valor3, ...]]
+# # resultado = predictor.predict_class(nuevos_datos)
+# # print(resultado)

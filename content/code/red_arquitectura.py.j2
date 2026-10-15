@@ -1,0 +1,249 @@
+{#- LITERAL (Python): mltutor/algorithms/code_examples.py::generate_neural_network_architecture_code,
+    botón "📝 Generar Código de la Arquitectura" de 🏗️ Arquitectura (descarga
+    red_neuronal_arquitectura_{tarea en minúsculas}.py). Reproduce la salida de Python carácter a
+    carácter, con sus errores (fase5-redes.md §12): `X` e `y` están comentados (NameError al
+    ejecutarlo), la rama binaria de predecir_nueva_muestra no compila (SyntaxError), usa la LR por
+    defecto del optimizador, 100 épocas y EarlyStopping/ReduceLROnPlateau fijos sea cual sea la
+    configuración, y escala con el train (la app escala con todos los datos). D74 lo sustituye por
+    red_entrenamiento.py.j2; esta plantilla solo se conserva para los tests de paridad de texto.
+    Verificado en tests/parity/nn/controls.json (arquitectura.codigo.*).
+
+    Variables (todas obligatorias):
+      task_type          str        "Clasificación" o "Regresión" (literal de la app)
+      architecture       list[int]  [entrada, ocultas..., salida]
+      activation         str        relu | tanh | sigmoid
+      output_activation  str        sigmoid | softmax | linear | tanh
+      dropout_rate       float      0.0..0.8 (pyrepr: 0.2, 0.0)
+      optimizer          str        adam | sgd | rmsprop
+      batch_size         int        16 | 32 | 64 | 128 | 256
+      feature_names      list[str]  nombres de las características (lista vacía = texto genérico)
+-#}
+{%- if task_type == "Clasificación" -%}
+  {%- if architecture[-1] == 1 -%}
+    {%- set loss = "binary_crossentropy" -%}
+  {%- elif output_activation == "softmax" -%}
+    {%- set loss = "sparse_categorical_crossentropy" -%}
+  {%- else -%}
+    {%- set loss = "categorical_crossentropy" -%}
+  {%- endif -%}
+  {%- set metrics = "['accuracy']" -%}
+{%- else -%}
+  {%- set loss = "mse" -%}
+  {%- set metrics = "['mae']" -%}
+{%- endif -%}
+{%- set output_processing_bin %}
+# Para clasificación binaria
+y_pred_classes = (y_pred > 0.5).astype(int)
+accuracy = accuracy_score(y_test, y_pred_classes)
+print(f"Accuracy: {accuracy:.4f}")
+{% endset -%}
+{%- set output_processing_multi %}
+# Para clasificación multiclase
+y_pred_classes = np.argmax(y_pred, axis=1)
+accuracy = accuracy_score(y_test, y_pred_classes)
+print(f"Accuracy: {accuracy:.4f}")
+print("\nReporte de clasificación:")
+print(classification_report(y_test, y_pred_classes))
+{% endset -%}
+{%- set output_processing_reg %}
+# Para regresión
+mse = mean_squared_error(y_test, y_pred)
+mae = mean_absolute_error(y_test, y_pred)
+r2 = r2_score(y_test, y_pred)
+
+print(f"MSE: {mse:.4f}")
+print(f"MAE: {mae:.4f}")
+print(f"R²: {r2:.4f}")
+{% endset -%}
+{%- if task_type == "Clasificación" -%}
+  {%- set output_processing = output_processing_bin if architecture[-1] == 1 else output_processing_multi -%}
+{%- else -%}
+  {%- set output_processing = output_processing_reg -%}
+{%- endif -%}
+# Código completo para Red Neuronal - {{ task_type }}
+import numpy as np
+import pandas as pd
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Dropout
+from tensorflow.keras.optimizers import Adam, SGD, RMSprop
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, mean_squared_error, mean_absolute_error, r2_score
+import matplotlib.pyplot as plt
+
+# 1. CARGAR Y PREPARAR LOS DATOS
+# Reemplaza esta sección con tu método de carga de datos
+# df = pd.read_csv('tu_archivo.csv')  # Cargar desde CSV
+
+# Características y variable objetivo
+feature_names = {{ feature_names|pyrepr if feature_names else "['feature_1', 'feature_2', ...]" }}
+# X = df[feature_names]  # Características
+# y = df['target']  # Variable objetivo
+
+# 2. PREPROCESAMIENTO
+# Dividir datos
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, 
+    stratify=y if '{{ task_type }}' == 'Clasificación' else None
+)
+
+# Normalizar características
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+# Procesar variable objetivo
+{{ "# Para clasificación multiclase con softmax, usar sparse_categorical_crossentropy" if (task_type == "Clasificación" and architecture[-1] > 1 and output_activation == "softmax") else "" }}
+{{ "# Para clasificación binaria, mantener y como está" if (task_type == "Clasificación" and architecture[-1] == 1) else "" }}
+{{ "# Para regresión, mantener y como está" if (task_type == "Regresión") else "" }}
+
+# 3. CONSTRUIR EL MODELO
+model = Sequential()
+{% for neurons in architecture[1:-1] %}
+# Capa oculta {{ loop.index }}
+model.add(Dense({{ neurons }}, activation='{{ activation }}'{% if loop.first %}, input_shape=({{ architecture[0] }},){% endif %}))
+model.add(Dropout({{ dropout_rate|pyrepr }}))
+{%- endfor %}
+
+# Capa de salida
+model.add(Dense({{ architecture[-1] }}, activation='{{ output_activation }}'))
+
+# 4. COMPILAR EL MODELO
+# Seleccionar optimizador
+if '{{ optimizer }}' == 'adam':
+    optimizer = Adam()
+elif '{{ optimizer }}' == 'sgd':
+    optimizer = SGD()
+elif '{{ optimizer }}' == 'rmsprop':
+    optimizer = RMSprop()
+
+model.compile(
+    optimizer=optimizer,
+    loss='{{ loss }}',
+    metrics={{ metrics }}
+)
+
+# 5. MOSTRAR RESUMEN DE LA ARQUITECTURA
+print("=== ARQUITECTURA DE LA RED NEURONAL ===")
+model.summary()
+
+# Información detallada
+total_params = model.count_params()
+print(f"\nTotal de parámetros: {total_params:,}")
+print(f"Arquitectura: {{ architecture|pyrepr }}")
+print(f"Funciones de activación: {{ activation }} (ocultas), {{ output_activation }} (salida)")
+print(f"Dropout: {{ dropout_rate|pyrepr }}")
+print(f"Optimizador: {{ optimizer }}")
+print(f"Batch size: {{ batch_size }}")
+
+# 6. ENTRENAR EL MODELO
+print("\n=== INICIANDO ENTRENAMIENTO ===")
+
+# Callbacks opcionales
+callbacks = [
+    keras.callbacks.EarlyStopping(
+        monitor='val_loss', 
+        patience=10, 
+        restore_best_weights=True
+    ),
+    keras.callbacks.ReduceLROnPlateau(
+        monitor='val_loss', 
+        factor=0.5, 
+        patience=5, 
+        min_lr=1e-7
+    )
+]
+
+# Entrenar
+history = model.fit(
+    X_train_scaled, y_train,
+    epochs=100,  # Ajusta según necesites
+    batch_size={{ batch_size }},
+    validation_split=0.2,
+    callbacks=callbacks,
+    verbose=1
+)
+
+# 7. EVALUAR EL MODELO
+print("\n=== EVALUACIÓN DEL MODELO ===")
+
+# Predicciones
+y_pred = model.predict(X_test_scaled)
+{{ output_processing }}
+
+# 8. VISUALIZAR HISTORIAL DE ENTRENAMIENTO
+plt.figure(figsize=(12, 4))
+
+# Pérdida
+plt.subplot(1, 2, 1)
+plt.plot(history.history['loss'], label='Entrenamiento')
+plt.plot(history.history['val_loss'], label='Validación')
+plt.title('Pérdida durante el entrenamiento')
+plt.xlabel('Época')
+plt.ylabel('Pérdida')
+plt.legend()
+
+# Métrica principal
+plt.subplot(1, 2, 2)
+metric_key = list(history.history.keys())[1]  # Primera métrica después de loss
+plt.plot(history.history[metric_key], label='Entrenamiento')
+plt.plot(history.history[f'val_{metric_key}'], label='Validación')
+plt.title(f'{metric_key.title()} durante el entrenamiento')
+plt.xlabel('Época')
+plt.ylabel(metric_key.title())
+plt.legend()
+
+plt.tight_layout()
+plt.show()
+
+# 9. FUNCIÓN PARA NUEVAS PREDICCIONES
+def predecir_nueva_muestra(nueva_muestra):
+    """
+    Función para hacer predicciones con nuevos datos.
+    
+    Parámetros:
+    nueva_muestra: lista con valores para cada característica
+                  en el orden: {{ feature_names|pyrepr if feature_names else "['feature_1', 'feature_2', ...]" }}
+    
+    Retorna:
+    prediccion: resultado de la predicción
+    """
+    # Convertir a array y normalizar
+    nueva_muestra = np.array(nueva_muestra).reshape(1, -1)
+    nueva_muestra_scaled = scaler.transform(nueva_muestra)
+    
+    # Predecir
+    prediccion = model.predict(nueva_muestra_scaled)
+    
+    {{ "# Para clasificación, convertir a clase" if (task_type == "Clasificación") else "# Para regresión, devolver valor directo" }}
+    {{ "if prediccion[0][0] > 0.5: return 'Clase 1' else return 'Clase 0'  # Binaria" if (task_type == "Clasificación" and architecture[-1] == 1) else "" }}
+    {{ "return np.argmax(prediccion[0])  # Multiclase" if (task_type == "Clasificación" and architecture[-1] > 1) else "" }}
+    {{ "return prediccion[0][0]  # Regresión" if (task_type == "Regresión") else "" }}
+
+# Ejemplo de uso:
+# nueva_muestra = [valor1, valor2, valor3, ...]  # Reemplaza con tus valores
+# resultado = predecir_nueva_muestra(nueva_muestra)
+# print(f"Predicción: {resultado}")
+
+# 10. GUARDAR EL MODELO
+print("\n=== GUARDANDO MODELO ===")
+
+# Guardar modelo completo
+model.save('modelo_red_neuronal.h5')
+print("Modelo guardado como 'modelo_red_neuronal.h5'")
+
+# Guardar scaler por separado
+import pickle
+with open('scaler.pkl', 'wb') as f:
+    pickle.dump(scaler, f)
+print("Scaler guardado como 'scaler.pkl'")
+
+# Código para cargar el modelo guardado:
+# modelo_cargado = keras.models.load_model('modelo_red_neuronal.h5')
+# with open('scaler.pkl', 'rb') as f:
+#     scaler_cargado = pickle.load(f)
+
+print("\n✅ ¡Entrenamiento completado!")
+print("Tu red neuronal está lista para hacer predicciones.")
