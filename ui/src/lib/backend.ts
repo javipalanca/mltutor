@@ -5,6 +5,7 @@
  */
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import type { ClassDistancesView } from "./bindings/ClassDistancesView";
 import type { CodeExtra } from "./bindings/CodeExtra";
 import type { CodeTemplate } from "./bindings/CodeTemplate";
 import type { CoefficientsView } from "./bindings/CoefficientsView";
@@ -19,6 +20,8 @@ import type { RulesRequest } from "./bindings/RulesRequest";
 import type { TreeDiagram } from "./bindings/TreeDiagram";
 import type { GridRequest } from "./bindings/GridRequest";
 import type { LessonId as BackendLessonId } from "./bindings/LessonId";
+import type { PlaygroundRequest } from "./bindings/PlaygroundRequest";
+import type { PlaygroundView } from "./bindings/PlaygroundView";
 import type { PredictionForm } from "./bindings/PredictionForm";
 import type { PredictionResult } from "./bindings/PredictionResult";
 import type { PredictRequest } from "./bindings/PredictRequest";
@@ -340,6 +343,25 @@ export function treeRules(modelId: number, kind: RulesKind, classNames = true): 
 /** C10: native importance or permutation importance (cancellable, with progress). */
 export function featureImportance(modelId: number, method: ImportanceMethod): Cancellable<FeatureImportanceView> {
   return cancellable("feature_importance", { modelId, method });
+}
+
+// --- K-Nearest Neighbors (fase4-knn.md §5.4) ---
+
+/** C19: 📏 Análisis de Distancias. */
+export function classDistances(modelId: number): Promise<ClassDistancesView> {
+  return call("class_distances", { modelId });
+}
+
+/**
+ * C18: the 2D KNN of the canvas and its test points. Cancellable: a drag sends a request
+ * per frame and cancels the previous one. Not counted by the busy indicator (it would
+ * flicker while dragging).
+ */
+export function knnPlayground(req: Omit<PlaygroundRequest, "task_id">): Cancellable<PlaygroundView> {
+  nextTaskId = (nextTaskId + 1) % 0x7fffffff;
+  const taskId = nextTaskId;
+  const promise = invoke<PlaygroundView>("knn_playground", { req: { ...req, task_id: taskId } });
+  return { promise, cancel: () => void cancelTask(taskId) };
 }
 
 /** Subscribes to `task-progress`; returns the unsubscribe function. */

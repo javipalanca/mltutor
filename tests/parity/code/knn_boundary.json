@@ -1,0 +1,118 @@
+{
+  "meta": {
+    "format_version": 1,
+    "generator": "tools/export_golden.py",
+    "generated": "2026-10-15",
+    "versions": {
+      "python": "3.11.14",
+      "numpy": "1.26.4",
+      "pandas": "2.3.3",
+      "scipy": "1.16.3",
+      "scikit-learn": "1.7.2",
+      "seaborn": "0.13.2",
+      "platform": "Darwin-arm64"
+    },
+    "seed": 42,
+    "tolerance": {
+      "text": "exact"
+    },
+    "tolerance_rationale": "D63: frontera_decision.py.j2 takes an optional 'datos'. With 'todos' (🔍 KNN) the 2-D model is fitted on every row of the dataset (X, y), like the app; the script is run after knn_entrenamiento.py.j2 and its model_2d equals the app's 2-D model (rows, engine and 200 grid cells). Without 'datos' (or with 'entrenamiento') the text is the one of F2/F3 ('default_text', also in code/regression.json)."
+  },
+  "input": {
+    "template": "content/code/frontera_decision.py.j2",
+    "engine": "jinja2 with keep_trailing_newline=True, StrictUndefined, filters pyrepr = repr() and pycomment"
+  },
+  "expected": {
+    "iris_k5_uniform_minkowski": {
+      "context": {
+        "feature_indices": [
+          2,
+          3
+        ],
+        "feature_names": [
+          "petal length (cm)",
+          "petal width (cm)"
+        ],
+        "class_names": [
+          "setosa",
+          "versicolor",
+          "virginica"
+        ],
+        "datos": "todos"
+      },
+      "text": "import numpy as np\nimport matplotlib.pyplot as plt\nfrom sklearn.base import clone\nfrom sklearn.inspection import DecisionBoundaryDisplay\n\n# Necesita X, y y modelo (el script de \"📄 Código de Entrenamiento\")\n# Como MLTutor en KNN: TODAS las muestras del dataset (no solo las de entrenamiento),\n# solo con las 2 características elegidas\nX_2d = np.asarray(X, dtype=float)[:, [2, 3]]\n\n# Modelo simplificado: el mismo KNN (n_neighbors, weights y metric), solo con esas 2\n# características. Un KNN solo guarda las muestras: la frontera depende de cuáles le des\nmodel_2d = clone(modelo)\nmodel_2d.fit(X_2d, y)\n\n# Crear figura\nfig, ax = plt.subplots(figsize=(14, 10))\n\n# Visualizar frontera de decisión usando sklearn\ndisp = DecisionBoundaryDisplay.from_estimator(\n    model_2d,\n    X_2d,\n    response_method=\"predict\",\n    alpha=0.6,\n    ax=ax,\n    grid_resolution=200\n)\n\n# Añadir puntos de datos sobre la frontera\nscatter = ax.scatter(\n    X_2d[:, 0], \n    X_2d[:, 1], \n    c=y, \n    edgecolors='black', \n    s=60,\n    alpha=0.8\n)\n\n# Configurar etiquetas de los ejes\nfeature_names = ['petal length (cm)', 'petal width (cm)']\nif len(feature_names) >= 2:\n    ax.set_xlabel(feature_names[0])\n    ax.set_ylabel(feature_names[1])\nelse:\n    ax.set_xlabel(\"Característica 1\")\n    ax.set_ylabel(\"Característica 2\")\n\n# Añadir leyenda de clases\nclass_names = ['setosa', 'versicolor', 'virginica']\nif class_names:\n    legend_labels = class_names\nelse:\n    legend_labels = [f\"Clase {i}\" for i in range(len(np.unique(y)))]\n\n# Crear leyenda para las clases\nhandles, _ = scatter.legend_elements()\nax.legend(handles, legend_labels, title=\"Clases\", loc=\"best\")\n\nax.set_title(\"Frontera de Decisión\")\nplt.tight_layout()\nplt.show()\n\n# Para guardar a un archivo:\n# plt.savefig('frontera_decision.png', dpi=300, bbox_inches='tight')\n",
+      "default_text": "import numpy as np\nimport matplotlib.pyplot as plt\nfrom sklearn.base import clone\nfrom sklearn.inspection import DecisionBoundaryDisplay\n\n# Necesita X_train, y_train y modelo (el script de \"📄 Generar Código\")\n# Datos de entrenamiento: solo las 2 características elegidas\nX_2d = np.asarray(X_train, dtype=float)[:, [2, 3]]\n\n# Entrenar el modelo simplificado: mismo tipo e hiperparámetros (en la logística, también\n# solver=\"newton-cholesky\", como MLTutor), solo con esas 2 características\nmodel_2d = clone(modelo)\nmodel_2d.fit(X_2d, y_train)\n\n# Crear figura\nfig, ax = plt.subplots(figsize=(14, 10))\n\n# Visualizar frontera de decisión usando sklearn\ndisp = DecisionBoundaryDisplay.from_estimator(\n    model_2d,\n    X_2d,\n    response_method=\"predict\",\n    alpha=0.6,\n    ax=ax,\n    grid_resolution=200\n)\n\n# Añadir puntos de datos sobre la frontera\nscatter = ax.scatter(\n    X_2d[:, 0], \n    X_2d[:, 1], \n    c=y_train, \n    edgecolors='black', \n    s=60,\n    alpha=0.8\n)\n\n# Configurar etiquetas de los ejes\nfeature_names = ['petal length (cm)', 'petal width (cm)']\nif len(feature_names) >= 2:\n    ax.set_xlabel(feature_names[0])\n    ax.set_ylabel(feature_names[1])\nelse:\n    ax.set_xlabel(\"Característica 1\")\n    ax.set_ylabel(\"Característica 2\")\n\n# Añadir leyenda de clases\nclass_names = ['setosa', 'versicolor', 'virginica']\nif class_names:\n    legend_labels = class_names\nelse:\n    legend_labels = [f\"Clase {i}\" for i in range(len(np.unique(y_train)))]\n\n# Crear leyenda para las clases\nhandles, _ = scatter.legend_elements()\nax.legend(handles, legend_labels, title=\"Clases\", loc=\"best\")\n\nax.set_title(\"Frontera de Decisión\")\nplt.tight_layout()\nplt.show()\n\n# Para guardar a un archivo:\n# plt.savefig('frontera_decision.png', dpi=300, bbox_inches='tight')\n",
+      "checked_against": "knn/iris_k5_uniform_minkowski.json two_feature_models",
+      "n_fit": 150,
+      "cells_checked": 200
+    },
+    "wine_k5_uniform_minkowski": {
+      "context": {
+        "feature_indices": [
+          0,
+          9
+        ],
+        "feature_names": [
+          "alcohol",
+          "color_intensity"
+        ],
+        "class_names": [
+          "class_0",
+          "class_1",
+          "class_2"
+        ],
+        "datos": "todos"
+      },
+      "text": "import numpy as np\nimport matplotlib.pyplot as plt\nfrom sklearn.base import clone\nfrom sklearn.inspection import DecisionBoundaryDisplay\n\n# Necesita X, y y modelo (el script de \"📄 Código de Entrenamiento\")\n# Como MLTutor en KNN: TODAS las muestras del dataset (no solo las de entrenamiento),\n# solo con las 2 características elegidas\nX_2d = np.asarray(X, dtype=float)[:, [0, 9]]\n\n# Modelo simplificado: el mismo KNN (n_neighbors, weights y metric), solo con esas 2\n# características. Un KNN solo guarda las muestras: la frontera depende de cuáles le des\nmodel_2d = clone(modelo)\nmodel_2d.fit(X_2d, y)\n\n# Crear figura\nfig, ax = plt.subplots(figsize=(14, 10))\n\n# Visualizar frontera de decisión usando sklearn\ndisp = DecisionBoundaryDisplay.from_estimator(\n    model_2d,\n    X_2d,\n    response_method=\"predict\",\n    alpha=0.6,\n    ax=ax,\n    grid_resolution=200\n)\n\n# Añadir puntos de datos sobre la frontera\nscatter = ax.scatter(\n    X_2d[:, 0], \n    X_2d[:, 1], \n    c=y, \n    edgecolors='black', \n    s=60,\n    alpha=0.8\n)\n\n# Configurar etiquetas de los ejes\nfeature_names = ['alcohol', 'color_intensity']\nif len(feature_names) >= 2:\n    ax.set_xlabel(feature_names[0])\n    ax.set_ylabel(feature_names[1])\nelse:\n    ax.set_xlabel(\"Característica 1\")\n    ax.set_ylabel(\"Característica 2\")\n\n# Añadir leyenda de clases\nclass_names = ['class_0', 'class_1', 'class_2']\nif class_names:\n    legend_labels = class_names\nelse:\n    legend_labels = [f\"Clase {i}\" for i in range(len(np.unique(y)))]\n\n# Crear leyenda para las clases\nhandles, _ = scatter.legend_elements()\nax.legend(handles, legend_labels, title=\"Clases\", loc=\"best\")\n\nax.set_title(\"Frontera de Decisión\")\nplt.tight_layout()\nplt.show()\n\n# Para guardar a un archivo:\n# plt.savefig('frontera_decision.png', dpi=300, bbox_inches='tight')\n",
+      "default_text": "import numpy as np\nimport matplotlib.pyplot as plt\nfrom sklearn.base import clone\nfrom sklearn.inspection import DecisionBoundaryDisplay\n\n# Necesita X_train, y_train y modelo (el script de \"📄 Generar Código\")\n# Datos de entrenamiento: solo las 2 características elegidas\nX_2d = np.asarray(X_train, dtype=float)[:, [0, 9]]\n\n# Entrenar el modelo simplificado: mismo tipo e hiperparámetros (en la logística, también\n# solver=\"newton-cholesky\", como MLTutor), solo con esas 2 características\nmodel_2d = clone(modelo)\nmodel_2d.fit(X_2d, y_train)\n\n# Crear figura\nfig, ax = plt.subplots(figsize=(14, 10))\n\n# Visualizar frontera de decisión usando sklearn\ndisp = DecisionBoundaryDisplay.from_estimator(\n    model_2d,\n    X_2d,\n    response_method=\"predict\",\n    alpha=0.6,\n    ax=ax,\n    grid_resolution=200\n)\n\n# Añadir puntos de datos sobre la frontera\nscatter = ax.scatter(\n    X_2d[:, 0], \n    X_2d[:, 1], \n    c=y_train, \n    edgecolors='black', \n    s=60,\n    alpha=0.8\n)\n\n# Configurar etiquetas de los ejes\nfeature_names = ['alcohol', 'color_intensity']\nif len(feature_names) >= 2:\n    ax.set_xlabel(feature_names[0])\n    ax.set_ylabel(feature_names[1])\nelse:\n    ax.set_xlabel(\"Característica 1\")\n    ax.set_ylabel(\"Característica 2\")\n\n# Añadir leyenda de clases\nclass_names = ['class_0', 'class_1', 'class_2']\nif class_names:\n    legend_labels = class_names\nelse:\n    legend_labels = [f\"Clase {i}\" for i in range(len(np.unique(y_train)))]\n\n# Crear leyenda para las clases\nhandles, _ = scatter.legend_elements()\nax.legend(handles, legend_labels, title=\"Clases\", loc=\"best\")\n\nax.set_title(\"Frontera de Decisión\")\nplt.tight_layout()\nplt.show()\n\n# Para guardar a un archivo:\n# plt.savefig('frontera_decision.png', dpi=300, bbox_inches='tight')\n",
+      "checked_against": "knn/wine_k5_uniform_minkowski.json two_feature_models",
+      "n_fit": 178,
+      "cells_checked": 200
+    },
+    "breast_cancer_k5_uniform_minkowski": {
+      "context": {
+        "feature_indices": [
+          20,
+          27
+        ],
+        "feature_names": [
+          "worst radius",
+          "worst concave points"
+        ],
+        "class_names": [
+          "malignant",
+          "benign"
+        ],
+        "datos": "todos"
+      },
+      "text": "import numpy as np\nimport matplotlib.pyplot as plt\nfrom sklearn.base import clone\nfrom sklearn.inspection import DecisionBoundaryDisplay\n\n# Necesita X, y y modelo (el script de \"📄 Código de Entrenamiento\")\n# Como MLTutor en KNN: TODAS las muestras del dataset (no solo las de entrenamiento),\n# solo con las 2 características elegidas\nX_2d = np.asarray(X, dtype=float)[:, [20, 27]]\n\n# Modelo simplificado: el mismo KNN (n_neighbors, weights y metric), solo con esas 2\n# características. Un KNN solo guarda las muestras: la frontera depende de cuáles le des\nmodel_2d = clone(modelo)\nmodel_2d.fit(X_2d, y)\n\n# Crear figura\nfig, ax = plt.subplots(figsize=(14, 10))\n\n# Visualizar frontera de decisión usando sklearn\ndisp = DecisionBoundaryDisplay.from_estimator(\n    model_2d,\n    X_2d,\n    response_method=\"predict\",\n    alpha=0.6,\n    ax=ax,\n    grid_resolution=200\n)\n\n# Añadir puntos de datos sobre la frontera\nscatter = ax.scatter(\n    X_2d[:, 0], \n    X_2d[:, 1], \n    c=y, \n    edgecolors='black', \n    s=60,\n    alpha=0.8\n)\n\n# Configurar etiquetas de los ejes\nfeature_names = ['worst radius', 'worst concave points']\nif len(feature_names) >= 2:\n    ax.set_xlabel(feature_names[0])\n    ax.set_ylabel(feature_names[1])\nelse:\n    ax.set_xlabel(\"Característica 1\")\n    ax.set_ylabel(\"Característica 2\")\n\n# Añadir leyenda de clases\nclass_names = ['malignant', 'benign']\nif class_names:\n    legend_labels = class_names\nelse:\n    legend_labels = [f\"Clase {i}\" for i in range(len(np.unique(y)))]\n\n# Crear leyenda para las clases\nhandles, _ = scatter.legend_elements()\nax.legend(handles, legend_labels, title=\"Clases\", loc=\"best\")\n\nax.set_title(\"Frontera de Decisión\")\nplt.tight_layout()\nplt.show()\n\n# Para guardar a un archivo:\n# plt.savefig('frontera_decision.png', dpi=300, bbox_inches='tight')\n",
+      "default_text": "import numpy as np\nimport matplotlib.pyplot as plt\nfrom sklearn.base import clone\nfrom sklearn.inspection import DecisionBoundaryDisplay\n\n# Necesita X_train, y_train y modelo (el script de \"📄 Generar Código\")\n# Datos de entrenamiento: solo las 2 características elegidas\nX_2d = np.asarray(X_train, dtype=float)[:, [20, 27]]\n\n# Entrenar el modelo simplificado: mismo tipo e hiperparámetros (en la logística, también\n# solver=\"newton-cholesky\", como MLTutor), solo con esas 2 características\nmodel_2d = clone(modelo)\nmodel_2d.fit(X_2d, y_train)\n\n# Crear figura\nfig, ax = plt.subplots(figsize=(14, 10))\n\n# Visualizar frontera de decisión usando sklearn\ndisp = DecisionBoundaryDisplay.from_estimator(\n    model_2d,\n    X_2d,\n    response_method=\"predict\",\n    alpha=0.6,\n    ax=ax,\n    grid_resolution=200\n)\n\n# Añadir puntos de datos sobre la frontera\nscatter = ax.scatter(\n    X_2d[:, 0], \n    X_2d[:, 1], \n    c=y_train, \n    edgecolors='black', \n    s=60,\n    alpha=0.8\n)\n\n# Configurar etiquetas de los ejes\nfeature_names = ['worst radius', 'worst concave points']\nif len(feature_names) >= 2:\n    ax.set_xlabel(feature_names[0])\n    ax.set_ylabel(feature_names[1])\nelse:\n    ax.set_xlabel(\"Característica 1\")\n    ax.set_ylabel(\"Característica 2\")\n\n# Añadir leyenda de clases\nclass_names = ['malignant', 'benign']\nif class_names:\n    legend_labels = class_names\nelse:\n    legend_labels = [f\"Clase {i}\" for i in range(len(np.unique(y_train)))]\n\n# Crear leyenda para las clases\nhandles, _ = scatter.legend_elements()\nax.legend(handles, legend_labels, title=\"Clases\", loc=\"best\")\n\nax.set_title(\"Frontera de Decisión\")\nplt.tight_layout()\nplt.show()\n\n# Para guardar a un archivo:\n# plt.savefig('frontera_decision.png', dpi=300, bbox_inches='tight')\n",
+      "checked_against": "knn/breast_cancer_k5_uniform_minkowski.json two_feature_models",
+      "n_fit": 569,
+      "cells_checked": 200
+    },
+    "csv_string_target_k15_distance_euclidean": {
+      "context": {
+        "feature_indices": [
+          0,
+          1
+        ],
+        "feature_names": [
+          "largo",
+          "ancho"
+        ],
+        "class_names": [
+          "lirio",
+          "rosa",
+          "tulipán"
+        ],
+        "datos": "todos"
+      },
+      "text": "import numpy as np\nimport matplotlib.pyplot as plt\nfrom sklearn.base import clone\nfrom sklearn.inspection import DecisionBoundaryDisplay\n\n# Necesita X, y y modelo (el script de \"📄 Código de Entrenamiento\")\n# Como MLTutor en KNN: TODAS las muestras del dataset (no solo las de entrenamiento),\n# solo con las 2 características elegidas\nX_2d = np.asarray(X, dtype=float)[:, [0, 1]]\n\n# Modelo simplificado: el mismo KNN (n_neighbors, weights y metric), solo con esas 2\n# características. Un KNN solo guarda las muestras: la frontera depende de cuáles le des\nmodel_2d = clone(modelo)\nmodel_2d.fit(X_2d, y)\n\n# Crear figura\nfig, ax = plt.subplots(figsize=(14, 10))\n\n# Visualizar frontera de decisión usando sklearn\ndisp = DecisionBoundaryDisplay.from_estimator(\n    model_2d,\n    X_2d,\n    response_method=\"predict\",\n    alpha=0.6,\n    ax=ax,\n    grid_resolution=200\n)\n\n# Añadir puntos de datos sobre la frontera\nscatter = ax.scatter(\n    X_2d[:, 0], \n    X_2d[:, 1], \n    c=y, \n    edgecolors='black', \n    s=60,\n    alpha=0.8\n)\n\n# Configurar etiquetas de los ejes\nfeature_names = ['largo', 'ancho']\nif len(feature_names) >= 2:\n    ax.set_xlabel(feature_names[0])\n    ax.set_ylabel(feature_names[1])\nelse:\n    ax.set_xlabel(\"Característica 1\")\n    ax.set_ylabel(\"Característica 2\")\n\n# Añadir leyenda de clases\nclass_names = ['lirio', 'rosa', 'tulipán']\nif class_names:\n    legend_labels = class_names\nelse:\n    legend_labels = [f\"Clase {i}\" for i in range(len(np.unique(y)))]\n\n# Crear leyenda para las clases\nhandles, _ = scatter.legend_elements()\nax.legend(handles, legend_labels, title=\"Clases\", loc=\"best\")\n\nax.set_title(\"Frontera de Decisión\")\nplt.tight_layout()\nplt.show()\n\n# Para guardar a un archivo:\n# plt.savefig('frontera_decision.png', dpi=300, bbox_inches='tight')\n",
+      "default_text": "import numpy as np\nimport matplotlib.pyplot as plt\nfrom sklearn.base import clone\nfrom sklearn.inspection import DecisionBoundaryDisplay\n\n# Necesita X_train, y_train y modelo (el script de \"📄 Generar Código\")\n# Datos de entrenamiento: solo las 2 características elegidas\nX_2d = np.asarray(X_train, dtype=float)[:, [0, 1]]\n\n# Entrenar el modelo simplificado: mismo tipo e hiperparámetros (en la logística, también\n# solver=\"newton-cholesky\", como MLTutor), solo con esas 2 características\nmodel_2d = clone(modelo)\nmodel_2d.fit(X_2d, y_train)\n\n# Crear figura\nfig, ax = plt.subplots(figsize=(14, 10))\n\n# Visualizar frontera de decisión usando sklearn\ndisp = DecisionBoundaryDisplay.from_estimator(\n    model_2d,\n    X_2d,\n    response_method=\"predict\",\n    alpha=0.6,\n    ax=ax,\n    grid_resolution=200\n)\n\n# Añadir puntos de datos sobre la frontera\nscatter = ax.scatter(\n    X_2d[:, 0], \n    X_2d[:, 1], \n    c=y_train, \n    edgecolors='black', \n    s=60,\n    alpha=0.8\n)\n\n# Configurar etiquetas de los ejes\nfeature_names = ['largo', 'ancho']\nif len(feature_names) >= 2:\n    ax.set_xlabel(feature_names[0])\n    ax.set_ylabel(feature_names[1])\nelse:\n    ax.set_xlabel(\"Característica 1\")\n    ax.set_ylabel(\"Característica 2\")\n\n# Añadir leyenda de clases\nclass_names = ['lirio', 'rosa', 'tulipán']\nif class_names:\n    legend_labels = class_names\nelse:\n    legend_labels = [f\"Clase {i}\" for i in range(len(np.unique(y_train)))]\n\n# Crear leyenda para las clases\nhandles, _ = scatter.legend_elements()\nax.legend(handles, legend_labels, title=\"Clases\", loc=\"best\")\n\nax.set_title(\"Frontera de Decisión\")\nplt.tight_layout()\nplt.show()\n\n# Para guardar a un archivo:\n# plt.savefig('frontera_decision.png', dpi=300, bbox_inches='tight')\n",
+      "checked_against": "knn/csv_string_target_k15_distance_euclidean.json two_feature_models",
+      "n_fit": 30,
+      "cells_checked": 200
+    }
+  }
+}

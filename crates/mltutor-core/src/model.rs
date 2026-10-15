@@ -127,6 +127,11 @@ pub enum ModelError {
     /// `max_depth = 0`…).
     #[error("Configuración no válida: {reason}")]
     InvalidConfig { reason: String },
+    /// D59 (🔍 KNN): more neighbours than training samples. scikit-learn fits and
+    /// then every prediction fails; MLTutor refuses to fit. Same text as
+    /// `content/knn/mensajes.toml [entrenamiento] error_k_mayor`.
+    #[error("K = {k} es mayor que el número de muestras de entrenamiento ({n_train}): no hay {k} vecinos que consultar. Elige un K de {n_train} o menos, o reduce el tamaño del conjunto de prueba.")]
+    TooFewSamples { k: usize, n_train: usize },
 }
 
 /// Progress of a training run, reported through [`TrainControl`].

@@ -41,6 +41,8 @@ fn main() {
         "tree_diagram",
         "tree_rules",
         "feature_importance",
+        "class_distances",
+        "knn_playground",
     ]);
     if let Err(error) =
         tauri_build::try_build(tauri_build::Attributes::new().app_manifest(manifest))

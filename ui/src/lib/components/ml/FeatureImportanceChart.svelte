@@ -19,9 +19,11 @@
   interface Props {
     view: FeatureImportanceView;
     idPrefix: string;
+    /** Text of the method in the expander, if the lesson has its own (🔍 KNN). */
+    permutationText?: string;
   }
 
-  let { view, idPrefix }: Props = $props();
+  let { view, idPrefix, permutationText }: Props = $props();
 
   const t = (key: string): string => compText("importancia", key);
   const figure = $derived(importanceFigure(view, theme.chart));
@@ -30,7 +32,7 @@
   const columns = $derived(permutation ? [...compList("importancia", "columnas"), "Desv. Estándar"] : compList("importancia", "columnas"));
   const text = (v: string): Cell => ({ kind: "text", v });
   const explanation = $derived(
-    permutation ? t("permutacion") : t(view.task === "classification" ? "nativa_clasificacion" : "nativa_regresion"),
+    permutation ? (permutationText ?? t("permutacion")) : t(view.task === "classification" ? "nativa_clasificacion" : "nativa_regresion"),
   );
 </script>
 

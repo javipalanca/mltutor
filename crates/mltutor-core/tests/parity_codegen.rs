@@ -88,3 +88,61 @@ fn tree_templates_are_embedded() {
         assert!(codegen::template_source(t.file_name()).is_some(), "{t:?}");
     }
 }
+
+#[test]
+fn knn_templates_are_embedded() {
+    for t in [
+        CodeTemplate::KnnTraining,
+        CodeTemplate::KnnPackageScript,
+        CodeTemplate::KnnPackageReadme,
+    ] {
+        assert!(codegen::template_source(t.file_name()).is_some(), "{t:?}");
+    }
+}
+
+/// F4: `knn_entrenamiento.py.j2` rendered from the typed context gives exactly the
+/// script that `tools/golden_knn.py` executed and checked against the fixtures.
+#[test]
+fn knn_training_script_matches_jinja2_exactly() {
+    use mltutor_core::codegen::KnnTrainingContext;
+    let fx = fixture("code/knn_training.json");
+    let mut n = 0;
+    for (case, v) in fx["expected"].as_object().unwrap() {
+        let ctx: KnnTrainingContext = serde_json::from_value(v["context"].clone()).unwrap();
+        // Round trip: every key is sent (strict templates).
+        assert_eq!(serde_json::to_value(&ctx).unwrap(), v["context"], "{case}");
+        let rendered = codegen::render(CodeTemplate::KnnTraining, &ctx).unwrap();
+        assert_eq!(rendered, v["text"].as_str().unwrap(), "{case}");
+        n += 1;
+    }
+    assert_eq!(n, 19);
+}
+
+/// D63: `frontera_decision.py.j2` with `datos = "todos"` (🔍 KNN), executed after the
+/// KNN training script in `tools/golden_knn.py`; without `datos` the text is F2/F3's.
+#[test]
+fn knn_boundary_all_rows_matches_jinja2() {
+    use mltutor_core::codegen::DecisionBoundaryContext;
+    let fx = fixture("code/knn_boundary.json");
+    let mut n = 0;
+    for (case, v) in fx["expected"].as_object().unwrap() {
+        let ctx: DecisionBoundaryContext = serde_json::from_value(v["context"].clone()).unwrap();
+        assert_eq!(
+            ctx.datos.as_deref(),
+            Some(DecisionBoundaryContext::ALL_ROWS)
+        );
+        let rendered = codegen::render(CodeTemplate::DecisionBoundary, &ctx).unwrap();
+        assert_eq!(rendered, v["text"].as_str().unwrap(), "{case}");
+        let plain = DecisionBoundaryContext::new(
+            ctx.feature_indices,
+            ctx.feature_names.clone(),
+            ctx.class_names.clone(),
+        );
+        let rendered = codegen::render(CodeTemplate::DecisionBoundary, &plain).unwrap();
+        assert_eq!(rendered, v["default_text"].as_str().unwrap(), "{case}");
+        let again = plain.clone().all_rows();
+        assert_eq!(again, ctx);
+        n += 1;
+    }
+    assert_eq!(n, 4);
+}

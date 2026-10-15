@@ -11,11 +11,13 @@ mod files;
 #[cfg(any(test, debug_assertions))]
 mod fixture_facade;
 mod ipc;
+mod knn;
 mod logging;
 mod models;
 mod navigation;
 mod real_exports;
 mod real_facade;
+mod real_knn;
 mod real_models;
 mod real_trees;
 mod screenshot;
@@ -128,6 +130,8 @@ fn run(mode: Mode, started: Instant) -> i32 {
             models::tree_diagram,
             models::tree_rules,
             models::feature_importance,
+            models::class_distances,
+            models::knn_playground,
         ])
         .setup(move |app| {
             if automated {

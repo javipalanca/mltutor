@@ -40,6 +40,13 @@ sin_datos = "Primero selecciona y carga un dataset en la pestaña de Datos."   #
 # {k} = K elegido, {n} = muestras de entrenamiento.
 error_k_mayor = "K = {k} es mayor que el número de muestras de entrenamiento ({n}): no hay {k} vecinos que consultar. Elige un K de {n} o menos, o reduce el tamaño del conjunto de prueba."
 # Valores faltantes: content/arboles/mensajes.toml [entrenamiento] error_nan (común a todas las lecciones).
+# NUEVO (Fase 4, como [entrenamiento] parametros_expander de Árboles): tres expanders cerrados debajo de los
+# 4 controles, en este orden. Python no tenía ninguno.
+parametros_expander = "ℹ️ K, pesos y métrica: cómo elegirlos"    # parametros.md
+escala_expander = "📏 KNN sin escalar: por qué importa la escala"  # escala.md (D62)
+empates_expander = "🤝 Empates entre vecinos"                     # empates.md (D52)
+# NUEVO (D62): st.caption debajo de "Configura los hiperparámetros del modelo KNN:".
+nota_sin_escalar = "MLTutor usa los datos sin escalar, como la versión original: las características con valores más grandes pesan más en la distancia (lo explica «📏 KNN sin escalar»)."
 
 [comun]
 # Python usa st.info en las pestañas 2, 3, 5 y 6 sin modelo (la 4 tiene su propio texto).
@@ -137,6 +144,17 @@ nota_datos = "Calculado con las {n} muestras de entrenamiento del modelo."
 header = "🔍 Importancia de Características"
 # El contenido es el componente C10 en modo permutación (content/componentes/mensajes.toml
 # [importancia]: calculando, spinner, metodo_perm, perm_explicacion, permutacion, consejos).
+# NUEVO (fase4-knn.md §9.3.4): en KNN, `permutacion` sustituye a la de [importancia], cuyo ejemplo es un
+# árbol de Diabetes con profundidad 10. Mismo texto con un ejemplo de KNN:
+# tests/parity/knn/diabetes_k5_uniform_minkowski.json, s1 = −0,0224 ± 0,0249.
+permutacion = """**Permutation Importance:**
+- Mide cuánto empeora el modelo cuando se "rompe" cada característica
+- Valores más altos = el modelo depende más de esa característica
+- Valores pueden ser negativos: si son menores (en valor absoluto) que su desviación estándar, como s1 en 🩺 Diabetes con K = 5 (−0,022 ± 0,025), barajarla no empeora el modelo y la pequeña mejora es azar
+- La desviación estándar indica la estabilidad de la medición"""
+# NUEVO (D62): st.caption debajo de la tabla. En 🍷 Vino (K = 5) proline tiene 0,370, magnesium 0,043 y las
+# otras 11 están entre −0,002 y 0,002 (tests/parity/knn/wine_k5_uniform_minkowski.json).
+nota_escala = "Con los datos sin escalar, las características con valores más grandes dominan la distancia y suelen salir como las más importantes: en 🍷 Vino, casi toda la importancia es de proline (de 278 a 1680). Lo explica «📏 KNN sin escalar» en 🏋️ Entrenamiento."
 
 [predicciones]
 header = "🔮 Predicciones con Nuevos Datos"
@@ -154,6 +172,12 @@ vecinos_titulo = "#### 👥 Los {k} vecinos más cercanos"
 vecinos_columnas_clasificacion = ["Vecino", "Distancia", "Clase", "Peso"]   # + una columna por característica
 vecinos_columnas_regresion = ["Vecino", "Distancia", "Valor", "Peso"]
 vecinos_nota_cero = "La muestra coincide exactamente con {n} muestra(s) de entrenamiento: con pesos por distancia solo cuentan esas (las demás pesan 0)."
+vecinos_expander = "ℹ️ Cómo ha decidido el KNN"                # cerrado, debajo de la tabla; prediccion-vecinos.md
+# NUEVO (D52): st.caption debajo de la tabla, solo si hay muestras de entrenamiento FUERA de la tabla a la misma
+# distancia que el K-ésimo vecino. {n} = muestras a esa distancia (dentro y fuera), {huecos} = cuántas de
+# ellas entran en la tabla, {distancia} = la distancia del K-ésimo vecino. Si el backend no da este dato,
+# omitir la nota (empates.md lo explica en 🏋️ Entrenamiento).
+vecinos_nota_empate = "Hay {n} muestras de entrenamiento a la distancia del último vecino ({distancia:.4f}) y solo caben {huecos}: entran las que encuentra antes la búsqueda de scikit-learn. Ver «🤝 Empates entre vecinos» en 🏋️ Entrenamiento."
 
 [exportar]
 header = "💾 Exportar Modelo"
@@ -178,7 +202,7 @@ archivo_paquete = "modelo_knn.zip"
 filtro_onnx = "Modelo ONNX (*.onnx)"
 filtro_zip = "Paquete Python (*.zip)"
 # exito_guardado / error_guardado: content/regresion/mensajes.toml [exportar].
-ayuda_expander = "ℹ️ ¿Qué formato elijo?"                    # cerrado; contenido por escribir (ml-lesson-author), como regresion/exportar.md
+ayuda_expander = "ℹ️ ¿Qué formato elijo?"                    # cerrado, debajo de los tres botones; exportar.md
 
 [distancias_nuevo]
 # NUEVO (D67): con 2 clases, st.info en lugar del veredicto (Python: siempre "🔴 Las clases están muy

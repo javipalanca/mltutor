@@ -273,6 +273,41 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
     `tools/knn_reference.py` lo reproduce bit a bit y es la especificación (D52, D66).
   - La wheel arm64 suma la distancia euclídea en bloques de 8 sin FMA, y el resto (`n % 8`) con FMA
     (D53, `mul_add`).
+- **Lienzo KNN (2026-10-15):** Plotly no tiene marcadores arrastrables, así que se usa `dragmode: false`
+  con `pointerdown/move/up` en fase de captura y la conversión de píxeles con `_fullLayout.{x,y}axis`
+  (`_offset`, `_length`, `p2l`, `l2p`). `setPointerCapture` lanza una excepción con punteros sintéticos
+  (va en un `try`). En ventanas ocultas `requestAnimationFrame` no corre, de modo que se usa rAF o
+  `setTimeout(32)`, lo que llegue antes. `knn_playground` tarda ≤ 0,1 ms en el backend, y el arrastre
+  22–31 ms de puntero a redibujado. `performance.now()` en WKWebView tiene una resolución de 1 ms.
+  `ModelConfig::task()` pasa a ser `task_on(dataset_task)`/`fixed_task()`, porque la tarea del KNN depende
+  del dataset. La FixtureFacade de KNN desempata por el índice menor (solo para desarrollo); la paridad
+  exacta se prueba en `real_knn.rs` y en el core.
+- **Medidas F4:** `.app` de 15,8 MiB; smoke test de unos 37 s con 13 comprobaciones.
+- **KNN en Rust (2026-10-15, F4):** `mltutor-core::knn` transcribe `knn_reference.py`.
+  - Con kd_tree, los vecinos del test salen exactos en orden y con distancias bit a bit (`mul_add` en el
+    resto `n % 8`). Las 806 677 celdas de rejilla de los fixtures coinciden y el `nth_element` de libc++
+    está verificado con 260 secuencias.
+  - Con fuerza bruta euclídea, las distancias difieren ≤ 9e-12 por BLAS; con `weights='distance'`, las
+    probabilidades, ≤ 4,3e-13.
+  - `kneighbors` usa hasta 8 hilos deterministas (`std::thread::scope`) a partir de 2048 filas y comprueba
+    la cancelación cada 256.
+  - Tiempos en California: fit 2 ms, predecir el test 4 ms, permutación 0,17 s (sklearn 0,9 s) y
+    rejillas ≤ 26 ms.
+  - `mul_add` en x86-64 es una llamada a `fma` de libm (FMA3 por hardware con glibc/UCRT). Falta medirlo
+    en Windows con `bench_knn`.
+- **ONNX de KNN (D57):** prost necesita `TensorProto` (`raw_data` LE), `Attribute.t`/`g` (con `boxed`) y
+  `Graph.initializer`. Solo usa el opset `ai.onnx` 15. Pasa `full_check` y onnxruntime en 18 casos; frente
+  a la app solo discrepa 1 etiqueta de Titanic, por un empate.
+- **Contenido de KNN (2026-10-15):**
+  - Con `weights='distance'`, la exactitud o el R² de entrenamiento vale 1 con CUALQUIER K, porque cada
+    muestra está a distancia 0 de sí misma: no sirve para detectar sobreajuste.
+  - El ratio Max/Min de 📏 no mide la separabilidad (Iris da 2,53 aunque versicolor y virginica se
+    solapan); D67 compara con la distancia dentro de cada clase.
+  - Vino sin escalar: K=5 da 0,741, y con StandardScaler 0,963 (proline decide los vecinos).
+  - `frontera_decision.py.j2` tiene una variable opcional `datos` ("todos" en KNN, D63) que se comprueba
+    con `is defined`, de modo que los contextos de F2/F3 no cambian.
+  - El script del paquete KNN debe tolerar empates de plataforma: compara las distancias, no solo los
+    índices.
 - **skl2onnx 1.19.1 y KNN:** con opset ≥ 11, `weights='distance'` sale como `uniform` (distancias de
   `TopK` negadas), y usa `1/max(d,1e-6)` en vez de la regla de distancia 0. onnxruntime no tiene
   `OneHot` con salida double. Se usa un grafo propio (Scan + TopK, `Equal`+`Cast`).

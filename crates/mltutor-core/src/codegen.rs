@@ -77,6 +77,12 @@ pub enum CodeTemplate {
     TreePackageReadme,
     /// 🌲 `arbol_entrenamiento.py.j2`: [`TreeTrainingContext`] (training script).
     TreeTraining,
+    /// 🔍 `knn_entrenamiento.py.j2`: [`KnnTrainingContext`] (training script).
+    KnnTraining,
+    /// 🔍 `paquete_modelo_knn.py.j2`: script of the KNN's Python package (D57).
+    KnnPackageScript,
+    /// 🔍 `paquete_leeme_knn.txt.j2`: `LEEME.txt` of the KNN's package.
+    KnnPackageReadme,
 }
 
 impl CodeTemplate {
@@ -101,6 +107,9 @@ impl CodeTemplate {
             CodeTemplate::TreePackageScript => "paquete_modelo_arbol.py.j2",
             CodeTemplate::TreePackageReadme => "paquete_leeme_arbol.txt.j2",
             CodeTemplate::TreeTraining => "arbol_entrenamiento.py.j2",
+            CodeTemplate::KnnTraining => "knn_entrenamiento.py.j2",
+            CodeTemplate::KnnPackageScript => "paquete_modelo_knn.py.j2",
+            CodeTemplate::KnnPackageReadme => "paquete_leeme_knn.txt.j2",
         }
     }
 }
@@ -113,6 +122,38 @@ pub struct DecisionBoundaryContext {
     /// Their friendly names.
     pub feature_names: Vec<String>,
     pub class_names: Option<Vec<String>>,
+    /// D63 (F4): `"todos"` in 🔍 KNN (the 2-D model is fitted on every row of the
+    /// dataset, `X`/`y`); `None` or `"entrenamiento"` elsewhere (`X_train`/`y_train`).
+    /// `None` is not sent, so the render is byte for byte the one of F2/F3.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub datos: Option<String>,
+}
+
+impl DecisionBoundaryContext {
+    /// `datos` value of 🔍 KNN (D63).
+    pub const ALL_ROWS: &'static str = "todos";
+    /// `datos` value of Regresión and Árboles.
+    pub const TRAIN_ROWS: &'static str = "entrenamiento";
+
+    /// The context of Regresión and Árboles (`datos` unset).
+    pub fn new(
+        feature_indices: [usize; 2],
+        feature_names: Vec<String>,
+        class_names: Option<Vec<String>>,
+    ) -> Self {
+        Self {
+            feature_indices,
+            feature_names,
+            class_names,
+            datos: None,
+        }
+    }
+
+    /// The same context with `datos = "todos"` (🔍 KNN, D63).
+    pub fn all_rows(mut self) -> Self {
+        self.datos = Some(Self::ALL_ROWS.to_owned());
+        self
+    }
 }
 
 /// Context of `regresion_entrenamiento.py.j2` (every key is always sent, `None`
@@ -156,6 +197,34 @@ pub struct TreeTrainingContext {
     pub criterion: String,
     pub max_depth: u32,
     pub min_samples_split: u32,
+    pub test_size: f64,
+    pub feature_names: Vec<String>,
+    /// By class code; `None` in regression.
+    pub class_names: Option<Vec<String>>,
+    /// Form values (codes, column order); `None` = first test row.
+    pub sample: Option<Vec<f64>>,
+}
+
+/// Context of `knn_entrenamiento.py.j2` (every key is always sent, `None` as `null`
+/// when it does not apply), the KNN's equivalent of [`TreeTrainingContext`]
+/// (`tests/parity/code/knn_training.json`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct KnnTrainingContext {
+    /// Built-in slug (`"iris"`…) or `"csv"`.
+    pub dataset: String,
+    pub dataset_label: String,
+    pub csv_file: Option<String>,
+    pub csv_target: Option<String>,
+    pub csv_sep: Option<String>,
+    pub csv_decimal: Option<String>,
+    pub csv_encoding: Option<String>,
+    /// `"classification"` or `"regression"` (the dataset's task).
+    pub task: String,
+    pub n_neighbors: u32,
+    /// [`crate::knn::KnnWeights::as_str`].
+    pub weights: String,
+    /// [`crate::knn::KnnMetric::as_str`].
+    pub metric: String,
     pub test_size: f64,
     pub feature_names: Vec<String>,
     /// By class code; `None` in regression.

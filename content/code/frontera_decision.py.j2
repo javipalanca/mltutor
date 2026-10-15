@@ -6,20 +6,36 @@
       feature_indices  [int, int]  posiciones de las dos características elegidas en X
       feature_names    [str, str]  sus nombres legibles, en el mismo orden
       class_names      list[str]|null  nombres de las clases en el orden de sus códigos
+    Variable opcional (D63, Fase 4; si no se pasa vale "entrenamiento" y el texto es el de F2/F3):
+      datos            "entrenamiento" | "todos"
+                       "entrenamiento": Regresión y Árboles. Se ejecuta a continuación de
+                         regresion_entrenamiento.py.j2 o arbol_entrenamiento.py.j2 y usa X_train,
+                         y_train y modelo.
+                       "todos": 🔍 KNN. Como la app (D63), el modelo 2D se ajusta con TODAS las
+                         muestras del dataset y se dibujan todas. Se ejecuta a continuación de
+                         knn_entrenamiento.py.j2 y usa X, y y modelo.
 -#}
+{%- set todos = datos is defined and datos == "todos" %}
+{%- set Xd = "X" if todos else "X_train" %}
+{%- set yd = "y" if todos else "y_train" -%}
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.base import clone
 from sklearn.inspection import DecisionBoundaryDisplay
 
-# Necesita X_train, y_train y modelo (el script de "📄 Generar Código")
+{% if todos %}# Necesita X, y y modelo (el script de "📄 Código de Entrenamiento")
+# Como MLTutor en KNN: TODAS las muestras del dataset (no solo las de entrenamiento),
+# solo con las 2 características elegidas
+{% else %}# Necesita X_train, y_train y modelo (el script de "📄 Generar Código")
 # Datos de entrenamiento: solo las 2 características elegidas
-X_2d = np.asarray(X_train, dtype=float)[:, {{ feature_indices | pyrepr }}]
+{% endif %}X_2d = np.asarray({{ Xd }}, dtype=float)[:, {{ feature_indices | pyrepr }}]
 
-# Entrenar el modelo simplificado: mismo tipo e hiperparámetros (en la logística, también
+{% if todos %}# Modelo simplificado: el mismo KNN (n_neighbors, weights y metric), solo con esas 2
+# características. Un KNN solo guarda las muestras: la frontera depende de cuáles le des
+{% else %}# Entrenar el modelo simplificado: mismo tipo e hiperparámetros (en la logística, también
 # solver="newton-cholesky", como MLTutor), solo con esas 2 características
-model_2d = clone(modelo)
-model_2d.fit(X_2d, y_train)
+{% endif %}model_2d = clone(modelo)
+model_2d.fit(X_2d, {{ yd }})
 
 # Crear figura
 fig, ax = plt.subplots(figsize=(14, 10))
@@ -38,7 +54,7 @@ disp = DecisionBoundaryDisplay.from_estimator(
 scatter = ax.scatter(
     X_2d[:, 0], 
     X_2d[:, 1], 
-    c=y_train, 
+    c={{ yd }}, 
     edgecolors='black', 
     s=60,
     alpha=0.8
@@ -58,7 +74,7 @@ class_names = {{ class_names | pyrepr }}
 if class_names:
     legend_labels = class_names
 else:
-    legend_labels = [f"Clase {i}" for i in range(len(np.unique(y_train)))]
+    legend_labels = [f"Clase {i}" for i in range(len(np.unique({{ yd }})))]
 
 # Crear leyenda para las clases
 handles, _ = scatter.legend_elements()

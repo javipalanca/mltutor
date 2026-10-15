@@ -30,12 +30,14 @@ pub const MAX_GRID_POINTS: usize = 50_000;
 /// Points per axis after the reduction.
 pub const REDUCED_AXIS_POINTS: usize = 200;
 
-/// KNN's coarser step (F4): 0.1 with more than 1000 training samples, 0.05 with
-/// more than 500, 0.02 otherwise.
-pub fn knn_step(n_train: usize) -> f64 {
-    if n_train > 1000 {
+/// KNN's coarser step (F4): 0.1 with more than 1000 samples, 0.05 with more than
+/// 500, 0.02 otherwise. `n` is the size of the **whole dataset**: in 🔍 KNN the
+/// boundary and the surface refit on every row (D63), so pass `x`/`y` complete to
+/// [`decision_grid`] and `knn_step(n_total)` (Cancer: 569 rows → 0.05).
+pub fn knn_step(n: usize) -> f64 {
+    if n > 1000 {
         0.1
-    } else if n_train > 500 {
+    } else if n > 500 {
         0.05
     } else {
         DEFAULT_STEP

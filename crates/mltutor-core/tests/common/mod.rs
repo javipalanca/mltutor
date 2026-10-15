@@ -1,6 +1,7 @@
 //! Helpers shared by the parity tests (fixtures in `tests/parity/`).
 #![allow(dead_code, clippy::unwrap_used, clippy::expect_used)]
 
+pub mod knn;
 pub mod lm;
 pub mod trees;
 

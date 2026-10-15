@@ -12,6 +12,8 @@
 //! | ONNX by parts | [`onnx::linear_regressor`]`(coef: &[f64], intercept: f64)`, [`onnx::linear_classifier`]`(coef: &[f64], n_features, intercept: &[f64], classes: &[i64])`; [`onnx::evaluate`] (float32 reference evaluation) |
 //! | ONNX of a tree (F3) | [`onnx_model`] with a [`mltutor_core::tree::DecisionTree`] → `TreeEnsembleClassifier` / `TreeEnsembleRegressor` (thresholds = largest float32 ≤ t, D47); [`onnx_file_name`] = `arbol_decision.onnx`; by parts [`onnx::tree_ensemble_classifier`]`(&DecisionTree, class_labels: &[i64])`, [`onnx::tree_ensemble_regressor`]`(&DecisionTree)` |
 //! | Python package of a tree (F3, D43) | the same [`package::python_package`]: `modelo.json` with `tree_` (rebuilt with `Tree.__setstate__`), `reconstruir_modelo.py` (`paquete_modelo_arbol.py.j2`, writes `decision_tree_model.pkl`) and `LEEME.txt` (`paquete_leeme_arbol.txt.j2`); [`package::zip_name`]`(&dyn Predictor)` = `modelo_arbol.zip` |
+//! | ONNX of a KNN (F4, D57) | [`onnx_model`] with a [`mltutor_core::knn::Knn`] → the training rows as an initializer, `Scan` + `TopK` per query row, scikit-learn's distance-0 rule (`Equal` + `Cast` + `Where`), votes or weighted mean; input `float_input` float32 cast to float64; outputs `label` + `probabilities` or `variable`; [`onnx_file_name`] = `knn.onnx`; by parts [`onnx::knn_classifier`]`(&Knn, class_labels: &[i64])`, [`onnx::knn_regressor`]`(&Knn)`; reference evaluation [`onnx::evaluate`] (dispatches to [`onnx::evaluate_knn`]) |
+//! | Python package of a KNN (F4, D57) | the same [`package::python_package`]: `modelo.json` with `params` (`get_params()`), `X_train`/`y_train` in fit order and a `check` of the first 5 test rows (neighbours, distances, predictions, probabilities), `reconstruir_modelo.py` (`paquete_modelo_knn.py.j2`, refits and writes `modelo_knn.pkl`) and `LEEME.txt` (`paquete_leeme_knn.txt.j2`); [`package::zip_name`] = `modelo_knn.zip` |
 //! | Tree rules (.txt) and code (.py) | core: [`mltutor_core::tree::export_text()`] (`decision_tree_rules.txt`) and [`mltutor_core::codegen::render`]`(CodeTemplate::TreePython, &tree_python_corrected_context(..))` (`arbol_decision.py`) |
 //! | Python package (.zip) | [`package::python_package`]`(&PackageInput) -> Result<PythonPackage, ExportError>`, then [`package::PythonPackage::to_zip`]`() -> Result<Vec<u8>, ExportError>`; [`package::ZIP_NAME`] = `modelo_regresion.zip`; [`package::model_json`] alone; [`package::python_zip`]`(&[(&str, &[u8])])` |
 
@@ -19,6 +21,7 @@ pub mod onnx;
 pub mod package;
 
 use mltutor_core::codegen::CodegenError;
+use mltutor_core::knn::Knn;
 use mltutor_core::linear::{LinearRegression, LogisticRegression};
 use mltutor_core::model::{ModelError, Predictor};
 use mltutor_core::tree::DecisionTree;
@@ -70,6 +73,12 @@ pub fn onnx_model(
             None => onnx::tree_ensemble_regressor(tree),
         };
     }
+    if let Some(knn) = model.as_any().downcast_ref::<Knn>() {
+        return match knn.classes() {
+            Some(codes) => onnx::knn_classifier(knn, &onnx_class_labels(codes, class_values)),
+            None => onnx::knn_regressor(knn),
+        };
+    }
     let coefs = model
         .linear_coefficients()
         .ok_or(ExportError::Unsupported)?;
@@ -118,6 +127,8 @@ pub fn onnx_class_labels(codes: &[usize], class_values: Option<&[f64]>) -> Vec<i
 pub fn onnx_file_name(model: &dyn Predictor) -> &'static str {
     if model.as_any().is::<DecisionTree>() {
         "arbol_decision.onnx"
+    } else if model.as_any().is::<Knn>() {
+        "knn.onnx"
     } else if model.as_any().is::<LogisticRegression>() {
         "regresion_logistica.onnx"
     } else {

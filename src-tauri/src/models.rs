@@ -19,10 +19,11 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use crate::core_facade::{check_cancelled, ModelHandle, TrainSpec};
 use crate::data::{blocking, DataState};
 use crate::ipc::{
-    CodeExtra, CodeTemplate, CoefficientsView, CommandError, DatasetRef, DecisionGrid, Evaluation,
-    ExportFormat, FeatureImportanceView, GridRequest, ImportanceMethod, LessonId, ModelConfig,
-    PredictRequest, PredictionForm, PredictionResult, ProbabilityView, ResidualsView, RocData,
-    RulesRequest, TaskProgress, TaskType, TrainNotice, TrainRequest, TrainedModelInfo, TreeDiagram,
+    ClassDistancesView, CodeExtra, CodeTemplate, CoefficientsView, CommandError, DatasetRef,
+    DecisionGrid, Evaluation, ExportFormat, FeatureImportanceView, GridRequest, ImportanceMethod,
+    LessonId, ModelConfig, PlaygroundRequest, PlaygroundView, PredictRequest, PredictionForm,
+    PredictionResult, ProbabilityView, ResidualsView, RocData, RulesRequest, TaskProgress,
+    TaskType, TrainNotice, TrainRequest, TrainedModelInfo, TreeDiagram,
 };
 use crate::tasks::CancelToken;
 
@@ -201,6 +202,7 @@ impl TrainedModel {
                 summary.dataset_task,
             ),
             tree: summary.tree,
+            knn: summary.knn,
         }
     }
 }
@@ -440,6 +442,7 @@ fn validate_train(req: &TrainRequest) -> Result<(), CommandError> {
                 "El máximo de iteraciones debe estar entre 100 y 2000.",
             ));
         }
+        ModelConfig::Knn { n_neighbors, .. } => crate::knn::validate_k(n_neighbors)?,
         ModelConfig::Tree {
             task,
             criterion,
@@ -526,6 +529,20 @@ fn export_target(config: ModelConfig, format: ExportFormat) -> (String, String, 
         (ExportFormat::Onnx, ModelConfig::Tree { .. }) => (
             tree("archivo_onnx", "arbol_decision.onnx", "filtro_onnx", ONNX),
             "onnx",
+        ),
+        (ExportFormat::Onnx, ModelConfig::Knn { .. }) => (
+            (
+                crate::knn::knn_text("exportar", "archivo_onnx", "knn.onnx"),
+                crate::knn::knn_text("exportar", "filtro_onnx", ONNX),
+            ),
+            "onnx",
+        ),
+        (ExportFormat::PythonPackage, ModelConfig::Knn { .. }) => (
+            (
+                crate::knn::knn_text("exportar", "archivo_paquete", "modelo_knn.zip"),
+                crate::knn::knn_text("exportar", "filtro_zip", ZIP),
+            ),
+            "zip",
         ),
         (ExportFormat::PythonPackage, ModelConfig::Tree { .. }) => (
             tree("archivo_paquete", "modelo_arbol.zip", "filtro_zip", ZIP),
@@ -781,6 +798,9 @@ pub async fn generate_code(
         if template.needs_tree() && !m.config.is_tree() {
             return Err(CommandError::not_tree());
         }
+        if template.needs_knn() && !m.config.is_knn() {
+            return Err(CommandError::not_knn());
+        }
         let pair = match extra {
             Some(extra) => Some(validate_pair(m, extra.feature_x, extra.feature_y)?),
             None => None,
@@ -834,6 +854,42 @@ pub async fn feature_importance(
         };
         m.model
             .feature_importance(method, &progress, &guard.token())
+    })
+    .await
+}
+
+/// C19: 📏 Análisis de Distancias (KNN classifiers).
+#[tauri::command]
+pub async fn class_distances(
+    models: State<'_, ModelState>,
+    model_id: u32,
+) -> Result<ClassDistancesView, CommandError> {
+    with_model("class_distances", &models, model_id, |m| {
+        if !m.config.is_knn() {
+            return Err(CommandError::not_knn());
+        }
+        m.model.class_distances()
+    })
+    .await
+}
+
+/// C18: the 2D KNN of the canvas and its test points. The UI calls it on every change of
+/// the pair, a control or the points (debounced, and cancelling the previous request).
+#[tauri::command]
+pub async fn knn_playground(
+    data: State<'_, DataState>,
+    models: State<'_, ModelState>,
+    req: PlaygroundRequest,
+) -> Result<PlaygroundView, CommandError> {
+    let guard = data.tasks.start(req.task_id);
+    with_model("knn_playground", &models, req.model_id, move |m| {
+        if !m.config.is_knn() {
+            return Err(CommandError::not_knn());
+        }
+        validate_pair(m, req.feature_x, req.feature_y)?;
+        crate::knn::validate_k(req.n_neighbors)?;
+        crate::knn::validate_points(&req.points)?;
+        m.model.knn_playground(&req, &guard.token())
     })
     .await
 }

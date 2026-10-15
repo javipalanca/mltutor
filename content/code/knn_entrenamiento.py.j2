@@ -8,6 +8,11 @@
     modelo: D56), la importancia por permutación y la predicción de una muestra con sus K vecinos y
     sus probabilidades (D58). Verificado ejecutándolo frente a tests/parity/knn/*.json
     (tests/parity/code/knn_training.json).
+    CORREGIDO (revisión de contenido F4, 2026-10-15): la regla del motor decía "K es menor que la mitad
+    de las muestras" (sklearn: K < n_train // 2, que no es lo mismo con n_train impar); la exactitud en
+    entrenamiento con weights="distance" vale 1 con cualquier K, no solo con K=1; y el análisis de
+    distancias añade la distancia media dentro de cada clase y, con dos clases, el aviso de D67 en lugar
+    del veredicto por ratio (que con dos clases vale siempre 1).
 
     Los bloques "import ... sklearn.datasets" y "1. Cargar los datos" son copia literal de
     regresion_entrenamiento.py.j2 / arbol_entrenamiento.py.j2 (con `task == "classification"`);
@@ -202,7 +207,8 @@ print(f"Entrenamiento: {len(X_train)} muestras · Prueba: {len(X_test)} muestras
 # Los datos van SIN escalar, como en MLTutor: las características con valores grandes pesan más
 # en la distancia. Para escalarlas usarías un Pipeline con StandardScaler (MLTutor no lo hace).
 # Con algorithm="auto" (por defecto), scikit-learn busca los vecinos con un árbol k-d si hay
-# 15 características o menos y K es menor que la mitad de las muestras, y por fuerza bruta si no.
+# 15 características o menos y K < n_train // 2 (la mitad de las muestras de entrenamiento,
+# redondeada hacia abajo), y por fuerza bruta si no.
 # Si dos muestras están exactamente a la misma distancia y solo cabe una, cada método puede
 # quedarse con una distinta; MLTutor reproduce la elección de scikit-learn.
 modelo = {% if task == "classification" %}KNeighborsClassifier{% else %}KNeighborsRegressor{% endif %}(n_neighbors={{ n_neighbors }}, weights={{ weights | pyrepr }}, metric={{ metric | pyrepr }})
@@ -227,7 +233,12 @@ print(f"Exhaustividad media (Recall):  {recall:.4f}")
 print(f"F1-Score medio:                {f1:.4f}")
 # ¿Sobreajuste? Compara con la exactitud en los datos que el modelo ha guardado
 print(f"Exactitud en entrenamiento:    {modelo.score(X_train, y_train):.4f}  "
+{%- if weights == "distance" %}
+      "(con weights='distance' suele ser 1 con cualquier K: cada muestra está a distancia 0 de sí "
+      "misma y solo cuenta ella)")
+{%- else %}
       "(con K=1 suele ser 1: cada muestra de entrenamiento es su propio vecino más cercano)")
+{%- endif %}
 print("\nInforme por clase:")
 print(classification_report(y_test, y_pred, labels=todas,
                             target_names=[nombre_clase[c] for c in todas],
@@ -276,7 +287,8 @@ else:
 # 5. Distancias entre clases (pestaña 📉 Visualización → 📏 Análisis de Distancias)
 # ---------------------------------------------------------------------------
 # Celda (i, j) = distancia media entre las muestras de entrenamiento de la clase i y las de la
-# clase j, con la métrica del modelo. La diagonal se deja a 0, como en MLTutor.
+# clase j, con la métrica del modelo. La diagonal queda a 0 para calcular la mínima, la máxima y
+# el ratio; MLTutor dibuja en ella la distancia media DENTRO de cada clase (distancias_dentro).
 codigos = np.unique(y_train)
 X_tr, y_tr = X_train.to_numpy(dtype=float), y_train.to_numpy()
 distancias_clases = np.zeros((len(codigos), len(codigos)))
@@ -285,15 +297,28 @@ for i, a in enumerate(codigos):
         if i != j:
             distancias_clases[i, j] = pairwise_distances(
                 X_tr[y_tr == a], X_tr[y_tr == b], metric={{ metric | pyrepr }}).mean()
+# Distancia media entre las muestras DISTINTAS de una misma clase (cada par una vez)
+distancias_dentro = []
+for a in codigos:
+    X_a = X_tr[y_tr == a]
+    pares = np.triu_indices(len(X_a), k=1)
+    distancias_dentro.append(
+        pairwise_distances(X_a, metric={{ metric | pyrepr }})[pares].mean() if len(X_a) > 1 else np.nan)
 print("\nDistancias promedio entre clases:")
 print(pd.DataFrame(distancias_clases, index=[nombre_clase[c] for c in codigos],
                    columns=[nombre_clase[c] for c in codigos]).round(2).to_string())
+print("Distancia media dentro de cada clase (la diagonal de MLTutor):")
+for c, d in zip(codigos, distancias_dentro):
+    print(f"  {nombre_clase[c]}: {d:.2f}")
 if len(codigos) > 1:
     d_min = distancias_clases[distancias_clases > 0].min()
     d_max = distancias_clases.max()
     ratio = d_max / d_min
     print(f"Distancia mínima {d_min:.3f} · máxima {d_max:.3f} · ratio {ratio:.2f}")
-    if ratio > 5:
+    if len(codigos) == 2:
+        print("Con dos clases solo hay una distancia entre clases, así que el ratio siempre vale 1 y "
+              "no mide la separación. Compárala con la distancia media dentro de cada clase.")
+    elif ratio > 5:
         print("🟢 Las clases están bien separadas (ratio > 5)")
     elif ratio > 2:
         print("🟡 Separación moderada entre clases (2 < ratio ≤ 5)")
@@ -310,7 +335,12 @@ print(f"Error Absoluto Medio (MAE):   {mae:.4f}")
 print(f"R² Score:                     {r2:.4f}")
 # ¿Sobreajuste? Compara con el R² en los datos que el modelo ha guardado
 print(f"R² en entrenamiento:          {modelo.score(X_train, y_train):.4f}  "
+{%- if weights == "distance" %}
+      "(con weights='distance' suele ser 1 con cualquier K: cada muestra está a distancia 0 de sí "
+      "misma y solo cuenta ella)")
+{%- else %}
       "(con K=1 suele ser 1: cada muestra de entrenamiento es su propio vecino más cercano)")
+{%- endif %}
 residuos = y_test - y_pred
 print(f"Residuos: media {residuos.mean():.3f}, desviación estándar {residuos.std():.3f}")
 {%- endif %}

@@ -69,6 +69,28 @@
 //! | `generate_code` | new [`codegen::CodeTemplate`]s: `TreeViz`, `TreeText`, `DecisionPath` (no variables), `TreeUsage` ([`codegen::TreeUsageContext`]), `TreePython` ([`codegen::tree_python_corrected_context`]`(&tree, feature_names, class_names) -> TreePythonCorrectedContext`, D44), `TreePythonLiteral` ([`codegen::tree_python_literal_context`]), `TreeTraining` ([`codegen::TreeTrainingContext`]), `TreePackageScript`/`TreePackageReadme` (used by `mltutor-export`) |
 //! | `export_model` | `mltutor-export`: ONNX `TreeEnsemble*`, Python package (`modelo_arbol.zip`); rules `.txt` = `export_text` without weights; `.py` = `TreePython` |
 //!
+//! # Public API of Phase 4 — 🔍 KNN (fase4-knn.md §5 and §8) — stable
+//!
+//! [`knn::Knn`] is a [`model::Predictor`] (downcast with `as_any()` for the KNN-only
+//! views). Exact parity with scikit-learn 1.7.2 `algorithm='auto'` (D52): kd-tree
+//! (libc++ `nth_element`, heap, `simultaneous_sort`) or brute force by
+//! [`knn::search_engine`]; neighbours in the same order and distances bit for bit
+//! (D53, FMA in the `n % 8` tail). The task is the target's.
+//!
+//! | Command | Core function |
+//! |---|---|
+//! | `train_model` (`ModelConfig::Knn`) | [`knn::fit`]`(KnnConfig { n_neighbors, weights: KnnWeights, metric: KnnMetric }, x_train: ArrayView2, y_train: &Target, &TrainControl) -> Result<Knn, ModelError>` (or [`knn::fit_boxed`]); D59: `K > n_train` → [`model::ModelError::TooFewSamples`]`{ k, n_train }`; K = 0 → `InvalidConfig`; > 50 classes → `TooManyClasses` |
+//! | `TrainedModelInfo.knn` | [`knn::Knn::summary`]`() -> KnnSummary { n_neighbors, weights, metric, engine: SearchEngine, n_train, n_features }`; names with `as_str()` (`"uniform"`, `"minkowski"`, `"kd_tree"`…) |
+//! | `evaluate_model`, `roc_curves`, `probability_distribution`, `threshold_analysis`, `residuals_view` | as in F2 (`predict`, `predict_proba`) |
+//! | `decision_grid` | [`grid::decision_grid`] with the **whole** dataset (`x`, `y`, D63) and [`grid::knn_step`]`(n_total)`; the 2-D model is `refit` (kd-tree) |
+//! | `feature_importance(Permutation)` | [`importance::permutation`] as in F3 (≈ 0.17 s on California, progress per column, cancellable per repetition) |
+//! | `class_distances` (C19) | [`knn::class_distances`]`(x_train, codes: &[usize], KnnMetric, &TrainControl) -> Result<ClassDistances { classes, counts, matrix, within /* D67 */, min, max, ratio, ratio_verdict /* Python */, verdict /* D67: Binary with 2 classes */, metric, n_samples }, ModelError>` (D56: the model's split; codes via `y_train.class_codes()`) |
+//! | `knn_playground` (C18) | [`knn::playground`]`(x_all, y_all: &Target, &PlaygroundRequest { features: [fx, fy], config: KnnConfig, points: Vec<[f64; 2]> }, &TrainControl) -> Result<Playground { features, data /* n × 2 */, codes, classes, colors /* PALETTE[code % 8] */, bounds: [x_min, x_max, y_min, y_max], points: Vec<PlaygroundPoint { point, class, confidence, proba, neighbors, mean_distance, tie_at_kth }>, mean_confidence, engine, config }, ModelError>`; errors `InvalidSelection` (x = y), `NotClassifier`, `TooFewSamples` |
+//! | `predict_one` (+ neighbours, C20/D58) | [`knn::Knn::explain`]`(values: &[f64]) -> Result<KnnExplanation { class, value, proba, neighbors: Vec<Neighbor { rank, index /* X_train row */, distance, weight, class, value }>, zero_distance_rule, tie_at_kth: Option<KthTie { n_tied, slots, distance }> }, ModelError>` (`[predicciones] vecinos_nota_empate`) |
+//! | other | [`knn::Knn::kneighbors`]`(x, &TrainControl) -> Neighbors { k, distances, indices }` (row-major; parallel above 2048 rows, deterministic, cancellable every 256 rows); [`knn::Knn::train_x`], `train_codes`, `train_values`, `tree() -> Option<&KdTree>` (`idx_array`, `nodes`) |
+//! | `generate_code` | [`codegen::CodeTemplate::KnnTraining`] ([`codegen::KnnTrainingContext`]); the boundary code with `datos = "todos"`: [`codegen::DecisionBoundaryContext::all_rows`] (D63; `None` renders F2/F3's text); `KnnPackageScript`/`KnnPackageReadme` (used by `mltutor-export`) |
+//! | `export_model` | `mltutor-export`: ONNX (`knn.onnx`, D57) and the Python package (`modelo_knn.zip`) |
+//!
 //! Python-style formatting of the TOML messages: [`pyfmt::py_format`]; embedded
 //! TOML: [`content::Messages`].
 //!
@@ -91,6 +113,7 @@ pub mod frame;
 pub mod grid;
 pub mod importance;
 pub mod interpretation;
+pub mod knn;
 pub mod linear;
 pub mod metrics;
 pub mod model;

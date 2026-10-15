@@ -8,6 +8,7 @@
 
 pub mod csv;
 pub mod frame;
+mod knn;
 pub mod model;
 pub mod stats;
 mod tree;

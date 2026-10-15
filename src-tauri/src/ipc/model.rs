@@ -74,7 +74,57 @@ impl TreeCriterion {
     }
 }
 
-/// Hyperparameters of a model. F4–F5 add their own variants.
+/// `weights` of `KNeighbors*` (same names on the wire as in Python).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum KnnWeights {
+    Uniform,
+    Distance,
+}
+
+impl KnnWeights {
+    pub fn sklearn_name(self) -> &'static str {
+        match self {
+            Self::Uniform => "uniform",
+            Self::Distance => "distance",
+        }
+    }
+}
+
+/// `metric` of `KNeighbors*`: `minkowski` (p = 2) is the Euclidean distance.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum KnnMetric {
+    Minkowski,
+    Euclidean,
+    Manhattan,
+}
+
+impl KnnMetric {
+    pub fn sklearn_name(self) -> &'static str {
+        match self {
+            Self::Minkowski => "minkowski",
+            Self::Euclidean => "euclidean",
+            Self::Manhattan => "manhattan",
+        }
+    }
+}
+
+/// How the neighbours are searched (`_fit_method` of scikit-learn, C17).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum SearchEngine {
+    KdTree,
+    Brute,
+}
+
+/// Largest K of the "Vecinos (K)" input and of the canvas (D55).
+pub const KNN_MAX_K: u8 = 20;
+
+/// Hyperparameters of a model. F5 adds its own variant.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[ts(export)]
@@ -94,21 +144,52 @@ pub enum ModelConfig {
         /// 2..=10
         min_samples_split: u8,
     },
+    /// `KNeighbors{Classifier,Regressor}(n_neighbors, weights, metric)` with the other
+    /// hyperparameters at their defaults. The task is the dataset's (no type button).
+    Knn {
+        /// 1..=20
+        n_neighbors: u8,
+        weights: KnnWeights,
+        metric: KnnMetric,
+    },
 }
 
 impl ModelConfig {
-    /// The task the model solves (the evaluation follows it, not the dataset's).
-    pub fn task(self) -> TaskType {
+    /// The task the model solves (the evaluation follows it, not the dataset's). KNN
+    /// follows the dataset: `None` (the caller knows the dataset).
+    pub fn fixed_task(self) -> Option<TaskType> {
         match self {
-            Self::Linear => TaskType::Regression,
-            Self::Logistic { .. } => TaskType::Classification,
-            Self::Tree { task, .. } => task.task(),
+            Self::Linear => Some(TaskType::Regression),
+            Self::Logistic { .. } => Some(TaskType::Classification),
+            Self::Tree { task, .. } => Some(task.task()),
+            Self::Knn { .. } => None,
         }
+    }
+
+    /// The task of the model trained on a dataset of task `dataset_task`.
+    pub fn task_on(self, dataset_task: TaskType) -> TaskType {
+        self.fixed_task().unwrap_or(dataset_task)
     }
 
     pub fn is_tree(self) -> bool {
         matches!(self, Self::Tree { .. })
     }
+
+    pub fn is_knn(self) -> bool {
+        matches!(self, Self::Knn { .. })
+    }
+}
+
+/// Facts of a trained KNN (🏋️ Entrenamiento banner, 🔮 "Información del modelo KNN").
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[ts(export)]
+pub struct KnnSummary {
+    pub n_neighbors: u32,
+    pub weights: KnnWeights,
+    pub metric: KnnMetric,
+    /// `kd_tree` or `brute` (sklearn's `algorithm='auto'` rule, C17).
+    pub engine: SearchEngine,
+    pub n_train: u32,
 }
 
 /// Size of a trained tree (`tree_.node_count`, `get_n_leaves()`, `get_depth()`).
@@ -175,6 +256,8 @@ pub struct TrainedModelInfo {
     pub notices: Vec<TrainNotice>,
     /// Decision trees: size of the tree (💾 Exportar, "Información del código generado").
     pub tree: Option<TreeSummary>,
+    /// KNN: K, weights, metric and the search engine.
+    pub knn: Option<KnnSummary>,
 }
 
 /// Progress of a long task (event `task-progress`).
@@ -612,6 +695,47 @@ pub struct DecisionPath {
     pub leaf_class: Option<u32>,
 }
 
+/// One of the K neighbours of a sample (C20, C18), in the order of scikit-learn (C17).
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[ts(export)]
+pub struct NeighborRow {
+    /// Position in `X_train` (or in the data of the canvas).
+    pub train_row: u32,
+    /// Row of the whole dataset.
+    pub dataset_row: u32,
+    pub distance: f64,
+    /// 1 (`uniform`), `1/d` (`distance`), or sklearn's distance-0 rule: 1 for the
+    /// neighbours at distance 0 and 0 for the others.
+    pub weight: f64,
+    /// Classification: class code of the neighbour.
+    pub class_index: Option<u32>,
+    /// Regression: target value of the neighbour.
+    pub value: Option<f64>,
+    /// Its feature values (codes, column order); empty in the canvas.
+    pub features: Vec<f64>,
+}
+
+/// D52: training samples at the distance of the K-th neighbour that do not all fit.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, TS)]
+#[ts(export)]
+pub struct TieAtKth {
+    /// Samples at that distance (inside and outside the table).
+    pub n_tied: u32,
+    /// How many of them are in the table.
+    pub slots: u32,
+    /// Distance of the K-th neighbour.
+    pub distance: f64,
+}
+
+/// C20: the K neighbours of a prediction and the tie at the K-th one, if any.
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[ts(export)]
+pub struct KnnNeighbors {
+    pub rows: Vec<NeighborRow>,
+    /// `None` when every sample at the K-th distance is in the table.
+    pub tie_at_kth: Option<TieAtKth>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, TS)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[ts(export)]
@@ -619,10 +743,12 @@ pub enum PredictionResult {
     Class {
         index: u32,
         name: String,
-        /// Logistic: `predict_proba`; trees: the fractions of the leaf (D46).
+        /// Logistic and KNN: `predict_proba`; trees: the fractions of the leaf (D46).
         proba: Option<Vec<ClassProbability>>,
         /// Decision trees (C16).
         path: Option<DecisionPath>,
+        /// KNN (C20, D58): the K neighbours of the sample.
+        neighbors: Option<KnnNeighbors>,
     },
     /// D25: also for a linear model trained on a classification dataset.
     Value {
@@ -631,7 +757,107 @@ pub enum PredictionResult {
         coefficients: Option<Vec<FeatureCoefficient>>,
         /// Decision trees (C16).
         path: Option<DecisionPath>,
+        /// KNN (C20, D58): the K neighbours of the sample.
+        neighbors: Option<KnnNeighbors>,
     },
+}
+
+// --- C19: distances between classes ---
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum SeparationVerdict {
+    /// ratio > 5: "🟢 Las clases están bien separadas".
+    Separated,
+    /// 2 < ratio ≤ 5: "🟡 Separación moderada".
+    Moderate,
+    /// ratio ≤ 2: "🔴 Las clases están muy próximas".
+    Close,
+    /// D67: two classes, the ratio is always 1 and does not measure the separation.
+    Binary,
+    /// Fewer than 2 classes in the train set ("Se necesitan al menos 2 clases…").
+    TooFewClasses,
+}
+
+/// 📏 Análisis de Distancias (C19): mean distance between the samples of every pair of
+/// classes of the train set of the model (D56).
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[ts(export)]
+pub struct ClassDistancesView {
+    /// Codes of the classes present in the train set (rows and columns of `matrix`).
+    pub classes: Vec<u32>,
+    pub class_names: Vec<String>,
+    /// Mean distance between classes i and j; the diagonal is 0 as in Python.
+    pub matrix: Vec<Vec<f64>>,
+    /// D67: mean distance between distinct samples of the same class (`None` with 1 sample).
+    pub within: Vec<Option<f64>>,
+    /// Smallest / largest off-diagonal cell (`None` without off-diagonal cells > 0).
+    pub min: Option<f64>,
+    pub max: Option<f64>,
+    /// `max / min` (0 when there is no minimum).
+    pub ratio: f64,
+    pub verdict: SeparationVerdict,
+    pub metric: KnnMetric,
+    /// Training samples used.
+    pub n_samples: u32,
+}
+
+// --- C18: interactive canvas ---
+
+#[derive(Debug, Clone, PartialEq, Deserialize, TS)]
+#[ts(export)]
+pub struct PlaygroundRequest {
+    pub model_id: u32,
+    pub feature_x: u32,
+    pub feature_y: u32,
+    /// 1..=20 (D55), the controls of the canvas.
+    pub n_neighbors: u8,
+    pub weights: KnnWeights,
+    pub metric: KnnMetric,
+    /// Test points, in data coordinates.
+    pub points: Vec<[f64; 2]>,
+    /// Send the data of the pair (only when the pair changes: 20 000 points weigh).
+    pub include_data: bool,
+    pub task_id: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[ts(export)]
+pub struct PlaygroundPoint {
+    pub point: [f64; 2],
+    /// Predicted class code.
+    pub class_index: u32,
+    /// `max(predict_proba)`.
+    pub confidence: f64,
+    /// `predict_proba`, one per class of `PlaygroundView::classes`.
+    pub proba: Vec<f64>,
+    /// The K neighbours (rows of `data`), nearest first.
+    pub neighbors: Vec<NeighborRow>,
+    pub mean_distance: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[ts(export)]
+pub struct PlaygroundView {
+    /// Every row of the dataset (D63), the two features; `None` unless `include_data`.
+    pub data: Option<Matrix>,
+    /// Class code of each row of `data` (`None` unless `include_data`).
+    pub codes: Option<Vec<u32>>,
+    /// Codes of the classes of the 2D model (`classes_`).
+    pub classes: Vec<u32>,
+    /// Names by class code.
+    pub class_names: Vec<String>,
+    /// `colors[code % 8]` of the Python canvas, by class code.
+    pub colors: Vec<String>,
+    /// `[x_min, x_max, y_min, y_max]` = min − 1 and max + 1 of each feature.
+    pub bounds: [f64; 4],
+    pub feature_names: [String; 2],
+    pub points: Vec<PlaygroundPoint>,
+    pub mean_confidence: Option<f64>,
+    pub engine: SearchEngine,
+    /// K actually used (≤ the samples of the dataset).
+    pub n_neighbors: u32,
 }
 
 // --- C13: tree diagram ---
@@ -778,6 +1004,8 @@ pub enum CodeTemplate {
     TreePythonLiteral,
     /// 💾 Exportar: "📄 Código de Entrenamiento" of the tree (`arbol_entrenamiento.py.j2`).
     TreeTraining,
+    /// 💾 Exportar: "📄 Código de Entrenamiento" of KNN (`knn_entrenamiento.py.j2`).
+    KnnTraining,
 }
 
 impl CodeTemplate {
@@ -796,7 +1024,13 @@ impl CodeTemplate {
             Self::TreeUsage => "usar_modelo",
             Self::TreePython | Self::TreePythonLiteral => "arbol_decision",
             Self::TreeTraining => "arbol_decision_entrenamiento",
+            Self::KnnTraining => "knn_entrenamiento",
         }
+    }
+
+    /// Templates that need a KNN.
+    pub fn needs_knn(self) -> bool {
+        matches!(self, Self::KnnTraining)
     }
 
     /// Templates that need a decision tree.
@@ -832,7 +1066,10 @@ mod tests {
             serde_json::json!({ "kind": "logistic", "max_iter": 1000 })
         );
         let linear: ModelConfig = serde_json::from_str(r#"{"kind":"linear"}"#).unwrap();
-        assert_eq!(linear.task(), TaskType::Regression);
+        assert_eq!(
+            linear.task_on(TaskType::Classification),
+            TaskType::Regression
+        );
         assert_eq!(
             serde_json::to_value(LessonId::Regression).unwrap(),
             "regression"

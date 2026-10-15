@@ -34,8 +34,9 @@ fn fixture_name(id: DatasetId, config: ModelConfig) -> String {
         (DatasetId::Iris, ModelConfig::Linear) => "iris_linear_mismatch".to_owned(),
         (_, ModelConfig::Linear) => format!("{}_linear", id.slug()),
         (_, ModelConfig::Logistic { .. }) => format!("{}_logistic", id.slug()),
-        // Trees are replayed by `super::tree` (never reaches here).
+        // Trees and KNN are replayed by `super::tree` and `super::knn` (never reach here).
         (_, ModelConfig::Tree { .. }) => format!("{}_tree", id.slug()),
+        (_, ModelConfig::Knn { .. }) => format!("{}_knn", id.slug()),
     }
 }
 
@@ -101,6 +102,9 @@ pub fn train(
     if spec.config.is_tree() {
         return super::tree::train(root, id, frame, dataset_task, spec, progress, cancel);
     }
+    if spec.config.is_knn() {
+        return super::knn::train(root, id, frame, dataset_task, spec, progress, cancel);
+    }
     progress("Entrenando modelo...", Some(10.0));
     let name = fixture_name(id, spec.config);
     let read = |relative: &str| -> Result<Value, CommandError> {
@@ -126,7 +130,7 @@ pub fn train(
     if model["coef"].is_null() {
         return Err(unavailable(format!("{name}.json no guarda el modelo")));
     }
-    let task = spec.config.task();
+    let task = spec.config.task_on(dataset_task);
     let class_names = expected["class_names"]
         .as_array()
         .map(|_| strings(&expected["class_names"]));
@@ -178,7 +182,7 @@ impl FixtureModel {
             .map(|rows| rows.iter().map(floats).collect());
         Self {
             config,
-            task: config.task(),
+            task: config.task_on(dataset_task),
             dataset_task,
             frame: frame.clone(),
             train: indices(&expected["train_indices"]),
@@ -575,6 +579,7 @@ impl ModelView for FixtureModel {
             model_classes: self.model_classes(),
             notices: self.notices.clone(),
             tree: None,
+            knn: None,
         }
     }
 
@@ -1024,6 +1029,7 @@ impl ModelView for FixtureModel {
                         .collect(),
                 ),
                 path: None,
+                neighbors: None,
             });
         }
         let p = Self::probabilities(&scores);
@@ -1046,6 +1052,7 @@ impl ModelView for FixtureModel {
                     .collect(),
             ),
             path: None,
+            neighbors: None,
         })
     }
 

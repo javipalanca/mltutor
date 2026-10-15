@@ -101,6 +101,16 @@ pub enum CommandError {
         columns: Vec<String>,
         message: String,
     },
+    /// D59: K is larger than the number of training samples (no K neighbours to ask).
+    TooFewSamples {
+        k: u32,
+        n_train: u32,
+        message: String,
+    },
+    /// The view needs a K-nearest-neighbours model (canvas, distances between classes).
+    NotKnn {
+        message: String,
+    },
     /// Training failed (singular system, optimizer error…).
     Training {
         message: String,
@@ -249,6 +259,21 @@ impl CommandError {
         }
     }
 
+    /// `message` comes from `content/knn/mensajes.toml` (`crate::knn::too_few_samples`).
+    pub fn too_few_samples(k: usize, n_train: usize, message: impl Into<String>) -> Self {
+        Self::TooFewSamples {
+            k: u32::try_from(k).unwrap_or(u32::MAX),
+            n_train: u32::try_from(n_train).unwrap_or(u32::MAX),
+            message: message.into(),
+        }
+    }
+
+    pub fn not_knn() -> Self {
+        Self::NotKnn {
+            message: "Esta vista necesita un modelo KNN.".into(),
+        }
+    }
+
     pub fn training(error: impl std::fmt::Display) -> Self {
         Self::Training {
             message: format!("Error al entrenar el modelo: {error}"),
@@ -292,6 +317,8 @@ impl CommandError {
             | Self::InvalidInput { message }
             | Self::TooManyClasses { message, .. }
             | Self::MissingValues { message, .. }
+            | Self::TooFewSamples { message, .. }
+            | Self::NotKnn { message }
             | Self::Training { message }
             | Self::Export { message }
             | Self::Internal { message } => message,

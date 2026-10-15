@@ -6,6 +6,7 @@
 use std::io::{Cursor, Write};
 
 use mltutor_core::codegen::{self, CodeTemplate};
+use mltutor_core::knn::Knn;
 use mltutor_core::linear::{LinearRegression, LogisticRegression};
 use mltutor_core::model::{Prediction, Predictor};
 use mltutor_core::tree::DecisionTree;
@@ -29,10 +30,17 @@ pub const TREE_ZIP_NAME: &str = "modelo_arbol.zip";
 /// "Código para Usar el Modelo" works unchanged; D43).
 pub const TREE_PKL_NAME: &str = "decision_tree_model.pkl";
 
+/// Suggested ZIP name of a KNN's package.
+pub const KNN_ZIP_NAME: &str = "modelo_knn.zip";
+/// Pickle written by the KNN's script.
+pub const KNN_PKL_NAME: &str = "modelo_knn.pkl";
+
 /// Suggested ZIP name for `model`.
 pub fn zip_name(model: &dyn Predictor) -> &'static str {
     if model.as_any().is::<DecisionTree>() {
         TREE_ZIP_NAME
+    } else if model.as_any().is::<Knn>() {
+        KNN_ZIP_NAME
     } else {
         ZIP_NAME
     }
@@ -87,6 +95,13 @@ fn rows(x: ArrayView2<'_, f64>) -> Vec<Vec<f64>> {
 /// The `estimator` of the model (`sklearn.linear_model.*`).
 pub fn estimator_name(model: &dyn Predictor) -> Result<&'static str, ExportError> {
     let any = model.as_any();
+    if let Some(knn) = any.downcast_ref::<Knn>() {
+        return Ok(if knn.is_classifier() {
+            "sklearn.neighbors.KNeighborsClassifier"
+        } else {
+            "sklearn.neighbors.KNeighborsRegressor"
+        });
+    }
     if let Some(tree) = any.downcast_ref::<DecisionTree>() {
         Ok(if tree.is_classifier() {
             "sklearn.tree.DecisionTreeClassifier"
@@ -218,11 +233,101 @@ fn tree_model_json(input: &PackageInput<'_>, tree: &DecisionTree) -> Result<Valu
     Ok(Value::Object(doc))
 }
 
+/// `get_params()` of a KNN (keys in scikit-learn's alphabetical order).
+fn knn_params(knn: &Knn) -> Value {
+    let c = knn.config();
+    json!({
+        "algorithm": "auto", "leaf_size": 30, "metric": c.metric.as_str(),
+        "metric_params": null, "n_jobs": null, "n_neighbors": c.n_neighbors, "p": 2,
+        "weights": c.weights.as_str()
+    })
+}
+
+/// `modelo.json` of a KNN (schema v1, as `export_package.model_json` of the
+/// fixtures): a KNN learns no parameters, so it carries the training rows **in fit
+/// order** (the order decides ties) and a check of the first test rows.
+fn knn_model_json(input: &PackageInput<'_>, knn: &Knn) -> Result<Value, ExportError> {
+    let estimator = estimator_name(input.model)?;
+    let n_check = input.x_test.nrows().min(CHECK_ROWS);
+    let x_check = input.x_test.slice(ndarray::s![..n_check, ..]);
+    let class_value = |code: usize| -> Value {
+        input
+            .class_values
+            .and_then(|v| v.get(code))
+            .map_or_else(|| json!(code), |&v| number(v))
+    };
+    let mut doc = serde_json::Map::new();
+    doc.insert("format".into(), json!("mltutor-model"));
+    doc.insert("format_version".into(), json!(FORMAT_VERSION));
+    doc.insert("estimator".into(), json!(estimator));
+    doc.insert("params".into(), knn_params(knn));
+    doc.insert("feature_names_in".into(), json!(input.feature_columns));
+    doc.insert("display_names".into(), json!(input.display_names));
+    doc.insert("n_features_in".into(), json!(knn.n_features()));
+    doc.insert("X_train".into(), json!(rows(knn.train_x())));
+    let y_train = match knn.train_codes() {
+        Some(codes) => Value::Array(codes.into_iter().map(class_value).collect()),
+        None => json!(knn.train_values().unwrap_or(&[])),
+    };
+    doc.insert("y_train".into(), y_train);
+    doc.insert(
+        "training".into(),
+        json!({
+            "dataset": input.dataset_label, "test_size": input.test_size,
+            "random_state": input.random_state, "n_train": input.n_train,
+            "n_test": input.n_test, "scaling": null, "fit_method": knn.engine().as_str()
+        }),
+    );
+    let nb = knn.kneighbors(x_check, &mltutor_core::model::TrainControl::none())?;
+    let mut check = serde_json::Map::new();
+    check.insert("X".into(), json!(rows(x_check)));
+    match knn.predict_from(&nb) {
+        Prediction::Classes(c) => {
+            check.insert(
+                "prediction".into(),
+                Value::Array(c.into_iter().map(class_value).collect()),
+            );
+        }
+        Prediction::Values(v) => {
+            check.insert("prediction".into(), json!(v));
+        }
+    }
+    let (i, d): (Vec<Vec<usize>>, Vec<Vec<f64>>) = (0..nb.n_rows())
+        .map(|r| (nb.row_indices(r).to_vec(), nb.row_distances(r).to_vec()))
+        .unzip();
+    check.insert("neighbours".into(), json!(i));
+    check.insert("distances".into(), json!(d));
+    if let Some(p) = knn.proba_from(&nb) {
+        check.insert("probabilities".into(), json!(rows(p.view())));
+    }
+    doc.insert("check".into(), Value::Object(check));
+    if let Some(classes) = knn.classes() {
+        doc.insert(
+            "classes_".into(),
+            Value::Array(classes.iter().map(|&c| class_value(c)).collect()),
+        );
+        doc.insert(
+            "class_names".into(),
+            match input.class_names {
+                Some(names) => json!(classes
+                    .iter()
+                    .map(|&c| names.get(c).cloned().unwrap_or_else(|| c.to_string()))
+                    .collect::<Vec<_>>()),
+                None => Value::Null,
+            },
+        );
+    }
+    Ok(Value::Object(doc))
+}
+
 /// `modelo.json` (schema v1).
 pub fn model_json(input: &PackageInput<'_>) -> Result<Value, ExportError> {
     let model = input.model;
     if let Some(tree) = model.as_any().downcast_ref::<DecisionTree>() {
         return tree_model_json(input, tree);
+    }
+    if let Some(knn) = model.as_any().downcast_ref::<Knn>() {
+        return knn_model_json(input, knn);
     }
     let estimator = estimator_name(model)?;
     let coefs = model
@@ -453,11 +558,67 @@ fn tree_package(
     })
 }
 
-/// Builds `modelo.json`, `reconstruir_modelo.py` and `LEEME.txt` (linear models or
-/// decision trees).
+#[derive(Serialize)]
+struct KnnReadmeContext<'a> {
+    estimator: &'a str,
+    dataset: &'a str,
+    feature_names: &'a [String],
+    classes: Option<Vec<ReadmeClass>>,
+    n_train: usize,
+    n_test: usize,
+    test_size: f64,
+    n_neighbors: u32,
+    weights: &'a str,
+    metric: &'a str,
+    pkl_name: &'a str,
+}
+
+fn knn_package(input: &PackageInput<'_>, knn: &Knn) -> Result<PythonPackage, ExportError> {
+    let doc = knn_model_json(input, knn)?;
+    let estimator = estimator_name(input.model)?;
+    let classifier = knn.is_classifier();
+    let script = codegen::render(
+        CodeTemplate::KnnPackageScript,
+        &ScriptContext {
+            estimator,
+            dataset: input.dataset_label,
+            classifier,
+            json_name: MODEL_JSON,
+            pkl_name: KNN_PKL_NAME,
+        },
+    )?;
+    let c = knn.config();
+    let readme = codegen::render(
+        CodeTemplate::KnnPackageReadme,
+        &KnnReadmeContext {
+            estimator,
+            dataset: input.dataset_label,
+            feature_names: input.display_names,
+            classes: classifier.then(|| readme_classes(&doc)),
+            n_train: input.n_train,
+            n_test: input.n_test,
+            test_size: input.test_size,
+            n_neighbors: c.n_neighbors,
+            weights: c.weights.as_str(),
+            metric: c.metric.as_str(),
+            pkl_name: KNN_PKL_NAME,
+        },
+    )?;
+    Ok(PythonPackage {
+        model_json: pretty(&doc)?,
+        script,
+        readme,
+    })
+}
+
+/// Builds `modelo.json`, `reconstruir_modelo.py` and `LEEME.txt` (linear models,
+/// decision trees or KNN).
 pub fn python_package(input: &PackageInput<'_>) -> Result<PythonPackage, ExportError> {
     if let Some(tree) = input.model.as_any().downcast_ref::<DecisionTree>() {
         return tree_package(input, tree);
+    }
+    if let Some(knn) = input.model.as_any().downcast_ref::<Knn>() {
+        return knn_package(input, knn);
     }
     let doc = model_json(input)?;
     let estimator = estimator_name(input.model)?;

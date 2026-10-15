@@ -10,6 +10,9 @@ import { router } from "./router.svelte";
 import { chooseDataset } from "./selection";
 import { session } from "./session.svelte";
 import { regressionScenario, type RegressionScenario } from "./lessons/regression/scenarios";
+import { IRIS_POINTS, knnScenario, type KnnScenario } from "./lessons/knn/scenarios";
+import { knn } from "./lessons/knn/state.svelte";
+import { models } from "./ml/modelSession.svelte";
 import { treesScenario, type TreesScenario } from "./lessons/trees/scenarios";
 
 const LESSON = "regresion";
@@ -97,6 +100,126 @@ async function treesChecks(base: Omit<TreesScenario, "tab">, vizs: readonly [str
   await treesView({ ...base, tab: 6, open: ["arboles-vista-previa"] }, "[data-export-panel] [data-export-format=\"tree_python\"]", "la exportación");
 }
 
+/** Opens a screen of 🔍 KNN and waits for `selector`. */
+async function knnView(options: KnnScenario, selector: string, what: string): Promise<void> {
+  void backend.logToBackend("info", `smoke test: knn, ${what}`);
+  await knnScenario(options);
+  await waitFor(selector, 30000, what);
+  await waitForIdle(() => busy.active, 60000);
+  const error = document.querySelector('[data-content] .notice.error, [data-plot-rendered="error"]');
+  if (error) {
+    throw new Error(`${what}: ${error.textContent?.trim() ?? "error"}`);
+  }
+}
+
+/**
+ * Round trips of `knn_playground` like a drag (one request after another, 3 and 20 test
+ * points), logged for fase4-knn.md (presupuesto < 10 ms con 20 puntos).
+ */
+async function playgroundLatency(): Promise<void> {
+  const info = models.lesson("knn").info;
+  if (!info) {
+    throw new Error("no hay modelo KNN");
+  }
+  const pg = knn.playground;
+  for (const n of [3, 20]) {
+    const times: number[] = [];
+    for (let i = 0; i < 40; i += 1) {
+      const points = Array.from({ length: n }, (_, j) => [5 + ((i + j) % 20) * 0.1, 2.5 + (j % 10) * 0.15] as [number, number]);
+      const started = performance.now();
+      await backend.knnPlayground({
+        model_id: info.model_id,
+        feature_x: pg.pair[0],
+        feature_y: pg.pair[1],
+        n_neighbors: pg.k,
+        weights: pg.weights,
+        metric: pg.metric,
+        points,
+        include_data: false,
+      }).promise;
+      times.push(performance.now() - started);
+    }
+    times.sort((a, b) => a - b);
+    const median = times[Math.floor(times.length / 2)] ?? 0;
+    const p95 = times[Math.floor(times.length * 0.95)] ?? 0;
+    void backend.logToBackend("info", `smoke test: knn_playground con ${n} puntos: mediana ${median.toFixed(1)} ms, p95 ${p95.toFixed(1)} ms`);
+  }
+}
+
+/**
+ * Drags the first test point of the canvas with real pointer events (down, 20 moves, up)
+ * and checks that it moved; logs the time from each move to the next Plotly redraw.
+ */
+async function playgroundDrag(): Promise<void> {
+  const plot = document.querySelector<HTMLElement>("[data-playground] .plot");
+  const layout = (plot as unknown as { _fullLayout?: { xaxis: { _offset: number; l2p(v: number): number }; yaxis: { _offset: number; l2p(v: number): number } } } | null)?._fullLayout;
+  const first = knn.playground.points[0];
+  if (!plot || !layout || !first) {
+    throw new Error("el lienzo no está listo para arrastrar");
+  }
+  const rect = plot.getBoundingClientRect();
+  const at = (x: number, y: number): { clientX: number; clientY: number } => ({
+    clientX: rect.left + layout.xaxis._offset + layout.xaxis.l2p(x),
+    clientY: rect.top + layout.yaxis._offset + layout.yaxis.l2p(y),
+  });
+  const start = at(first.x, first.y);
+  const fire = (type: string, dx: number): void => {
+    plot.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 41, button: 0, clientX: start.clientX + dx, clientY: start.clientY - dx / 2 }));
+  };
+  // Timers, not frames: the smoke-test window may be hidden (no requestAnimationFrame).
+  const frame = (): Promise<void> => new Promise((done) => setTimeout(done, 4));
+  fire("pointerdown", 0);
+  const cycles: number[] = [];
+  for (let i = 1; i <= 20; i += 1) {
+    const before = plot.dataset["renderedAt"];
+    const sent = performance.now();
+    fire("pointermove", i * 6);
+    const deadline = sent + 2000;
+    while (plot.dataset["renderedAt"] === before && performance.now() < deadline) {
+      await frame();
+    }
+    cycles.push(performance.now() - sent);
+  }
+  fire("pointerup", 120);
+  await waitForIdle(() => busy.active, 10000);
+  const moved = knn.playground.points[0];
+  if (!moved || Math.abs(moved.x - first.x) < 1e-6) {
+    throw new Error("el punto de prueba no se ha movido al arrastrarlo");
+  }
+  cycles.sort((a, b) => a - b);
+  const median = cycles[Math.floor(cycles.length / 2)] ?? 0;
+  const worst = cycles[cycles.length - 1] ?? 0;
+  void backend.logToBackend("info", `smoke test: arrastre en el lienzo, de mover el puntero a redibujar: mediana ${median.toFixed(0)} ms, máximo ${worst.toFixed(0)} ms`);
+}
+
+/** Every tab of a trained KNN (fase4-knn.md §9.2.3). */
+async function knnChecks(base: Omit<KnnScenario, "tab">, vizs: readonly [string, string][]): Promise<void> {
+  await knnView({ ...base, train: true, tab: 1 }, "[data-train-tab] .notice.success", "el entrenamiento");
+  await knnView({ ...base, tab: 2 }, "[data-evaluation] [data-plot-rendered=\"true\"]", "la evaluación");
+  for (const [viz, selector] of vizs) {
+    await knnView({ ...base, tab: 3, viz, ...(viz === "Interactiva" ? { points: IRIS_POINTS } : {}) }, selector, `la vista ${viz}`);
+    if (viz === "Interactiva" && base.dataset === "iris") {
+      await playgroundLatency();
+      await playgroundDrag();
+    }
+  }
+  await knnView({ ...base, tab: 4 }, "[data-importance=\"permutation\"] [data-plot-rendered=\"true\"]", "la importancia por permutación");
+  await knnView({ ...base, tab: 5, predict: true }, "[data-knn-neighbors]", "los vecinos de la predicción");
+  await knnView({ ...base, tab: 6, code: true }, "[data-export-panel] [data-export-format=\"python_package\"]", "la exportación");
+}
+
+const KNN_CLASSIFICATION: readonly [string, string][] = [
+  ["Probabilidades", "[data-probabilities] [data-plot-rendered=\"true\"]"],
+  ["ROC", "[data-roc] [data-plot-rendered=\"true\"]"],
+  ["Frontera", "[data-grid-view] [data-plot-rendered=\"true\"]"],
+  ["Interactiva", "[data-playground][data-points=\"3\"] [data-test-points]"],
+  ["Distancias", "[data-class-distances] [data-plot-rendered=\"true\"]"],
+];
+const KNN_REGRESSION: readonly [string, string][] = [
+  ["Predicciones", "[data-residuals] [data-plot-rendered=\"true\"]"],
+  ["Superficie", "[data-grid-view] [data-plot-rendered=\"true\"]"],
+];
+
 const TREE_VIZ: readonly [string, string][] = [
   ["Árbol", "[data-tree-diagram] [data-node]"],
   ["Texto", "[data-tree-rules]"],
@@ -140,6 +263,16 @@ const CHECKS: Readonly<Record<string, () => Promise<void>>> = {
       ...TREE_VIZ,
       ["ROC", "[data-roc=\"binary\"] [data-plot-rendered=\"true\"]"],
     ]),
+  knn_iris_k5: () => knnChecks({ dataset: "iris" }, KNN_CLASSIFICATION),
+  knn_binaria_cancer_k10_distance: () =>
+    knnChecks({ dataset: "breast_cancer", k: 10, weights: "distance", metric: "euclidean" }, [
+      ["Probabilidades", "[data-probabilities=\"binary\"] [data-plot-rendered=\"true\"]"],
+      ["ROC", "[data-roc=\"binary\"] [data-plot-rendered=\"true\"]"],
+      ["Frontera", "[data-grid-view] [data-plot-rendered=\"true\"]"],
+      ["Distancias", "[data-class-distances=\"binary\"] [data-plot-rendered=\"true\"]"],
+    ]),
+  knn_regresion_diabetes_k5: () => knnChecks({ dataset: "diabetes" }, KNN_REGRESSION),
+  knn_california_k5: () => knnChecks({ dataset: "california_housing" }, KNN_REGRESSION),
 };
 
 export async function runSmokeCheck(name: string): Promise<void> {

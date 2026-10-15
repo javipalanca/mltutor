@@ -24,7 +24,7 @@ pub const SMOKE_ROUTES: [&str; 6] = ["inicio", "arboles", "regresion", "knn", "r
 /// the 📊 Datos tab of a lesson renders its views, and the Iris correlation heatmap and
 /// pairplot are drawn by Plotly. Fase 2 (fase2-regresion.md §9.2.4): 📊 Regresión trains
 /// Iris (logistic, multiclass), Cáncer (binary) and Diabetes (linear) and draws every view.
-pub const SMOKE_CHECKS: [&str; 9] = [
+pub const SMOKE_CHECKS: [&str; 13] = [
     "datos_vistas",
     "datos_correlacion",
     "datos_pairplot",
@@ -34,6 +34,10 @@ pub const SMOKE_CHECKS: [&str; 9] = [
     "arboles_gini_iris",
     "arboles_regresion_diabetes",
     "arboles_binaria_cancer",
+    "knn_iris_k5",
+    "knn_binaria_cancer_k10_distance",
+    "knn_regresion_diabetes_k5",
+    "knn_california_k5",
 ];
 
 pub struct AppState {

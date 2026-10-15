@@ -2,16 +2,21 @@
 import type { ClassProbability } from "./ClassProbability";
 import type { DecisionPath } from "./DecisionPath";
 import type { FeatureCoefficient } from "./FeatureCoefficient";
+import type { KnnNeighbors } from "./KnnNeighbors";
 
 export type PredictionResult = { "kind": "class", index: number, name: string, 
 /**
- * Logistic: `predict_proba`; trees: the fractions of the leaf (D46).
+ * Logistic and KNN: `predict_proba`; trees: the fractions of the leaf (D46).
  */
 proba: Array<ClassProbability> | null, 
 /**
  * Decision trees (C16).
  */
-path: DecisionPath | null, } | { "kind": "value", value: number, 
+path: DecisionPath | null, 
+/**
+ * KNN (C20, D58): the K neighbours of the sample.
+ */
+neighbors: KnnNeighbors | null, } | { "kind": "value", value: number, 
 /**
  * Linear regression: "### Coeficientes" table.
  */
@@ -19,4 +24,8 @@ coefficients: Array<FeatureCoefficient> | null,
 /**
  * Decision trees (C16).
  */
-path: DecisionPath | null, };
+path: DecisionPath | null, 
+/**
+ * KNN (C20, D58): the K neighbours of the sample.
+ */
+neighbors: KnnNeighbors | null, };

@@ -13,12 +13,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use crate::ipc::{
-    CodeTemplate, CoefficientsView, CommandError, CorrelationMatrix, CsvPreview, CsvTargetStats,
-    DatasetEntry, DatasetId, DatasetSummary, DecisionGrid, DescribeTable, DiagKind, Evaluation,
-    ExportFormat, FeatureImportanceView, ImportanceMethod, ModelConfig, PairplotData,
-    PredictionForm, PredictionResult, ProbabilityView, ResidualsView, RocData, RulesKind,
-    TablePreview, TargetDistribution, TargetInfo, TaskChoice, TaskType, TrainNotice, TreeDiagram,
-    TreeSummary,
+    ClassDistancesView, CodeTemplate, CoefficientsView, CommandError, CorrelationMatrix,
+    CsvPreview, CsvTargetStats, DatasetEntry, DatasetId, DatasetSummary, DecisionGrid,
+    DescribeTable, DiagKind, Evaluation, ExportFormat, FeatureImportanceView, ImportanceMethod,
+    KnnSummary, ModelConfig, PairplotData, PlaygroundRequest, PlaygroundView, PredictionForm,
+    PredictionResult, ProbabilityView, ResidualsView, RocData, RulesKind, TablePreview,
+    TargetDistribution, TargetInfo, TaskChoice, TaskType, TrainNotice, TreeDiagram, TreeSummary,
 };
 
 /// Maximum number of pairplot features (slider limit of §2.6).
@@ -75,6 +75,8 @@ pub struct ModelSummary {
     pub notices: Vec<TrainNotice>,
     /// Decision trees: size of the tree.
     pub tree: Option<TreeSummary>,
+    /// KNN: K, weights, metric and engine.
+    pub knn: Option<KnnSummary>,
 }
 
 /// A trained model with its split, ready for the views of tabs 2–6 (fase2 §3).
@@ -89,8 +91,8 @@ pub trait ModelView: Send + Sync {
     fn probability_view(&self) -> Result<ProbabilityView, CommandError>;
     /// C7. `NotRegressor` for classifiers.
     fn residuals_view(&self) -> Result<ResidualsView, CommandError>;
-    /// C8: refits the same model on features `x`, `y` of the train set and predicts the grid.
-    /// Indices already validated (distinct and in range).
+    /// C8: refits the same model on features `x`, `y` of the train set (KNN: of the whole
+    /// dataset, D63) and predicts the grid. Indices already validated (distinct and in range).
     fn decision_grid(
         &self,
         x: usize,
@@ -100,7 +102,8 @@ pub trait ModelView: Send + Sync {
     ) -> Result<DecisionGrid, CommandError>;
     /// §2.5. `class_index` (logistic multiclass) already validated.
     fn coefficients(&self, class_index: Option<usize>) -> Result<CoefficientsView, CommandError>;
-    /// C9, with the metadata of the training dataset (D32).
+    /// C9, with the metadata of the training dataset (D32). KNN: ranges of the whole
+    /// dataset (D63).
     fn prediction_form(&self) -> Result<PredictionForm, CommandError>;
     /// C9. `values` already checked: one finite value per feature. Trees add the decision
     /// path (C16) and the probabilities of the leaf (D46).
@@ -131,6 +134,21 @@ pub trait ModelView: Send + Sync {
         _cancel: &AtomicBool,
     ) -> Result<FeatureImportanceView, CommandError> {
         Err(CommandError::not_tree())
+    }
+    /// C19 (📏 Análisis de Distancias): mean distances between the classes of the train
+    /// set of the model (D56), with the within-class means of D67.
+    fn class_distances(&self) -> Result<ClassDistancesView, CommandError> {
+        Err(CommandError::not_knn())
+    }
+    /// C18 (🎮 Visualización Interactiva): a 2D KNN on the pair of `req` over every row
+    /// of the dataset (D63) with the controls of the canvas, and its test points. The
+    /// pair is already validated; checks `cancel` between points.
+    fn knn_playground(
+        &self,
+        _req: &PlaygroundRequest,
+        _cancel: &AtomicBool,
+    ) -> Result<PlaygroundView, CommandError> {
+        Err(CommandError::not_knn())
     }
 }
 

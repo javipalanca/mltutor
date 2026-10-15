@@ -28,10 +28,18 @@ use prost::Message;
 
 use crate::ExportError;
 
+mod knn;
+
+pub use knn::{evaluate_knn, knn_classifier, knn_regressor};
+
 /// `TensorProto.DataType.FLOAT`.
 pub const ELEM_FLOAT: i32 = 1;
 /// `TensorProto.DataType.INT64`.
 pub const ELEM_INT64: i32 = 7;
+/// `TensorProto.DataType.BOOL`.
+pub const ELEM_BOOL: i32 = 9;
+/// `TensorProto.DataType.DOUBLE`.
+pub const ELEM_DOUBLE: i32 = 11;
 /// IR version written in the model.
 pub const IR_VERSION: i64 = 8;
 /// Opset of the default domain.
@@ -57,6 +65,8 @@ pub enum AttributeType {
     Float = 1,
     Int = 2,
     String = 3,
+    Tensor = 4,
+    Graph = 5,
     Floats = 6,
     Ints = 7,
     Strings = 8,
@@ -73,6 +83,12 @@ pub struct Attribute {
     pub i: i64,
     #[prost(bytes = "vec", tag = "4")]
     pub s: Vec<u8>,
+    /// `t`: a tensor (`Constant`, `ConstantOfShape`).
+    #[prost(message, optional, tag = "5")]
+    pub t: Option<Tensor>,
+    /// `g`: a subgraph (the body of `Scan`).
+    #[prost(message, optional, boxed, tag = "6")]
+    pub g: Option<Box<Graph>>,
     #[prost(float, repeated, tag = "7")]
     pub floats: Vec<f32>,
     #[prost(int64, repeated, tag = "8")]
@@ -116,6 +132,20 @@ impl Attribute {
             ..Self::default()
         }
     }
+}
+
+/// `TensorProto` (initializers and tensor attributes; values in `raw_data`,
+/// little-endian, as `onnx.numpy_helper.from_array` writes them).
+#[derive(Clone, PartialEq, Message)]
+pub struct Tensor {
+    #[prost(int64, repeated, tag = "1")]
+    pub dims: Vec<i64>,
+    #[prost(int32, tag = "2")]
+    pub data_type: i32,
+    #[prost(string, tag = "8")]
+    pub name: String,
+    #[prost(bytes = "vec", tag = "9")]
+    pub raw_data: Vec<u8>,
 }
 
 /// `NodeProto`.
@@ -190,6 +220,8 @@ pub struct Graph {
     pub node: Vec<Node>,
     #[prost(string, tag = "2")]
     pub name: String,
+    #[prost(message, repeated, tag = "5")]
+    pub initializer: Vec<Tensor>,
     #[prost(message, repeated, tag = "11")]
     pub input: Vec<ValueInfo>,
     #[prost(message, repeated, tag = "12")]
@@ -243,7 +275,7 @@ fn tensor_value(name: &str, elem_type: i32, cols: Option<i64>) -> ValueInfo {
     }
 }
 
-fn model(graph: Graph) -> Model {
+pub(crate) fn model(graph: Graph) -> Model {
     Model {
         ir_version: IR_VERSION,
         producer_name: "MLTutor".to_owned(),
@@ -292,6 +324,7 @@ pub fn linear_regressor(coef: &[f64], intercept: f64) -> Result<Model, ExportErr
         name: "mltutor_linear_regression".to_owned(),
         input: vec![tensor_value(INPUT_NAME, ELEM_FLOAT, Some(n))],
         output: vec![tensor_value("variable", ELEM_FLOAT, Some(1))],
+        initializer: Vec::new(),
     }))
 }
 
@@ -377,6 +410,7 @@ pub fn linear_classifier(
             tensor_value("label", ELEM_INT64, None),
             tensor_value("probabilities", ELEM_FLOAT, Some(k)),
         ],
+        initializer: Vec::new(),
     }))
 }
 
@@ -505,6 +539,7 @@ pub fn tree_ensemble_classifier(
             tensor_value("label", ELEM_INT64, None),
             tensor_value("probabilities", ELEM_FLOAT, Some(to_i64(k)?)),
         ],
+        initializer: Vec::new(),
     }))
 }
 
@@ -550,6 +585,7 @@ pub fn tree_ensemble_regressor(tree: &DecisionTree) -> Result<Model, ExportError
         name: "mltutor_decision_tree_regressor".to_owned(),
         input: vec![tensor_value(INPUT_NAME, ELEM_FLOAT, Some(to_i64(p)?))],
         output: vec![tensor_value("variable", ELEM_FLOAT, Some(1))],
+        initializer: Vec::new(),
     }))
 }
 
@@ -654,6 +690,9 @@ pub fn evaluate(model: &Model, x: &[Vec<f32>]) -> Result<(Vec<i64>, Vec<Vec<f32>
     };
     let graph = model.graph.as_ref().ok_or_else(|| err("sin grafo"))?;
     let first = graph.node.first().ok_or_else(|| err("sin nodos"))?;
+    if graph.node.iter().any(|n| n.op_type == "Scan") {
+        return evaluate_knn(model, x);
+    }
     if first.op_type.starts_with("TreeEnsemble") {
         return evaluate_tree_ensemble(first, x);
     }

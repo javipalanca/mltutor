@@ -8,6 +8,7 @@
   import { dataBlock, lesson as lessonContent, LESSON_PHASE, navbarMessages, tabName } from "../lib/lessons";
   import { session } from "../lib/session.svelte";
   import RegressionLesson from "../lib/lessons/regression/RegressionLesson.svelte";
+  import KnnLesson from "../lib/lessons/knn/KnnLesson.svelte";
   import TreesLesson from "../lib/lessons/trees/TreesLesson.svelte";
   import DatasetTab from "./DatasetTab.svelte";
 
@@ -48,6 +49,8 @@
       <RegressionLesson {active} />
     {:else if active > 0 && id === "arboles"}
       <TreesLesson {active} />
+    {:else if active > 0 && id === "knn"}
+      <KnnLesson {active} />
     {:else if active > 0}
       <h2>{tab}</h2>
       <Notice

@@ -1123,5 +1123,109 @@ def case_code_knn_training(eg, writer) -> None:
     writer.write_json(eg.PARITY_DIR / "code" / "knn_training.json", doc)
 
 
+# ---------------------------------------------------------------------------
+# code/knn_boundary.json: frontera_decision.py.j2 with datos="todos" (D63)
+# ---------------------------------------------------------------------------
+BOUNDARY_TEMPLATE = "frontera_decision.py.j2"
+BOUNDARY_CASES: dict[str, str] = {
+    # training-script case of code/knn_training.json -> the fixture with its 2-D models
+    "iris_k5_uniform_minkowski": "iris_k5_uniform_minkowski",
+    "wine_k5_uniform_minkowski": "wine_k5_uniform_minkowski",
+    "breast_cancer_k5_uniform_minkowski": "breast_cancer_k5_uniform_minkowski",
+    "csv_string_target_k15_distance_euclidean": "csv_string_target_k15_distance_euclidean",
+}
+_BOUNDARY_PROBE = """\
+import json, runpy, sys
+import numpy as np
+import matplotlib
+matplotlib.use("Agg")
+g = runpy.run_path(sys.argv[1], run_name="__main__")
+m2 = g["model_2d"]
+Q = np.array(json.loads(sys.argv[3]), dtype=float)
+out = {"n_fit": int(m2.n_samples_fit_), "n_X": int(len(g["X"])), "fit_method": m2._fit_method,
+       "params": m2.get_params(), "predict": m2.predict(Q).tolist()}
+with open(sys.argv[2], "w", encoding="utf-8") as f:
+    json.dump(out, f)
+"""
+
+
+def case_code_knn_boundary(eg, writer) -> None:
+    """D63: the boundary code of 🔍 KNN fits the 2-D model on ALL the rows. Each case is the
+    training script (knn_entrenamiento.py.j2) followed by frontera_decision.py.j2 with
+    datos="todos", executed; its model_2d must be the app's 2-D model (same rows, engine,
+    params and predictions on 200 cells of the fixture's grid)."""
+    import os
+    import subprocess
+    import sys
+    import tempfile
+
+    training = json.loads((eg.PARITY_DIR / "code" / "knn_training.json").read_text("utf-8"))
+    out = {}
+    for name, fixture_name in BOUNDARY_CASES.items():
+        fixture = json.loads((eg.PARITY_DIR / MODULE / f"{fixture_name}.json").read_text("utf-8"))
+        exp = fixture["expected"]
+        tfm = exp["two_feature_models"].get("pair") or exp["two_feature_models"]["default"]
+        a, b = tfm["features"]
+        classification = exp["estimator"] == "KNeighborsClassifier"
+        tctx = training["expected"][name]["context"]
+        ctx = {"feature_indices": [a, b],
+               "feature_names": [exp["feature_names"][a], exp["feature_names"][b]],
+               "class_names": tctx["class_names"] if classification else None,
+               "datos": "todos"}
+        text = eg._render_code_template(BOUNDARY_TEMPLATE, ctx)
+        default_text = eg._render_code_template(
+            BOUNDARY_TEMPLATE, {k: v for k, v in ctx.items() if k != "datos"})
+        if default_text != eg._render_code_template(BOUNDARY_TEMPLATE,
+                                                    {**ctx, "datos": "entrenamiento"}):
+            raise AssertionError("datos='entrenamiento' must render like the default")
+        script = training["expected"][name]["text"] + "\n" + text
+        rng = np.random.default_rng(42)
+        xs, ys = np.asarray(tfm["x"]), np.asarray(tfm["y"])
+        cells = sorted(rng.choice(len(xs) * len(ys), 200, replace=False).tolist())
+        Q = [[float(xs[c % len(xs)]), float(ys[c // len(xs)])] for c in cells]
+        z = np.asarray(tfm["z"]).ravel()
+        want = [z[c].item() for c in cells]
+        files = {}
+        if "csv_fixture" in fixture["input"]:
+            cname = Path(fixture["input"]["csv_fixture"]).stem
+            files[f"{cname}.csv"] = eg._csv_cases()[cname]
+        with tempfile.TemporaryDirectory() as tmp:
+            for fname, data in files.items():
+                (Path(tmp) / fname).write_bytes(data)
+            (Path(tmp) / "script.py").write_text(script, encoding="utf-8")
+            (Path(tmp) / "probe.py").write_text(_BOUNDARY_PROBE, encoding="utf-8")
+            proc = subprocess.run([sys.executable, "probe.py", "script.py", "out.json",
+                                   json.dumps(Q)], cwd=tmp, capture_output=True, text=True,
+                                  timeout=600, env={**os.environ, "PYTHONWARNINGS": "ignore",
+                                                    "MPLBACKEND": "Agg"})
+            if proc.returncode != 0:
+                raise RuntimeError(f"{name}: boundary script failed:\n{proc.stdout}\n{proc.stderr}")
+            got = json.loads((Path(tmp) / "out.json").read_text("utf-8"))
+        if got["n_fit"] != got["n_X"] or got["n_fit"] != tfm["n_samples"]:
+            raise AssertionError(f"{name}: model_2d is not fitted on all the rows")
+        if got["fit_method"] != tfm["fit_method"]:
+            raise AssertionError(f"{name}: engine of model_2d")
+        if not np.allclose(got["predict"], want, rtol=1e-12, atol=1e-12):
+            raise AssertionError(f"{name}: model_2d predicts differently from the app's grid")
+        out[name] = {"context": ctx, "text": text, "default_text": default_text,
+                     "checked_against": f"{MODULE}/{fixture_name}.json two_feature_models",
+                     "n_fit": got["n_fit"], "cells_checked": len(cells)}
+    doc = {
+        "meta": eg.make_meta(
+            {"text": "exact"},
+            "D63: frontera_decision.py.j2 takes an optional 'datos'. With 'todos' (🔍 KNN) the "
+            "2-D model is fitted on every row of the dataset (X, y), like the app; the script "
+            "is run after knn_entrenamiento.py.j2 and its model_2d equals the app's 2-D model "
+            "(rows, engine and 200 grid cells). Without 'datos' (or with 'entrenamiento') the "
+            "text is the one of F2/F3 ('default_text', also in code/regression.json)."),
+        "input": {"template": f"content/code/{BOUNDARY_TEMPLATE}",
+                  "engine": "jinja2 with keep_trailing_newline=True, StrictUndefined, "
+                            "filters pyrepr = repr() and pycomment"},
+        "expected": out,
+    }
+    writer.write_json(eg.PARITY_DIR / "code" / "knn_boundary.json", doc)
+
+
 def register_code(cases: dict, eg) -> None:
     cases["code/knn_training"] = lambda w: case_code_knn_training(eg, w)
+    cases["code/knn_boundary"] = lambda w: case_code_knn_boundary(eg, w)

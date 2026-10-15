@@ -45,6 +45,8 @@
     "allow-tree-diagram",
     "allow-tree-rules",
     "allow-feature-importance",
+    "allow-class-distances",
+    "allow-knn-playground",
     "core:event:allow-listen",
     "core:event:allow-unlisten"
   ]

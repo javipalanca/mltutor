@@ -43,15 +43,28 @@ X_train = np.array(datos["X_train"], dtype=float)
 y_train = np.array(datos["y_train"])
 modelo.fit(X_train, y_train)
 
-# 4. Comprobar que el modelo reconstruido elige los mismos vecinos y predice lo mismo
+# 4. Comprobar que el modelo reconstruido elige los mismos vecinos y predice lo mismo.
+#    Si varias muestras de entrenamiento están a la MISMA distancia que el K-ésimo vecino,
+#    scikit-learn elige una según su plataforma (el kd-tree depende de la biblioteca de C++
+#    con la que se compiló), así que puede quedarse con otra igual de cercana. Por eso se
+#    comparan siempre las distancias y, en esas filas, solo se avisa.
 X = np.array(datos["check"]["X"], dtype=float)
 distancias, vecinos = modelo.kneighbors(X)
-assert np.array_equal(vecinos, np.array(datos["check"]["neighbours"]))
-assert np.allclose(distancias, datos["check"]["distances"], rtol=1e-9, atol=1e-12)
-{% if classifier %}assert np.array_equal(modelo.predict(X), np.array(datos["check"]["prediction"]))
-assert np.allclose(modelo.predict_proba(X), datos["check"]["probabilities"], atol=1e-12)
-{% else %}assert np.allclose(modelo.predict(X), datos["check"]["prediction"], rtol=1e-12, atol=1e-12)
-{% endif %}print("✅ El modelo reconstruido elige los mismos vecinos y predice lo mismo que MLTutor")
+assert np.allclose(np.sort(distancias, axis=1), np.sort(np.array(datos["check"]["distances"]), axis=1),
+                   rtol=1e-9, atol=1e-12)
+iguales = np.all(vecinos == np.array(datos["check"]["neighbours"]), axis=1)
+if iguales.any():
+{% if classifier %}    assert np.array_equal(modelo.predict(X[iguales]), np.array(datos["check"]["prediction"])[iguales])
+    assert np.allclose(modelo.predict_proba(X[iguales]), np.array(datos["check"]["probabilities"])[iguales],
+                       atol=1e-12)
+{% else %}    assert np.allclose(modelo.predict(X[iguales]), np.array(datos["check"]["prediction"])[iguales],
+                       rtol=1e-12, atol=1e-12)
+{% endif %}if iguales.all():
+    print("✅ El modelo reconstruido elige los mismos vecinos y predice lo mismo que MLTutor")
+else:
+    print(f"⚠️ En {int((~iguales).sum())} de {len(X)} filas de comprobación hay un empate de distancia "
+          "en el K-ésimo vecino y este scikit-learn ha elegido otra muestra igual de cercana "
+          "(las distancias coinciden). Sus predicciones pueden variar; el resto coincide con MLTutor.")
 
 # 5. Guardar el modelo en formato pickle
 with open("{{ pkl_name }}", "wb") as f:

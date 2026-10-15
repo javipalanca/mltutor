@@ -258,7 +258,7 @@ pub fn train(
     // The F2 snippets (confusion matrix, boundary…) of the shared views.
     let code = read("code/regression.json")?["expected"].take();
     let tree = FixtureTree::parse(&expected["tree"]);
-    let classifier = spec.config.task() == TaskType::Classification;
+    let classifier = spec.config.task_on(dataset_task) == TaskType::Classification;
     let class_names = expected["class_names"]
         .as_array()
         .map(|_| strings(&expected["class_names"]))
@@ -506,12 +506,14 @@ impl ModelView for TreeFixtureModel {
                     name: self.name_of(code),
                     proba: Some(proba),
                     path: Some(path),
+                    neighbors: None,
                 })
             }
             None => Ok(PredictionResult::Value {
                 value: self.tree.value[leaf].first().copied().unwrap_or(f64::NAN),
                 coefficients: None,
                 path: Some(path),
+                neighbors: None,
             }),
         }
     }
@@ -711,7 +713,7 @@ impl ModelView for TreeFixtureModel {
             n_repeats,
             baseline,
             seed,
-            task: self.config.task(),
+            task: self.config.task_on(self.base.summary().dataset_task),
         })
     }
 }

@@ -79,7 +79,7 @@ describe("PredictionForm (C9)", () => {
 describe("PredictionResultCard (C9)", () => {
   it("shows the class and the probability table with 4 decimals (D33)", () => {
     render(PredictionResultCard, {
-      result: { kind: "class", index: 1, name: "versicolor", proba: [{ name: "setosa", probability: 0.0427128 }, { name: "versicolor", probability: 0.928777 }], path: null },
+      result: { kind: "class", index: 1, name: "versicolor", proba: [{ name: "setosa", probability: 0.0427128 }, { name: "versicolor", probability: 0.928777 }], path: null, neighbors: null },
     });
     expect(screen.getByText("Clase: versicolor")).toBeTruthy();
     expect(screen.getByText("0.0427")).toBeTruthy();
@@ -87,7 +87,7 @@ describe("PredictionResultCard (C9)", () => {
 
   it("shows a value and the coefficients of a linear model (D25)", () => {
     render(PredictionResultCard, {
-      result: { kind: "value", value: 1.23456, coefficients: [{ feature: "bmi", coef: 546.29972 }], path: null },
+      result: { kind: "value", value: 1.23456, coefficients: [{ feature: "bmi", coef: 546.29972 }], path: null, neighbors: null },
     });
     expect(screen.getByText("Valor: 1.2346")).toBeTruthy();
     expect(screen.getByText("546.2997")).toBeTruthy();

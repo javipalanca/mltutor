@@ -703,6 +703,42 @@ Paletas: la del lienzo de Python (8 colores), viridis (distancias, importancia),
   `uniform` la suma es exactamente K.
 - Textos: `{:.2f}` y `{:.3f}` = `format!("{:.N}")`; `{:.1%}` = `format!("{:.1}%", x·100)`.
 
+### 8.4 Implementación del core (rust-ml-engineer, 2026-10-15): API y desviaciones del §3/§5.3
+
+La API estable está documentada en `crates/mltutor-core/src/lib.rs` ("Public API of Phase 4") y en
+`crates/mltutor-export/src/lib.rs`. Diferencias con la API propuesta en C17–C20 y §5.3:
+
+- `KnnConfig.n_neighbors` es `u32` (el límite 1–20 lo pone la UI/Tauri); `KnnSummary` añade `n_features`.
+- `Neighbors` es row-major (`k`, `distances`, `indices`, con `row_distances(i)`/`row_indices(i)`), no `Array2`.
+- `ModelError::TooFewSamples { k, n_train }` (D59), con el mismo texto que `[entrenamiento] error_k_mayor`.
+- C19: `class_distances(x_train, codes, metric, ctl)` recibe los códigos (`y_train.class_codes()`). Devuelve
+  además `counts`, `within: Vec<Option<f64>>` (D67), `ratio_verdict` (el de Python) y `verdict`
+  (`Binary` con 2 clases, `TooFewClasses` con < 2). Cada par de clases se calcula una vez (la matriz es
+  simétrica; Python difiere en el último bit entre `M[i,j]` y `M[j,i]`).
+- C18: `knn::playground(x_all, y_all, &PlaygroundRequest { features, config: KnnConfig, points }, ctl)`;
+  `Playground` devuelve `codes` (código de cada fila) y `colors` por clase de `classes`. Los vecinos van como
+  `knn::Neighbor { rank, index, distance, weight, class, value }`: `index` es la fila del dataset (el lienzo
+  usa todas las filas). El DTO `NeighborRow` (`train_row`/`dataset_row`) lo construye Tauri.
+- C20: `Knn::explain(values) -> KnnExplanation { class, value, proba, neighbors, zero_distance_rule,
+  tie_at_kth: Option<KthTie { n_tied, slots, distance }> }` para `[predicciones] vecinos_nota_empate`
+  (verificado con `neighbours_test.ties.rows_with_tie_at_kth`: 65 filas). `PlaygroundPoint` también lleva
+  `tie_at_kth`. `form::predict_one` sigue sirviendo para la clase/valor genéricos.
+- `DecisionBoundaryContext` gana `datos: Option<String>` (D63, se omite al serializar si es `None`) con
+  `DecisionBoundaryContext::new(..)` y `.all_rows()`. Fixture nuevo `code/knn_boundary.json`
+  (`tools/golden_knn.py::case_code_knn_boundary`): el script de entrenamiento + la frontera con
+  `datos="todos"` se ejecutan y su `model_2d` coincide con el modelo 2D de la app (filas, motor y 200 celdas).
+- `paquete_modelo_knn.py.j2`: si los vecinos de la comprobación difieren (empate en el K-ésimo vecino con el
+  kd-tree de otra plataforma), compara las distancias ordenadas y avisa en lugar de fallar; las predicciones
+  solo se comprueban en las filas con los mismos vecinos.
+- Tolerancias que el §6.2 no contemplaba: con fuerza bruta euclídea y `weights='distance'` (Cáncer K10, CSV
+  K15) los pesos `1/d` heredan la diferencia de BLAS, así que las probabilidades se comparan a 1e-9 (error
+  máximo observado 4,3e-13), no a 1e-15. `step_h` del fixture es el paso final, no `knn_step(n)`.
+- Rendimiento: `kneighbors` reparte las filas en hasta 8 hilos (`std::thread::scope`) a partir de 2 048
+  filas; cada fila es independiente, así que el resultado no depende del número de hilos.
+- ONNX (D57): grafo idéntico a `onnx_proposal_D57.nodes` (mismos nombres, entradas y salidas), solo con el
+  opset `ai.onnx` 15 (sin `ai.onnx.ml`). Pasa `onnx.checker` (full_check) y onnxruntime en los 18 casos;
+  onnxruntime = evaluador de referencia de Rust (`onnx::evaluate_knn`) en todas las filas.
+
 ---
 
 ## 9. Reparto de tareas y checklist

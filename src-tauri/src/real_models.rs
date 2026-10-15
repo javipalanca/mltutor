@@ -39,6 +39,8 @@ pub fn model_error(error: ModelError) -> CommandError {
             CommandError::invalid_target(crate::models::tree_needs_classes_message())
         }
         ModelError::InvalidConfig { .. } => CommandError::invalid_config(error.to_string()),
+        // D59: the text of the lesson (`content/knn/mensajes.toml`).
+        ModelError::TooFewSamples { k, n_train } => crate::knn::too_few_samples(k, n_train),
         other => CommandError::training(other),
     }
 }
@@ -53,7 +55,7 @@ fn core_config(config: ModelConfig) -> Option<core::linear::ModelConfig> {
         ModelConfig::Logistic { max_iter } => {
             Some(core::linear::ModelConfig::Logistic { max_iter })
         }
-        ModelConfig::Tree { .. } => None,
+        ModelConfig::Tree { .. } | ModelConfig::Knn { .. } => None,
     }
 }
 
@@ -122,9 +124,14 @@ fn fit(
     let control = TrainControl::none()
         .with_cancel(cancel)
         .with_progress(&report);
-    let model = match core_config(spec.config) {
-        Some(linear) => core::linear::fit(linear, x_train.view(), &y_train, &control),
-        None => crate::real_trees::fit(spec.config, x_train.view(), &y_train, &control),
+    let model = match (core_config(spec.config), spec.config) {
+        (Some(linear), _) => core::linear::fit(linear, x_train.view(), &y_train, &control),
+        (None, ModelConfig::Knn { .. }) => {
+            // D59 before searching anything (Python trained and every view failed).
+            crate::knn::check_k(spec.config, split.train.len())?;
+            crate::real_knn::fit(spec.config, x_train.view(), &y_train, &control)
+        }
+        (None, _) => crate::real_trees::fit(spec.config, x_train.view(), &y_train, &control),
     }
     .map_err(model_error)?;
     let mut notices = Vec::new();
@@ -216,6 +223,19 @@ impl CoreModel {
             .downcast_ref::<core::tree::DecisionTree>()
     }
 
+    /// The KNN, if the model is one.
+    pub(crate) fn knn(&self) -> Option<&core::knn::Knn> {
+        self.model.as_any().downcast_ref::<core::knn::Knn>()
+    }
+
+    /// Name of class `code`, or "Clase {code}" as the KNN views of Python.
+    pub(crate) fn display_name_of(&self, code: usize) -> String {
+        self.dataset
+            .class_names()
+            .and_then(|names| names.get(code).cloned())
+            .unwrap_or_else(|| format!("Clase {code}"))
+    }
+
     pub(crate) fn class_names(&self) -> Option<Vec<String>> {
         self.dataset.class_names().map(<[String]>::to_vec)
     }
@@ -268,7 +288,13 @@ impl CoreModel {
                     None
                 }
             });
-            core::form::build(self.x_train().view(), &self.dataset, metadata.as_ref())
+            // D63: KNN takes the ranges of the whole dataset (Python passed `knn_X`).
+            let x = if self.knn().is_some() {
+                self.dataset.features.clone()
+            } else {
+                self.x_train()
+            };
+            core::form::build(x.view(), &self.dataset, metadata.as_ref())
         })
     }
 
@@ -290,9 +316,10 @@ impl CoreModel {
                 ModelConfig::Linear => "linear".to_owned(),
                 ModelConfig::Logistic { .. } => "logistic".to_owned(),
                 ModelConfig::Tree { .. } => "tree".to_owned(),
+                ModelConfig::Knn { .. } => "knn".to_owned(),
             },
             max_iter: match self.spec.config {
-                ModelConfig::Linear | ModelConfig::Tree { .. } => None,
+                ModelConfig::Linear | ModelConfig::Tree { .. } | ModelConfig::Knn { .. } => None,
                 ModelConfig::Logistic { max_iter } => Some(max_iter),
             },
             test_size: self.spec.test_size,
@@ -318,6 +345,7 @@ impl ModelView for CoreModel {
             model_classes: self.model.classes().map(<[usize]>::to_vec),
             notices: self.notices.clone(),
             tree: self.tree().map(crate::real_trees::summary),
+            knn: self.knn().map(crate::real_knn::summary),
         }
     }
 
@@ -519,13 +547,26 @@ impl ModelView for CoreModel {
         crate::models::check_mae_limit(self.spec.config, self.split.train.len())?;
         progress("Generando frontera de decisión...", None);
         let control = TrainControl::none().with_cancel(cancel);
+        // D63: KNN refits the 2D model on every row of the dataset, with the step of
+        // `knn_step(n)` of the whole dataset.
+        let (x_fit, y_fit, options) = if self.knn().is_some() {
+            let (xa, ya) = crate::real_knn::all_rows(self);
+            let step = core::grid::knn_step(self.dataset.n_rows());
+            (xa, ya, core::grid::GridOptions { step })
+        } else {
+            (
+                self.x_train(),
+                self.y_train.clone(),
+                core::grid::GridOptions::default(),
+            )
+        };
         let grid = core::grid::decision_grid(
             self.model.as_ref(),
-            self.x_train().view(),
-            &self.y_train,
+            x_fit.view(),
+            &y_fit,
             x,
             y,
-            core::grid::GridOptions::default(),
+            options,
             &control,
         )
         .map_err(model_error)?;
@@ -668,6 +709,10 @@ impl ModelView for CoreModel {
             Some(tree) => Some(crate::real_trees::decision_path(self, tree, values)?),
             None => None,
         };
+        let neighbors = match self.knn() {
+            Some(_) => Some(crate::real_knn::neighbors(self, values)?),
+            None => None,
+        };
         match core::form::predict_one(self.model.as_ref(), values).map_err(model_error)? {
             core::form::PredictionOutcome::Class { class, proba } => {
                 Ok(ipc::PredictionResult::Class {
@@ -682,6 +727,7 @@ impl ModelView for CoreModel {
                             .collect()
                     }),
                     path,
+                    neighbors,
                 })
             }
             core::form::PredictionOutcome::Value { value } => Ok(ipc::PredictionResult::Value {
@@ -698,6 +744,7 @@ impl ModelView for CoreModel {
                         .collect()
                 }),
                 path,
+                neighbors,
             }),
         }
     }
@@ -716,6 +763,18 @@ impl ModelView for CoreModel {
 
     fn tree_diagram(&self) -> Result<ipc::TreeDiagram, CommandError> {
         crate::real_trees::diagram(self)
+    }
+
+    fn class_distances(&self) -> Result<ipc::ClassDistancesView, CommandError> {
+        crate::real_knn::class_distances(self)
+    }
+
+    fn knn_playground(
+        &self,
+        req: &ipc::PlaygroundRequest,
+        cancel: &AtomicBool,
+    ) -> Result<ipc::PlaygroundView, CommandError> {
+        crate::real_knn::playground(self, req, cancel)
     }
 
     fn tree_rules(&self, kind: ipc::RulesKind, class_names: bool) -> Result<String, CommandError> {
@@ -745,17 +804,21 @@ impl ModelView for CoreModel {
             CodeTemplate::DecisionBoundary => {
                 let (x, y) =
                     pair.unwrap_or((0, 1.min(self.dataset.n_features().saturating_sub(1))));
-                render(
-                    T::DecisionBoundary,
-                    &DecisionBoundaryContext {
-                        feature_indices: [x, y],
-                        feature_names: vec![
-                            self.dataset.feature_display[x].clone(),
-                            self.dataset.feature_display[y].clone(),
-                        ],
-                        class_names: self.class_names(),
-                    },
-                )
+                let context = DecisionBoundaryContext::new(
+                    [x, y],
+                    vec![
+                        self.dataset.feature_display[x].clone(),
+                        self.dataset.feature_display[y].clone(),
+                    ],
+                    self.class_names(),
+                );
+                // D63: KNN refits the 2D model on every row of the dataset.
+                let context = if self.spec.config.is_knn() {
+                    context.all_rows()
+                } else {
+                    context
+                };
+                render(T::DecisionBoundary, &context)
             }
             // D29: the complete training script (Python's literal snippet did not run).
             CodeTemplate::RegressionCode => render(T::RegressionTraining, &self.training_context()),
@@ -766,6 +829,7 @@ impl ModelView for CoreModel {
             | CodeTemplate::TreePython
             | CodeTemplate::TreePythonLiteral
             | CodeTemplate::TreeTraining => return crate::real_trees::code(self, template),
+            CodeTemplate::KnnTraining => return crate::real_knn::code(self),
         };
         rendered.map_err(|error| CommandError::internal(format!("plantilla: {error}")))
     }
