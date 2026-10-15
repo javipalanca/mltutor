@@ -553,3 +553,56 @@ fn friedman_mse_grows_the_same_tree_as_squared_error() {
         );
     }
 }
+
+/// FEATURE_THRESHOLD behaves as 0 in scikit-learn 1.7.2: a column in the 1e-6
+/// scale and two contiguous float32 values are split like sklearn does (with a
+/// 1e-7 gap none of these trees would be the same).
+#[test]
+fn tiny_scale_features_split_like_sklearn() {
+    use mltutor_core::model::{Predictor, TrainControl};
+    use mltutor_core::Target;
+    let fx = common::fixture("trees/tiny_scale_features.json");
+    let (mut imp, mut val) = (MaxErr::default(), MaxErr::default());
+    let cases = fx["cases"].as_object().unwrap();
+    assert_eq!(cases.len(), 5);
+    for (name, c) in cases {
+        let input = &c["input"];
+        let rows: Vec<Vec<f64>> = input["X"].as_array().unwrap().iter().map(nums).collect();
+        let p = rows[0].len();
+        let x = ndarray::Array2::from_shape_vec(
+            (rows.len(), p),
+            rows.iter().flatten().copied().collect(),
+        )
+        .unwrap();
+        let classification = input["tree_type"] == "Clasificación";
+        let task = if classification {
+            mltutor_core::tree::TreeTask::Classification
+        } else {
+            mltutor_core::tree::TreeTask::Regression
+        };
+        let config = mltutor_core::tree::TreeConfig::new(
+            task,
+            common::trees::criterion(input["criterion"].as_str().unwrap()),
+            input["max_depth"].as_u64().unwrap() as u32,
+            input["min_samples_split"].as_u64().unwrap() as u32,
+        );
+        let ctl = TrainControl::none();
+        let y = nums(&input["y"]);
+        let t = if classification {
+            let codes: Vec<usize> = y.iter().map(|&v| v as usize).collect();
+            DecisionTree::fit_classifier(config, x.view(), &codes, &ctl).unwrap()
+        } else {
+            mltutor_core::tree::fit(config, x.view(), &Target::Values { values: y }, &ctl).unwrap()
+        };
+        assert!(!c["expected"]["same_tree_with_gap_1e-7"].as_bool().unwrap());
+        check_tree(name, &t, &c["expected"]["tree"], &mut imp, &mut val);
+        let pred = nums(&c["expected"]["predict_train"]);
+        for (a, b) in t.predict(x.view()).unwrap().to_f64().iter().zip(&pred) {
+            assert!(tol_err(*a, *b) <= 1e-12, "{name}: predict {a} vs {b}");
+        }
+    }
+    println!(
+        "tiny-scale trees: impurity max err {:e} ({}), value max err {:e} ({})",
+        imp.max, imp.n, val.max, val.n
+    );
+}

@@ -75,9 +75,9 @@ pub struct PermutationImportance {
     pub std: Vec<f64>,
 }
 
-/// `estimator.score`: accuracy for classifiers, R² for regressors.
-fn score(model: &dyn Predictor, x: ArrayView2<'_, f64>, y: &Target) -> Result<f64, ModelError> {
-    match (model.task(), model.predict(x)?) {
+/// `estimator.score` of a prediction: accuracy for classifiers, R² for regressors.
+fn score_of(model: &dyn Predictor, pred: Prediction, y: &Target) -> Result<f64, ModelError> {
+    match (model.task(), pred) {
         (TaskType::Classification, Prediction::Classes(pred)) => {
             let codes = y.class_codes().ok_or(ModelError::NotClassifier)?;
             let hits = pred.iter().zip(&codes).filter(|(a, b)| a == b).count();
@@ -87,13 +87,69 @@ fn score(model: &dyn Predictor, x: ArrayView2<'_, f64>, y: &Target) -> Result<f6
     }
 }
 
+/// `estimator.score(x, y)`.
+fn score(model: &dyn Predictor, x: ArrayView2<'_, f64>, y: &Target) -> Result<f64, ModelError> {
+    score_of(model, model.predict(x)?, y)
+}
+
+/// The data being permuted. Models with [`Predictor::predict_f32_rows`] (trees)
+/// get one float32 buffer, converted once, where only the shuffled column is
+/// rewritten; the others get an `f64` copy and the normal `predict`. Without it,
+/// a CSV with many columns cost O(p·R·n·p): every repetition revalidated and
+/// converted the whole matrix.
+enum Work {
+    /// Row-major `n × p` float32.
+    F32(Vec<f32>),
+    F64(Array2<f64>),
+}
+
+impl Work {
+    fn new(model: &dyn Predictor, x: ArrayView2<'_, f64>) -> Self {
+        // `x` already passed `predict` (the baseline), so `as f32` is what the
+        // model itself does. The empty probe tells whether the fast path exists.
+        if model.predict_f32_rows(&[]).is_some() {
+            Work::F32(x.iter().map(|&v| v as f32).collect())
+        } else {
+            Work::F64(x.to_owned())
+        }
+    }
+
+    /// `X[:, c] = values`.
+    fn set_column(&mut self, c: usize, p: usize, values: &[f64]) {
+        match self {
+            Work::F32(buf) => {
+                for (row, &v) in buf.chunks_exact_mut(p).zip(values) {
+                    row[c] = v as f32;
+                }
+            }
+            Work::F64(xp) => {
+                for (dst, &v) in xp.column_mut(c).iter_mut().zip(values) {
+                    *dst = v;
+                }
+            }
+        }
+    }
+
+    fn score(&self, model: &dyn Predictor, y: &Target) -> Result<f64, ModelError> {
+        match self {
+            Work::F32(buf) => {
+                let pred = model.predict_f32_rows(buf).ok_or(ModelError::Numerical {
+                    message: "el modelo ya no admite la predicción en float32".to_owned(),
+                })??;
+                score_of(model, pred, y)
+            }
+            Work::F64(xp) => score(model, xp.view(), y),
+        }
+    }
+}
+
 /// `permutation_importance(model, x_test, y_test, n_repeats, random_state)` of
 /// scikit-learn 1.7.2, reproduced exactly (D39):
 ///
 /// 1. `seed = RandomState(random_state).randint(2**31)` — **one** seed for every
 ///    column (scikit-learn ≥ 1.5; older versions drew one per column).
-/// 2. For each column `c`: `rs = RandomState(seed)`, `idx = 0..n`, a fresh copy of
-///    `x`, and `n_repeats` times: `rs.shuffle(idx)` (cumulative: the same `idx`
+/// 2. For each column `c`: `rs = RandomState(seed)`, `idx = 0..n`, the original
+///    data, and `n_repeats` times: `rs.shuffle(idx)` (cumulative: the same `idx`
 ///    keeps being shuffled) and `X[:, c] = X[idx, c]` (the already permuted column).
 /// 3. `importances[c, r] = baseline − score`.
 ///
@@ -127,7 +183,7 @@ pub fn permutation(
     let seed_i = RandomState::new(options.random_state).randint(0, 1 << 31);
     let seed = u32::try_from(seed_i).unwrap_or(0);
     let mut importances = Array2::<f64>::zeros((p, options.n_repeats));
-    let mut xp = x.to_owned();
+    let mut work = Work::new(model, x);
     let mut column = vec![0.0; n];
     for c in 0..p {
         control.report(TrainProgress {
@@ -138,21 +194,23 @@ pub fn permutation(
         });
         let mut rs = RandomState::new(seed);
         let mut idx: Vec<usize> = (0..n).collect();
+        // The column as it is now (permuted `r` times).
+        let mut current: Vec<f64> = x.column(c).to_vec();
         for r in 0..options.n_repeats {
             control.check()?;
             rs.shuffle(&mut idx);
+            // `X[:, c] = X[idx, c]` on the already permuted column.
             for (dst, &i) in column.iter_mut().zip(&idx) {
-                *dst = xp[[i, c]];
+                *dst = current[i];
             }
-            for (i, &v) in column.iter().enumerate() {
-                xp[[i, c]] = v;
-            }
-            importances[[c, r]] = baseline - score(model, xp.view(), y)?;
+            std::mem::swap(&mut current, &mut column);
+            work.set_column(c, p, &current);
+            importances[[c, r]] = baseline - work.score(model, y)?;
         }
         // Restore the column: the next one starts from the original data.
-        for i in 0..n {
-            xp[[i, c]] = x[[i, c]];
-        }
+        current.clear();
+        current.extend(x.column(c).iter());
+        work.set_column(c, p, &current);
     }
     control.report(TrainProgress {
         iteration: p as u64,

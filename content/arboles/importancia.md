@@ -1,4 +1,4 @@
-<!-- NUEVO (D38, Fase 3): no existe en la versión Python, que solo mostraba la importancia nativa. Pestaña 🔍 Características, expander cerrado debajo del panel "🌳 Importancia del modelo" / "🔀 Importancia por permutación" (en las dos subvistas, después de "📖 Cómo interpretar estos resultados"). Título: mensajes.toml [caracteristicas] comparar_expander. Cifras de tests/parity/trees/{breast_cancer_gini_d3,diabetes_squared_error_d10,iris_gini_d3}.json (feature_importances y permutation_importance, n_repeats=10, random_state=42). -->
+<!-- NUEVO (D38, Fase 3): no existe en la versión Python, que solo mostraba la importancia nativa. Pestaña 🔍 Características, expander cerrado debajo del panel "🌳 Importancia del modelo" / "🔀 Importancia por permutación" (en las dos subvistas, después de "📖 Cómo interpretar estos resultados"). Título: mensajes.toml [caracteristicas] comparar_expander. Cifras de tests/parity/trees/{breast_cancer_gini_d3,diabetes_squared_error_d10,iris_gini_d3}.json (feature_importances y permutation_importance, n_repeats=10, random_state=42). CORREGIDO (revisión ML de F3, 2026-10-15): el ejemplo de Diabetes decía "al barajarla, el modelo **mejora** en prueba" sin la desviación; ahora da media ± desviación (−0,050 ± 0,066) y explica que un negativo compatible con 0 es azar, no que la característica confunda al modelo. -->
 MLTutor calcula la importancia de dos maneras, y a menudo **no coinciden**. No es un error: responden a
 preguntas distintas.
 
@@ -33,8 +33,12 @@ Es más lenta, pero mide lo que importa: la dependencia del modelo con datos que
   la raíz se lleva mucha importancia nativa porque actúa sobre todas las muestras de entrenamiento, pero
   eso no dice cuánto se equivoca el modelo sin ella en la prueba.
 - 🩺 **Diabetes** (squared_error, profundidad 10, un árbol sobreajustado): *s1* tiene una importancia nativa
-  de 0,067, pero por permutación sale **negativa** (−0,050): al barajarla, el modelo **mejora** en prueba.
-  Sus cortes solo servían para memorizar el entrenamiento. Lo mismo pasa con *s4* y *s3*.
+  de 0,067, pero por permutación sale **negativa**: −0,050 ± 0,066. La desviación es mayor que la media, así
+  que el valor es compatible con 0: barajarla **no empeora** el modelo en prueba, y la pequeña mejora es
+  azar (depende de cómo caigan las 10 permutaciones). Sus cortes solo servían para memorizar el
+  entrenamiento. Lo mismo pasa con *s4* (−0,039 ± 0,044) y *s3* (−0,021 ± 0,037). Un valor negativo **no**
+  significa que la característica confunda al modelo; solo sería preocupante si fuera claramente negativo
+  (mucho mayor que su desviación), y aun así lo prudente es comprobarlo con otro split.
 - 🌸 **Iris** (gini, profundidad 3): *petal length* (0,925) y *petal width* (0,075) empatan en la raíz y el
   sorteo eligió la primera. Por permutación quedan mucho más igualadas (0,520 y 0,300).
 

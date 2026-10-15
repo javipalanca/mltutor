@@ -13,7 +13,7 @@
   import { dataUrlToBytes, saveBytes, saveText } from "../../download";
   import { errorMessage } from "../../backend";
   import { status } from "../../status.svelte";
-  import { diagramSvg, drawDiagram, fitTransform, initialTransform, layoutTree, lineY, pathTo, pngScale, textMeasure, type BoxLayout } from "./treeLayout";
+  import { diagramSvg, drawDiagram, fitTransform, initialTransform, layoutTree, lineY, pathTo, pngScale, pngTooLarge, textMeasure, type BoxLayout } from "./treeLayout";
 
   interface Props {
     diagram: TreeDiagram;
@@ -25,9 +25,21 @@
     pngLabel: string;
     svgLabel: string;
     help?: string;
+    /** Tooltip and note of the disabled PNG button when the tree is too big for a PNG. */
+    pngTooLargeLabel?: string;
   }
 
-  let { diagram, widthIn = 14, heightIn = 10, highlightLeaf = null, pngLabel, svgLabel, help }: Props = $props();
+  let {
+    diagram,
+    widthIn = 14,
+    heightIn = 10,
+    highlightLeaf = null,
+    pngLabel,
+    svgLabel,
+    help,
+    pngTooLargeLabel = "El árbol es demasiado grande para un PNG legible; usa SVG.",
+  }: Props = $props();
+  const uid = $props.id();
   /** Start of the component (layout + DOM of every box), for the log measure. */
   const created = performance.now();
 
@@ -41,6 +53,8 @@
     return result;
   });
   const highlighted = $derived(pathTo(diagram, highlightLeaf));
+  /** The PNG would need a scale below 0.5 (unreadable texts): only the SVG is offered. */
+  const pngDisabled = $derived(pngTooLarge(layout));
 
   let container: HTMLDivElement | undefined = $state();
   let svgElement: SVGSVGElement | undefined = $state();
@@ -53,18 +67,43 @@
   let dragging = $state(false);
   let hover = $state<{ node: TreeDiagramNode; x: number; y: number } | null>(null);
   let frame = 0;
+  /** The student zoomed or panned since the tree changed: resizing keeps their view. */
+  let touched = false;
 
-  function fit(): void {
-    view = fitTransform(layout, viewWidth, viewHeight);
+  function setView(next: { k: number; x: number; y: number }): void {
+    view = next;
+    touched = true;
   }
 
-  // First view again when the tree or the viewport changes.
+  function fit(): void {
+    setView(fitTransform(layout, viewWidth, viewHeight));
+  }
+
+  // First view again when the tree changes (a new diagram resets zoom and panning).
+  // Compared by identity: the effect may rerun for the same diagram (the parent passing a
+  // new props object), and that must not discard the zoom either.
+  let shownDiagram: TreeDiagram | null = null;
   $effect(() => {
-    const current = layout;
+    const current = diagram;
+    untrack(() => {
+      if (current === shownDiagram) {
+        return;
+      }
+      shownDiagram = current;
+      touched = false;
+      view = initialTransform(layout, viewWidth, viewHeight);
+    });
+  });
+
+  // A new viewport size (sliders, window) only recomputes the first view while the
+  // student has not moved it yet (the container width is known after mounting).
+  $effect(() => {
     const width = viewWidth;
     const height = viewHeight;
     untrack(() => {
-      view = initialTransform(current, width, height);
+      if (!touched) {
+        view = initialTransform(layout, width, height);
+      }
     });
   });
 
@@ -93,7 +132,7 @@
   function zoomAt(factor: number, px: number, py: number): void {
     const k = Math.min(6, Math.max(0.05, view.k * factor));
     const f = k / view.k;
-    view = { k, x: px - (px - view.x) * f, y: py - (py - view.y) * f };
+    setView({ k, x: px - (px - view.x) * f, y: py - (py - view.y) * f });
   }
 
   function wheel(event: WheelEvent): void {
@@ -118,7 +157,7 @@
   function move(event: PointerEvent): void {
     if (drag && drag.id === event.pointerId) {
       const d = drag;
-      view = { ...view, x: d.vx + event.clientX - d.x, y: d.vy + event.clientY - d.y };
+      setView({ ...view, x: d.vx + event.clientX - d.x, y: d.vy + event.clientY - d.y });
       hover = null;
     }
   }
@@ -141,7 +180,7 @@
     const delta = moves[event.key];
     if (delta) {
       event.preventDefault();
-      view = { ...view, x: view.x + delta[0], y: view.y + delta[1] };
+      setView({ ...view, x: view.x + delta[0], y: view.y + delta[1] });
     } else if (event.key === "+" || event.key === "=") {
       zoomAt(1.25, viewWidth / 2, viewHeight / 2);
     } else if (event.key === "-") {
@@ -170,6 +209,10 @@
   }
 
   async function savePng(): Promise<void> {
+    if (pngDisabled) {
+      status.flash(pngTooLargeLabel, 8000);
+      return;
+    }
     try {
       const scale = pngScale(layout);
       const canvas = document.createElement("canvas");
@@ -265,9 +308,13 @@
   {/if}
   {#if help}<p class="help">{help}</p>{/if}
   <div class="downloads">
-    <button type="button" class="btn" onclick={() => void savePng()} data-tree-png>{pngLabel}</button>
+    <!-- A disabled button gets no pointer events in every WebView: the tooltip goes on a wrapper. -->
+    <span class="png" title={pngDisabled ? pngTooLargeLabel : undefined}>
+      <button type="button" class="btn" disabled={pngDisabled} aria-describedby={pngDisabled ? `${uid}-png` : undefined} onclick={() => void savePng()} data-tree-png>{pngLabel}</button>
+    </span>
     <button type="button" class="btn" onclick={() => void saveSvg()} data-tree-svg>{svgLabel}</button>
   </div>
+  {#if pngDisabled}<p class="help" id="{uid}-png" data-tree-png-too-large>{pngTooLargeLabel}</p>{/if}
 </div>
 
 <style>
@@ -380,6 +427,10 @@
     margin: 8px 2px;
     color: var(--color-text-muted);
     font-size: 13px;
+  }
+
+  .png {
+    display: inline-flex;
   }
 
   .downloads {

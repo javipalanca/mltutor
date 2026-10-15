@@ -1,4 +1,4 @@
-<!-- NUEVO (Fase 3): no existe en la versión Python, que solo tenía la ayuda corta del selector ("Medida de la calidad de una división..."). Pestaña 🏋️ Entrenamiento, expander cerrado debajo de "### Parámetros del Modelo". Título: mensajes.toml [entrenamiento] criterios_expander. Números comprobados con scikit-learn 1.7.2 y los fixtures tests/parity/trees/iris_gini_d3.json y diabetes_*.json (split de la app, random_state=42). -->
+<!-- NUEVO (Fase 3): no existe en la versión Python, que solo tenía la ayuda corta del selector ("Medida de la calidad de una división..."). Pestaña 🏋️ Entrenamiento, expander cerrado debajo de "### Parámetros del Modelo". Título: mensajes.toml [entrenamiento] criterios_expander. Números comprobados con scikit-learn 1.7.2 y los fixtures tests/parity/trees/iris_gini_d3.json y diabetes_*.json (split de la app, random_state=42). CORREGIDO (revisión ML de F3, 2026-10-15): «sale el mismo árbol» pasa a «salvo empates numéricos»: en sklearn friedman_mse y squared_error difieren en 10 de 60 árboles con muchos empates; en Diabetes e Iris coinciden (MEMORY.md). -->
 Un árbol aprende haciendo **preguntas de sí o no** sobre una característica: «¿largo del pétalo ≤ 2,45 cm?».
 Cada pregunta divide las muestras de un **nodo** en dos grupos (los hijos izquierdo y derecho). Para elegir la
 pregunta, el árbol prueba todas las características y todos los umbrales posibles y se queda con la que deja
@@ -48,7 +48,8 @@ las muestras de entrenamiento del nodo:
 - **`friedman_mse`**: misma impureza (MSE), pero cada división se puntúa con la fórmula de Friedman
   $\frac{n_{izq}\, n_{der}}{n}\,(\bar y_{izq} - \bar y_{der})^2$, pensada para el *gradient boosting*. En un
   solo árbol esa puntuación es exactamente la reducción del error cuadrático, así que en la práctica sale
-  **el mismo árbol** que con `squared_error` (compruébalo en Diabetes con cualquier profundidad).
+  **el mismo árbol** que con `squared_error`, salvo empates numéricos: si dos cortes empatan, el redondeo
+  de cada fórmula puede decidir otro (compruébalo en Diabetes con cualquier profundidad: coinciden).
 - **`absolute_error`** (error absoluto medio, MAE): la hoja predice la **mediana** y la impureza es
   $\frac{1}{n}\sum |y_i - \text{mediana}|$. Le afectan menos los valores extremos (*outliers*), pero es
   bastante más lento de entrenar. En Diabetes, la raíz tiene mediana 142 y error absoluto medio 65,9.

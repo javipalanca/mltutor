@@ -254,9 +254,47 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
   petal length/width) y hay casi-empates de 1 ulp que solo coinciden sumando en el mismo orden
   (introsort, `reverse_reset`, partición). `tools/cart_reference.py` lo reproduce bit a bit en los 40
   árboles de los fixtures y es la especificación del CART de Rust (D36, D51).
-  - El umbral es `x[p−1]/2 + x[p]/2` en f64 de valores f32. Una columna es constante si
-    `max ≤ f32(min + 1e-7)`, en float32. `predict` compara `f32(x) <= t`.
-  - La wheel macOS arm64 de sklearn usa FMA: las impurezas difieren 1–4 ulp (la estructura, no).
+  - El umbral es `x[p−1]/2 + x[p]/2` en f64 de valores f32. `predict` compara `f32(x) <= t`.
+  - **CORREGIDO (2026-10-15, revisión ML de F3):** `FEATURE_THRESHOLD` se comporta como **0** en sklearn
+    1.7.2, no como 1e-7: sklearn divide incluso entre dos float32 contiguos. Con 1e-7, una columna en
+    escala 1e-6 se fundía y clasificaba mal. Hay que comparar `x[p+1] <= x[p]` (tanto en cart.rs como
+    en cart_reference.py).
+  - La wheel macOS arm64 de sklearn usa FMA: las impurezas difieren 1–4 ulp y, en algunos empates
+    exactos (particiones espejo), la FMA rompe el empate y **la estructura SÍ puede cambiar** (3 de
+    36 árboles en la revisión). Rust reproduce el algoritmo sin FMA; hay que validar los fixtures
+    también en x86-64. El script en Apple Silicon puede dar otro árbol en esos casos.
+- **Revisión F3, correcciones del core (2026-10-15):**
+  - `FEATURE_THRESHOLD = 0` verificado con el fixture `trees/tiny_scale_features` (5 casos que con 1e-7
+    darían otro árbol). Causa probable: el inicializador de un `cdef` del `.pxd` no se ejecuta en los
+    módulos que hacen `cimport`.
+  - El CART comprueba la cancelación cada 256 posiciones candidatas: un MAE con n=60 000 se cancela en
+    20–40 ms (antes ~15 s).
+  - `Predictor::predict_f32_rows`: la permutation importance convierte a f32 una sola vez (3000×300×10:
+    de 2,93 s a 0,24 s); KNN usa `predict` sobre una copia f64.
+  - Identificadores Python: NFKC + XID_Start/XID_Continue (`unicode-ident`, `unicode-normalization`); "m²"
+    es alfanumérico pero no XID_Continue. `display_label` sustituye los caracteres de control de nombres
+    de columna o clase por espacios.
+  - `tools/check_trees_platform.py` reentrena sklearn con los 45 árboles (sin la app ni red) y se ejecuta
+    en el job de Linux del CI (x86-64, sin FMA). En arm64, `cart_reference` coincide bit a bit con
+    sklearn en 30/45 árboles por la FMA, con la estructura igual en todos.
+  - `export_golden.py --check` terminó dos veces con el código 144 y sin salida al ejecutarse en primer
+    plano desde el agente; en segundo plano pasa. Parece un límite del entorno, no un fallo.
+- **Métricas con clases ausentes del train (2026-10-15):** los scripts de entrenamiento usan
+  `labels=sorted(nombre_clase)` (todas las clases del dataset), como `metrics.rs`. Con
+  `labels=modelo.classes_` una clase ausente del train desaparece del promedio ponderado. Las curvas
+  ROC/PR siguen con `classes_` (columnas de `predict_proba`). `camino_decision.py.j2` ya no es
+  literal: lee la rama de `children_left`, muestra `float32(x)` y tiene entrada en `golden_trees.CODE_CHANGED`.
+- **NaN y MAE en el entrenamiento (2026-10-15, revisión F3):** `real_models::fit` rechaza ANTES del split
+  cualquier característica no finita con `CommandError::MissingValues { columns }` (`[entrenamiento]
+  error_nan`), en todas las lecciones. sklearn 1.7 sí entrena árboles con NaN: es una diferencia
+  documentada. `absolute_error` se limita a 20 000 filas de entrenamiento (`check_mae_limit`), también en
+  el reentrenamiento 2D de `decision_grid`.
+- **PNG del árbol:** `pngScale` no tiene suelo, porque rompería el límite de 16 000 px de lado de
+  WebKit/WebView2. Por debajo de una escala de 0,5 el botón PNG se desactiva y se ofrece el SVG. Un botón
+  `disabled` no muestra `title` en WebKit, así que el tooltip va en un `span` que lo envuelve.
+- **testing-library/svelte 5 `rerender`:** sustituye todo el objeto de props, así que los `$derived`
+  que crean objetos cambian de identidad. Los efectos de "reiniciar al cambiar X" deben comparar la
+  identidad de la prop (`diagram`), no la de un derivado.
 - **Split: tamaño de train (2026-10-15):** sklearn con `train_size=None` usa `n_train = n − ceil(t·n)`.
   `floor((1−t)·n)` perdía una fila por redondeo (California: 0.7·20640 = 14447.999…) y afectaba a F2 y F3.
   Los tests de paridad no lo detectaban porque usan los índices del fixture: ahora hay un test explícito.
@@ -280,8 +318,9 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
   (1400.50006103515625: Rust `…563`, CPython `…562`); se usa `{:.Ne}` con el mismo nº de dígitos.
 - **OLS:** se resuelve por sustitución hacia atrás si σ_min estimado supera en 1e6 el umbral de rango. Un
   1500×1500 centrado pierde rango y sigue en 12,7 s en la SVD de linfa-linalg, sin cancelación (pendiente).
-- **friedman_mse = squared_error en un árbol único (2026-10-15):** la puntuación de Friedman es exactamente
-  la reducción del SSE, así que los árboles salen idénticos. Solo difiere en boosting.
+- **friedman_mse ≈ squared_error en un árbol único (2026-10-15):** la puntuación de Friedman es la reducción
+  del SSE, así que los árboles salen idénticos salvo en empates numéricos (en sklearn difieren en 10 de
+  60 árboles con muchos empates; en Diabetes e Iris coinciden en las 450 combinaciones).
 - **Plantillas de F3:** `arbol_entrenamiento.py.j2` copia literalmente los bloques de imports y carga de
   datos de `regresion_entrenamiento.py.j2`, y `golden_trees._training_shared_blocks` falla si divergen.
   El camino de decisión en Python se lee de `children_left` y no comparando `np.float32(x) <= umbral`:

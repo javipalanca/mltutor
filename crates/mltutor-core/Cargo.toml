@@ -30,6 +30,9 @@ argmin-math = { version = "0.5", default-features = false, features = ["ndarray_
 # Python code shown to the student (content/code/*.py.j2).
 minijinja = { version = "3", default-features = false, features = ["builtins", "macros", "multi_template", "serde", "std_collections", "preserve_order"] }
 serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+# Python identifiers of the generated tree code: XID_Start/XID_Continue and NFKC (PEP 3131).
+unicode-ident = { version = "1", default-features = false }
+unicode-normalization = { version = "0.1", default-features = false }
 
 [dev-dependencies]
 approx = "0.5"

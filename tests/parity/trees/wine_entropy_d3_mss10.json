@@ -2,7 +2,7 @@
   "meta": {
     "format_version": 1,
     "generator": "tools/export_golden.py",
-    "generated": "2026-10-14",
+    "generated": "2026-10-15",
     "versions": {
       "python": "3.11.14",
       "numpy": "1.26.4",
@@ -267,7 +267,7 @@
       "arrays_bit_exact": ["children_left", "children_right", "feature", "n_node_samples", "structure_exact", "threshold", "value", "weighted_n_node_samples"],
       "nodes_with_exact_ties": 1,
       "nodes_with_near_ties": 0,
-      "trace_format": "one entry per split node, in build order: visit_order = features in the order the RNG drew them; visited = [feature, best proxy, its threshold, n_left] or [feature, 'constant'] (max - min <= 1e-7 in the node); exact_ties_lost = features with the same best proxy that lost because they were drawn later",
+      "trace_format": "one entry per split node, in build order: visit_order = features in the order the RNG drew them; visited = [feature, best proxy, its threshold, n_left] or [feature, 'constant'] (max <= min in the node: FEATURE_THRESHOLD behaves as 0); exact_ties_lost = features with the same best proxy that lost because they were drawn later",
       "trace": [
         {
           "visit_order": [3, 5, 4, 7, 11, 12, 2, 8, 1, 0, 10, 9, 6],
@@ -756,7 +756,7 @@
         "body": "    if od280_od315_of_diluted_wines <= 2.1900001764297485:\n        if hue <= 0.898000031709671:\n            if flavanoids <= 1.490000069141388:\n                return 'class_2'  # Probabilidad: 1.000\n            else:\n                return 'class_1'  # Probabilidad: 1.000\n        else:\n            return 'class_1'  # Probabilidad: 0.833\n    else:\n        if alcohol <= 12.785000324249268:\n            return 'class_1'  # Probabilidad: 1.000\n        else:\n            if color_intensity <= 3.820000052452087:\n                return 'class_1'  # Probabilidad: 0.714\n            else:\n                return 'class_0'  # Probabilidad: 1.000"
       },
       "corrected_text": "def predecir_clase(alcohol, malic_acid, ash, alcalinity_of_ash, magnesium, total_phenols, flavanoids, nonflavanoid_phenols, proanthocyanins, color_intensity, hue, od280_od315_of_diluted_wines, proline):\n    \"\"\"\n    Función generada automáticamente que implementa el árbol de decisión entrenado.\n\n    Parameters:\n        alcohol: float - alcohol\n        malic_acid: float - malic_acid\n        ash: float - ash\n        alcalinity_of_ash: float - alcalinity_of_ash\n        magnesium: float - magnesium\n        total_phenols: float - total_phenols\n        flavanoids: float - flavanoids\n        nonflavanoid_phenols: float - nonflavanoid_phenols\n        proanthocyanins: float - proanthocyanins\n        color_intensity: float - color_intensity\n        hue: float - hue\n        od280_od315_of_diluted_wines: float - od280/od315_of_diluted_wines\n        proline: float - proline\n\n    Returns:\n        str - La clase predicha\n\n    Árbol entrenado para clasificación con 13 características.\n    Profundidad máxima: 3\n    Número de nodos: 11\n\n    Los umbrales tienen muchos decimales porque scikit-learn compara los valores en float32;\n    así esta función da exactamente las mismas predicciones que el modelo.\n    \"\"\"\n    if od280_od315_of_diluted_wines <= 2.1900001764297485:\n        if hue <= 0.898000031709671:\n            if flavanoids <= 1.490000069141388:\n                return 'class_2'  # Probabilidad: 1.000\n            else:\n                return 'class_1'  # Probabilidad: 1.000\n        else:\n            return 'class_1'  # Probabilidad: 0.833\n    else:\n        if alcohol <= 12.785000324249268:\n            return 'class_1'  # Probabilidad: 1.000\n        else:\n            if color_intensity <= 3.820000052452087:\n                return 'class_1'  # Probabilidad: 0.714\n            else:\n                return 'class_0'  # Probabilidad: 1.000\n\n\n# Ejemplo de uso:\n# resultado = predecir_clase(alcohol=valor_1, malic_acid=valor_2, ash=valor_3, alcalinity_of_ash=valor_4, magnesium=valor_5, total_phenols=valor_6, flavanoids=valor_7, nonflavanoid_phenols=valor_8, proanthocyanins=valor_9, color_intensity=valor_10, hue=valor_11, od280_od315_of_diluted_wines=valor_12, proline=valor_13)\n# print(f\"Predicción: {resultado}\")\n",
-      "corrected_identifier_rule": "re.sub(r'\\W+', '_', name).strip('_'); 'x' if empty; 'x_' prefix if it starts with a digit; '_' suffix for keywords; '_2', '_3'... if repeated",
+      "corrected_identifier_rule": "PEP 3131: NFKC(name); every run of non-XID_Continue characters -> '_', strip('_'); 'x' if empty; 'x_' prefix if the first character is not XID_Start; '_' suffix for keywords; NFKC again and '_2', '_3'... if repeated",
       "corrected_threshold_rule": "repr(w), w = largest float64 with x <= w <=> float32(x) <= threshold (f64_switch_threshold): the function takes Python floats and needs no numpy, yet routes every value like scikit-learn, which casts X to float32",
       "corrected_check": {
         "rows": "X_train and X_test (all), as Python floats (f64)",

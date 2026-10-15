@@ -21,10 +21,11 @@ trains like the student (criterion, depth, min samples split, test size 0.3,
 
 from __future__ import annotations
 
+import itertools
 import json
 import keyword
 import math
-import re
+import unicodedata
 import warnings
 from pathlib import Path
 from typing import Any
@@ -178,8 +179,8 @@ def reference_check(X_train, y_train, model, classification: bool) -> dict:
         "nodes_with_near_ties": sum(1 for n in trace if n["near_ties_lost_rel_1e-9"]),
         "trace_format": "one entry per split node, in build order: visit_order = features in "
                         "the order the RNG drew them; visited = [feature, best proxy, its "
-                        "threshold, n_left] or [feature, 'constant'] (max - min <= 1e-7 in the "
-                        "node); exact_ties_lost = features with the same best proxy that lost "
+                        "threshold, n_left] or [feature, 'constant'] (max <= min in the node: "
+                        "FEATURE_THRESHOLD behaves as 0); exact_ties_lost = features with the same best proxy that lost "
                         "because they were drawn later",
         "trace": trace,
     }
@@ -311,15 +312,29 @@ def permutation_reference(model, X_test: pd.DataFrame, y_test) -> dict:
 # ---------------------------------------------------------------------------
 # Python code of the tree (export_tree_as_python_code) and the corrected one (D44)
 # ---------------------------------------------------------------------------
+def _xid_continue(c: str) -> bool:
+    return ("a" + c).isidentifier()
+
+
 def py_identifier(name: str, used: set[str]) -> str:
-    """D44: a valid, unique Python identifier for a feature name."""
-    s = re.sub(r"\W+", "_", str(name), flags=re.UNICODE).strip("_")
+    """D44: a valid, unique Python identifier for a feature name (PEP 3131).
+
+    NFKC first (Python normalizes identifiers when it parses them: ``ﬁn`` is
+    ``fin``); every run of non-XID_Continue characters becomes ``_`` (``\\w``
+    is not enough: ``²`` is alphanumeric but not XID_Continue); ``x_`` prefix
+    when the first character is not XID_Start. Same rule as ``py_identifiers`` in
+    ``crates/mltutor-core/src/codegen/tree.rs``.
+    """
+    norm = unicodedata.normalize("NFKC", str(name))
+    s = "".join(("".join(g) if ok else "_")
+                for ok, g in itertools.groupby(norm, key=_xid_continue)).strip("_")
     if not s:
         s = "x"
-    if s[0].isdigit():
+    if not s[0].isidentifier():
         s = "x_" + s
     if keyword.iskeyword(s) or s in ("True", "False", "None"):
         s += "_"
+    s = unicodedata.normalize("NFKC", s)
     base, k = s, 2
     while s in used:
         s = f"{base}_{k}"
@@ -418,9 +433,10 @@ def python_code(eg, model, feature_names: list[str], class_names: list | None,
         "corrected_template": "content/code/arbol_python_corregido.py.j2 (D44)",
         "corrected_context": corrected_ctx,
         "corrected_text": corrected,
-        "corrected_identifier_rule": "re.sub(r'\\W+', '_', name).strip('_'); 'x' if empty; "
-                                     "'x_' prefix if it starts with a digit; '_' suffix for "
-                                     "keywords; '_2', '_3'... if repeated",
+        "corrected_identifier_rule": "PEP 3131: NFKC(name); every run of non-XID_Continue "
+                                     "characters -> '_', strip('_'); 'x' if empty; 'x_' prefix "
+                                     "if the first character is not XID_Start; '_' suffix for "
+                                     "keywords; NFKC again and '_2', '_3'... if repeated",
         "corrected_threshold_rule": "repr(w), w = largest float64 with x <= w <=> float32(x) "
                                     "<= threshold (f64_switch_threshold): the function takes "
                                     "Python floats and needs no numpy, yet routes every value "
@@ -901,6 +917,10 @@ CODE_CHANGED = {
     "texto_arbol.py.j2": "D40: export_text receives class_names (in the order of classes_), so the "
                          "leaves say 'class: setosa' instead of 'class: 0'; the unused "
                          "show_class_name parameter becomes class_names=None",
+    "camino_decision.py.j2": "ML review F3: the branch is read from the decision path "
+                             "(children_left of the next node) and float32(x) is shown; the "
+                             "Python literal compared in float64 (threshold 2.449999988079071, "
+                             "x = 2.44999995: it printed '≤' but sklearn goes right)",
 }
 
 
@@ -1162,8 +1182,96 @@ def case_code_trees_training(eg, writer) -> None:
     writer.write_json(eg.PARITY_DIR / "code" / "trees_training.json", doc)
 
 
+# ---------------------------------------------------------------------------
+# Tiny-scale features (FEATURE_THRESHOLD, review of F3)
+# ---------------------------------------------------------------------------
+def _tiny_scale_inputs() -> dict[str, dict[str, Any]]:
+    """Synthetic data where a minimum gap of 1e-7 between values would change the tree."""
+    rng = np.random.RandomState(42)
+    a = np.float32(1e-3)
+    a_next = np.nextafter(a, np.float32(1.0))  # the next float32 after 1e-3 (1.16e-10 above)
+    h = np.float32(0.5)
+    h_next = np.nextafter(h, np.float32(1.0))  # 0.5 + 5.96e-8: max - min < 1e-7
+    out: dict[str, dict[str, Any]] = {}
+    # A column in the 1e-6 scale decides the class; the second column is noise.
+    x0 = rng.uniform(0.0, 5e-6, 200)
+    x1 = rng.uniform(0.0, 10.0, 200)
+    out["micro_scale_gini"] = dict(X=np.column_stack([x0, x1]),
+                                   y=(x0 > 2.5e-6).astype(int) ^ (rng.rand(200) < 0.1),
+                                   classification=True, criterion="gini", max_depth=4, mss=2)
+    xr = rng.uniform(0.0, 3e-6, 150)
+    out["micro_scale_squared_error"] = dict(
+        X=np.column_stack([xr, rng.uniform(-1.0, 1.0, 150)]),
+        y=np.sin(xr * 1e6) + 0.1 * rng.randn(150), classification=False,
+        criterion="squared_error", max_depth=3, mss=2)
+    # Two contiguous float32 values carry the label (plus a noisy second column).
+    bits = rng.rand(120) < 0.5
+    out["contiguous_float32_gini"] = dict(
+        X=np.column_stack([np.where(bits, a_next, a).astype(np.float64),
+                           rng.uniform(0.0, 1.0, 120)]),
+        y=(bits ^ (rng.rand(120) < 0.05)).astype(int), classification=True,
+        criterion="gini", max_depth=3, mss=2)
+    bits = rng.rand(80) < 0.5
+    out["contiguous_float32_half_entropy"] = dict(
+        X=np.where(bits, h_next, h).astype(np.float64).reshape(-1, 1),
+        y=bits.astype(int), classification=True, criterion="entropy", max_depth=2, mss=2)
+    bits = rng.rand(90) < 0.4
+    out["contiguous_float32_absolute_error"] = dict(
+        X=np.column_stack([np.where(bits, a_next, a).astype(np.float64),
+                           rng.uniform(0.0, 1.0, 90)]),
+        y=np.where(bits, 3.0, -1.0) + 0.2 * rng.randn(90), classification=False,
+        criterion="absolute_error", max_depth=2, mss=2)
+    return out
+
+
+def case_tiny_scale(eg, writer) -> None:
+    import cart_reference as cr
+    from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
+
+    cases = {}
+    for name, c in _tiny_scale_inputs().items():
+        X = np.asarray(c["X"], dtype=np.float32)  # what sklearn sees; stored exactly
+        y = np.asarray(c["y"])
+        cls = DecisionTreeClassifier if c["classification"] else DecisionTreeRegressor
+        model = cls(criterion=c["criterion"], max_depth=c["max_depth"],
+                    min_samples_split=c["mss"], random_state=42).fit(X, y)
+        ref = reference_check(X, y, model, c["classification"])
+        if not ref["comparison"]["structure_exact"]:
+            raise AssertionError(f"cart_reference differs from sklearn in {name}")
+        # What the old 1e-7 gap would have grown (documents why it matters).
+        old = cr.FEATURE_THRESHOLD
+        try:
+            cr.FEATURE_THRESHOLD = np.float32(1e-7)
+            gap = cr.fit(X, y, classification=c["classification"], criterion=c["criterion"],
+                         max_depth=c["max_depth"], min_samples_split=c["mss"])
+        finally:
+            cr.FEATURE_THRESHOLD = old
+        cases[name] = {
+            "input": {"X": X.astype(np.float64), "y": y.tolist(),
+                      "tree_type": "Clasificación" if c["classification"] else "Regresión",
+                      "criterion": c["criterion"], "max_depth": c["max_depth"],
+                      "min_samples_split": c["mss"], "random_state": 42},
+            "expected": {"tree": tree_arrays(model),
+                         "reference_structure_exact": True,
+                         "node_count_with_gap_1e-7": len(gap["feature"]),
+                         "same_tree_with_gap_1e-7": (
+                             list(gap["feature"]) == list(map(int, model.tree_.feature)) and
+                             list(gap["threshold"]) == list(map(float, model.tree_.threshold))),
+                         "predict_train": model.predict(X).tolist()},
+        }
+    tol = {"tree_structure": "exact", "threshold": "exact (bit)", "impurity_rel": 1e-12,
+           "predict_train": "exact (classes) / rel 1e-12 (regression)"}
+    rationale = ("scikit-learn 1.7.2 separates two consecutive sorted float32 values whenever "
+                 "they differ (FEATURE_THRESHOLD behaves as 0, not as the 1e-7 of "
+                 "_partitioner.pxd). With a 1e-7 gap none of these trees would be the same "
+                 "(same_tree_with_gap_1e-7, node_count_with_gap_1e-7). X is stored as the float32 values sklearn sees.")
+    doc = {"meta": eg.make_meta(tol, rationale), "cases": cases}
+    writer.write_json(eg.PARITY_DIR / MODULE / "tiny_scale_features.json", doc, dumps_compact)
+
+
 def register(cases: dict, eg) -> None:
     for name, spec in TREE_CASES.items():
         cases[f"{MODULE}/{name}"] = (lambda n, s: (lambda w: case_tree(eg, n, s, w)))(name, spec)
+    cases[f"{MODULE}/tiny_scale_features"] = lambda w: case_tiny_scale(eg, w)
     cases["code/trees"] = lambda w: case_code_trees(eg, w)
     cases["code/trees_training"] = lambda w: case_code_trees_training(eg, w)

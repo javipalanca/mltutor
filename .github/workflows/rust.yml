@@ -95,6 +95,18 @@ jobs:
         run: |
           cargo test --workspace --all-targets
           cargo test --doc -p mltutor-core -p mltutor-nn -p mltutor-export
+
+      # The tree fixtures were generated on macOS arm64, whose scikit-learn wheel uses FMA;
+      # Rust (no FMA) matches them bit for bit. Check that scikit-learn on x86-64 (manylinux
+      # wheel, no FMA) grows the same trees, and that tools/cart_reference.py matches it.
+      - uses: astral-sh/setup-uv@v6
+        if: runner.os == 'Linux'
+      - name: Tree fixtures against scikit-learn on x86-64 (Linux only)
+        if: runner.os == 'Linux'
+        run: |
+          uv run --no-project --python 3.11 \
+            --with numpy==1.26.4 --with pandas==2.3.3 --with scikit-learn==1.7.2 \
+            python tools/check_trees_platform.py
       - name: ts-rs bindings are up to date
         shell: bash
         run: |

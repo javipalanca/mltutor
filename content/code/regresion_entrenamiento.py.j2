@@ -30,6 +30,13 @@
       sample         list[float]|null  valores de la muestra que se predice al final, en el orden
                                 de las columnas de X (los del formulario 🔮 Predicciones, ya
                                 convertidos a sus códigos). null = la primera fila de X_test.
+
+    Revisión ML de F3 (2026-10-15): las métricas (precision/recall/F1 ponderados, informe por clase
+    y matriz de confusión) usan labels=todas, TODAS las clases del dataset (las claves de
+    nombre_clase), como MLTutor, y no modelo.classes_ (solo las vistas en entrenamiento). Con una
+    clase ausente del train, y_test=[0,1,2,2] e y_pred=[0,0,2,2] daban 0.833/1.0/0.889 en lugar de
+    0.625/0.75/0.667 (los de la app). Las curvas ROC/PR siguen usando modelo.classes_, porque
+    predict_proba solo tiene columnas para ellas.
 -#}
 """
 MLTutor · 📊 Regresión — entrenamiento reproducible con scikit-learn
@@ -225,19 +232,23 @@ modelo.fit(X_train, y_train)
 y_pred = modelo.predict(X_test)
 {%- if model == "logistic" %}
 accuracy = accuracy_score(y_test, y_pred)
+# Las métricas usan TODAS las clases del dataset, como MLTutor, y no solo
+# modelo.classes_ (las vistas en entrenamiento). Si una clase no llega al train, el modelo
+# nunca la predice y sus muestras de prueba cuentan como fallos.
+todas = sorted(nombre_clase)
 precision, recall, f1, _ = precision_recall_fscore_support(
-    y_test, y_pred, labels=modelo.classes_, average="weighted", zero_division=0
+    y_test, y_pred, labels=todas, average="weighted", zero_division=0
 )
 print(f"\nExactitud (Accuracy):          {accuracy:.4f}")
 print(f"Precisión media (ponderada):   {precision:.4f}")
 print(f"Exhaustividad media (Recall):  {recall:.4f}")
 print(f"F1-Score medio:                {f1:.4f}")
 print("\nInforme por clase:")
-print(classification_report(y_test, y_pred, labels=modelo.classes_,
-                            target_names=[nombre_clase[c] for c in modelo.classes_],
+print(classification_report(y_test, y_pred, labels=todas,
+                            target_names=[nombre_clase[c] for c in todas],
                             digits=4, zero_division=0))
 print("Matriz de confusión (filas = real, columnas = predicción):")
-print(confusion_matrix(y_test, y_pred, labels=modelo.classes_))
+print(confusion_matrix(y_test, y_pred, labels=todas))
 
 # Curvas ROC y Precision-Recall (pestaña 📉 Visualización): se usan las probabilidades
 proba = modelo.predict_proba(X_test)

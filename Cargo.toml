@@ -36,3 +36,14 @@ lto = "fat"
 codegen-units = 1
 strip = true
 panic = "unwind"
+
+# `tauri dev` and debug tests: the numeric crates are too slow at opt-level 0 (the CART is
+# 10-30x slower, and burn needs it too). Dependencies are optimised as well.
+[profile.dev.package.mltutor-core]
+opt-level = 3
+
+[profile.dev.package.mltutor-export]
+opt-level = 3
+
+[profile.dev.package."*"]
+opt-level = 2

@@ -34,7 +34,9 @@ pub use text::TextColumn;
 
 pub use crate::dataset::{CsvDialect, CsvEncoding};
 
-use crate::dataset::{ColumnKind, Dataset, LabelColumn, Target, TaskChoice, TaskType};
+use crate::dataset::{
+    display_label, ColumnKind, Dataset, LabelColumn, Target, TaskChoice, TaskType,
+};
 use crate::error::CsvError;
 use crate::frame::{Cell, DescribeTable, TablePreview};
 use crate::model::MAX_CLASSES;
@@ -610,6 +612,11 @@ impl RawTable {
     /// `load_dataset_from_file(path, target, task)`: features = the other columns
     /// (text → LabelEncoder codes, bool → 0/1), target encoded if it is text.
     ///
+    /// The displayed names (`feature_display`, `class_names`) go through
+    /// [`display_label`]: a quoted header or value can hold a `\n`, which would
+    /// add lines to the tree diagram and the `export_text` rules. The real column
+    /// names (`feature_columns`, `target_column`) are kept for the generated code.
+    ///
     /// Class names: `"Clase {v}"` for integer targets, `str(v)` for float and bool
     /// targets, and — **unlike Python** (D10) — the original strings for text
     /// targets (Python shows "Clase 0", "Clase 1"…). Codes are the same as Python's.
@@ -695,7 +702,7 @@ impl RawTable {
             TaskType::Regression => Target::Values { values: y },
             TaskType::Classification => {
                 let class_names: Vec<String> = match (&text_classes, &target_col.data) {
-                    (Some(classes), _) => classes.clone(),
+                    (Some(classes), _) => classes.iter().map(|c| display_label(c)).collect(),
                     (None, ColumnData::Int(_)) => {
                         unique.iter().map(|v| format!("Clase {v}")).collect()
                     }
@@ -727,7 +734,7 @@ impl RawTable {
         Ok(Dataset {
             label: format!("📄 {file_name}"),
             features,
-            feature_display: feature_columns.clone(),
+            feature_display: feature_columns.iter().map(|c| display_label(c)).collect(),
             feature_columns,
             feature_kinds,
             label_columns: Vec::<LabelColumn>::new(),
@@ -765,6 +772,41 @@ impl RawTable {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A `\n` inside a quoted header or class value does not add lines to the
+    /// tree views; the real column name is kept for the generated code.
+    #[test]
+    fn control_characters_in_names_become_spaces() {
+        use crate::model::TrainControl;
+        use crate::tree::{self, export_text, ExportTextOptions, TreeConfig};
+        let csv = "\"ancho\nsépalo\",\"tipo\tA\"\n1,\"uno\ndos\"\n2,\"uno\ndos\"\n3,tres\n4,tres\n";
+        let table = read_csv(csv.as_bytes()).unwrap_or_else(|e| panic!("{e}"));
+        let ds = table
+            .to_dataset("tipo\tA", TaskChoice::Classification, "x.csv")
+            .unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(ds.feature_columns, vec!["ancho\nsépalo"]);
+        assert_eq!(ds.feature_display, vec!["ancho sépalo"]);
+        let names = ds.class_names().unwrap_or_default().to_vec();
+        assert_eq!(names, vec!["tres", "uno dos"]);
+        let t = tree::fit(
+            TreeConfig::default(),
+            ds.features.view(),
+            &ds.target,
+            &TrainControl::none(),
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        let opts = ExportTextOptions {
+            class_names: Some(&names),
+            ..ExportTextOptions::default()
+        };
+        let text = export_text::export_text(&t, &ds.feature_display, &opts);
+        assert_eq!(text.lines().count(), 4, "{text}");
+        let d = tree::plot::diagram(&t, &ds.feature_display, Some(&names));
+        let lines = |id| tree::plot::node_lines(&t, id, &ds.feature_display, Some(&names));
+        assert_eq!(lines(0).len(), 5); // split, gini, samples, value, class
+        assert_eq!(lines(1).len(), 4);
+        assert_eq!(d.nodes.len(), 3);
+    }
 
     #[test]
     fn label_encoder_sorts_strings_and_maps_missing_to_nan() {

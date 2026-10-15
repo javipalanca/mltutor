@@ -12,7 +12,7 @@ monotonic constraints):
   splitter's xorshift RNG (``our_rand_r``, seeded with
   ``RandomState(random_state).randint(0, RAND_R_MAX)``), the ``features`` and
   ``constant_features`` arrays that persist across nodes, constant features
-  (``max - min <= 1e-7`` in float32), candidate positions (``next_p``), the
+  (``max <= min``: see ``FEATURE_THRESHOLD``), candidate positions (``next_p``), the
   strict ``>`` comparison of the proxy improvement (the first feature drawn wins a
   tie) and the threshold ``x[p-1]/2 + x[p]/2`` computed in float64 from float32
   values.
@@ -44,7 +44,13 @@ from typing import Any
 import numpy as np
 
 RAND_R_MAX = 2147483647  # sklearn/utils/_random.pxd
-FEATURE_THRESHOLD = np.float32(1e-7)  # sklearn/tree/_partitioner.pxd
+# ``_partitioner.pxd`` declares ``cdef float32_t FEATURE_THRESHOLD = 1e-7``, but in the
+# compiled 1.7.2 wheels the splitter behaves as if it were 0 (presumably because the
+# initialiser of a module-level ``cdef`` in a .pxd does not run in the modules that
+# cimport it). sklearn splits even two contiguous float32 values (fixture
+# ``trees/tiny_scale_features``), so the comparisons are ``x[p+1] <= x[p]`` and a
+# feature is constant iff ``max <= min``.
+FEATURE_THRESHOLD = np.float32(0.0)
 EPSILON = float(np.finfo("double").eps)  # sklearn/tree/_tree.pyx
 TREE_LEAF = -1
 TREE_UNDEFINED = -2
@@ -368,9 +374,7 @@ def fit(X, y, *, classification: bool, criterion: str, max_depth: int,
     original labels (classification, encoded with ``np.unique``) or values.
     """
     X32 = np.ascontiguousarray(np.asarray(X, dtype=np.float32))
-    Xplus = (X32 + FEATURE_THRESHOLD).astype(np.float32)  # x + 1e-7 in float32
     Xv = X32.astype(np.float64).tolist()  # exact float32 values as Python floats
-    Xp = Xplus.astype(np.float64).tolist()
     n, n_features = X32.shape
     if classification:
         classes, y_enc = np.unique(np.asarray(y), return_inverse=True)
@@ -382,7 +386,6 @@ def fit(X, y, *, classification: bool, criterion: str, max_depth: int,
     rng = RandR(splitter_seed(random_state))
     samples = list(range(n))
     fvals = [0.0] * n
-    fplus = [0.0] * n
     features = list(range(n_features))
     constant_features = [0] * n_features
     w_samples = float(n)
@@ -409,7 +412,7 @@ def fit(X, y, *, classification: bool, criterion: str, max_depth: int,
         node_trace = None
         if not is_leaf:
             split, n_constant, node_trace = _node_split_best(
-                crit, rng, samples, fvals, fplus, Xv, Xp, features, constant_features,
+                crit, rng, samples, fvals, Xv, features, constant_features,
                 start, end, n_constant, impurity, w_samples)
             is_leaf = split["pos"] >= end or (split["improvement"] + EPSILON < 0.0)
         node_id = len(nodes)
@@ -448,7 +451,7 @@ def fit(X, y, *, classification: bool, criterion: str, max_depth: int,
     }
 
 
-def _node_split_best(crit, rng, samples, fvals, fplus, Xv, Xp, features, constant_features,
+def _node_split_best(crit, rng, samples, fvals, Xv, features, constant_features,
                      start, end, n_known_constants, impurity, w_samples):
     n_features = len(features)
     max_features = n_features
@@ -473,9 +476,7 @@ def _node_split_best(crit, rng, samples, fvals, fplus, Xv, Xp, features, constan
         for p in range(start, end):
             fvals[p] = Xv[samples[p]][current_feature]
         sort(fvals, samples, start, end - start)
-        for p in range(start, end):
-            fplus[p] = Xp[samples[p]][current_feature]
-        if fvals[end - 1] <= fplus[start]:
+        if fvals[end - 1] <= fvals[start] + FEATURE_THRESHOLD:  # max <= min
             features[f_j], features[n_total_constants] = features[n_total_constants], features[f_j]
             n_found_constants += 1
             n_total_constants += 1
@@ -487,7 +488,7 @@ def _node_split_best(crit, rng, samples, fvals, fplus, Xv, Xp, features, constan
         feat_best_proxy, feat_best_thr, feat_best_pos = -math.inf, None, None
         p = start
         while p < end:
-            while p + 1 < end and fvals[p + 1] <= fplus[p]:
+            while p + 1 < end and fvals[p + 1] <= fvals[p] + FEATURE_THRESHOLD:
                 p += 1
             p_prev = p
             p += 1

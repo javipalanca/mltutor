@@ -99,8 +99,16 @@ fn fit(
     progress: &Progress<'_>,
     cancel: &AtomicBool,
 ) -> Result<CoreModel, CommandError> {
+    // NaN (missing CSV cells) or infinities: a lesson message naming the columns
+    // instead of the core's generic `NonFinite` (a NaN in a test row would also break
+    // the evaluation later).
+    let missing = missing_columns(dataset);
+    if !missing.is_empty() {
+        return Err(crate::models::missing_values_error(&missing));
+    }
     let split = core::split::train_test_split(dataset.n_rows(), spec.test_size, SEED)
         .map_err(crate::real_facade::dataset_error)?;
+    crate::models::check_mae_limit(spec.config, split.train.len())?;
     let x_train = dataset.features.select(Axis(0), &split.train);
     let y_train = dataset.target.select(&split.train);
     let y_test = dataset.target.select(&split.test);
@@ -140,6 +148,24 @@ fn fit(
         outputs: OnceLock::new(),
         form: OnceLock::new(),
     })
+}
+
+/// Display names of the feature columns with a non-finite value (NaN = missing cell).
+fn missing_columns(dataset: &core::Dataset) -> Vec<String> {
+    dataset
+        .features
+        .axis_iter(Axis(1))
+        .enumerate()
+        .filter(|(_, column)| column.iter().any(|v| !v.is_finite()))
+        .map(|(j, _)| {
+            dataset
+                .feature_display
+                .get(j)
+                .or_else(|| dataset.feature_columns.get(j))
+                .cloned()
+                .unwrap_or_else(|| format!("columna {}", j + 1))
+        })
+        .collect()
 }
 
 /// `encoding=` of `pd.read_csv` for the encoding the app detected.
@@ -489,6 +515,8 @@ impl ModelView for CoreModel {
         progress: &Progress<'_>,
         cancel: &AtomicBool,
     ) -> Result<ipc::DecisionGrid, CommandError> {
+        // The boundary refits the tree on the two features with the same criterion.
+        crate::models::check_mae_limit(self.spec.config, self.split.train.len())?;
         progress("Generando frontera de decisión...", None);
         let control = TrainControl::none().with_cancel(cancel);
         let grid = core::grid::decision_grid(
@@ -1141,6 +1169,106 @@ mod tests {
             }
             other => panic!("{other:?}"),
         }
+    }
+
+    fn core_dataset(id: core::DatasetId) -> core::Dataset {
+        core::dataset::load_builtin(id).unwrap()
+    }
+
+    fn tree_config(criterion: ipc::TreeCriterion, task: ipc::TreeTask) -> ModelConfig {
+        ModelConfig::Tree {
+            task,
+            criterion,
+            max_depth: 3,
+            min_samples_split: 2,
+        }
+    }
+
+    fn fit_spec(config: ModelConfig, test_size: f64) -> TrainSpec {
+        TrainSpec {
+            config,
+            test_size,
+            dataset_label: String::new(),
+        }
+    }
+
+    #[test]
+    fn missing_values_name_the_columns_in_every_lesson() {
+        let mut iris = core_dataset(core::DatasetId::Iris);
+        iris.features[[0, 1]] = f64::NAN;
+        iris.features[[149, 3]] = f64::NAN; // Also a NaN that may fall in the test rows.
+        let expected = vec![
+            iris.feature_display[1].clone(),
+            iris.feature_display[3].clone(),
+        ];
+        let iris = Arc::new(iris);
+        for config in [
+            LOGISTIC,
+            tree_config(ipc::TreeCriterion::Gini, ipc::TreeTask::Classification),
+        ] {
+            let error = fit(
+                &iris,
+                None,
+                &fit_spec(config, 0.3),
+                &|_, _| {},
+                &AtomicBool::new(false),
+            )
+            .err()
+            .unwrap();
+            let CommandError::MissingValues { columns, message } = error else {
+                panic!("{error:?}");
+            };
+            assert_eq!(columns, expected);
+            assert!(message.contains(&expected.join(", ")), "{message}");
+        }
+    }
+
+    #[test]
+    fn absolute_error_rejects_more_than_20000_training_rows() {
+        let diabetes = core_dataset(core::DatasetId::Diabetes);
+        let rows: Vec<usize> = (0..60 * diabetes.n_rows())
+            .map(|i| i % diabetes.n_rows())
+            .collect();
+        let mut big = diabetes.clone();
+        big.features = diabetes.features.select(Axis(0), &rows);
+        big.target = diabetes.target.select(&rows);
+        let big = Arc::new(big);
+        let mae = tree_config(ipc::TreeCriterion::AbsoluteError, ipc::TreeTask::Regression);
+        let started = std::time::Instant::now();
+        let error = fit(
+            &big,
+            None,
+            &fit_spec(mae, 0.1),
+            &|_, _| {},
+            &AtomicBool::new(false),
+        )
+        .err()
+        .unwrap();
+        assert!(
+            matches!(error, CommandError::InvalidConfig { .. }),
+            "{error:?}"
+        );
+        assert!(started.elapsed() < std::time::Duration::from_secs(5));
+
+        // The 2D refit of the boundary applies the same rule.
+        let diabetes = Arc::new(diabetes);
+        let mut small = fit(
+            &diabetes,
+            None,
+            &fit_spec(mae, 0.3),
+            &|_, _| {},
+            &AtomicBool::new(false),
+        )
+        .unwrap();
+        small.split.train = (0..20_001).map(|i| i % diabetes.n_rows()).collect();
+        let error = small
+            .decision_grid(0, 1, &|_, _| {}, &AtomicBool::new(false))
+            .err()
+            .unwrap();
+        assert!(
+            matches!(error, CommandError::InvalidConfig { .. }),
+            "{error:?}"
+        );
     }
 
     #[test]

@@ -1,6 +1,6 @@
 # Plan de migración de MLTutor a Rust
 
-Rama: `feature/rust-migration` · Inicio: 2026-10-13 · Estado: **Fases 0 y 1 completadas (2026-10-14, revisadas por rust-reviewer), Fase 2 completada (2026-10-14, revisada por rust-reviewer y ml-correctness-reviewer), Fase 3 en curso**
+Rama: `feature/rust-migration` · Inicio: 2026-10-13 · Estado: **Fases 0 y 1 completadas (2026-10-14, revisadas por rust-reviewer), Fases 0–3 completadas (F3: 2026-10-15, revisada por rust-reviewer y ml-correctness-reviewer), Fase 4 en curso**
 
 ## Objetivo
 
@@ -166,13 +166,13 @@ reutilizarán el resto de lecciones.
 Plan detallado, contrato y reparto: [fase3-arboles.md](fase3-arboles.md). Capturas: `docs/migration/capturas/qt/fase3/`.
 Incluye la permutation importance (C10) y el paquete Python ZIP.
 
-- [ ] CART propio con **paridad exacta** con sklearn (D36, especificación ejecutable en `tools/cart_reference.py`), clasificación y regresión, con
+- [x] CART propio con **paridad exacta** con sklearn (D36, especificación ejecutable en `tools/cart_reference.py`), clasificación y regresión, con
       los criterios del inventario, paridad de estructura y predicciones frente a sklearn.
-- [ ] Diagrama del árbol en SVG interactivo (zoom, nodos coloreados por clase o valor,
+- [x] Diagrama del árbol en SVG interactivo (zoom, nodos coloreados por clase o valor,
       ancho y alto) y reglas en texto.
-- [ ] Camino de decisión en las predicciones, importancias (Gini y permutación) y
+- [x] Camino de decisión en las predicciones, importancias (Gini y permutación) y
       exportaciones (ONNX TreeEnsemble, código Python del árbol, reglas .txt e imagen).
-- [ ] Inventario §3 completo.
+- [x] Inventario §3 completo.
 
 ### Fase 4 — 🔍 KNN  *(riesgo: medio · tamaño: M)*
 

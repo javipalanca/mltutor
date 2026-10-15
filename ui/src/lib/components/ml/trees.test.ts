@@ -6,7 +6,7 @@
  */
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { cleanup, render } from "@testing-library/svelte";
+import { cleanup, fireEvent, render } from "@testing-library/svelte";
 import { afterEach, describe, expect, it } from "vitest";
 import type { DecisionPath } from "../../bindings/DecisionPath";
 import type { FeatureImportanceView } from "../../bindings/FeatureImportanceView";
@@ -17,7 +17,7 @@ import FeatureImportanceChart from "./FeatureImportanceChart.svelte";
 import { importanceFigure, importanceTable, viridisColors } from "./importance";
 import TreeDiagram from "./TreeDiagram.svelte";
 import TreeRulesText from "./TreeRulesText.svelte";
-import { diagramSvg, fitTransform, initialTransform, layoutTree, MIN_READABLE_SCALE, pathTo, pngScale } from "./treeLayout";
+import { diagramSvg, fitTransform, initialTransform, layoutTree, MIN_READABLE_SCALE, pathTo, pngScale, pngTooLarge, PNG_MAX_SIDE, PNG_MIN_SCALE, type DiagramLayout } from "./treeLayout";
 
 afterEach(() => cleanup());
 
@@ -185,6 +185,52 @@ describe("TreeDiagram layout (C13)", () => {
       fixture("breast_cancer_entropy_d10").expected.plot_tree.boxes_in_drawing_order[0]?.facecolor,
     );
     expect(ms).toBeLessThan(2000);
+  });
+
+  it("never exceeds the canvas limits and flags trees too big for a PNG", () => {
+    const sized = (width: number, height: number): DiagramLayout => ({ boxes: [], edges: [], width, height });
+    expect(pngScale(sized(800, 600))).toBe(3);
+    // Without the old floor of 0.1 the side limit holds even for absurd widths.
+    for (const width of [40_000, 200_000, 2_000_000]) {
+      const scale = pngScale(sized(width, 900));
+      expect(width * scale).toBeLessThanOrEqual(PNG_MAX_SIDE + 1e-6);
+      expect(pngTooLarge(sized(width, 900))).toBe(scale < PNG_MIN_SCALE);
+    }
+    expect(pngTooLarge(sized(200_000, 900))).toBe(true);
+    expect(pngTooLarge(sized(20_000, 900))).toBe(false);
+  });
+
+  it("disables the PNG of a huge tree and keeps the SVG", () => {
+    const base = diagramOf(fixture("california_housing_squared_error_d8_mss10"));
+    const huge: Diagram = { ...base, max_x: base.max_x * 12, nodes: base.nodes.map((n) => ({ ...n, x: n.x * 12 })) };
+    expect(pngTooLarge(layoutTree(huge))).toBe(true);
+    const { container } = render(TreeDiagram, { diagram: huge, pngLabel: "PNG", svgLabel: "SVG", pngTooLargeLabel: "Demasiado grande" });
+    const png = container.querySelector<HTMLButtonElement>("[data-tree-png]");
+    expect(png?.disabled).toBe(true);
+    expect(png?.parentElement?.getAttribute("title")).toBe("Demasiado grande");
+    expect(container.querySelector("[data-tree-png-too-large]")?.textContent).toBe("Demasiado grande");
+    expect(container.querySelector<HTMLButtonElement>("[data-tree-svg]")?.disabled).toBe(false);
+    cleanup();
+    const small = render(TreeDiagram, { diagram: diagramOf(fixture("iris_gini_d3")), pngLabel: "PNG", svgLabel: "SVG" });
+    expect(small.container.querySelector<HTMLButtonElement>("[data-tree-png]")?.disabled).toBe(false);
+    expect(small.container.querySelector("[data-tree-png-too-large]")).toBeNull();
+  });
+
+  it("keeps the zoom of the student on resize and resets it with a new tree", async () => {
+    const iris = diagramOf(fixture("iris_gini_d3"));
+    const { container, rerender } = render(TreeDiagram, { diagram: iris, widthIn: 14, heightIn: 10, pngLabel: "PNG", svgLabel: "SVG" });
+    const zoom = () => container.querySelector(".zoom")?.textContent;
+    const transform = () => container.querySelector("svg > g")?.getAttribute("transform");
+    const initial = zoom();
+    await fireEvent.click(container.querySelector<HTMLButtonElement>("[aria-label='Acercar']")!);
+    const zoomed = zoom();
+    expect(zoomed).not.toBe(initial);
+    const moved = transform();
+    await rerender({ widthIn: 10, heightIn: 8 });
+    expect(zoom()).toBe(zoomed);
+    expect(transform()).toBe(moved);
+    await rerender({ diagram: diagramOf(fixture("breast_cancer_entropy_d10")) });
+    expect(zoom()).not.toBe(zoomed);
   });
 
   it("renders 407 nodes", () => {

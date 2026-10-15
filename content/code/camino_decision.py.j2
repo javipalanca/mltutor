@@ -1,5 +1,29 @@
 {#- Literal de mltutor/algorithms/code_examples.py::DECISION_PATH_CODE (sin el salto de línea inicial).
-    Pestaña 🔮 Predicciones, bajo "### Camino de decisión": show_code_with_download(DECISION_PATH_CODE, "Código para generar el camino de decisión", "camino_decision.py"). Sin variables. -#}
+    Pestaña 🔮 Predicciones, bajo "### Camino de decisión": show_code_with_download(DECISION_PATH_CODE, "Código para generar el camino de decisión", "camino_decision.py"). Sin variables.
+
+    CORREGIDO (revisión ML de F3, 2026-10-15): el literal de Python decidía la rama comparando en
+    float64, mientras que scikit-learn convierte X a float32 antes de comparar con el umbral. Con el
+    umbral 2.449999988079071 y x = 2.44999995, Python imprimía "≤" pero sklearn va a la DERECHA
+    (float32(2.44999995) = 2.4500000476837158 > umbral). Ahora la rama se lee del propio camino
+    (el nodo siguiente es children_left o children_right), como en arbol_entrenamiento.py.j2, y se
+    muestra el valor ya convertido a float32. No se compara np.float32(x) <= umbral: con NEP 50
+    (numpy >= 2) esa comparación se hace en float32 y también puede contradecir a sklearn.
+    Literal de Python (bucle):
+        for node_id in node_index:
+            # Detener si es un nodo hoja
+            if leaf_id[0] == node_id:
+                continue
+            # Obtener la característica y el umbral de la decisión
+            feature_id = feature_idx[node_id]
+            feature_name = feature_names[feature_id]
+            threshold_value = threshold[node_id]
+            # Comprobar si la muestra va por la izquierda o derecha
+            if X_nuevo[0, feature_id] <= threshold_value:
+                print(f"- {feature_name} = {X_nuevo[0, feature_id]:.4f} ≤ {threshold_value:.4f}")
+            else:
+                print(f"- {feature_name} = {X_nuevo[0, feature_id]:.4f} > {threshold_value:.4f}")
+    (las líneas en blanco del literal llevaban espacios finales; leaf_id = tree_model.apply(X_nuevo)
+    desaparece porque la hoja es siempre el último nodo del camino). -#}
 import numpy as np
 
 def mostrar_camino_decision(tree_model, X_nuevo, feature_names, class_names=None):
@@ -23,31 +47,29 @@ def mostrar_camino_decision(tree_model, X_nuevo, feature_names, class_names=None
     # Obtener información del árbol
     feature_idx = tree_model.tree_.feature
     threshold = tree_model.tree_.threshold
+    children_left = tree_model.tree_.children_left
     
-    # Construir el camino de decisión
+    # scikit-learn convierte los valores a float32 antes de compararlos con el umbral
+    x32 = X_nuevo.astype(np.float32)
+    
+    # Construir el camino de decisión: los nodos visitados, de la raíz a la hoja
     node_indicator = tree_model.decision_path(X_nuevo)
-    leaf_id = tree_model.apply(X_nuevo)
-    
-    # Obtener los nodos en el camino
     node_index = node_indicator.indices[node_indicator.indptr[0]:node_indicator.indptr[1]]
     
-    # Mostrar el camino paso a paso
+    # Mostrar el camino paso a paso (el último nodo es la hoja, que no tiene pregunta)
     print("Camino de decisión:")
-    for node_id in node_index:
-        # Detener si es un nodo hoja
-        if leaf_id[0] == node_id:
-            continue
-            
+    for node_id, siguiente in zip(node_index[:-1], node_index[1:]):
         # Obtener la característica y el umbral de la decisión
         feature_id = feature_idx[node_id]
         feature_name = feature_names[feature_id]
         threshold_value = threshold[node_id]
         
-        # Comprobar si la muestra va por la izquierda o derecha
-        if X_nuevo[0, feature_id] <= threshold_value:
-            print(f"- {feature_name} = {X_nuevo[0, feature_id]:.4f} ≤ {threshold_value:.4f}")
+        # La rama se lee del propio camino: si el nodo siguiente es el hijo izquierdo, la
+        # muestra cumplió "≤ umbral"; si no, fue por la derecha
+        if siguiente == children_left[node_id]:
+            print(f"- {feature_name} = {x32[0, feature_id]:.4f} ≤ {threshold_value:.4f}")
         else:
-            print(f"- {feature_name} = {X_nuevo[0, feature_id]:.4f} > {threshold_value:.4f}")
+            print(f"- {feature_name} = {x32[0, feature_id]:.4f} > {threshold_value:.4f}")
     
     # Mostrar la predicción final
     prediccion = tree_model.predict(X_nuevo)[0]

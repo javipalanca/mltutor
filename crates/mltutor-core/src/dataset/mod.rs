@@ -193,6 +193,15 @@ pub struct CsvDialect {
 
 /// A dataset ready for exploration and training. Rows are aligned by position
 /// (the Python Penguins misalignment is not reproduced).
+/// A name as it is shown (diagram boxes, `export_text` rules, legends): every
+/// control character (`\n`, `\r`, `\t`…, which a quoted CSV header or value
+/// can hold) becomes a space, so a name never adds lines to a text view.
+pub fn display_label(name: &str) -> String {
+    name.chars()
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .collect()
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Dataset {
     /// Selector label: "🌸 Iris - Clasificación de flores" or "📄 {file}".

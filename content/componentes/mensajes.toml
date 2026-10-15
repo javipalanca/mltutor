@@ -278,20 +278,29 @@ grafico_xlabel = "Importancia"
 valores_titulo = "### Valores Detallados"
 columnas = ["Característica", "Importancia"]                    # + "Desv. Estándar"; round(4); orden descendente
 expander = "📖 Cómo interpretar estos resultados"
+# CORREGIDO (revisión ML de F3, 2026-10-15): un árbol de una sola hoja no reduce ninguna impureza y
+# scikit-learn devuelve todas las importancias a 0, que no suman 1.
+# Python, tercera línea: "- La suma de todas las importancias = 1.0"
 nativa_clasificacion = """**Importancia Nativa - Clasificación:**
 - Mide cuánto contribuye cada característica a reducir la impureza (Gini o Entropy)
 - Valores más altos = más útiles para separar las clases
-- La suma de todas las importancias = 1.0"""
+- La suma de todas las importancias = 1.0 (si el árbol es una sola hoja, sin ninguna pregunta, todas valen 0)"""
 # CORREGIDO (Fase 3, revisión de contenido): ídem. Python, segunda línea:
 # "- Mide cuánto contribuye cada característica a reducir la varianza (MSE)"
+# CORREGIDO (revisión ML de F3, 2026-10-15): como en nativa_clasificacion, la última línea añade el
+# caso del árbol de una sola hoja. Python: "- La suma de todas las importancias = 1.0"
 nativa_regresion = """**Importancia Nativa - Regresión:**
 - Mide cuánto contribuye cada característica a reducir el error de las predicciones (la varianza con MSE o Friedman MSE, el error absoluto con absolute_error)
 - Valores más altos = más útiles para predecir el valor objetivo
-- La suma de todas las importancias = 1.0"""
+- La suma de todas las importancias = 1.0 (si el árbol es una sola hoja, sin ninguna pregunta, todas valen 0)"""
+# CORREGIDO (revisión ML de F3, 2026-10-15): un valor negativo pequeño (compatible con 0 según su
+# desviación) no indica que la característica "confunda" al modelo, sino que barajarla no lo empeora y
+# la pequeña mejora es azar. Python, cuarta línea:
+# "- Valores pueden ser negativos (característica confunde al modelo)"
 permutacion = """**Permutation Importance:**
 - Mide cuánto empeora el modelo cuando se "rompe" cada característica
 - Valores más altos = el modelo depende más de esa característica
-- Valores pueden ser negativos (característica confunde al modelo)
+- Valores pueden ser negativos: si son menores (en valor absoluto) que su desviación estándar, como s1 en 🩺 Diabetes con profundidad 10 (−0,050 ± 0,066), barajarla no empeora el modelo y la pequeña mejora es azar
 - La desviación estándar indica la estabilidad de la medición"""
 consejos = """**Consejos generales:**
 - Características con importancia muy baja pueden ser eliminadas

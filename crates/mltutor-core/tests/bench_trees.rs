@@ -168,3 +168,46 @@ fn trees_lesson_on_california() {
     );
     let _ = t.n_features();
 }
+
+/// Permutation importance on a wide table (a CSV with many columns): it used to
+/// be O(p·R·n·p) because every repetition revalidated and converted the whole
+/// matrix to float32; the tree now predicts on one float32 buffer.
+#[test]
+#[ignore = "benchmark: run in release with --ignored"]
+fn permutation_importance_on_a_wide_table() {
+    let (n, p) = (3_000, 300);
+    let mut state = 0x9e37_79b9_7f4a_7c15_u64;
+    let mut next = || {
+        state = state
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        (state >> 11) as f64 / (1u64 << 53) as f64
+    };
+    let x = ndarray::Array2::from_shape_fn((n, p), |_| next());
+    let codes: Vec<usize> = (0..n)
+        .map(|i| usize::from(x[[i, 0]] + x[[i, 1]] > 1.0))
+        .collect();
+    let config = TreeConfig::new(TreeTask::Classification, TreeCriterion::Gini, 6, 2);
+    let t = tree::DecisionTree::fit_classifier(config, x.view(), &codes, &TrainControl::none())
+        .unwrap();
+    let y = mltutor_core::Target::Classes {
+        codes: codes.iter().map(|&c| c as u32).collect(),
+        class_names: vec!["0".into(), "1".into()],
+        class_values: vec![0.0, 1.0],
+    };
+    let d = median(|| {
+        importance::permutation(
+            &t,
+            x.view(),
+            &y,
+            PermutationOptions::default(),
+            &TrainControl::none(),
+        )
+        .unwrap();
+    });
+    report(
+        &format!("permutation importance {n}x{p}, 10 repeats"),
+        d,
+        1_000,
+    );
+}

@@ -2,7 +2,7 @@
   "meta": {
     "format_version": 1,
     "generator": "tools/export_golden.py",
-    "generated": "2026-10-14",
+    "generated": "2026-10-15",
     "versions": {
       "python": "3.11.14",
       "numpy": "1.26.4",
@@ -265,7 +265,7 @@
       "arrays_bit_exact": ["bit_exact", "children_left", "children_right", "feature", "impurity", "n_node_samples", "structure_exact", "threshold", "value", "weighted_n_node_samples"],
       "nodes_with_exact_ties": 0,
       "nodes_with_near_ties": 0,
-      "trace_format": "one entry per split node, in build order: visit_order = features in the order the RNG drew them; visited = [feature, best proxy, its threshold, n_left] or [feature, 'constant'] (max - min <= 1e-7 in the node); exact_ties_lost = features with the same best proxy that lost because they were drawn later",
+      "trace_format": "one entry per split node, in build order: visit_order = features in the order the RNG drew them; visited = [feature, best proxy, its threshold, n_left] or [feature, 'constant'] (max <= min in the node: FEATURE_THRESHOLD behaves as 0); exact_ties_lost = features with the same best proxy that lost because they were drawn later",
       "trace": [
         {
           "visit_order": [8, 2, 4, 3, 5, 6, 0, 9, 7, 1],
@@ -620,7 +620,7 @@
         "body": "    if bmi <= 0.005111072910949587:\n        if s5 <= 0.013695203233510256:\n            if s2 <= 0.09106491878628731:\n                return 100.81617647058823\n            else:\n                return 241.5\n        else:\n            if bp <= -0.03205987624824047:\n                return 114.0\n            else:\n                return 180.71428571428572\n    else:\n        if bmi <= 0.07301323488354683:\n            if bp <= 0.0029367051320150495:\n                return 160.04651162790697\n            else:\n                return 210.98275862068965\n        else:\n            if s2 <= 0.022485406138002872:\n                return 292.47058823529414\n            else:\n                return 225.75"
       },
       "corrected_text": "def predecir_valor(age, sex, bmi, bp, s1, s2, s3, s4, s5, s6):\n    \"\"\"\n    Función generada automáticamente que implementa el árbol de decisión entrenado.\n\n    Parameters:\n        age: float - age\n        sex: float - sex\n        bmi: float - bmi\n        bp: float - bp\n        s1: float - s1\n        s2: float - s2\n        s3: float - s3\n        s4: float - s4\n        s5: float - s5\n        s6: float - s6\n\n    Returns:\n        float - El valor predicho\n\n    Árbol entrenado para regresión con 10 características.\n    Profundidad máxima: 3\n    Número de nodos: 15\n\n    Los umbrales tienen muchos decimales porque scikit-learn compara los valores en float32;\n    así esta función da exactamente las mismas predicciones que el modelo.\n    \"\"\"\n    if bmi <= 0.005111072910949587:\n        if s5 <= 0.013695203233510256:\n            if s2 <= 0.09106491878628731:\n                return 100.81617647058823\n            else:\n                return 241.5\n        else:\n            if bp <= -0.03205987624824047:\n                return 114.0\n            else:\n                return 180.71428571428572\n    else:\n        if bmi <= 0.07301323488354683:\n            if bp <= 0.0029367051320150495:\n                return 160.04651162790697\n            else:\n                return 210.98275862068965\n        else:\n            if s2 <= 0.022485406138002872:\n                return 292.47058823529414\n            else:\n                return 225.75\n\n\n# Ejemplo de uso:\n# resultado = predecir_valor(age=valor_1, sex=valor_2, bmi=valor_3, bp=valor_4, s1=valor_5, s2=valor_6, s3=valor_7, s4=valor_8, s5=valor_9, s6=valor_10)\n# print(f\"Predicción: {resultado}\")\n",
-      "corrected_identifier_rule": "re.sub(r'\\W+', '_', name).strip('_'); 'x' if empty; 'x_' prefix if it starts with a digit; '_' suffix for keywords; '_2', '_3'... if repeated",
+      "corrected_identifier_rule": "PEP 3131: NFKC(name); every run of non-XID_Continue characters -> '_', strip('_'); 'x' if empty; 'x_' prefix if the first character is not XID_Start; '_' suffix for keywords; NFKC again and '_2', '_3'... if repeated",
       "corrected_threshold_rule": "repr(w), w = largest float64 with x <= w <=> float32(x) <= threshold (f64_switch_threshold): the function takes Python floats and needs no numpy, yet routes every value like scikit-learn, which casts X to float32",
       "corrected_check": {
         "rows": "X_train and X_test (all), as Python floats (f64)",

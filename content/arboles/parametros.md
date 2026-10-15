@@ -1,4 +1,4 @@
-<!-- NUEVO (Fase 3): no existe en la versión Python, que solo tenía las ayudas cortas de los deslizadores. Pestaña 🏋️ Entrenamiento, expander cerrado debajo de criterios.md. Título: mensajes.toml [entrenamiento] parametros_expander. Cifras medidas con scikit-learn 1.7.2, split de la app (test_size=0.3, random_state=42), criterio por defecto (gini / squared_error). -->
+<!-- NUEVO (Fase 3): no existe en la versión Python, que solo tenía las ayudas cortas de los deslizadores. Pestaña 🏋️ Entrenamiento, expander cerrado debajo de criterios.md. Título: mensajes.toml [entrenamiento] parametros_expander. Cifras medidas con scikit-learn 1.7.2, split de la app (test_size=0.3, random_state=42), criterio por defecto (gini / squared_error). CORREGIDO (revisión ML de F3, 2026-10-15): «para que obtengas exactamente el árbol de scikit-learn» pasa a «el mismo árbol que scikit-learn, salvo empates numéricos en algunos equipos»: la wheel de scikit-learn para Apple Silicon usa FMA, y en algunos empates exactos eso rompe el empate y cambia la estructura (MEMORY.md). -->
 **Profundidad máxima** (`max_depth`) es el número máximo de preguntas seguidas desde la raíz hasta una
 hoja. Con profundidad 1 el árbol hace una sola pregunta (un «tocón» con dos hojas); con profundidad
 $d$ puede tener hasta $2^d$ hojas.
@@ -52,4 +52,5 @@ En 🔬 Cáncer pasa lo mismo, más suave: con profundidad 3 acierta el 96,5 % d
 - **Esperar el mismo árbol con otros datos.** Los árboles son **inestables**: cambiar unas pocas muestras de
   entrenamiento (otro tamaño de prueba, por ejemplo) puede cambiar la primera pregunta y, con ella, todo el
   árbol. Si dos características empatan, scikit-learn elige al azar con `random_state=42`; MLTutor hace lo
-  mismo para que obtengas exactamente el árbol de scikit-learn.
+  mismo para que obtengas el mismo árbol que scikit-learn, salvo empates numéricos en algunos equipos (en
+  un empate exacto, una diferencia en la última cifra decimal puede decidir otra pregunta).

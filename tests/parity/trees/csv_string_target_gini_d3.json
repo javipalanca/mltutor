@@ -2,7 +2,7 @@
   "meta": {
     "format_version": 1,
     "generator": "tools/export_golden.py",
-    "generated": "2026-10-14",
+    "generated": "2026-10-15",
     "versions": {
       "python": "3.11.14",
       "numpy": "1.26.4",
@@ -280,7 +280,7 @@
       "arrays_bit_exact": ["bit_exact", "children_left", "children_right", "feature", "impurity", "n_node_samples", "structure_exact", "threshold", "value", "weighted_n_node_samples"],
       "nodes_with_exact_ties": 0,
       "nodes_with_near_ties": 0,
-      "trace_format": "one entry per split node, in build order: visit_order = features in the order the RNG drew them; visited = [feature, best proxy, its threshold, n_left] or [feature, 'constant'] (max - min <= 1e-7 in the node); exact_ties_lost = features with the same best proxy that lost because they were drawn later",
+      "trace_format": "one entry per split node, in build order: visit_order = features in the order the RNG drew them; visited = [feature, best proxy, its threshold, n_left] or [feature, 'constant'] (max <= min in the node: FEATURE_THRESHOLD behaves as 0); exact_ties_lost = features with the same best proxy that lost because they were drawn later",
       "trace": [
         {
           "visit_order": [0, 1],
@@ -684,7 +684,7 @@
         "body": "    if ancho <= 1.564999997615814:\n        if largo <= 2.7400001287460323:\n            if largo <= 2.475000023841858:\n                return 'Clase 0'  # Probabilidad: 0.667\n            else:\n                return 'Clase 1'  # Probabilidad: 1.000\n        else:\n            if largo <= 4.674999952316283:\n                return 'Clase 0'  # Probabilidad: 1.000\n            else:\n                return 'Clase 0'  # Probabilidad: 0.500\n    else:\n        if ancho <= 1.8349999785423277:\n            return 'Clase 1'  # Probabilidad: 1.000\n        else:\n            if ancho <= 2.2400001287460323:\n                return 'Clase 2'  # Probabilidad: 1.000\n            else:\n                return 'Clase 1'  # Probabilidad: 0.500"
       },
       "corrected_text": "def predecir_clase(largo, ancho):\n    \"\"\"\n    Función generada automáticamente que implementa el árbol de decisión entrenado.\n\n    Parameters:\n        largo: float - largo\n        ancho: float - ancho\n\n    Returns:\n        str - La clase predicha\n\n    Árbol entrenado para clasificación con 2 características.\n    Profundidad máxima: 3\n    Número de nodos: 13\n\n    Los umbrales tienen muchos decimales porque scikit-learn compara los valores en float32;\n    así esta función da exactamente las mismas predicciones que el modelo.\n    \"\"\"\n    if ancho <= 1.564999997615814:\n        if largo <= 2.7400001287460323:\n            if largo <= 2.475000023841858:\n                return 'Clase 0'  # Probabilidad: 0.667\n            else:\n                return 'Clase 1'  # Probabilidad: 1.000\n        else:\n            if largo <= 4.674999952316283:\n                return 'Clase 0'  # Probabilidad: 1.000\n            else:\n                return 'Clase 0'  # Probabilidad: 0.500\n    else:\n        if ancho <= 1.8349999785423277:\n            return 'Clase 1'  # Probabilidad: 1.000\n        else:\n            if ancho <= 2.2400001287460323:\n                return 'Clase 2'  # Probabilidad: 1.000\n            else:\n                return 'Clase 1'  # Probabilidad: 0.500\n\n\n# Ejemplo de uso:\n# resultado = predecir_clase(largo=valor_1, ancho=valor_2)\n# print(f\"Predicción: {resultado}\")\n",
-      "corrected_identifier_rule": "re.sub(r'\\W+', '_', name).strip('_'); 'x' if empty; 'x_' prefix if it starts with a digit; '_' suffix for keywords; '_2', '_3'... if repeated",
+      "corrected_identifier_rule": "PEP 3131: NFKC(name); every run of non-XID_Continue characters -> '_', strip('_'); 'x' if empty; 'x_' prefix if the first character is not XID_Start; '_' suffix for keywords; NFKC again and '_2', '_3'... if repeated",
       "corrected_threshold_rule": "repr(w), w = largest float64 with x <= w <=> float32(x) <= threshold (f64_switch_threshold): the function takes Python floats and needs no numpy, yet routes every value like scikit-learn, which casts X to float32",
       "corrected_check": {
         "rows": "X_train and X_test (all), as Python floats (f64)",

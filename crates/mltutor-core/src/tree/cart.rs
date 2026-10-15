@@ -14,7 +14,10 @@
 //!   width*.
 //! * **float32.** `X` is converted to `f32` (like `check_array(dtype=float32)`);
 //!   thresholds are the midpoint `x[p-1]/2 + x[p]/2` computed in `f64` from two
-//!   `f32` values, and `x + 1e-7` is computed in `f32`.
+//!   `f32` values.
+//! * **No minimum gap.** Two consecutive sorted values are separated whenever
+//!   they differ, even by one float32 ulp, and a feature is constant only if
+//!   `max <= min` (see [`FEATURE_THRESHOLD`]).
 //! * **Order of the sums.** The samples are sorted with scikit-learn's introsort
 //!   (not a stable sort) and every feature leaves them in its own order; the
 //!   criteria accumulate in that order, forwards or, when shorter, backwards from
@@ -31,9 +34,19 @@ pub(crate) type Idx = u32;
 
 /// `RAND_R_MAX` of `sklearn/utils/_random.pxd`.
 pub const RAND_R_MAX: u32 = 0x7FFF_FFFF;
-/// `FEATURE_THRESHOLD` of `_partitioner.pxd`: values closer than this (in f32)
-/// are not separated.
-pub const FEATURE_THRESHOLD: f32 = 1e-7;
+/// `FEATURE_THRESHOLD` of `_partitioner.pxd` *as the compiled scikit-learn
+/// 1.7.2 behaves*: 0. The `.pxd` says `1e-7`, but sklearn splits two contiguous
+/// float32 values and a column in the 1e-6 scale (fixture
+/// `trees/tiny_scale_features`), so the splitter compares `x[p+1] <= x[p]` and a
+/// feature is constant iff `max <= min`. Kept as documentation; the comparisons
+/// below do not add it.
+pub const FEATURE_THRESHOLD: f32 = 0.0;
+
+/// The cancellation flag is also checked every this many candidate positions of
+/// a feature: with `absolute_error` each position costs O(n) (two medians), so
+/// one feature of 60 000 rows takes seconds. A relaxed atomic load every 256
+/// positions is free for the other criteria.
+const CANCEL_CHECK_POSITIONS: usize = 256;
 /// `EPSILON` of `_tree.pyx` (`np.finfo('double').eps`).
 pub const EPSILON: f64 = f64::EPSILON;
 
@@ -754,7 +767,8 @@ impl Splitter<'_> {
             }
             trace.visit_order.push(current);
 
-            if self.fvals[end - 1] <= self.fvals[start] + FEATURE_THRESHOLD {
+            // Constant in this node: `max <= min` (FEATURE_THRESHOLD = 0).
+            if self.fvals[end - 1] <= self.fvals[start] {
                 self.features.swap(f_j, n_total_constants);
                 n_found_constants += 1;
                 n_total_constants += 1;
@@ -767,15 +781,20 @@ impl Splitter<'_> {
             crit.reset();
             let mut feat_best = f64::NEG_INFINITY;
             let mut p = start;
+            let mut n_candidates = 0_usize;
             while p < end {
-                // `next_p`: skip values closer than FEATURE_THRESHOLD.
-                while p + 1 < end && self.fvals[p + 1] <= self.fvals[p] + FEATURE_THRESHOLD {
+                // `next_p`: skip equal values (FEATURE_THRESHOLD = 0).
+                while p + 1 < end && self.fvals[p + 1] <= self.fvals[p] {
                     p += 1;
                 }
                 let p_prev = p;
                 p += 1;
                 if p >= end {
                     continue;
+                }
+                n_candidates += 1;
+                if n_candidates % CANCEL_CHECK_POSITIONS == 0 {
+                    control.check()?;
                 }
                 crit.update(&self.samples, p);
                 let proxy = crit.proxy(&self.samples);

@@ -1,4 +1,4 @@
-<!-- NUEVO (D44, Fase 3): no existe en la versión Python. Pestaña 💾 Exportar, dentro del expander "Ver código Python del árbol", debajo del st.info "Información del código generado". Título (expander anidado o bloque plegable): mensajes.toml [exportar] umbrales_expander. Explica los umbrales de content/code/arbol_python_corregido.py.j2 (f64_switch_threshold, fase3-arboles.md §3 C15). Ejemplo verificado con scikit-learn 1.7.2 en tests/parity/trees/iris_gini_d3.json (umbral de la raíz 2.449999988079071). -->
+<!-- NUEVO (D44, Fase 3): no existe en la versión Python. Pestaña 💾 Exportar, dentro del expander "Ver código Python del árbol", debajo del st.info "Información del código generado". Título (expander anidado o bloque plegable): mensajes.toml [exportar] umbrales_expander. Explica los umbrales de content/code/arbol_python_corregido.py.j2 (f64_switch_threshold, fase3-arboles.md §3 C15). Ejemplo verificado con scikit-learn 1.7.2 en tests/parity/trees/iris_gini_d3.json (umbral de la raíz 2.449999988079071). CORREGIDO (revisión ML de F3, 2026-10-15): decía "el punto medio, en `float32`, entre 1,9 y 3,0"; sklearn calcula x[p−1]/2 + x[p]/2 en float64 a partir de los valores float32, y 2.449999988079071 no es representable en float32 (float32(1.9) = 1.899999976158142, (1.899999976158142 + 3)/2 = 2.449999988079071). -->
 En el código verás condiciones como `if petal_length_cm <= 2.4499999284744263:` donde el diagrama dice
 `petal length (cm) <= 2.45`. No es un descuido: es lo que hace falta para que la función responda
 **exactamente igual** que el modelo de scikit-learn.
@@ -8,7 +8,9 @@ entrenar y para predecir: cada valor se pasa a `float32` antes de compararlo con
 cambio, recibe números normales de Python (`float64`, unas 16 cifras). Si se copiara el umbral tal cual,
 algunos valores muy cercanos a él irían por la otra rama.
 
-Ejemplo con 🌸 Iris: el umbral de la raíz es 2,449999988… (el punto medio, en `float32`, entre 1,9 y 3,0).
+Ejemplo con 🌸 Iris: el umbral de la raíz es 2,449999988… Es el punto medio entre 1,9 y 3,0 convertidos a
+`float32` (1,89999998… y 3,0), calculado en `float64`; por eso tiene más cifras de las que caben en un
+`float32`, y no es ningún valor `float32`.
 Una flor con el pétalo de **2,45 cm** exactos:
 
 - scikit-learn la convierte a `float32` → 2,4500000477, que es **mayor** que el umbral → rama derecha, *no*

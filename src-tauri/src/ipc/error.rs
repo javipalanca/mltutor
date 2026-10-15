@@ -95,6 +95,12 @@ pub enum CommandError {
         max: u32,
         message: String,
     },
+    /// The dataset has missing (NaN) or infinite values in these feature columns: no
+    /// model of the app trains with them (sklearn 1.7 trees would).
+    MissingValues {
+        columns: Vec<String>,
+        message: String,
+    },
     /// Training failed (singular system, optimizer error…).
     Training {
         message: String,
@@ -285,6 +291,7 @@ impl CommandError {
             | Self::GridTooSmall { message }
             | Self::InvalidInput { message }
             | Self::TooManyClasses { message, .. }
+            | Self::MissingValues { message, .. }
             | Self::Training { message }
             | Self::Export { message }
             | Self::Internal { message } => message,

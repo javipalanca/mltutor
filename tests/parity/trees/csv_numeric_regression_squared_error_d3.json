@@ -2,7 +2,7 @@
   "meta": {
     "format_version": 1,
     "generator": "tools/export_golden.py",
-    "generated": "2026-10-14",
+    "generated": "2026-10-15",
     "versions": {
       "python": "3.11.14",
       "numpy": "1.26.4",
@@ -266,7 +266,7 @@
       "arrays_bit_exact": ["children_left", "children_right", "feature", "n_node_samples", "structure_exact", "threshold", "value", "weighted_n_node_samples"],
       "nodes_with_exact_ties": 0,
       "nodes_with_near_ties": 1,
-      "trace_format": "one entry per split node, in build order: visit_order = features in the order the RNG drew them; visited = [feature, best proxy, its threshold, n_left] or [feature, 'constant'] (max - min <= 1e-7 in the node); exact_ties_lost = features with the same best proxy that lost because they were drawn later",
+      "trace_format": "one entry per split node, in build order: visit_order = features in the order the RNG drew them; visited = [feature, best proxy, its threshold, n_left] or [feature, 'constant'] (max <= min in the node: FEATURE_THRESHOLD behaves as 0); exact_ties_lost = features with the same best proxy that lost because they were drawn later",
       "trace": [
         {
           "visit_order": [0, 1],
@@ -574,7 +574,7 @@
         "body": "    if x2 <= 5.060000181198119:\n        if x1 <= -0.7542999684810638:\n            if x1 <= -1.4728500247001648:\n                return -1.9522\n            else:\n                return -1.3622666666666667\n        else:\n            if x1 <= 0.41745002567768097:\n                return 0.4303\n            else:\n                return 2.8813500000000003\n    else:\n        if x1 <= 0.4054500013589859:\n            if x1 <= -0.38924999535083776:\n                return 2.195325\n            else:\n                return 4.117775\n        else:\n            if x2 <= 9.171500682830809:\n                return 7.0702\n            else:\n                return 5.9533000000000005"
       },
       "corrected_text": "def predecir_valor(x1, x2):\n    \"\"\"\n    Función generada automáticamente que implementa el árbol de decisión entrenado.\n\n    Parameters:\n        x1: float - x1\n        x2: float - x2\n\n    Returns:\n        float - El valor predicho\n\n    Árbol entrenado para regresión con 2 características.\n    Profundidad máxima: 3\n    Número de nodos: 15\n\n    Los umbrales tienen muchos decimales porque scikit-learn compara los valores en float32;\n    así esta función da exactamente las mismas predicciones que el modelo.\n    \"\"\"\n    if x2 <= 5.060000181198119:\n        if x1 <= -0.7542999684810638:\n            if x1 <= -1.4728500247001648:\n                return -1.9522\n            else:\n                return -1.3622666666666667\n        else:\n            if x1 <= 0.41745002567768097:\n                return 0.4303\n            else:\n                return 2.8813500000000003\n    else:\n        if x1 <= 0.4054500013589859:\n            if x1 <= -0.38924999535083776:\n                return 2.195325\n            else:\n                return 4.117775\n        else:\n            if x2 <= 9.171500682830809:\n                return 7.0702\n            else:\n                return 5.9533000000000005\n\n\n# Ejemplo de uso:\n# resultado = predecir_valor(x1=valor_1, x2=valor_2)\n# print(f\"Predicción: {resultado}\")\n",
-      "corrected_identifier_rule": "re.sub(r'\\W+', '_', name).strip('_'); 'x' if empty; 'x_' prefix if it starts with a digit; '_' suffix for keywords; '_2', '_3'... if repeated",
+      "corrected_identifier_rule": "PEP 3131: NFKC(name); every run of non-XID_Continue characters -> '_', strip('_'); 'x' if empty; 'x_' prefix if the first character is not XID_Start; '_' suffix for keywords; NFKC again and '_2', '_3'... if repeated",
       "corrected_threshold_rule": "repr(w), w = largest float64 with x <= w <=> float32(x) <= threshold (f64_switch_threshold): the function takes Python floats and needs no numpy, yet routes every value like scikit-learn, which casts X to float32",
       "corrected_check": {
         "rows": "X_train and X_test (all), as Python floats (f64)",

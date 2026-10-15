@@ -198,13 +198,25 @@ export function lineY(box: BoxLayout, i: number): number {
   return box.y + PAD_Y + (i + 0.5) * LINE_HEIGHT;
 }
 
-/** Largest scale ≤ `wanted` whose canvas stays within the limits of WebKit/WebView2. */
+/** Longest side and area of a canvas that WebKit/WebView2 still encode as a PNG. */
+export const PNG_MAX_SIDE = 16000;
+export const PNG_MAX_AREA = 120_000_000;
+/** Below this scale the 12 px texts of the boxes become unreadable in the PNG. */
+export const PNG_MIN_SCALE = 0.5;
+
+/**
+ * Largest scale ≤ `wanted` whose canvas stays within the limits of WebKit/WebView2. No
+ * floor: a floor would break `PNG_MAX_SIDE`; huge trees get [`pngTooLarge`] instead.
+ */
 export function pngScale(layout: DiagramLayout, wanted = 3): number {
-  const MAX_SIDE = 16000;
-  const MAX_AREA = 120_000_000;
-  const bySide = Math.min(MAX_SIDE / layout.width, MAX_SIDE / layout.height);
-  const byArea = Math.sqrt(MAX_AREA / (layout.width * layout.height));
-  return Math.max(0.1, Math.min(wanted, bySide, byArea));
+  const bySide = Math.min(PNG_MAX_SIDE / layout.width, PNG_MAX_SIDE / layout.height);
+  const byArea = Math.sqrt(PNG_MAX_AREA / (layout.width * layout.height));
+  return Math.min(wanted, bySide, byArea);
+}
+
+/** The PNG would need a scale below `PNG_MIN_SCALE`: offer only the SVG. */
+export function pngTooLarge(layout: DiagramLayout): boolean {
+  return !(pngScale(layout) >= PNG_MIN_SCALE);
 }
 
 /** Draws the diagram on a canvas (PNG download, `arbol_decision.png`). */

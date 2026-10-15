@@ -247,6 +247,18 @@ pub trait Predictor: Send + Sync + fmt::Debug {
     /// no `predict_proba`.
     fn predict_proba(&self, x: ArrayView2<'_, f64>) -> Option<Result<Array2<f64>, ModelError>>;
 
+    /// Fast path for repeated predictions on the same, already validated data
+    /// (permutation importance): `rows` is row-major float32 (`n × n_features`),
+    /// the values of an input that [`Predictor::predict`] accepted, converted
+    /// with `as f32`. Models that compare float32 values (trees) return the same
+    /// prediction as `predict` without revalidating and reconverting the whole
+    /// matrix; the others return `None` (the default) and the caller uses
+    /// `predict`.
+    fn predict_f32_rows(&self, rows: &[f32]) -> Option<Result<Prediction, ModelError>> {
+        let _ = rows;
+        None
+    }
+
     /// The same algorithm and hyperparameters trained on other data (the 2-feature
     /// models of the decision boundary and the prediction surface).
     fn refit(

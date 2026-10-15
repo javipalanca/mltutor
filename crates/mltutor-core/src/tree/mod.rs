@@ -535,12 +535,44 @@ impl DecisionTree {
 
     /// `apply(X)`: the leaf of every row.
     pub fn apply(&self, x: ArrayView2<'_, f64>) -> Result<Vec<usize>, ModelError> {
-        let p = self.n_features;
         let rows = self.rows_f32(x)?;
+        self.apply_f32_rows(&rows)
+    }
+
+    /// The leaf of every row of a row-major float32 buffer (no value checks:
+    /// NaN goes right, like any value above the threshold).
+    fn apply_f32_rows(&self, rows: &[f32]) -> Result<Vec<usize>, ModelError> {
+        let p = self.n_features.max(1);
+        if rows.len() % p != 0 {
+            return Err(ModelError::InvalidInput {
+                reason: format!("el búfer float32 no tiene filas completas de {p} valores"),
+            });
+        }
         Ok(rows
-            .chunks_exact(p.max(1))
+            .chunks_exact(p)
             .map(|r| self.leaf_of(|f| r[f]))
             .collect())
+    }
+
+    /// `predict` from the leaves.
+    fn predict_leaves(&self, leaves: &[usize]) -> Prediction {
+        match &self.classes {
+            Some(classes) => Prediction::Classes(
+                leaves
+                    .iter()
+                    .map(|&l| {
+                        let v = &self.nodes[l].value;
+                        classes.get(argmax(v.iter().copied())).copied().unwrap_or(0)
+                    })
+                    .collect(),
+            ),
+            None => Prediction::Values(
+                leaves
+                    .iter()
+                    .map(|&l| self.nodes[l].value.first().copied().unwrap_or(f64::NAN))
+                    .collect(),
+            ),
+        }
     }
 
     /// Class code of the majority class of a node (first maximum on ties).
@@ -612,24 +644,14 @@ impl Predictor for DecisionTree {
     }
 
     fn predict(&self, x: ArrayView2<'_, f64>) -> Result<Prediction, ModelError> {
-        let leaves = self.apply(x)?;
-        match &self.classes {
-            Some(classes) => Ok(Prediction::Classes(
-                leaves
-                    .iter()
-                    .map(|&l| {
-                        let v = &self.nodes[l].value;
-                        classes.get(argmax(v.iter().copied())).copied().unwrap_or(0)
-                    })
-                    .collect(),
-            )),
-            None => Ok(Prediction::Values(
-                leaves
-                    .iter()
-                    .map(|&l| self.nodes[l].value.first().copied().unwrap_or(f64::NAN))
-                    .collect(),
-            )),
-        }
+        Ok(self.predict_leaves(&self.apply(x)?))
+    }
+
+    fn predict_f32_rows(&self, rows: &[f32]) -> Option<Result<Prediction, ModelError>> {
+        Some(
+            self.apply_f32_rows(rows)
+                .map(|leaves| self.predict_leaves(&leaves)),
+        )
     }
 
     fn predict_proba(&self, x: ArrayView2<'_, f64>) -> Option<Result<Array2<f64>, ModelError>> {
@@ -708,6 +730,41 @@ mod tests {
         // 1.50000001 rounds to 1.5 in float32 → left, like scikit-learn.
         assert_eq!(p, Prediction::Classes(vec![0, 0, 1]));
         assert!(t.predict(array![[1e300]].view()).is_err());
+    }
+
+    /// MAE costs O(n) per candidate position, so one feature of 60 000 rows takes
+    /// seconds: the flag is also checked inside the position loop.
+    #[test]
+    fn absolute_error_cancels_within_a_feature() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::time::{Duration, Instant};
+        let n = 60_000;
+        let mut state = 0x2545_f491_u64;
+        let mut next = || {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            (state >> 11) as f64 / (1u64 << 53) as f64
+        };
+        let x = Array2::from_shape_fn((n, 2), |_| next());
+        let y: Vec<f64> = (0..n).map(|i| x[[i, 0]] * 3.0 + next()).collect();
+        let flag = AtomicBool::new(false);
+        let config = TreeConfig::new(TreeTask::Regression, TreeCriterion::AbsoluteError, 3, 2);
+        let (result, latency) = std::thread::scope(|s| {
+            let worker = s.spawn(|| {
+                let ctl = TrainControl::none().with_cancel(&flag);
+                let r = DecisionTree::fit_regressor(config, x.view(), &y, &ctl);
+                (r, Instant::now())
+            });
+            std::thread::sleep(Duration::from_millis(200));
+            let cancelled_at = Instant::now();
+            flag.store(true, Ordering::Relaxed);
+            let (r, done) = worker.join().unwrap_or_else(|_| panic!("worker panicked"));
+            (r, done.saturating_duration_since(cancelled_at))
+        });
+        println!("absolute_error, n = {n}: cancelled after {latency:?}");
+        assert_eq!(result.unwrap_err(), ModelError::Cancelled);
+        assert!(latency < Duration::from_secs(1), "{latency:?}");
     }
 
     #[test]

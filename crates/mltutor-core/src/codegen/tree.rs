@@ -9,6 +9,7 @@
 //!   the code writes the largest float64 `w` with `x <= w ⇔ float32(x) <= t`.
 
 use serde::{Deserialize, Serialize};
+use unicode_normalization::UnicodeNormalization;
 
 use super::py_str_repr;
 use crate::model::{argmax, Predictor};
@@ -139,16 +140,25 @@ fn is_python_keyword(s: &str) -> bool {
     )
 }
 
-/// D44: valid, unique Python identifiers for the feature names:
-/// `re.sub(r"\W+", "_", name).strip("_")`, `"x"` if empty, `x_` prefix if it starts
-/// with a digit, `_` suffix for keywords, `_2`, `_3`… when repeated.
+/// D44: valid, unique Python identifiers for the feature names, following the
+/// identifier rules of Python 3 (PEP 3131):
+///
+/// 1. NFKC, which is what Python applies to identifiers when it parses them
+///    (`ﬁn` and `fin`, or `m²` and `m2`, are the same name to Python);
+/// 2. every run of characters that are not `XID_Continue` → one `_`, then the
+///    `_` at both ends are stripped (`"superficie (m²)"` → `superficie_m2`);
+/// 3. `"x"` if empty, an `x_` prefix if the first character is not
+///    `XID_Start` (a digit, a combining mark), a `_` suffix for keywords;
+/// 4. `_2`, `_3`… when the normalized name is already taken.
+///
+/// `py_identifier` of `tools/golden_trees.py` is the same rule.
 pub fn py_identifiers(names: &[String]) -> Vec<String> {
     let mut used: Vec<String> = Vec::with_capacity(names.len());
     for name in names {
         let mut s = String::with_capacity(name.len());
         let mut in_run = false;
-        for c in name.chars() {
-            if c.is_alphanumeric() || c == '_' {
+        for c in name.nfkc() {
+            if unicode_ident::is_xid_continue(c) {
                 s.push(c);
                 in_run = false;
             } else if !in_run {
@@ -160,14 +170,18 @@ pub fn py_identifiers(names: &[String]) -> Vec<String> {
         if s.is_empty() {
             s = "x".to_owned();
         }
-        if s.chars().next().is_some_and(char::is_numeric) {
+        if !s.chars().next().is_some_and(unicode_ident::is_xid_start) {
             s = format!("x_{s}");
         }
         if is_python_keyword(&s) {
             s.push('_');
         }
+        // Joining NFKC pieces with `_` keeps them NFKC, but normalize again so
+        // the uniqueness check compares exactly what Python will compare.
+        let s: String = s.nfkc().collect();
         let base = s.clone();
         let mut k = 2;
+        let mut s = s;
         while used.contains(&s) {
             s = format!("{base}_{k}");
             k += 1;
@@ -333,6 +347,46 @@ mod tests {
                 "a_b_2",
                 "x",
                 "año"
+            ]
+        );
+    }
+
+    /// Python identifiers are XID_Start XID_Continue* after NFKC: `²` is
+    /// alphanumeric but not XID_Continue (`superficie_m²` does not compile), and
+    /// `ﬁn` is `fin` to Python. Checked with `str.isidentifier` and `compile`
+    /// in `tools/golden_trees.py` (`py_identifier`).
+    #[test]
+    fn identifiers_are_valid_python_3() {
+        let names: Vec<String> = [
+            "superficie (m²)",
+            "ﬁn",
+            "fin",
+            "e\u{301}",
+            "é",
+            "\u{301}acento",
+            "½ taza",
+            "x\u{b7}y",
+            "Ⅸ",
+            "数据",
+            "€",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        assert_eq!(
+            py_identifiers(&names),
+            vec![
+                "superficie_m2",
+                "fin",
+                "fin_2",
+                "é",
+                "é_2",
+                "x_\u{301}acento",
+                "x_1_2_taza",
+                "x\u{b7}y",
+                "IX",
+                "数据",
+                "x"
             ]
         );
     }

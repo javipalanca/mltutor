@@ -2,7 +2,7 @@
   "meta": {
     "format_version": 1,
     "generator": "tools/export_golden.py",
-    "generated": "2026-10-14",
+    "generated": "2026-10-15",
     "versions": {
       "python": "3.11.14",
       "numpy": "1.26.4",
@@ -265,7 +265,7 @@
       "arrays_bit_exact": ["children_left", "children_right", "feature", "n_node_samples", "structure_exact", "threshold", "value", "weighted_n_node_samples"],
       "nodes_with_exact_ties": 0,
       "nodes_with_near_ties": 0,
-      "trace_format": "one entry per split node, in build order: visit_order = features in the order the RNG drew them; visited = [feature, best proxy, its threshold, n_left] or [feature, 'constant'] (max - min <= 1e-7 in the node); exact_ties_lost = features with the same best proxy that lost because they were drawn later",
+      "trace_format": "one entry per split node, in build order: visit_order = features in the order the RNG drew them; visited = [feature, best proxy, its threshold, n_left] or [feature, 'constant'] (max <= min in the node: FEATURE_THRESHOLD behaves as 0); exact_ties_lost = features with the same best proxy that lost because they were drawn later",
       "trace": [
         {
           "visit_order": [0, 4, 7, 2, 3, 6, 5, 1],
@@ -604,7 +604,7 @@
         "body": "    if Ingresos_Medios <= 5.031649827957153:\n        if Ingresos_Medios <= 3.074299931526184:\n            if Habitaciones_Promedio <= 4.200790643692017:\n                return 1.6642706739345923\n            else:\n                return 1.1762301353686686\n        else:\n            if Ocupación_Promedio <= 2.349517703056335:\n                return 2.8222567086614236\n            else:\n                return 1.8750531004366817\n    else:\n        if Ingresos_Medios <= 6.868149995803833:\n            if Ocupación_Promedio <= 2.6706575155258174:\n                return 3.46665750639387\n            else:\n                return 2.6157288019732263\n        else:\n            if Ingresos_Medios <= 8.163050174713135:\n                return 3.871263340471087\n            else:\n                return 4.6624319999999875"
       },
       "corrected_text": "def predecir_valor(Ingresos_Medios, Edad_Casa, Habitaciones_Promedio, Dormitorios_Promedio, Población, Ocupación_Promedio, Latitud, Longitud):\n    \"\"\"\n    Función generada automáticamente que implementa el árbol de decisión entrenado.\n\n    Parameters:\n        Ingresos_Medios: float - Ingresos_Medios\n        Edad_Casa: float - Edad_Casa\n        Habitaciones_Promedio: float - Habitaciones_Promedio\n        Dormitorios_Promedio: float - Dormitorios_Promedio\n        Población: float - Población\n        Ocupación_Promedio: float - Ocupación_Promedio\n        Latitud: float - Latitud\n        Longitud: float - Longitud\n\n    Returns:\n        float - El valor predicho\n\n    Árbol entrenado para regresión con 8 características.\n    Profundidad máxima: 3\n    Número de nodos: 15\n\n    Los umbrales tienen muchos decimales porque scikit-learn compara los valores en float32;\n    así esta función da exactamente las mismas predicciones que el modelo.\n    \"\"\"\n    if Ingresos_Medios <= 5.031649827957153:\n        if Ingresos_Medios <= 3.074299931526184:\n            if Habitaciones_Promedio <= 4.200790643692017:\n                return 1.6642706739345923\n            else:\n                return 1.1762301353686686\n        else:\n            if Ocupación_Promedio <= 2.349517703056335:\n                return 2.8222567086614236\n            else:\n                return 1.8750531004366817\n    else:\n        if Ingresos_Medios <= 6.868149995803833:\n            if Ocupación_Promedio <= 2.6706575155258174:\n                return 3.46665750639387\n            else:\n                return 2.6157288019732263\n        else:\n            if Ingresos_Medios <= 8.163050174713135:\n                return 3.871263340471087\n            else:\n                return 4.6624319999999875\n\n\n# Ejemplo de uso:\n# resultado = predecir_valor(Ingresos_Medios=valor_1, Edad_Casa=valor_2, Habitaciones_Promedio=valor_3, Dormitorios_Promedio=valor_4, Población=valor_5, Ocupación_Promedio=valor_6, Latitud=valor_7, Longitud=valor_8)\n# print(f\"Predicción: {resultado}\")\n",
-      "corrected_identifier_rule": "re.sub(r'\\W+', '_', name).strip('_'); 'x' if empty; 'x_' prefix if it starts with a digit; '_' suffix for keywords; '_2', '_3'... if repeated",
+      "corrected_identifier_rule": "PEP 3131: NFKC(name); every run of non-XID_Continue characters -> '_', strip('_'); 'x' if empty; 'x_' prefix if the first character is not XID_Start; '_' suffix for keywords; NFKC again and '_2', '_3'... if repeated",
       "corrected_threshold_rule": "repr(w), w = largest float64 with x <= w <=> float32(x) <= threshold (f64_switch_threshold): the function takes Python floats and needs no numpy, yet routes every value like scikit-learn, which casts X to float32",
       "corrected_check": {
         "rows": "X_train and X_test (all), as Python floats (f64)",

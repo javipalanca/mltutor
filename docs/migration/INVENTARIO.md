@@ -65,23 +65,23 @@ Leyenda: 🐍 = origen en Python · ⚠️ = requiere decisión o implementació
 Pestañas: 📊 Datos · 🏋️ Entrenamiento · 📈 Evaluación · 📉 Visualización · 🔍 Características ·
 🔮 Predicciones · 💾 Exportar
 
-- [ ] Entrenamiento: tipo de tarea (clasificación o 📈 regresión), criterio de división
+- [x] Entrenamiento: tipo de tarea (clasificación o 📈 regresión), criterio de división
       (gini/entropía; squared_error… en regresión), profundidad máxima, muestras mínimas
       para dividir y tamaño de test. ⚠️ Los árboles de regresión no los cubre linfa.
-- [ ] Evaluación de clasificación: accuracy, precision, recall, F1, informe por clase,
+- [x] Evaluación de clasificación: accuracy, precision, recall, F1, informe por clase,
       matriz de confusión, muestras bien y mal clasificadas e interpretación.
       🐍 `algorithms/model_evaluation.py`
-- [ ] Evaluación de regresión: MSE, RMSE, MAE, R², predicciones frente a reales.
-- [ ] Visualización: 🌲 árbol gráfico (con ancho y alto ajustables) y 📝 texto de reglas.
+- [x] Evaluación de regresión: MSE, RMSE, MAE, R², predicciones frente a reales.
+- [x] Visualización: 🌲 árbol gráfico (con ancho y alto ajustables) y 📝 texto de reglas.
       En clasificación, 🌈 frontera de decisión (eligiendo 2 características) y
       📉 ROC/PR. En regresión, 📈 residuos y 🌐 superficie de decisión.
       🐍 `viz/tree_visualizer.py`, `viz/decision_boundary.py`, `viz/roc.py`, `viz/residual.py`
-- [ ] Características: importancia nativa y por permutación (D38; C10, reutilizado en KNN), con valores
+- [x] Características: importancia nativa y por permutación (D38; C10, reutilizado en KNN), con valores
       detallados. 🐍 `viz/features.py`
-- [ ] Predicciones: formulario por característica guiado por los metadatos, resultado
+- [x] Predicciones: formulario por característica guiado por los metadatos, resultado
       con probabilidades de la hoja y camino de decisión (D46). 🐍 `ui.py::create_prediction_interface`,
       `model_evaluation.py::show_prediction_path`
-- [ ] Exportar: ONNX (TreeEnsemble*), paquete Python ZIP (D43), 📝 reglas .txt, 🐍 código Python
+- [x] Exportar: ONNX (TreeEnsemble*), paquete Python ZIP (D43), 📝 reglas .txt, 🐍 código Python
       corregido (D44; el de Python no compila), imagen PNG/SVG del árbol (D42) y código de uso.
 
 ## 4. 📊 Regresión (lineal y logística) 🐍 `apps/linear_regression_app.py`

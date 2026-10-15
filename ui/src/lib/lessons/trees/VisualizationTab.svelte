@@ -94,6 +94,7 @@
         heightIn={trees.figHeight}
         pngLabel={t("descarga_arbol")}
         svgLabel={t("descarga_arbol_svg")}
+        pngTooLargeLabel={t("descarga_arbol_png_grande")}
         help={t("arbol_ayuda")}
       />
       <Expander id="arboles-leer-arbol" label={t("leer_arbol_expander")}>

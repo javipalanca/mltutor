@@ -55,6 +55,16 @@ error_clasificacion_regresion = "Un árbol de clasificación necesita una variab
 # clasificación (se permite entrenar, como en Python).
 aviso_regresion_en_clasificacion = "El árbol de regresión tratará los códigos de las clases (0, 1, 2…) como números: predecirá valores como 1,4 que no son ninguna clase y se evaluará con MSE y R², no con la exactitud. Sirve para comparar, pero para clasificar usa 🏷️ Clasificación."
 error_clasificacion_regresion_detalle = "En **{dataset}** el objetivo es un número continuo. Si se forzara la clasificación, cada valor distinto del objetivo se convertiría en una «clase» con uno o dos ejemplos (en 🩺 Diabetes saldrían cerca de 200) y el árbol no tendría sentido."   # st.info debajo del error
+# NUEVO (revisión ML de F3, 2026-10-15): st.error en lugar de entrenar con criterion="absolute_error" y
+# más de {max} filas de entrenamiento (src-tauri models.rs MAE_MAX_TRAIN = 20000). {n} = filas de
+# entrenamiento, {max} = el límite (enteros sin separador de miles). Python entrenaba y se quedaba
+# minutos sin responder (California: 14448 filas de entrenamiento, aún por debajo del límite).
+mae_limite = "El criterio absolute_error es muy lento con muchos datos: para elegir cada pregunta tiene que calcular la mediana de cada posible rama, y su coste crece con el cuadrado de las muestras del nodo. Con {n} muestras de entrenamiento (el máximo es {max}) tardaría demasiado. Usa squared_error, que es mucho más rápido y suele dar un árbol parecido, o aumenta el tamaño del conjunto de prueba para entrenar con menos filas."
+# NUEVO (revisión ML de F3, 2026-10-15): st.error en lugar de entrenar si alguna característica tiene
+# valores faltantes (celdas vacías de un CSV) o infinitos. {columnas} = nombres de esas columnas,
+# separados por ", ". Lo usan todas las lecciones (models.rs::missing_values_error). scikit-learn
+# >= 1.3 admite NaN en los árboles, pero MLTutor exige datos completos.
+error_nan = "El dataset tiene valores faltantes (celdas vacías) o no válidos (infinitos) en: {columnas}. MLTutor necesita que todas las características tengan un valor en cada fila para entrenar. Puedes eliminar las filas incompletas (en pandas, df.dropna()) o rellenar los huecos (imputar), por ejemplo con la mediana de la columna o con la categoría más frecuente. Si imputas, calcula esos valores solo con los datos de entrenamiento: usarlos también de la prueba es una fuga de datos. Después vuelve a cargar el CSV."
 
 [comun]
 # Python usa el mismo st.warning en las pestañas 2–6 sin modelo (Regresión usa st.info con otros textos).
@@ -105,6 +115,9 @@ roc_solo_clasificacion = "Las curvas ROC solo están disponibles para modelos de
 arbol_ayuda = "🖱️ Usa la rueda del ratón o los botones para acercar y alejar, y arrastra para moverte. Pasa el ratón por un nodo para ver sus detalles."
 # NUEVO (D42): segundo formato de descarga del diagrama.
 descarga_arbol_svg = "📥 Descargar el árbol como SVG"         # arbol_decision.svg
+# NUEVO (revisión de F3, 2026-10-15): tooltip del botón descarga_arbol (PNG) cuando está desactivado
+# porque el árbol no cabe en un PNG legible (límite del canvas: 16 000 px por lado a 3×).
+descarga_arbol_png_grande = "El árbol es demasiado grande para un PNG legible: las cajas saldrían diminutas. Descárgalo en SVG, que es vectorial y se puede ampliar sin perder nitidez."
 # NUEVO (D41): expander cerrado debajo de arbol_ayuda.
 leer_arbol_expander = "📖 Cómo leer el árbol"                 # leer-arbol.md
 

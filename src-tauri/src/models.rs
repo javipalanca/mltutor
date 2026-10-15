@@ -82,6 +82,48 @@ pub fn tree_needs_classes_message() -> String {
     )
 }
 
+/// Largest training set of a tree with `absolute_error`: the exact MAE criterion is
+/// O(n² · features) per node and would take minutes (sklearn has the same cost).
+pub const MAE_MAX_TRAIN: usize = 20_000;
+
+/// `[entrenamiento] mae_limite`: rejects `absolute_error` with more than
+/// [`MAE_MAX_TRAIN`] training rows (training and the 2D refit of the boundary).
+pub fn check_mae_limit(config: ModelConfig, n_train: usize) -> Result<(), CommandError> {
+    let mae = matches!(
+        config,
+        ModelConfig::Tree {
+            criterion: crate::ipc::TreeCriterion::AbsoluteError,
+            ..
+        }
+    );
+    if mae && n_train > MAE_MAX_TRAIN {
+        let message = tree_text(
+            "entrenamiento",
+            "mae_limite",
+            "El criterio absolute_error es demasiado lento con {n} muestras de entrenamiento (máximo {max}). Usa squared_error.",
+        )
+        .replace("{n}", &n_train.to_string())
+        .replace("{max}", &MAE_MAX_TRAIN.to_string());
+        return Err(CommandError::invalid_config(message));
+    }
+    Ok(())
+}
+
+/// `[entrenamiento] error_nan`: the dataset has missing (or infinite) values in
+/// `columns`. sklearn 1.7 trains trees with NaN; the app rejects them in every lesson.
+pub fn missing_values_error(columns: &[String]) -> CommandError {
+    let message = tree_text(
+        "entrenamiento",
+        "error_nan",
+        "El dataset tiene valores faltantes en: {columnas}. Elimina o rellena esas filas antes de entrenar.",
+    )
+    .replace("{columnas}", &columns.join(", "));
+    CommandError::MissingValues {
+        columns: columns.to_vec(),
+        message,
+    }
+}
+
 /// D46: label of a categorical value of the decision path ("0 (Mujer)"), from the select
 /// of the prediction form of `feature`. `None` for sliders and checkboxes.
 pub fn path_display(
@@ -93,10 +135,13 @@ pub fn path_display(
     let crate::ipc::FormControlKind::Select { options, .. } = &control.control else {
         return None;
     };
-    // `value` is the float32 of the input: compare with the float32 of each code.
-    let option = options
-        .iter()
-        .find(|o| f64::from(o.code as f32) == value || o.code == value)?;
+    // `value` is the float32 of the input (or the f64 code itself): compare as float32
+    // with a tolerance of one f32 ulp around the code.
+    let value = value as f32;
+    let option = options.iter().find(|o| {
+        let code = o.code as f32;
+        (code - value).abs() <= f32::EPSILON * code.abs().max(1.0)
+    })?;
     let template = tree_text(
         "predicciones",
         "camino_valor_categorico",
@@ -1358,8 +1403,50 @@ mod tests {
         assert_eq!(path_display(&form, 1, 0.0).as_deref(), Some("0 (Mujer)"));
         assert_eq!(path_display(&form, 1, 0.5), None);
         assert_eq!(path_display(&form, 0, 0.0), None);
+        // The f32 of a code and a value a rounding away still match; a different one not.
+        assert_eq!(
+            path_display(&form, 1, f64::from(1.0_f32) + 1e-12).as_deref(),
+            Some("1 (Hombre)")
+        );
+        assert_eq!(path_display(&form, 1, 1.0 + 1e-3), None);
         assert_eq!(python_g(3.0), "3");
         assert_eq!(python_g(0.25), "0.25");
+    }
+
+    #[test]
+    fn absolute_error_is_limited_to_20000_training_rows() {
+        let tree = |criterion| ModelConfig::Tree {
+            task: crate::ipc::TreeTask::Regression,
+            criterion,
+            max_depth: 3,
+            min_samples_split: 2,
+        };
+        let mae = tree(crate::ipc::TreeCriterion::AbsoluteError);
+        assert!(check_mae_limit(mae, MAE_MAX_TRAIN).is_ok());
+        let Err(CommandError::InvalidConfig { message }) = check_mae_limit(mae, 20_001) else {
+            panic!("absolute_error with 20 001 rows must be rejected");
+        };
+        assert!(message.contains("20001"), "{message}");
+        assert!(message.contains("20000"), "{message}");
+        assert!(message.contains("squared_error"), "{message}");
+        for config in [
+            tree(crate::ipc::TreeCriterion::SquaredError),
+            tree(crate::ipc::TreeCriterion::FriedmanMse),
+            ModelConfig::Linear,
+        ] {
+            assert!(check_mae_limit(config, 1_000_000).is_ok());
+        }
+    }
+
+    #[test]
+    fn missing_values_list_the_columns() {
+        let error = missing_values_error(&["edad".into(), "tarifa".into()]);
+        let CommandError::MissingValues { columns, message } = &error else {
+            panic!("{error:?}");
+        };
+        assert_eq!(columns, &["edad", "tarifa"]);
+        assert!(message.contains("edad, tarifa"), "{message}");
+        assert!(!message.contains('{'), "{message}");
     }
 
     #[test]
