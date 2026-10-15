@@ -67,6 +67,7 @@ La UI dibuja con Plotly o SVG. Nunca se envían imágenes rasterizadas.
 | D18 | `freezePrototype: false` en Tauri (con `true`, Plotly falla con "readonly property") | Aplicado. Riesgo bajo: no se carga contenido remoto y `script-src 'self'` sigue estricto. Revisable |
 | D19–D35 | Detalles de la Fase 2 (paridad de la logística frente a la referencia convergida, umbrales 0,3/0,5/0,7, R² real, colores coherentes en la frontera, coeficientes corregidos, exportación con código + ONNX + paquete ZIP, script de "Generar Código" correcto, entre otros) | Recomendaciones aplicadas por defecto (2026-10-14). Detalle en [fase2-regresion.md §10](fase2-regresion.md) |
 | D36–D51 | Detalles de la Fase 3 (CART bit a bit, preselección de la tarea, importancia nativa + permutación, nombres de clase en el texto, diagrama SVG con zoom, PNG/SVG, código Python del árbol corregido, umbral ONNX como el mayor float32 ≤ t, entre otros) | Recomendaciones aplicadas por defecto (2026-10-14). Detalle en [fase3-arboles.md §10](fase3-arboles.md) |
+| D52–D67 | Detalles de la Fase 4 (kd-tree exacto con los desempates de sklearn, FMA de la distancia euclídea, lienzo interactivo nativo, ONNX propio, probabilidades y vecinos en Predicciones, K ≤ n_train, análisis de distancias con el split del modelo, entre otros) | Recomendaciones aplicadas por defecto (2026-10-15). Detalle en [fase4-knn.md §10](fase4-knn.md) |
 | D9–D17 | Detalles de la Fase 1 (Moons fijo por sesión, CSV más tolerante, pairplot de regresión legible, correlación de -1 a 1, estado de subvistas por lección, CSV resaltado en la barra lateral, días de Propinas corregidos, consejos del pairplot, CSV embebidos desde `tests/parity`) | Recomendaciones aplicadas por defecto (2026-10-13). Detalle en [fase1-shell-datos.md §9](fase1-shell-datos.md). Revisables por el usuario |
 | D8 | MPG: columna `name` | ✅ Aprobada: **no se usa como característica** del modelo (301 modelos de coche codificados como número no tienen sentido). Se conserva en la exploración de datos: vista previa, tooltip en el pairplot y gráficos de dispersión |
 
@@ -176,7 +177,10 @@ Incluye la permutation importance (C10) y el paquete Python ZIP.
 
 ### Fase 4 — 🔍 KNN  *(riesgo: medio · tamaño: M)*
 
-- [ ] KNN de clasificación y regresión sobre `linfa-nn` (kd-tree o fuerza bruta), con
+Plan detallado, contrato y reparto: [fase4-knn.md](fase4-knn.md). Capturas: `docs/migration/capturas/qt/fase4/`.
+Incluye el ONNX propio (Scan + TopK) y el paquete Python ZIP.
+
+- [ ] KNN propio: kd-tree portado de sklearn con paridad exacta (D52, `tools/knn_reference.py`) y fuerza bruta, de clasificación y regresión, con
       pesos uniformes o por distancia y métricas minkowski, euclídea y manhattan.
 - [ ] Visualización interactiva con el punto de prueba editable y la animación de
       vecinos en la web (sin HTML incrustado), análisis de distancias y separabilidad.

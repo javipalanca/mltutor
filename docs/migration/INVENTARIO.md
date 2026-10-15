@@ -107,18 +107,19 @@ Pestañas: 📊 Datos · 🏋️ Entrenamiento · 📈 Evaluación · 📉 Visua
 🔮 Predicciones · 💾 Exportar
 
 - [ ] Entrenamiento: vecinos (K), pesos (uniform/distance), métrica
-      (minkowski/euclidean/manhattan) y tamaño de test. ⚠️ KNN como capa sobre `linfa-nn`
+      (minkowski/euclidean/manhattan) y tamaño de test. KNN propio con kd-tree exacto (D52)
 - [ ] Evaluación: clasificación o regresión.
 - [ ] Visualización de clasificación: 📊 distribución de probabilidades, 📉 ROC,
-      🌈 frontera de decisión, 🎮 visualización interactiva y 📏 análisis de distancias
+      🌈 frontera de decisión, 🎮 visualización interactiva nativa (D54) y 📏 análisis de distancias
       (separabilidad y distancias entre clases).
       🐍 `create_interactive_knn_visualization`, con un punto de prueba de valores
       editables y su animación HTML de vecinos.
 - [ ] Visualización de regresión: 📊 distribución de predicciones (residuos) y
       🌐 superficie de predicción.
-- [ ] Características: permutation importance.
-- [ ] Predicciones con formulario.
-- [ ] Exportar: Pickle y ONNX. ⚠️ Pickle
+- [ ] Características: permutation importance (C10 de F3).
+- [ ] Predicciones con formulario, probabilidades y los K vecinos (D58).
+- [ ] Exportar: código de entrenamiento, ONNX propio y paquete Python ZIP (D57). Python solo tenía el
+      pickle (`linear_regression_model.pkl`) y el fragmento de Regresión.
 
 ## 6. 🧠 Redes Neuronales 🐍 `apps/neural_network_app.py`, `viz/nn.py`, `viz/nn_extra.py`
 
@@ -168,7 +169,8 @@ lo contrario: `show_network_anatomy_tab`, `show_enhanced_decision_surface_tab`,
 `display_model_export_options`, `export_model_pickle`, `export_modelo_onnx` (`ui.py`);
 `viz/tree_visualization.py` entero; `tree_visualizer.create_tree_visualization` y
 `render_tree_visualization`; `utils.generate_model_code`; `model_training.predict_sample`;
-`DECISION_BOUNDARY_CODE`; `create_animated_neighbors_plot` (`knn_app.py`).
+`DECISION_BOUNDARY_CODE`; `create_animated_neighbors_plot`, la tabla y el respaldo de puntos de
+prueba de `create_interactive_knn_visualization`, `knn_metrics` y `dataset_loaded` (`knn_app.py`).
 Antes de descartar cada una, `migration-porter` debe confirmar que no se puede alcanzar.
 
 ## 9. Gráficos: de matplotlib a Plotly

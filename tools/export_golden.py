@@ -1875,6 +1875,10 @@ def build_cases() -> dict[str, Callable[[Writer], None]]:
     import golden_trees
 
     golden_trees.register(cases, sys.modules[__name__])
+    # Phase 4: 🔍 K-Nearest Neighbors (tools/golden_knn.py, tools/knn_reference.py).
+    import golden_knn
+
+    golden_knn.register(cases, sys.modules[__name__])
     return cases
 
 

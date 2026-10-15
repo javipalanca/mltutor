@@ -1,0 +1,66 @@
+{#- NUEVO (decisiones D1 y D57, Fase 4): no existe en la versión Python, que guardaba el objeto con
+    pickle (como "linear_regression_model.pkl"). Script del "📦 Paquete Python (.zip)" de la lección
+    🔍 K-Nearest Neighbors. Un KNN no aprende parámetros: "entrenar" es guardar los datos de
+    entrenamiento. Por eso el script vuelve a hacer fit con las MISMAS filas, en el MISMO orden
+    (el orden decide qué vecino gana cuando hay empates de distancia), comprueba que predice y elige
+    los mismos vecinos que MLTutor y guarda el modelo con pickle.
+    Variables (pásalas todas):
+      estimator   str   "sklearn.neighbors.KNeighborsClassifier" o "sklearn.neighbors.KNeighborsRegressor"
+      dataset     str   nombre del dataset (texto del usuario si es un CSV: va con pycomment)
+      classifier  bool
+      json_name   str   "modelo.json"
+      pkl_name    str   "modelo_knn.pkl"
+-#}
+"""
+Reconstruye el modelo K-Nearest Neighbors entrenado en MLTutor como un objeto de scikit-learn.
+
+Modelo: {{ estimator }}
+Dataset: {{ dataset | pycomment }}
+
+Uso (en la carpeta donde has descomprimido el ZIP):
+    pip install scikit-learn numpy
+    python reconstruir_modelo.py
+
+Genera '{{ pkl_name }}', que puedes cargar con pickle o joblib.
+"""
+import json
+import pickle
+
+import numpy as np
+{% if classifier %}from sklearn.neighbors import KNeighborsClassifier{% else %}from sklearn.neighbors import KNeighborsRegressor{% endif %}
+
+# 1. Leer los datos y los hiperparámetros del modelo de MLTutor
+with open("{{ json_name }}", encoding="utf-8") as f:
+    datos = json.load(f)
+
+# 2. Crear el modelo con los mismos hiperparámetros
+{% if classifier %}modelo = KNeighborsClassifier(**datos["params"])
+{% else %}modelo = KNeighborsRegressor(**datos["params"])
+{% endif %}
+# 3. "Entrenar": un KNN solo guarda los datos de entrenamiento. Se usan las mismas filas, en el
+#    mismo orden y sin escalar, como en MLTutor.
+X_train = np.array(datos["X_train"], dtype=float)
+y_train = np.array(datos["y_train"])
+modelo.fit(X_train, y_train)
+
+# 4. Comprobar que el modelo reconstruido elige los mismos vecinos y predice lo mismo
+X = np.array(datos["check"]["X"], dtype=float)
+distancias, vecinos = modelo.kneighbors(X)
+assert np.array_equal(vecinos, np.array(datos["check"]["neighbours"]))
+assert np.allclose(distancias, datos["check"]["distances"], rtol=1e-9, atol=1e-12)
+{% if classifier %}assert np.array_equal(modelo.predict(X), np.array(datos["check"]["prediction"]))
+assert np.allclose(modelo.predict_proba(X), datos["check"]["probabilities"], atol=1e-12)
+{% else %}assert np.allclose(modelo.predict(X), datos["check"]["prediction"], rtol=1e-12, atol=1e-12)
+{% endif %}print("✅ El modelo reconstruido elige los mismos vecinos y predice lo mismo que MLTutor")
+
+# 5. Guardar el modelo en formato pickle
+with open("{{ pkl_name }}", "wb") as f:
+    pickle.dump(modelo, f)
+print("💾 Modelo guardado en '{{ pkl_name }}'")
+
+# Ejemplo de uso:
+# with open("{{ pkl_name }}", "rb") as f:
+#     modelo = pickle.load(f)
+# nuevo_ejemplo = np.array([[{% raw %}valor1, valor2, ...{% endraw %}]])  # en el orden de datos["feature_names_in"]
+# print(modelo.predict(nuevo_ejemplo))
+# distancias, vecinos = modelo.kneighbors(nuevo_ejemplo)  # los K vecinos (filas de X_train)

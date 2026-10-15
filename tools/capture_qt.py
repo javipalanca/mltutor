@@ -7,6 +7,7 @@ Usage:
     uv run python tools/capture_qt.py docs/migration/capturas/qt             # phase 1
     uv run python tools/capture_qt.py docs/migration/capturas/qt/fase2 --phase 2
     uv run python tools/capture_qt.py docs/migration/capturas/qt/fase3 --phase 3
+    uv run python tools/capture_qt.py docs/migration/capturas/qt/fase4 --phase 4
     ... --quantize   # rewrite every PNG with a 256-colour palette (Pillow) before commit
 (QT_QPA_PLATFORM must NOT be offscreen: WebEngine and fonts need the real platform.)
 """
@@ -303,10 +304,94 @@ STEPS_F3 = [
     (click_key("btn_regression"), "44_aviso_regresion_en_iris"),
 ]
 
+KNN = "🔍 K-Nearest Neighbors"
+
+
+def kn(tab, **extra):
+    return go(KNN, active_tab_knn=tab, **extra)
+
+
+def number(label, value):
+    return lambda: window.action(find("number", label), value)
+
+
+# Phase 4: 🔍 K-Nearest Neighbors. See docs/migration/fase4-knn.md §0.
+STEPS_F4 = [
+    (go(KNN, active_tab_knn=2, knn_trained=False, selected_dataset=IRIS,
+        unified_dataset_selector=IRIS, active_analysis=None), "00_evaluacion_sin_entrenar"),
+    (kn(3), "00b_visualizacion_sin_entrenar"),
+    (kn(4), "00c_caracteristicas_sin_entrenar"),
+    (kn(1), "01_entrenamiento_iris"),
+    (click_key("train_knn_button"), "02_entrenado_iris"),
+    (kn(2), "03_evaluacion_clasificacion_iris"),
+    (expand_all, "04_evaluacion_clasificacion_iris_expandido"),
+    (kn(3, viz_type="Probabilidades"), "05_probabilidades_multiclase_iris"),
+    (kn(3, viz_type="ROC"), "06_roc_multiclase_iris"),
+    (kn(3, viz_type="Frontera"), "07_frontera_iris"),
+    (choose("petal width (cm)", key="viz_feature2"), None),
+    (choose("petal length (cm)", key="viz_feature1"), "08_frontera_petalos_iris"),
+    (kn(3, viz_type="Interactiva", viz_feature1="sepal length (cm)",
+        viz_feature2="sepal width (cm)"), "09_interactiva_iris"),
+    (expand_all, "10_interactiva_iris_expandido"),
+    (choose("sepal length (cm)", key="interactive_feature2"), "11_interactiva_misma_caracteristica"),
+    (choose("sepal width (cm)", key="interactive_feature2"), None),
+    (kn(3, viz_type="Distancias"), "12_distancias_iris"),
+    (expand_all, "13_distancias_iris_expandido"),
+    (kn(4), "14_caracteristicas_iris"),
+    (expand_all, "15_caracteristicas_iris_expandido"),
+    (kn(5), "16_prediccion_formulario_iris"),
+    (click("Realizar predicción"), "17_prediccion_resultado_iris"),
+    (kn(6), "18_exportar_iris"),
+    (click_key("generate_code_lr"), "19_exportar_codigo"),
+    (click_key("download_pickle_lr"), "20_exportar_pickle"),
+    (kn(1, selected_dataset=CANCER, unified_dataset_selector=CANCER), None),
+    (click_key("train_knn_button"), "21_entrenado_cancer"),
+    (kn(3, viz_type="Probabilidades"), "22_probabilidades_umbrales_cancer"),
+    (expand_all, "23_probabilidades_umbrales_cancer_expandido"),
+    (kn(3, viz_type="ROC"), "24_roc_binaria_cancer"),
+    (kn(3, viz_type="Frontera", viz_feature1="mean radius", viz_feature2="mean texture"),
+     "25_frontera_binaria_cancer"),
+    (kn(3, viz_type="Distancias"), "26_distancias_cancer"),
+    (kn(1, selected_dataset=TITANIC, unified_dataset_selector=TITANIC), None),
+    (click_key("train_knn_button"), None),
+    (kn(5), "27_prediccion_formulario_titanic"),
+    (click("Realizar predicción"), "28_prediccion_resultado_titanic"),
+    (kn(1, selected_dataset=IRIS, unified_dataset_selector=IRIS), None),
+    (number("Vecinos (K)", 20), None),
+    (choose("distance", label="Pesos"), None),
+    (choose("manhattan", label="Métrica"), "29_entrenamiento_k20_distance_manhattan"),
+    (click_key("train_knn_button"), None),
+    (kn(3, viz_type="Interactiva"), "30_interactiva_k20_distance_manhattan"),
+    (kn(3, viz_type="Frontera", viz_feature1="sepal length (cm)",
+        viz_feature2="sepal width (cm)"), "31_frontera_k20_distance_manhattan"),
+    (kn(1, selected_dataset=DIABETES, unified_dataset_selector=DIABETES), None),
+    (number("Vecinos (K)", 5), None),
+    (choose("uniform", label="Pesos"), None),
+    (choose("minkowski", label="Métrica"), "32_entrenamiento_regresion_diabetes"),
+    (click_key("train_knn_button"), "33_entrenado_regresion_diabetes"),
+    (kn(2), "34_evaluacion_regresion_diabetes"),
+    (kn(3, viz_type="Predicciones"), "35_predicciones_residuos_diabetes"),
+    (expand_all, "36_predicciones_residuos_diabetes_expandido"),
+    (kn(3, viz_type="Superficie", viz_feature1="age", viz_feature2="sex"),
+     "37_superficie_diabetes"),
+    (choose("s5", key="viz_feature2"), None),
+    (choose("bmi", key="viz_feature1"), "38_superficie_bmi_s5_diabetes"),
+    (kn(4), "39_caracteristicas_regresion_diabetes"),
+    (kn(5, viz_feature1="age", viz_feature2="sex"), None),
+    (click("Realizar predicción"), "40_prediccion_regresion_diabetes"),
+    (kn(6), "41_exportar_regresion_diabetes"),
+    (kn(1, selected_dataset=CALIFORNIA, unified_dataset_selector=CALIFORNIA), None),
+    (click_key("train_knn_button"), None),
+    (kn(3, viz_type="Superficie"), "42_superficie_california"),
+    (kn(4), "43_caracteristicas_california"),
+]
+
 if PHASE == 2:
     STEPS = STEPS_F2
 elif PHASE == 3:
     STEPS = STEPS_F3
+elif PHASE == 4:
+    STEPS = STEPS_F4
 
 steps = iter(STEPS)
 pending = [None]
@@ -315,10 +400,12 @@ pending = [None]
 # Phase 2 keeps the window capture (with the sidebar) only for a few screens.
 WINDOW_F2 = {"02_entrenado_logistica_iris", "05_roc_multiclase_iris", "33_residuos_diabetes"}
 WINDOW_F3 = {"02_entrenado_iris", "05_arbol_iris", "31_arbol_regresion_diabetes"}
+WINDOW_F4 = {"02_entrenado_iris", "09_interactiva_iris", "35_predicciones_residuos_diabetes"}
 
 
 def capture(name):
-    if PHASE == 1 or name in WINDOW_F2 or name in WINDOW_F3:
+    windows = {2: WINDOW_F2, 3: WINDOW_F3, 4: WINDOW_F4}.get(PHASE, set())
+    if PHASE == 1 or name in windows:
         window.grab().save(str(OUT / f"{name}_ventana.png"))
     widget = window.content.widget()
     if widget is not None:

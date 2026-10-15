@@ -54,8 +54,8 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
   clase 1; hay que remapear las probabilidades y el signo de los coeficientes.
 - **linfa-linear OLS = sklearn** (1e-12 en Diabetes).
 - **KNN:** linfa-nn no trae clasificador ni regresor y `k_nearest` no devuelve distancias.
-  KdTree y BallTree con L1 dan vecinos incorrectos, y KdTree hace panic con NaN. **Usar
-  fuerza bruta propia**, que coincide con sklearn (error de 0 a 2e-16). Con distancia 0
+  KdTree y BallTree con L1 dan vecinos incorrectos, y KdTree hace panic con NaN. KNN propio.
+  **CORREGIDO en F4:** la fuerza bruta con "gana el índice menor" NO basta (ver la entrada de F4). Con distancia 0
   se aplica la regla de sklearn: si algún vecino está a distancia 0, solo cuentan esos.
 - **burn 0.22:** la API ya no es genérica (`Tensor<D>`, `Device::flex().autodiff()`); la
   documentación antigua con `B: Backend` no vale. El RNG del backend es un static global:
@@ -263,6 +263,28 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
     exactos (particiones espejo), la FMA rompe el empate y **la estructura SÍ puede cambiar** (3 de
     36 árboles en la revisión). Rust reproduce el algoritmo sin FMA; hay que validar los fixtures
     también en x86-64. El script en Apple Silicon puede dar otro árbol en esos casos.
+- **KNN y empates (2026-10-15, F4):** con `algorithm='auto'`, sklearn usa kd_tree si hay ≤ 15
+  características y K < n_train//2, y brute en otro caso.
+  - kd_tree: gana el PRIMER punto visitado. El orden dentro de las hojas sale del `std::nth_element`
+    de libc++ (comparador `(valor, índice)`) y el heap rechaza `dist >= mayor`. Depende de la
+    plataforma: libstdc++ en Linux da otros empates.
+  - brute: gana el índice menor; en la euclídea, sklearn ordena con `||y||²−2x·y` de BLAS.
+  - La regla "índice menor" cambia hasta el 46 % de una rejilla (Diabetes age/sex).
+    `tools/knn_reference.py` lo reproduce bit a bit y es la especificación (D52, D66).
+  - La wheel arm64 suma la distancia euclídea en bloques de 8 sin FMA, y el resto (`n % 8`) con FMA
+    (D53, `mul_add`).
+- **skl2onnx 1.19.1 y KNN:** con opset ≥ 11, `weights='distance'` sale como `uniform` (distancias de
+  `TopK` negadas), y usa `1/max(d,1e-6)` en vez de la regla de distancia 0. onnxruntime no tiene
+  `OneHot` con salida double. Se usa un grafo propio (Scan + TopK, `Equal`+`Cast`).
+- **Fallos del KNN en Python:**
+  - el lienzo interactivo calcula en JS con reglas propias, y `test_points` nunca se llena;
+  - el análisis de distancias usa siempre test 0,3, y en binaria su ratio vale siempre 1;
+  - Probabilidades y ROC muestran "Clase i";
+  - con K > n_train entrena y luego fallan las vistas;
+  - la exportación es la de Regresión (`linear_regression_model.pkl`).
+  - Frontera, superficie, lienzo y formulario usan todo el dataset (D63 lo mantiene).
+- **Capturas de WebEngine:** el lienzo de Qt WebEngine se captura aparte, con Chrome headless
+  (`--headless=new --screenshot`) sobre el HTML guardado. `--only knn` tarda unos 8 min (12 MB).
 - **Revisión F3, correcciones del core (2026-10-15):**
   - `FEATURE_THRESHOLD = 0` verificado con el fixture `trees/tiny_scale_features` (5 casos que con 1e-7
     darían otro árbol). Causa probable: el inicializador de un `cdef` del `.pxd` no se ejecuta en los

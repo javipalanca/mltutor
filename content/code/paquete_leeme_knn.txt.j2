@@ -1,0 +1,60 @@
+{#- NUEVO (D1/D57, Fase 4): LEEME.txt del "📦 Paquete Python (.zip)" de 🔍 K-Nearest Neighbors, junto
+    a modelo.json y reconstruir_modelo.py (paquete_modelo_knn.py.j2). Texto plano, sin Markdown. Es
+    paquete_leeme.txt.j2 (Fase 2) adaptado: un KNN guarda los datos de entrenamiento, no coeficientes.
+    Variables (pásalas todas):
+      estimator      str        "sklearn.neighbors.KNeighborsClassifier" o "...KNeighborsRegressor"
+      dataset        str        nombre del dataset que ve el estudiante
+      feature_names  list[str]  nombres legibles, en el orden de las columnas del modelo
+      classes        list[{value, name}]|null  una entrada por clase, en el orden de classes_
+                                (`value` = lo que devuelve predict; null en regresión)
+      n_train, n_test int; test_size float
+      n_neighbors    int        K
+      weights        str        "uniform" o "distance"
+      metric         str        "minkowski", "euclidean" o "manhattan"
+      pkl_name       str        "modelo_knn.pkl"
+-#}
+MODELO EXPORTADO DESDE MLTUTOR
+==============================
+
+Modelo:  {{ estimator }}
+Dataset: {{ dataset }}
+Datos:   {{ n_train }} muestras de entrenamiento y {{ n_test }} de prueba (test_size={{ test_size | pyrepr }}, random_state=42)
+Vecinos: K={{ n_neighbors }}, weights={{ weights | pyrepr }}, metric={{ metric | pyrepr }} (datos sin escalar)
+
+Contenido del paquete
+---------------------
+- modelo.json            Las {{ n_train }} muestras de entrenamiento (un KNN no aprende parámetros:
+                         predice comparando con ellas) y los hiperparámetros del modelo.
+- reconstruir_modelo.py  Crea el objeto de scikit-learn con esas muestras, comprueba que elige
+                         los mismos vecinos y predice lo mismo que MLTutor y lo guarda en
+                         {{ pkl_name }}.
+- LEEME.txt              Este archivo.
+
+Cómo usarlo
+-----------
+1. Descomprime el ZIP en una carpeta.
+2. Instala las dependencias:   pip install scikit-learn numpy
+3. Ejecuta:                    python reconstruir_modelo.py
+4. Carga el modelo en tu código:
+
+       import pickle
+       with open("{{ pkl_name }}", "rb") as f:
+           modelo = pickle.load(f)
+       print(modelo.predict([[...]]))      # una lista de valores por muestra
+       print(modelo.kneighbors([[...]]))   # distancias y posiciones de los K vecinos
+
+Orden de las características
+----------------------------
+Cada muestra debe tener estos valores, en este orden y en las mismas unidades (sin escalar):
+{% for nombre in feature_names %}  {{ loop.index }}. {{ nombre }}
+{% endfor %}
+{%- if classes %}
+Clases (lo que devuelve predict)
+--------------------------------
+{% for clase in classes %}  {{ clase.value }} = {{ clase.name }}
+{% endfor %}
+{%- endif %}
+Las columnas de texto del dataset original se convirtieron en números por orden
+alfabético (LabelEncoder). Codifica igual los datos nuevos.
+
+Atención: abrir un archivo .pkl puede ejecutar código. Carga solo los que hayas generado tú.
