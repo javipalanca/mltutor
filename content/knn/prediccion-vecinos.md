@@ -1,4 +1,4 @@
-<!-- NUEVO (D58, Fase 4): no existe en la versión Python, que solo mostraba la clase o el valor y el st.info "Información del modelo KNN". Pestaña 🔮 Predicciones, expander cerrado debajo de la tabla "#### 👥 Los {k} vecinos más cercanos" (mensajes.toml [predicciones] vecinos_titulo). Título: mensajes.toml [predicciones] vecinos_expander. Reglas: fase4-knn.md §3 C17.5 (iguales en crates/mltutor-core). Ejemplo de Iris: tests/parity/knn/iris_k5_uniform_minkowski.json prediction_form.custom (entrada 7,9 / 4,4 / 6,9 / 2,5, vecino más cercano a 0,728, P(virginica) = 1). -->
+<!-- NUEVO (D58, Fase 4): no existe en la versión Python, que solo mostraba la clase o el valor y el st.info "Información del modelo KNN". Pestaña 🔮 Predicciones, expander cerrado debajo de la tabla "#### 👥 Los {k} vecinos más cercanos" (mensajes.toml [predicciones] vecinos_titulo). Título: mensajes.toml [predicciones] vecinos_expander. Reglas: fase4-knn.md §3 C17.5 (iguales en crates/mltutor-core). Ejemplo de Iris: tests/parity/knn/iris_k5_uniform_minkowski.json prediction_form.custom (entrada 7,9 / 4,4 / 6,9 / 2,5, vecino más cercano a 0,728, P(virginica) = 1). NUEVO (revisión ML de F4, 2026-10-15): la nota sobre la distancia 0 en scikit-learn con la euclídea por fuerza bruta (🔬 Cáncer, consultando 20 filas de entrenamiento con KNeighborsClassifier(5, weights='distance', metric='euclidean'): distancia a sí mismas entre 0 y 3,05e-5, scikit-learn 1.7.2). -->
 **Así ha decidido el modelo.** La tabla muestra las $K$ muestras de **entrenamiento** más cercanas a la que has
 introducido, de la más cercana a la más lejana, con su distancia (en la métrica del modelo), su peso y su
 clase o valor.
@@ -11,6 +11,13 @@ clase o valor.
   por $1/d_i$ (`distance`).
 - **Distancia 0**: si tu muestra coincide exactamente con alguna de entrenamiento y los pesos son `distance`,
   solo cuentan las que coinciden (peso 1) y las demás pesan 0.
+
+  MLTutor calcula la distancia exacta, así que una muestra idéntica da 0. scikit-learn no siempre: con la
+  distancia euclídea y búsqueda por fuerza bruta (por ejemplo, con más de 15 características, como 🔬 Cáncer) usa la
+  fórmula rápida $\lVert\mathbf{x}\rVert^2 - 2\,\mathbf{x}\cdot\mathbf{z} + \lVert\mathbf{z}\rVert^2$, que al restar
+  números grandes casi iguales pierde precisión: una fila idéntica puede salir a 0,00003 en lugar de 0. Entonces
+  la regla de distancia 0 no se aplica y esa fila pesa $1/0{,}00003 \approx 33\,000$: decide casi sola, pero
+  no sola del todo, y las probabilidades pueden diferir un poco de las de la app.
 
 ⚠️ **Cómo no leer esta tabla**
 

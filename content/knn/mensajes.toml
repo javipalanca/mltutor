@@ -133,12 +133,36 @@ separabilidad_titulo = "### Análisis de Separabilidad"
 metrica_min = "Distancia Mínima"                             # {:.3f}
 metrica_max = "Distancia Máxima"                             # {:.3f}
 metrica_ratio = "Ratio Max/Min"                              # {:.2f}
-bien_separadas = "🟢 Las clases están bien separadas (ratio > 5)"         # st.success
-separacion_moderada = "🟡 Separación moderada entre clases (2 < ratio ≤ 5)"   # st.warning
-muy_proximas = "🔴 Las clases están muy próximas (ratio ≤ 2)"             # st.error
+# Veredictos de Python (por el ratio Max/Min). CORREGIDO (J2, revisión ML de F4): Rust ya NO los muestra; el
+# veredicto usa la separación (veredicto_* más abajo). Se conservan como literales de Python para los tests
+# de paridad de textos. El ratio no mide la separabilidad: Iris da 2,53 («moderada») aunque versicolor y
+# virginica se solapan; 🔢 Dígitos da 1,35 («muy próximas») aunque K = 5 acierta el 99,3 %; y tres nubes
+# bien separadas en los vértices de un triángulo equilátero dan 1,02 («muy próximas»).
+bien_separadas = "🟢 Las clases están bien separadas (ratio > 5)"         # st.success (Python)
+separacion_moderada = "🟡 Separación moderada entre clases (2 < ratio ≤ 5)"   # st.warning (Python)
+muy_proximas = "🔴 Las clases están muy próximas (ratio ≤ 2)"             # st.error (Python)
 pocas_clases = "Se necesitan al menos 2 clases para el análisis de distancias."   # st.info
 # NUEVO (D56): st.caption debajo de la matriz. {n} = muestras de entrenamiento usadas.
 nota_datos = "Calculado con las {n} muestras de entrenamiento del modelo."
+# NUEVO (J2, revisión ML de F4; D67 generalizado a binaria y multiclase): veredicto por la SEPARACIÓN,
+#   separación = min_{i≠j} M[i,j] / max(W_i, W_j),
+# con M[i,j] la distancia media entre las clases i y j y W_i la distancia media entre muestras distintas de
+# la clase i (la diagonal). ≥ 2 → separadas (st.success), ≥ 1 → moderadas (st.warning), < 1 → próximas
+# (st.error). {separacion} = ese cociente. separacion_titulo va encima del veredicto, debajo de las tres
+# métricas de Python (que se mantienen como dato informativo, seguidas de ratio_informativo).
+# Cifras (euclídea, K = 5, prueba 0,3, todas las filas de entrenamiento): 🌸 Iris 1,58 (versicolor/virginica:
+# 1,90 frente a 1,20) → moderadas; 🔢 Dígitos 1,11 (1 y 8) → moderadas; 🔬 Cáncer 1,26; 🍷 Vino 1,04; tres
+# nubes de 100 puntos (make_blobs, cluster_std=1, centros a 10 de distancia) 5,77 → separadas.
+separacion_titulo = "#### Separación entre clases"
+veredicto_separadas = "🟢 Las clases están separadas (separación {separacion:.2f} ≥ 2). La separación divide la distancia media entre las dos clases más próximas por la dispersión de la más dispersa de las dos (su distancia media interna, en la diagonal): incluso ese par está, en promedio, al menos el doble de lejos entre sí que las muestras dentro de cada clase."
+veredicto_moderadas = "🟡 Separación moderada entre clases (separación {separacion:.2f}, entre 1 y 2). La separación divide la distancia media entre las dos clases más próximas por la dispersión de la más dispersa de las dos (su distancia media interna, en la diagonal): ese par está más lejos entre sí que dentro de cada clase, pero menos del doble, así que sus nubes probablemente se tocan. Es una medida global con promedios: el KNN decide con los vecinos más cercanos y puede acertar mucho igualmente (en 🔢 Dígitos sale 1,11 y K = 5 acierta el 99,3 %); mira también la matriz de confusión."
+veredicto_proximas = "🔴 Las clases están muy próximas (separación {separacion:.2f} < 1). La separación divide la distancia media entre las dos clases más próximas por la dispersión de la más dispersa de las dos (su distancia media interna, en la diagonal): la distancia media entre ese par es menor que la distancia media dentro de la más dispersa, cuyas muestras están, en promedio, más cerca de la otra clase que entre sí: señal de que se solapan. Revisa la matriz de confusión y prueba a escalar las características."
+# {max} = filas por clase a partir de las cuales se muestrea (st.caption debajo de nota_datos, solo si alguna
+# clase de entrenamiento tiene más de {max} muestras). La regla exacta del muestreo es la del core.
+aviso_muestreo = "Para que el cálculo sea rápido, en las clases con más de {max} muestras de entrenamiento el análisis usa una muestra de {max} filas por clase: las distancias medias son una estimación."
+# st.caption debajo de las métricas Distancia Mínima / Máxima / Ratio Max/Min (con 2 clases se usa
+# [distancias_nuevo] binaria en su lugar).
+ratio_informativo = "El ratio Max/Min es el criterio de la versión original y se muestra solo como dato: compara el par de clases más alejado con el más próximo, así que mide lo desiguales que son las distancias entre clases, no si se solapan (en 🌸 Iris vale 2,53 aunque versicolor y virginica se confunden). El veredicto usa la separación."
 
 [caracteristicas]
 header = "🔍 Importancia de Características"
@@ -205,7 +229,9 @@ filtro_zip = "Paquete Python (*.zip)"
 ayuda_expander = "ℹ️ ¿Qué formato elijo?"                    # cerrado, debajo de los tres botones; exportar.md
 
 [distancias_nuevo]
-# NUEVO (D67): con 2 clases, st.info en lugar del veredicto (Python: siempre "🔴 Las clases están muy
-# próximas (ratio ≤ 2)", porque la matriz solo tiene dos celdas iguales y el ratio vale 1,00).
-binaria = "Con dos clases solo hay una distancia entre clases, así que el ratio siempre vale 1 y no mide la separación. Compárala con la distancia media dentro de cada clase (la diagonal)."
+# NUEVO (D67): con 2 clases, st.info (Python: siempre "🔴 Las clases están muy próximas (ratio ≤ 2)",
+# porque la matriz solo tiene dos celdas iguales y el ratio vale 1,00). CORREGIDO (J2): con el veredicto por
+# la separación, también hay veredicto en binaria; este texto sustituye a [distancias] ratio_informativo
+# debajo de las métricas de Python.
+binaria = "Con dos clases solo hay una distancia entre clases, así que el ratio Max/Min siempre vale 1 y no mide la separación. Por eso el veredicto compara esa distancia con la distancia media dentro de cada clase (la diagonal)."
 diagonal_nota = "La diagonal muestra la distancia media entre las muestras de una misma clase."   # st.caption

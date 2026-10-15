@@ -1,4 +1,4 @@
-<!-- NUEVO (Fase 4, como content/arboles/parametros.md en F3): no existe en la versión Python, que solo tenía el expander "ℹ️ ¿Qué es K-Nearest Neighbors?" de la cabecera. Pestaña 🏋️ Entrenamiento, expander cerrado debajo de los 4 controles de "### Parámetros del Modelo". Título: mensajes.toml [entrenamiento] parametros_expander. Cifras medidas con scikit-learn 1.7.2 y el split de la app (test_size=0.3, random_state=42); los dos fragmentos se han ejecutado tal cual y coinciden con tests/parity/knn/breast_cancer_k5_uniform_minkowski.json (prueba 0,959) e iris_k5_*.json (prueba 1,000). Reglas de pesos y de distancia 0: fase4-knn.md §3 C17.5, igual que crates/mltutor-core. -->
+<!-- NUEVO (Fase 4, como content/arboles/parametros.md en F3): no existe en la versión Python, que solo tenía el expander "ℹ️ ¿Qué es K-Nearest Neighbors?" de la cabecera. Pestaña 🏋️ Entrenamiento, expander cerrado debajo de los 4 controles de "### Parámetros del Modelo". Título: mensajes.toml [entrenamiento] parametros_expander. Cifras medidas con scikit-learn 1.7.2 y el split de la app (test_size=0.3, random_state=42); los dos fragmentos se han ejecutado tal cual y coinciden con tests/parity/knn/breast_cancer_k5_uniform_minkowski.json (prueba 0,959) e iris_k5_*.json (prueba 1,000). CORREGIDO (revisión ML de F4, 2026-10-15): «Al subir K, la exactitud en entrenamiento baja y la de prueba sube» pasa a «Aquí, al subir K…» y se añade que a partir de cierto K la de prueba vuelve a bajar. Reglas de pesos y de distancia 0: fase4-knn.md §3 C17.5, igual que crates/mltutor-core. -->
 **Cómo predice un KNN.** Para una muestra nueva, el modelo calcula su distancia a **todas** las muestras de
 entrenamiento, se queda con las $K$ más cercanas (sus *vecinos*) y decide con ellas: en clasificación, cada
 vecino vota por su clase; en regresión, se promedian sus valores. «Entrenar» no aprende nada: solo guarda las
@@ -37,8 +37,9 @@ K= 5  entrenamiento 0.922  prueba 0.959
 K=20  entrenamiento 0.915  prueba 0.965
 ```
 
-Al subir $K$, la exactitud en entrenamiento baja y la de prueba sube: el modelo memoriza menos y generaliza
-mejor. **Cuidado:** elegir $K$ mirando la exactitud de prueba es una forma de **fuga de datos**, porque el
+Aquí, al subir $K$, la exactitud en entrenamiento baja y la de prueba sube: el modelo memoriza menos y
+generaliza mejor. No es una regla general: a partir de cierto $K$ la de prueba vuelve a bajar, porque el modelo
+promedia demasiado (el sesgo de arriba). **Cuidado:** elegir $K$ mirando la exactitud de prueba es una forma de **fuga de datos**, porque el
 conjunto de prueba deja de ser independiente. Fuera de la app, $K$ se elige con validación cruzada sobre el
 entrenamiento (`GridSearchCV`) y la prueba se usa una sola vez al final. En clasificación binaria se suele
 preferir un $K$ impar para que no haya empates de votos (si los hay, scikit-learn elige la clase de código más

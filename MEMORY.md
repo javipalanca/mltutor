@@ -268,11 +268,86 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
   - kd_tree: gana el PRIMER punto visitado. El orden dentro de las hojas sale del `std::nth_element`
     de libc++ (comparador `(valor, índice)`) y el heap rechaza `dist >= mayor`. Depende de la
     plataforma: libstdc++ en Linux da otros empates.
-  - brute: gana el índice menor; en la euclídea, sklearn ordena con `||y||²−2x·y` de BLAS.
+  - brute (**CORREGIDO, revisión ML de F4**): NO es "gana el índice menor". El montículo, al insertar
+    un valor menor, expulsa la raíz, y entre máximos empatados cuál es la raíz depende de la
+    disposición del montículo. Rust lo reproduce (idéntico a sklearn en un hilo). Además, con varios
+    hilos sklearn reparte por filas de train (`parallel_on_Y` si n_test < n_train) y fusiona los
+    montículos, así que **los empates cambian con el número de núcleos** (Dígitos K=20 manhattan: 104 de
+    540 filas con otros vecinos). Los scripts deben usar `threadpoolctl.threadpool_limits(1)`.
+  - En la euclídea por fuerza bruta, sklearn usa `‖x‖²−2x·y+‖y‖²`: una consulta idéntica a una fila de
+    train da ~4e-5, no 0, y la regla de distancia 0 no se activa (Rust da 0 exacto).
+  - Orden dentro de los empates (revisión F4, reproducido): con un hilo, `ArgKmin` usa `parallel_on_Y`
+    si n_query ≤ n_train y n_query ≤ 1024, y vuelve a meter el montículo del hilo en otro nuevo antes
+    de ordenar (mismo conjunto, otro orden: 493/540 filas en Dígitos K20 manhattan).
+    `knn_reference.brute_parallel_on_y` y `NeighborHeap::repush` lo reproducen
+    (`knn/brute_tie_order.json`). El orden depende del tamaño de CADA llamada, así que no hay que
+    trocear las consultas de otra forma que Python: `decision_grid` predice bloques de ≥ 1025 celdas.
+  - Fixtures de KNN: `case_knn` y los probes van dentro de `threadpool_limits(1)`.
+  - onnx.reference 1.17 no resuelve nombres del grafo exterior dentro de un Scan: se evalúa con el grafo
+    equivalente con estado. onnxruntime y `full_check` sí los resuelven.
+  - Tabla de umbrales: t = i/10 exactos; la fila 0,5 usa p > 0,5 y coincide siempre con `predict`.
+  - Una separación J2 de +∞ (clase sin dispersión, lejos de las demás) viaja como `separation: None` +
+    `separation_unbounded` (serde enviaría `null`) y se muestra como "∞".
+  - `class_distances`: hasta 8 hilos deterministas y un tope de 5000 filas por clase (semilla 42,
+    `sampled`). Con 70 000 filas: de 14,6 s a 20–36 ms (2 clases). Las consultas cuya distancia a la caja
+    de entrenamiento se desborda devuelven `NonFinite`.
+  - El ONNX (TopK estable) desempata siempre por el índice menor, así que con datos discretos puede
+    discrepar de la app con frecuencia.
   - La regla "índice menor" cambia hasta el 46 % de una rejilla (Diabetes age/sex).
     `tools/knn_reference.py` lo reproduce bit a bit y es la especificación (D52, D66).
   - La wheel arm64 suma la distancia euclídea en bloques de 8 sin FMA, y el resto (`n % 8`) con FMA
     (D53, `mul_add`).
+- **Paridad de redes en dos niveles (D69, 2026-10-15):** con los pesos iniciales de Keras,
+  `shuffle=False` y dropout 0, `tools/nn_reference.py` (NumPy f32) reproduce el `fit` de Keras 3.12 en
+  17 de 18 casos durante todas las épocas (pesos finales ≤ 5e-6 casi siempre). Las trayectorias caóticas
+  (RMSprop con LR 0,3) divergen en la época 2. Sin esas condiciones solo cabe paridad estadística
+  (`nn/stat`, 5 semillas). Fixtures generados con TF 2.16.2 (tensorflow-macos) y Keras 3.12 en CPU, con
+  `enable_op_determinism` y un hilo.
+- **Keras 3.12 frente a burn (no usar los optimizadores ni el RNG de burn):**
+  - BCE y CCE se calculan desde los logits si la salida es sigmoid o softmax, sin recortar con ε.
+  - Adam aplica ε sin corregir: `w −= m·α/(sqrt(v)+ε)` con `α = lr·sqrt(1−β2ᵗ)/(1−β1ᵗ)`.
+  - RMSprop pone ε dentro de la raíz: `lr·g/sqrt(v+ε)`.
+  - Los logs de época son medias ponderadas por el tamaño del batch, con las predicciones de antes de
+    cada paso.
+- **Callbacks de Keras 3.12:**
+  - `validation_split` toma las ÚLTIMAS `n − floor(n·(1−v))` filas, sin barajar.
+  - EarlyStopping con `restore_best_weights` restaura los mejores pesos aunque no llegue a parar.
+  - ReduceLROnPlateau usa `min_delta` 1e-4 y registra `learning_rate` antes de reducir. La app usa
+    paciencia `max(1, paciencia // 2)`, o 5 sin early stopping.
+- **Split y escalado de la red:** la lección usa `train_test_split(test_size=0.2, random_state=42,
+  stratify=y)` (distinto de D7) y escala con TODAS las filas antes de dividir. Es una fuga de datos que se
+  mantiene por paridad (D72). `nn_reference.stratified_split` lo reproduce con `RandomState.permutation`.
+- **tensorflow-metal 1.2.0:** `model.predict` tras `set_weights` da salidas erróneas en la GPU de Apple,
+  mientras que `model(x)` es correcto. La app oculta la GPU (`USE_GPU=0`); los fixtures y las plantillas
+  fuerzan la CPU (D93).
+- **Fallos de la red en Python:**
+  - el selector de salida no tiene `key` y conserva su valor entre datasets ("softmax" de Iris rompe
+    Cáncer);
+  - tras un entrenamiento fallido, `model_trained_nn=True` con `nn_model=None` rompe 📈 y 🎯;
+  - el diagnóstico de regresión compara solo con las 5 primeras épocas (Diabetes con R² −3,4 sale
+    "👍 Bueno");
+  - `viz/nn_extra.py` está muerto entero.
+  - En `golden_render`, Moons hay que sembrarlo (`moons_X`/`moons_y` en el `state`).
+- **Separación J2 (2026-10-15):** separación = min M[i,j]/max(W_i,W_j). Con el split de la app, euclídea
+  y K=5: Iris 1,58, Dígitos 1,11 (moderada, aunque acierta el 99,3 %), Cáncer 1,26, Vino 1,04 y CSV
+  string_target 0,88. Es una medida global y no predice el acierto del KNN.
+- **`threadpool_limits(limits=1)` sin `with`** deja el límite activo hasta el final del proceso. Solo
+  afecta a las bibliotecas ya cargadas, así que hay que llamarlo después de importar sklearn.
+  `threadpoolctl` viene como dependencia de sklearn.
+- **Plotly y `%{` (2026-10-15, revisión F4):** Plotly no tiene escape para `%{…}` en
+  `hovertemplate`/`texttemplate`: `%%` no sirve, porque escanea con `/%{([^\s%{}:]*)…}/`. Los datos
+  interpolados en la plantilla pasan por `escapePlotlyTemplate` (`%` → `&#37;`). Lo que va por
+  `customdata`/`text` solo necesita `escapePlotly`.
+- **`cancel_task` antes que el comando:** los dos comandos son async y concurrentes, así que el cancel
+  puede llegar antes de `tasks.start(id)`. `TaskRegistry` guarda esos ids pendientes durante 10 s y
+  recuerda los últimos 256 terminados, porque el contador de la ventana se reinicia al recargar.
+- **KNN, evaluación y lienzo:** los vecinos del test se buscan una sola vez dentro de `train_model`
+  (cancelable) y se cachean (`TestOutputs.test_neighbors`). `CoreModel.playground` cachea el KNN 2D por
+  (par, K, pesos, métrica), de modo que arrastrar no reentrena. La UI corta en 200 puntos, con el mismo
+  texto que el backend (lo comprueba vitest).
+- **Veredicto de distancias (J2):** se basa en la separación también en binaria (`SeparationVerdict` sin
+  `Binary`). Sin separación (una clase con 1 muestra o con todas sus muestras idénticas) se vuelve a los
+  textos de Python por el ratio.
 - **Lienzo KNN (2026-10-15):** Plotly no tiene marcadores arrastrables, así que se usa `dragmode: false`
   con `pointerdown/move/up` en fase de captura y la conversión de píxeles con `_fullLayout.{x,y}axis`
   (`_offset`, `_length`, `p2l`, `l2p`). `setPointerCapture` lanza una excepción con punteros sintéticos

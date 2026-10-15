@@ -13,7 +13,7 @@ import type { Matrix } from "../../bindings/Matrix";
 import type { PlaygroundView } from "../../bindings/PlaygroundView";
 import { axis, baseLayout, LIGHT_THEME, type ChartTheme, type Figure } from "../../charts";
 import { knnText } from "../../content";
-import { escapePlotly } from "../../escape";
+import { escapePlotly, escapePlotlyTemplate } from "../../escape";
 import { fmtText } from "../../fmt";
 import { fixed } from "../../format";
 import { VIRIDIS } from "./figures";
@@ -121,6 +121,12 @@ const RING_RADIUS_PX = 18;
 /** Distance (px) from the centre of a test point to its labels. */
 const LABEL_OFFSET_PX = 32;
 
+/** `point` kept inside `bounds` (`[x_min, x_max, y_min, y_max]`), as the backend requires. */
+export function clampPoint([x, y]: readonly [number, number], bounds: readonly [number, number, number, number]): [number, number] {
+  const [x0, x1, y0, y1] = bounds;
+  return [Math.min(x1, Math.max(x0, x)), Math.min(y1, Math.max(y0, y))];
+}
+
 export function playgroundFigure(view: PlaygroundView, data: Matrix, codes: readonly number[], options: PlaygroundOptions, theme: ChartTheme = LIGHT_THEME): Figure {
   const [fx, fy] = view.feature_names;
   const [x0, x1, y0, y1] = view.bounds;
@@ -164,7 +170,7 @@ export function playgroundFigure(view: PlaygroundView, data: Matrix, codes: read
       name: escapePlotly(name),
       customdata: group.count.map((n) => (n > 1 ? ` ×${n}` : "")),
       marker: { color: classColor(code, view.colors), size: group.count.map(pointSize), line: { color: POINT_BORDER, width: 1.5 }, opacity: 0.92 },
-      hovertemplate: `%{fullData.name}%{customdata}<br>${escapePlotly(fx)}: %{x:.4g}<br>${escapePlotly(fy)}: %{y:.4g}<extra></extra>`,
+      hovertemplate: `%{fullData.name}%{customdata}<br>${escapePlotlyTemplate(fx)}: %{x:.4g}<br>${escapePlotlyTemplate(fy)}: %{y:.4g}<extra></extra>`,
     } as Data);
   }
   const points = view.points;
@@ -233,9 +239,9 @@ export function playgroundFigure(view: PlaygroundView, data: Matrix, codes: read
     mode: "markers",
     x: px,
     y: py,
-    customdata: points.map((p, i) => [i + 1, names[i] ?? "", percent(p.confidence), fixed(p.mean_distance, 3)]),
+    customdata: points.map((p, i) => [i + 1, escapePlotly(names[i] ?? ""), percent(p.confidence), fixed(p.mean_distance, 3)]),
     marker: { color: points.map((p) => classColor(p.class_index, view.colors)), size: 24, line: { color: POINT_BORDER, width: 2.5 } },
-    hovertemplate: `Punto %{customdata[0]}: %{customdata[1]} (%{customdata[2]})<br>${escapePlotly(fx)}: %{x:.3f}<br>${escapePlotly(fy)}: %{y:.3f}<br>Distancia promedio: %{customdata[3]}<extra></extra>`,
+    hovertemplate: `Punto %{customdata[0]}: %{customdata[1]} (%{customdata[2]})<br>${escapePlotlyTemplate(fx)}: %{x:.3f}<br>${escapePlotlyTemplate(fy)}: %{y:.3f}<br>Distancia promedio: %{customdata[3]}<extra></extra>`,
     showlegend: false,
   } as Data);
   traces.push({

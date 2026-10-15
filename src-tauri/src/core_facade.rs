@@ -136,8 +136,9 @@ pub trait ModelView: Send + Sync {
         Err(CommandError::not_tree())
     }
     /// C19 (📏 Análisis de Distancias): mean distances between the classes of the train
-    /// set of the model (D56), with the within-class means of D67.
-    fn class_distances(&self) -> Result<ClassDistancesView, CommandError> {
+    /// set of the model (D56), with the within-class means of D67 and the J2 verdict.
+    /// Checks `cancel` while it sums the O(n²) pairs.
+    fn class_distances(&self, _cancel: &AtomicBool) -> Result<ClassDistancesView, CommandError> {
         Err(CommandError::not_knn())
     }
     /// C18 (🎮 Visualización Interactiva): a 2D KNN on the pair of `req` over every row

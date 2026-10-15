@@ -529,8 +529,10 @@ impl ModelView for KnnFixtureModel {
         })
     }
 
-    /// `distance_analysis.app` (test 0.3) or `with_model_split_D56`.
-    fn class_distances(&self) -> Result<ClassDistancesView, CommandError> {
+    /// `distance_analysis.app` (test 0.3) or `with_model_split_D56`; J2 separation
+    /// (`separation_J2`, or computed from the matrix and the diagonal of the fixture).
+    fn class_distances(&self, cancel: &AtomicBool) -> Result<ClassDistancesView, CommandError> {
+        check_cancelled(cancel)?;
         if self.classes.is_none() {
             return Err(CommandError::not_classifier());
         }
@@ -552,13 +554,31 @@ impl ModelView for KnnFixtureModel {
             .map(|v| v.iter().map(Value::as_f64).collect())
             .unwrap_or_else(|| vec![None; classes.len()]);
         let labels = strings(&app["class_labels"]);
+        let separation = app["separation_J2"]
+            .as_f64()
+            .or_else(|| separation(&matrix, &within));
+        let n_samples = self.base.train_rows().len();
+        let sample_limit = mltutor_core::knn::class_distances::MAX_ROWS_PER_CLASS;
         Ok(ClassDistancesView {
             class_names: if labels.len() == classes.len() {
                 labels
             } else {
                 classes.iter().map(|&c| self.name_of(c)).collect()
             },
-            verdict: verdict(classes.len(), ratio),
+            verdict: verdict(classes.len(), separation, ratio),
+            separation: separation.filter(|s| s.is_finite()),
+            separation_unbounded: separation.is_some_and(f64::is_infinite),
+            sampled: n_samples > sample_limit
+                && self.codes().is_some_and(|codes| {
+                    let rows = self.base.train_rows();
+                    classes.iter().any(|&c| {
+                        rows.iter()
+                            .filter(|&&r| codes.get(r).map(|&v| usize::from(v)) == Some(c))
+                            .count()
+                            > sample_limit
+                    })
+                }),
+            sample_limit: to_u32(sample_limit),
             classes: classes.iter().map(|&c| to_u32(c)).collect(),
             matrix,
             within,
@@ -566,7 +586,7 @@ impl ModelView for KnnFixtureModel {
             max: app["max_distance"].as_f64(),
             ratio,
             metric: self.metric,
-            n_samples: to_u32(self.base.train_rows().len()),
+            n_samples: to_u32(n_samples),
         })
     }
 
@@ -588,8 +608,10 @@ impl ModelView for KnnFixtureModel {
         classes.sort_unstable();
         classes.dedup();
         let k = usize::from(req.n_neighbors).min(n);
-        let mut points = Vec::with_capacity(req.points.len());
-        for point in &req.points {
+        let canvas = bounds(xs, ys);
+        let requested = crate::knn::validate_points(&req.points, canvas)?;
+        let mut points = Vec::with_capacity(requested.len());
+        for point in &requested {
             check_cancelled(cancel)?;
             let found = nearest(&rows, point, k, req.metric);
             let distances: Vec<f64> = found.iter().map(|(_, d)| *d).collect();
@@ -632,7 +654,7 @@ impl ModelView for KnnFixtureModel {
             classes: classes.iter().map(|&c| to_u32(c)).collect(),
             class_names: (0..n_codes).map(|c| self.name_of(c)).collect(),
             colors: (0..n_codes).map(class_color).collect(),
-            bounds: bounds(xs, ys),
+            bounds: canvas,
             feature_names: [
                 frame.feature_display[fx].clone(),
                 frame.feature_display[fy].clone(),
@@ -647,6 +669,25 @@ impl ModelView for KnnFixtureModel {
             n_neighbors: to_u32(k),
         })
     }
+}
+
+/// J2: `min_{i≠j} M[i, j] / max(W_i, W_j)` (`None` with < 2 classes or some `W_i`
+/// missing or 0), the rule of `mltutor_core::knn::class_distances`.
+fn separation(matrix: &[Vec<f64>], within: &[Option<f64>]) -> Option<f64> {
+    let w: Vec<f64> = within
+        .iter()
+        .map(|w| w.filter(|&v| v > 0.0))
+        .collect::<Option<_>>()?;
+    let mut best: Option<f64> = None;
+    for (i, row) in matrix.iter().enumerate() {
+        for (j, &m) in row.iter().enumerate() {
+            if i != j {
+                let s = m / w.get(i)?.max(*w.get(j)?);
+                best = Some(best.map_or(s, |b| b.min(s)));
+            }
+        }
+    }
+    best
 }
 
 #[cfg(test)]
@@ -720,7 +761,7 @@ mod tests {
             panic!("Iris is classification");
         };
         assert!((eval.accuracy - e["evaluation"]["accuracy"].as_f64().unwrap()).abs() < 1e-12);
-        let distances = model.class_distances().unwrap();
+        let distances = model.class_distances(&AtomicBool::new(false)).unwrap();
         assert_eq!(distances.classes, vec![0, 1, 2]);
         assert_eq!(distances.within.len(), 3);
         assert_eq!(distances.verdict, crate::ipc::SeparationVerdict::Moderate);
@@ -825,7 +866,7 @@ mod tests {
         let model = trained(DatasetId::Diabetes, knn(5, w, m), 0.3);
         assert!(model.residuals_view().is_ok());
         assert!(matches!(
-            model.class_distances(),
+            model.class_distances(&AtomicBool::new(false)),
             Err(CommandError::NotClassifier { .. })
         ));
         let grid = model
@@ -846,7 +887,12 @@ mod tests {
             .contains("KNeighborsRegressor"));
         // D56: the distances of the 0.2 split of the model.
         let iris = trained(DatasetId::Iris, knn(5, w, m), 0.2);
-        assert_eq!(iris.class_distances().unwrap().n_samples, 120);
+        assert_eq!(
+            iris.class_distances(&AtomicBool::new(false))
+                .unwrap()
+                .n_samples,
+            120
+        );
     }
 
     /// The training script is the one of `code/knn_training.json` (same context).

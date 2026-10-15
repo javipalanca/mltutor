@@ -347,9 +347,9 @@ export function featureImportance(modelId: number, method: ImportanceMethod): Ca
 
 // --- K-Nearest Neighbors (fase4-knn.md §5.4) ---
 
-/** C19: 📏 Análisis de Distancias. */
-export function classDistances(modelId: number): Promise<ClassDistancesView> {
-  return call("class_distances", { modelId });
+/** C19: 📏 Análisis de Distancias (O(n²) pairs: cancellable when the view changes). */
+export function classDistances(modelId: number): Cancellable<ClassDistancesView> {
+  return cancellable("class_distances", { modelId });
 }
 
 /**

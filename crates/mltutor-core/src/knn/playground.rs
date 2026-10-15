@@ -14,7 +14,7 @@
 use ndarray::{Array2, ArrayView2, Axis};
 use serde::{Deserialize, Serialize};
 
-use super::{fit, KnnConfig, Neighbor, SearchEngine};
+use super::{fit, Knn, KnnConfig, Neighbor, SearchEngine};
 use crate::dataset::Target;
 use crate::model::{ModelError, TrainControl};
 use crate::stats::pairwise_sum;
@@ -75,14 +75,33 @@ pub struct Playground {
     pub config: KnnConfig,
 }
 
-/// C18 on the whole dataset `x` (all rows, every feature) and its target.
+/// C18 on the whole dataset `x` (all rows, every feature) and its target: fits the
+/// 2-feature model ([`playground_model`]) and classifies the points
+/// ([`playground_points`]).
 pub fn playground(
     x: ArrayView2<'_, f64>,
     y: &Target,
     request: &PlaygroundRequest,
     control: &TrainControl<'_>,
 ) -> Result<Playground, ModelError> {
-    let [fx, fy] = request.features;
+    check_points(&request.points)?;
+    let model = playground_model(x, y, request.features, request.config, control)?;
+    control.check()?;
+    playground_points(&model, request.features, &request.points, control)
+}
+
+/// The 2-feature KNN of the playground: columns `features` of every row of `x`,
+/// with the playground's K, weights and metric. The caller may keep it (keyed by
+/// `(features, K, weights, metric)`) and call [`playground_points`] on every drag
+/// without refitting.
+pub fn playground_model(
+    x: ArrayView2<'_, f64>,
+    y: &Target,
+    features: [usize; 2],
+    config: KnnConfig,
+    control: &TrainControl<'_>,
+) -> Result<Knn, ModelError> {
+    let [fx, fy] = features;
     let p = x.ncols();
     if fx == fy {
         return Err(ModelError::InvalidSelection {
@@ -94,14 +113,42 @@ pub fn playground(
             reason: format!("el dataset tiene {p} características"),
         });
     }
-    let codes = y.class_codes().ok_or(ModelError::NotClassifier)?;
-    if request.points.iter().flatten().any(|v| !v.is_finite()) {
+    if y.class_codes().is_none() {
+        return Err(ModelError::NotClassifier);
+    }
+    let data = x.select(Axis(1), &[fx, fy]);
+    fit(config, data.view(), y, control)
+}
+
+fn check_points(points: &[[f64; 2]]) -> Result<(), ModelError> {
+    if points.iter().flatten().any(|v| !v.is_finite()) {
         return Err(ModelError::InvalidInput {
             reason: "las coordenadas de los puntos deben ser números".to_owned(),
         });
     }
-    let data = x.select(Axis(1), &[fx, fy]);
-    let model = fit(request.config, data.view(), y, control)?;
+    Ok(())
+}
+
+/// C18 with an already fitted 2-feature classifier `model` (from
+/// [`playground_model`]; `features` are the dataset columns it was fitted on, only
+/// echoed in the result). `control` is checked before the search and before the
+/// O(n) tie count of every point.
+pub fn playground_points(
+    model: &Knn,
+    features: [usize; 2],
+    points: &[[f64; 2]],
+    control: &TrainControl<'_>,
+) -> Result<Playground, ModelError> {
+    if model.n_features != 2 {
+        return Err(ModelError::FeatureMismatch {
+            expected: 2,
+            found: model.n_features,
+        });
+    }
+    let codes = model.train_codes().ok_or(ModelError::NotClassifier)?;
+    check_points(points)?;
+    control.check()?;
+    let data = model.train_x().to_owned();
     let classes = model.classes.clone().unwrap_or_default();
     let bound = |c: usize| {
         data.column(c)
@@ -112,40 +159,38 @@ pub fn playground(
     };
     let ((x_lo, x_hi), (y_lo, y_hi)) = (bound(0), bound(1));
     let q = Array2::from_shape_vec(
-        (request.points.len(), 2),
-        request.points.iter().flatten().copied().collect(),
+        (points.len(), 2),
+        points.iter().flatten().copied().collect(),
     )
     .map_err(|e| ModelError::InvalidInput {
         reason: e.to_string(),
     })?;
     let nb = model.kneighbors(q.view(), control)?;
-    let points: Vec<PlaygroundPoint> = request
-        .points
-        .iter()
-        .enumerate()
-        .map(|(r, &point)| {
-            let e = model.explain_row(&nb, r);
-            let tie_at_kth = model.kth_tie(&point, nb.row_distances(r));
-            let proba = e.proba.unwrap_or_default();
-            let confidence = proba.iter().copied().fold(0.0, f64::max);
-            let d: Vec<f64> = e.neighbors.iter().map(|n| n.distance).collect();
-            PlaygroundPoint {
-                point,
-                class: e.class.unwrap_or(0),
-                confidence,
-                proba,
-                mean_distance: pairwise_sum(&d) / d.len().max(1) as f64,
-                neighbors: e.neighbors,
-                tie_at_kth,
-            }
-        })
-        .collect();
+    let mut out = Vec::with_capacity(points.len());
+    for (r, &point) in points.iter().enumerate() {
+        let e = model.explain_row(&nb, r);
+        control.check()?;
+        let tie_at_kth = model.kth_tie(&point, nb.row_distances(r));
+        let proba = e.proba.unwrap_or_default();
+        let confidence = proba.iter().copied().fold(0.0, f64::max);
+        let d: Vec<f64> = e.neighbors.iter().map(|n| n.distance).collect();
+        out.push(PlaygroundPoint {
+            point,
+            class: e.class.unwrap_or(0),
+            confidence,
+            proba,
+            mean_distance: pairwise_sum(&d) / d.len().max(1) as f64,
+            neighbors: e.neighbors,
+            tie_at_kth,
+        });
+    }
+    let points = out;
     let mean_confidence = (!points.is_empty()).then(|| {
         let c: Vec<f64> = points.iter().map(|p| p.confidence).collect();
         pairwise_sum(&c) / c.len() as f64
     });
     Ok(Playground {
-        features: request.features,
+        features,
         colors: classes
             .iter()
             .map(|&c| PALETTE[c % PALETTE.len()].to_owned())
@@ -156,7 +201,60 @@ pub fn playground(
         points,
         mean_confidence,
         engine: model.engine(),
-        config: request.config,
+        config: *model.config(),
         data,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ndarray::array;
+
+    #[test]
+    fn cached_model_gives_the_same_playground() {
+        let x = array![
+            [0.0, 0.0, 9.0],
+            [1.0, 0.0, 9.0],
+            [5.0, 5.0, 9.0],
+            [6.0, 5.0, 9.0],
+            [0.0, 1.0, 9.0],
+            [5.0, 6.0, 9.0]
+        ];
+        let y = Target::Classes {
+            codes: vec![0, 0, 1, 1, 0, 1],
+            class_names: vec!["a".into(), "b".into()],
+            class_values: vec![0.0, 1.0],
+        };
+        let req = PlaygroundRequest {
+            features: [0, 1],
+            config: KnnConfig {
+                n_neighbors: 3,
+                ..KnnConfig::default()
+            },
+            points: vec![[0.5, 0.5], [5.5, 5.5]],
+        };
+        let ctl = TrainControl::none();
+        let full = playground(x.view(), &y, &req, &ctl).unwrap_or_else(|e| panic!("{e}"));
+        let m = playground_model(x.view(), &y, req.features, req.config, &ctl)
+            .unwrap_or_else(|e| panic!("{e}"));
+        let cached = playground_points(&m, req.features, &req.points, &ctl)
+            .unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(full, cached);
+        assert_eq!(
+            full.points.iter().map(|p| p.class).collect::<Vec<_>>(),
+            vec![0, 1]
+        );
+        let flag = std::sync::atomic::AtomicBool::new(true);
+        assert_eq!(
+            playground_points(
+                &m,
+                req.features,
+                &req.points,
+                &TrainControl::none().with_cancel(&flag)
+            )
+            .unwrap_err(),
+            ModelError::Cancelled
+        );
+    }
 }

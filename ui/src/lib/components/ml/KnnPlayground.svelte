@@ -22,7 +22,8 @@
 
   export interface CanvasController {
     readonly playground: CanvasState;
-    addPoint(x: number, y: number): CanvasPoint;
+    /** `null` when the canvas already has `MAX_PLAYGROUND_POINTS` points. */
+    addPoint(x: number, y: number): CanvasPoint | null;
     movePoint(id: number, x: number, y: number): void;
     removePoint(id: number): void;
     clearPoints(): void;
@@ -56,7 +57,8 @@
   import { fixed } from "../../format";
   import { loadPlotly, type PlotlyModule } from "../../plotly";
   import { theme } from "../../theme.svelte";
-  import { classColor, percent, playgroundFigure, type PixelScale } from "./knnFigures";
+  import { MAX_PLAYGROUND_POINTS, MAX_POINTS_MESSAGE } from "../../lessons/knn/state.svelte";
+  import { classColor, clampPoint, percent, playgroundFigure, type PixelScale } from "./knnFigures";
   import MetricGrid from "./MetricGrid.svelte";
 
   interface Props {
@@ -358,12 +360,8 @@
     return [a.xa.p2l(px), a.ya.p2l(py)];
   }
 
-  function clampToBounds([x, y]: [number, number]): [number, number] {
-    const b = view?.bounds;
-    if (!b) {
-      return [x, y];
-    }
-    return [Math.min(b[1], Math.max(b[0], x)), Math.min(b[3], Math.max(b[2], y))];
+  function clampToBounds(point: [number, number]): [number, number] {
+    return view ? clampPoint(point, view.bounds) : point;
   }
 
   function hit(event: PointerEvent): number | null {
@@ -399,7 +397,11 @@
     event.preventDefault();
     event.stopPropagation();
     const existing = hit(event);
-    const id = existing ?? controller.addPoint(...clampToBounds(position)).id;
+    // A full canvas only lets the user drag the existing points (the click adds nothing).
+    const id = existing ?? controller.addPoint(...clampToBounds(position))?.id ?? null;
+    if (id === null) {
+      return;
+    }
     dragging = id;
     capture(event.pointerId, true);
   }
@@ -487,9 +489,13 @@
   }
 
   function addExact(): void {
-    const point = controller.addPoint(...exactValues);
-    animate(point.id);
+    const point = controller.addPoint(...clampToBounds(exactValues));
+    if (point) {
+      animate(point.id);
+    }
   }
+
+  const full = $derived(pg.points.length >= MAX_PLAYGROUND_POINTS);
 
   // --- Table of the test points ---
 
@@ -514,7 +520,9 @@
     if (!p || !Number.isFinite(value)) {
       return;
     }
-    controller.movePoint(id, axis === 0 ? value : p.x, axis === 1 ? value : p.y);
+    // Typed values are kept inside the canvas, as the drag and the backend do.
+    const [x, y] = clampToBounds([axis === 0 ? value : p.x, axis === 1 ? value : p.y]);
+    controller.movePoint(id, x, y);
     animate(id);
   }
 
@@ -557,7 +565,10 @@
     {#if error}
       <Notice severity="error" markdown={fmt(t("error_html"), { error })} />
     {/if}
-    <div class="canvas" class:dragging={dragging !== null}>
+    {#if full}
+      <Notice severity="warning" markdown={MAX_POINTS_MESSAGE} />
+    {/if}
+    <div class="canvas" class:dragging={dragging !== null} class:full data-canvas-full={full}>
       <div
         class="plot"
         bind:this={container}
@@ -602,7 +613,7 @@
           value={exactValues[1]}
           onchange={(v) => (exact = [exact[0], v])}
         />
-        <button type="button" class="btn primary add" disabled={!ready} onclick={addExact}>{t("btn_agregar")}</button>
+        <button type="button" class="btn primary add" disabled={!ready || full} title={full ? MAX_POINTS_MESSAGE : undefined} onclick={addExact}>{t("btn_agregar")}</button>
       </div>
     </Expander>
 
@@ -715,6 +726,10 @@
     width: 100%;
     cursor: crosshair;
     touch-action: none;
+  }
+
+  .full .plot {
+    cursor: not-allowed;
   }
 
   .dragging .plot {

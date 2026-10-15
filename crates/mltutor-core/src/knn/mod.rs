@@ -12,10 +12,32 @@
 //!   [`search_engine`]): the kd-tree of [`kdtree`] (libc++ `nth_element`, depth-first
 //!   query, heap that keeps the first visited point, `simultaneous_sort`). Same
 //!   indices in the same order and bit-identical distances as the fixtures.
-//! * [`SearchEngine::Brute`]: every row in index order (the lowest index wins ties).
+//! * [`SearchEngine::Brute`]: every row pushed in index order into scikit-learn's
+//!   heap. This is **not** "the lowest index wins ties": a smaller value evicts the
+//!   heap's root, and which of several tied maxima is the root depends on the heap
+//!   layout ([`search::brute_query`]). It is single-threaded scikit-learn; with
+//!   several threads scikit-learn merges per-thread heaps and its ties change with
+//!   the number of cores (the scripts use `threadpool_limits(1)`). Even with one
+//!   thread, scikit-learn's `ArgKmin` merges its heap into a fresh one when the call
+//!   has ≤ 1024 rows and no more than n_train (`parallel_on_Y`), which reorders the
+//!   tied neighbours; that is reproduced too ([`search::brute_parallel_on_y`]), so
+//!   the order depends on how many rows are searched **in one call** (as in
+//!   scikit-learn). With K = n_train every row is a neighbour; only the order
+//!   inside runs of equal distances could differ from another scikit-learn build.
 //!   For the Euclidean metric scikit-learn ranks with the BLAS surrogate
-//!   `‖y‖² − 2x·y`, so its distances differ from ours by ≤ 1e-9 relative (4.3e-11
-//!   in Cancer) and a near tie could choose another neighbour; Manhattan is exact.
+//!   `‖x‖² − 2x·y + ‖y‖²`, so its distances differ from ours by ≤ 1e-9 relative
+//!   (4.3e-11 in Cancer) and a near tie could choose another neighbour; Manhattan is
+//!   exact. In particular, a query identical to a training row is at ~1e-5–1e-4
+//!   from it in scikit-learn (cancellation), **not** 0, so its distance-0 rule does
+//!   not fire there, while here the distance is exactly 0 and it does.
+//!
+//! The ONNX export (`mltutor-export`, `TopK` is stable) breaks ties by the lowest
+//! training index, which is neither engine's rule: with discrete data its neighbours
+//! can differ from the app's.
+//!
+//! Distances that overflow (features ~1e160) are rejected with
+//! [`ModelError::NonFinite`] instead of ranking with `inf`
+//! ([`search::max_rdist_to_box`]).
 //!
 //! Distances (D53) are computed like the macOS arm64 wheel, see [`search`].
 //!
@@ -50,7 +72,10 @@ use serde::{Deserialize, Serialize};
 pub use class_distances::{class_distances, ClassDistances, SeparationVerdict};
 pub use kdtree::{KdNode, KdTree, LEAF_SIZE};
 
-pub use playground::{playground, Playground, PlaygroundPoint, PlaygroundRequest, PALETTE};
+pub use playground::{
+    playground, playground_model, playground_points, Playground, PlaygroundPoint,
+    PlaygroundRequest, PALETTE,
+};
 pub use search::EffectiveMetric;
 
 use crate::dataset::{Target, TaskType};
@@ -493,6 +518,14 @@ impl Knn {
         let p = self.n_features;
         let k = self.config.k();
         let n = q.len().checked_div(p).unwrap_or(0);
+        // No distance of the search may overflow (finding 6 of the F4 review).
+        let (lo, hi) = search::bounding_box(self.rows(), p);
+        let metric = self.effective_metric();
+        if q.chunks_exact(p.max(1))
+            .any(|pt| !(2.0 * search::max_rdist_to_box(pt, &lo, &hi, metric)).is_finite())
+        {
+            return Err(ModelError::NonFinite);
+        }
         let mut distances = vec![0.0; n * k];
         let mut indices = vec![0usize; n * k];
         let threads = if n >= PARALLEL_MIN_ROWS {
@@ -504,8 +537,10 @@ impl Knn {
         } else {
             1
         };
+        // The strategy of scikit-learn's single call with all `n` rows.
+        let on_y = self.tree.is_none() && search::brute_parallel_on_y(self.n_train(), n);
         if threads <= 1 {
-            self.search_chunk(q, &mut distances, &mut indices, control)?;
+            self.search_chunk(q, on_y, &mut distances, &mut indices, control)?;
         } else {
             let rows_per = n.div_ceil(threads);
             let results: Vec<Result<(), ModelError>> = std::thread::scope(|s| {
@@ -513,7 +548,9 @@ impl Knn {
                     .chunks(rows_per * p)
                     .zip(distances.chunks_mut(rows_per * k))
                     .zip(indices.chunks_mut(rows_per * k))
-                    .map(|((qc, dc), ic)| s.spawn(move || self.search_chunk(qc, dc, ic, control)))
+                    .map(|((qc, dc), ic)| {
+                        s.spawn(move || self.search_chunk(qc, on_y, dc, ic, control))
+                    })
                     .collect();
                 handles
                     .into_iter()
@@ -540,6 +577,7 @@ impl Knn {
     fn search_chunk(
         &self,
         q: &[f64],
+        parallel_on_y: bool,
         distances: &mut [f64],
         indices: &mut [usize],
         control: &TrainControl<'_>,
@@ -548,6 +586,7 @@ impl Knn {
         let k = self.config.k();
         let metric = self.effective_metric();
         let mut heap = NeighborHeap::new(k);
+        let mut scratch = NeighborHeap::new(k);
         for (r, pt) in q.chunks_exact(p).enumerate() {
             if r % CANCEL_EVERY == 0 {
                 control.check()?;
@@ -555,7 +594,12 @@ impl Knn {
             heap.reset();
             match &self.tree {
                 Some(tree) => tree.query(pt, &mut heap),
-                None => brute_query(self.rows(), p, pt, metric, &mut heap),
+                None => {
+                    brute_query(self.rows(), p, pt, metric, &mut heap);
+                    if parallel_on_y {
+                        heap.repush(&mut scratch);
+                    }
+                }
             }
             heap.sort();
             for (dst, &v) in distances[r * k..(r + 1) * k].iter_mut().zip(&heap.values) {
@@ -792,13 +836,30 @@ impl Predictor for Knn {
     }
 
     fn predict(&self, x: ArrayView2<'_, f64>) -> Result<Prediction, ModelError> {
-        let nb = self.kneighbors(x, &TrainControl::none())?;
-        Ok(self.predict_from(&nb))
+        self.predict_with_control(x, &TrainControl::none())
     }
 
     fn predict_proba(&self, x: ArrayView2<'_, f64>) -> Option<Result<Array2<f64>, ModelError>> {
+        self.predict_proba_with_control(x, &TrainControl::none())
+    }
+
+    /// The search checks `ctl` every 256 rows ([`Knn::kneighbors`]).
+    fn predict_with_control(
+        &self,
+        x: ArrayView2<'_, f64>,
+        ctl: &TrainControl<'_>,
+    ) -> Result<Prediction, ModelError> {
+        let nb = self.kneighbors(x, ctl)?;
+        Ok(self.predict_from(&nb))
+    }
+
+    fn predict_proba_with_control(
+        &self,
+        x: ArrayView2<'_, f64>,
+        ctl: &TrainControl<'_>,
+    ) -> Option<Result<Array2<f64>, ModelError>> {
         self.classes.as_ref()?;
-        Some(self.kneighbors(x, &TrainControl::none()).map(|nb| {
+        Some(self.kneighbors(x, ctl).map(|nb| {
             self.proba_from(&nb)
                 .unwrap_or_else(|| Array2::zeros((0, 0)))
         }))
@@ -902,6 +963,70 @@ mod tests {
         };
         let (w0, w1) = (1.0 / 0.25, 1.0 / 0.75);
         assert!((v[0] - (w0 * 1.0 + w1 * 2.0) / (w0 + w1)).abs() < 1e-15);
+    }
+
+    #[test]
+    fn overflowing_distances_are_rejected() {
+        // Both engines: kd-tree (K = 1) and brute (K = 2 >= 4 // 2).
+        let x = array![[1e160, 0.0], [-1e160, 0.0], [0.0, 0.0], [1.0, 0.0]];
+        for k in [1, 2] {
+            let cfg = KnnConfig {
+                n_neighbors: k,
+                ..KnnConfig::default()
+            };
+            let m = fit(
+                cfg,
+                x.view(),
+                &classes(&[0, 1, 0, 1]),
+                &TrainControl::none(),
+            )
+            .unwrap_or_else(|e| panic!("{e}"));
+            assert_eq!(
+                m.predict(array![[0.5, 0.0]].view()).unwrap_err(),
+                ModelError::NonFinite,
+                "{:?}",
+                m.engine()
+            );
+        }
+        // Normal data, an absurd query.
+        let x = array![[0.0], [1.0], [2.0]];
+        let m = fit(
+            KnnConfig {
+                n_neighbors: 1,
+                ..KnnConfig::default()
+            },
+            x.view(),
+            &classes(&[0, 1, 0]),
+            &TrainControl::none(),
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(
+            m.predict(array![[1e200]].view()).unwrap_err(),
+            ModelError::NonFinite
+        );
+        assert!(m.predict(array![[1e150]].view()).is_ok());
+    }
+
+    #[test]
+    fn predict_with_control_cancels() {
+        let x = Array2::from_shape_fn((300, 2), |(i, j)| (i * (j + 1)) as f64);
+        let y = classes(&(0..300).map(|i| (i % 2) as u32).collect::<Vec<_>>());
+        let m = fit(KnnConfig::default(), x.view(), &y, &TrainControl::none())
+            .unwrap_or_else(|e| panic!("{e}"));
+        let flag = std::sync::atomic::AtomicBool::new(true);
+        let ctl = TrainControl::none().with_cancel(&flag);
+        assert_eq!(
+            m.predict_with_control(x.view(), &ctl).unwrap_err(),
+            ModelError::Cancelled
+        );
+        assert!(matches!(
+            m.predict_proba_with_control(x.view(), &ctl),
+            Some(Err(ModelError::Cancelled))
+        ));
+        assert_eq!(
+            m.predict_with_control(x.view(), &TrainControl::none()),
+            m.predict(x.view())
+        );
     }
 
     #[test]

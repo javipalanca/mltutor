@@ -403,7 +403,9 @@ fn probability_histograms_and_thresholds() {
                 .collect();
             assert_eq!(rows.len(), b.thresholds.rows.len());
             for (r, o) in rows.iter().zip(&b.thresholds.rows) {
-                assert_eq!(o.threshold, r["threshold"].as_f64().unwrap());
+                // F4 review: decimal thresholds (Python: np.arange, 0.30000000000000004).
+                let py_t = r["threshold"].as_f64().unwrap();
+                assert_eq!(o.threshold, (py_t * 10.0).round() / 10.0);
                 for (k, v) in [
                     ("accuracy", o.accuracy),
                     ("precision", o.precision),
@@ -415,7 +417,9 @@ fn probability_histograms_and_thresholds() {
             }
             assert_eq!(
                 b.thresholds.best_f1_threshold,
-                ta["best_f1_threshold"].as_f64()
+                ta["best_f1_threshold"]
+                    .as_f64()
+                    .map(|t| (t * 10.0).round() / 10.0)
             );
             // D21: Python only showed 0.5; we show 0.3, 0.5 and 0.7.
             assert_eq!(nums(&ta["comparison_rows_shown_by_app"]), vec![0.5]);

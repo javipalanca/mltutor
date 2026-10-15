@@ -35,3 +35,14 @@ export function escapeMarkdown(text: string): string {
 export function escapePlotly(text: string): string {
   return text.replace(/[&<>]/g, (char) => ENTITIES[char] ?? char);
 }
+
+/**
+ * A value inserted into a Plotly `hovertemplate`/`texttemplate`: [`escapePlotly`] plus `%`
+ * as the entity `&#37;`. Plotly has no escape for `%{…}` (`%%` does not work): it scans the
+ * template with `/%{([^\s%{}:]*)…}/`, and a column called `precio %{x}` would show the x
+ * value. The entity is converted back to `%` when the label is drawn. Values passed
+ * through `customdata`/`text` are not scanned again, so they only need [`escapePlotly`].
+ */
+export function escapePlotlyTemplate(text: string): string {
+  return escapePlotly(text).replace(/%/g, "&#37;");
+}

@@ -24,10 +24,32 @@ within: Array<number | null>,
  */
 min: number | null, max: number | null, 
 /**
- * `max / min` (0 when there is no minimum).
+ * `max / min` (0 when there is no minimum): Python's criterion, only informative.
  */
-ratio: number, verdict: SeparationVerdict, metric: KnnMetric, 
+ratio: number, 
+/**
+ * J2: `min_{i≠j} matrix[i][j] / max(within[i], within[j])`, for 2 or more classes;
+ * `None` when some class has one sample or identical samples.
+ */
+separation: number | null, 
+/**
+ * The separation is +∞ (a class with zero spread far from the others): serde would send
+ * it as `null`, so it travels as `separation: None` plus this flag (shown as "∞").
+ */
+separation_unbounded: boolean, 
+/**
+ * On `separation` (any number of classes); on Python's ratio when it is `None`.
+ */
+verdict: SeparationVerdict, metric: KnnMetric, 
 /**
  * Training samples used.
  */
-n_samples: number, };
+n_samples: number, 
+/**
+ * Some class had more than `sample_limit` rows and was sampled (`aviso_muestreo`).
+ */
+sampled: boolean, 
+/**
+ * Rows per class from which the analysis samples.
+ */
+sample_limit: number, };

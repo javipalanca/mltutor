@@ -7,12 +7,16 @@
 //!
 //! 1. `Cast(float_input → double)`: the input is float32 like every MLTutor export;
 //!    distances are computed in float64 like scikit-learn.
-//! 2. `Scan` over the query rows. Its body takes one row and returns the K smallest
-//!    reduced distances and their indices: `Sub`, `Mul` (Euclidean) or `Abs`
-//!    (Manhattan), `ReduceSum` and `TopK(largest=0, sorted=1)`. **TopK keeps the lower
-//!    index on ties**, scikit-learn's brute force rule; the kd-tree keeps the first
-//!    point it visits, so labels can differ only when the K-th neighbour is tied
-//!    (Titanic: 2 rows).
+//! 2. `Scan` over the query rows (no state variables). Its body takes one row, reads
+//!    `train_X` from the outer graph, and returns the K smallest reduced distances
+//!    and their indices: `Sub`, `Mul` (Euclidean) or `Abs` (Manhattan), `ReduceSum`
+//!    and `TopK(largest=0, sorted=1)`. **TopK is stable: ties go to the lower
+//!    training index.** That is neither engine of the app: the kd-tree keeps the
+//!    first point it visits, and scikit-learn's (and MLTutor's) brute force keeps
+//!    whatever its heap leaves (not the lowest index, `mltutor_core::knn` docs). So
+//!    labels can differ from the app when the K-th neighbour is tied, which with
+//!    discrete features is common (Titanic: 1–2 rows of the fixtures). Distances are
+//!    computed exactly (no `‖x‖² − 2x·y + ‖y‖²`), like the app.
 //! 3. `Sqrt` (Euclidean) or `Identity`.
 //! 4. Weights: `uniform` → `ConstantOfShape(1)`; `distance` → `1/d`, and on the rows
 //!    where some distance is 0, scikit-learn's rule (only those weigh 1) with
@@ -100,14 +104,13 @@ fn i64_tensor(name: &str, dims: &[i64], values: &[i64]) -> Tensor {
     }
 }
 
-/// A dimension: fixed, symbolic (`"N"`) or unknown (`None` in `onnx.helper`).
-enum Dim<'a> {
+/// A dimension: fixed or unknown (`None` in `onnx.helper`).
+enum Dim {
     Fixed(i64),
-    Param(&'a str),
     Unknown,
 }
 
-fn value_info(name: &str, elem_type: i32, dims: &[Dim<'_>]) -> ValueInfo {
+fn value_info(name: &str, elem_type: i32, dims: &[Dim]) -> ValueInfo {
     ValueInfo {
         name: name.to_owned(),
         r#type: Some(TypeProto {
@@ -119,7 +122,6 @@ fn value_info(name: &str, elem_type: i32, dims: &[Dim<'_>]) -> ValueInfo {
                         .map(|d| Dimension {
                             value: match d {
                                 Dim::Fixed(v) => Some(DimValue::Value(*v)),
-                                Dim::Param(p) => Some(DimValue::Param((*p).to_owned())),
                                 Dim::Unknown => None,
                             },
                         })
@@ -169,13 +171,9 @@ fn search_nodes(knn: &Knn) -> Result<(Vec<Node>, Vec<Tensor>), ExportError> {
                 &["axes1_in"],
                 vec![tensor_attr("value", i64_tensor("ac", &[1], &[1]))],
             ),
-            node(
-                "Sub",
-                "body_sub",
-                &["x_row", "train_X_in"],
-                &["diff"],
-                vec![],
-            ),
+            // `train_X` is read from the outer graph (an initializer), not carried as
+            // a Scan state variable.
+            node("Sub", "body_sub", &["x_row", "train_X"], &["diff"], vec![]),
             if euclidean {
                 node("Mul", "body_sq", &["diff", "diff"], &["term"], vec![])
             } else {
@@ -199,30 +197,11 @@ fn search_nodes(knn: &Knn) -> Result<(Vec<Node>, Vec<Tensor>), ExportError> {
                     int_attr("sorted", 1),
                 ],
             ),
-            node(
-                "Identity",
-                "body_id_x",
-                &["train_X_in"],
-                &["train_X_out"],
-                vec![],
-            ),
         ],
         name: "knn_row".to_owned(),
         initializer: Vec::new(),
-        input: vec![
-            value_info(
-                "train_X_in",
-                ELEM_DOUBLE,
-                &[Dim::Param("N"), Dim::Fixed(p64)],
-            ),
-            value_info("x_row", ELEM_DOUBLE, &[Dim::Fixed(p64)]),
-        ],
+        input: vec![value_info("x_row", ELEM_DOUBLE, &[Dim::Fixed(p64)])],
         output: vec![
-            value_info(
-                "train_X_out",
-                ELEM_DOUBLE,
-                &[Dim::Param("N"), Dim::Fixed(p64)],
-            ),
             value_info("r_k", ELEM_DOUBLE, &[Dim::Fixed(k)]),
             value_info("i_k", ELEM_INT64, &[Dim::Fixed(k)]),
         ],
@@ -238,8 +217,8 @@ fn search_nodes(knn: &Knn) -> Result<(Vec<Node>, Vec<Tensor>), ExportError> {
         node(
             "Scan",
             "scan_rows",
-            &["train_X", "X64"],
-            &["train_X_final", "rdist_k", "idx_k"],
+            &["X64"],
+            &["rdist_k", "idx_k"],
             vec![graph_attr("body", body), int_attr("num_scan_inputs", 1)],
         ),
         if euclidean {

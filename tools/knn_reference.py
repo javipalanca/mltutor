@@ -412,13 +412,38 @@ def effective_metric(metric: str) -> str:
     return "manhattan" if metric == "manhattan" else "euclidean"
 
 
+# ArgKmin (sklearn/metrics/_pairwise_distances_reduction/_base.pyx.tp), one thread
+# (threadpool_limits(1)): chunk_size = 256, so parallel_on_X when n_train < n_query or
+# 4 * 256 * 1 < n_query, else parallel_on_Y.
+ARGKMIN_CHUNK_SIZE = 256
+
+
+def brute_parallel_on_y(n_train: int, n_query: int, n_threads: int = 1) -> bool:
+    """The strategy ArgKmin picks for ONE call of kneighbors with n_query rows."""
+    if n_train < n_query:
+        return False
+    return not (4 * ARGKMIN_CHUNK_SIZE * n_threads < n_query)
+
+
 def brute_query(train: np.ndarray, pt: np.ndarray, k: int, metric: str,
-                plain: bool = False) -> tuple[list, list]:
-    """Exact distances, heap in index order (lowest index wins ties), simultaneous_sort."""
+                plain: bool = False, parallel_on_y: bool = False) -> tuple[list, list]:
+    """Exact distances pushed in index order into sklearn's heap (NOT "lowest index wins":
+    a smaller value evicts the root, and which tied maximum is the root depends on the
+    heap layout), then simultaneous_sort.
+
+    parallel_on_y: with one thread the thread-local heap is the same, but
+    _parallel_on_Y_synchronize pushes its k entries (in heap-array order) into a fresh
+    main heap before the final sort, which reorders the tied neighbours (same set)."""
     heap_d = [math.inf] * k
     heap_i = [0] * k
     for idx in range(train.shape[0]):
         heap_push(heap_d, heap_i, rdist(pt, train[idx], metric, plain), idx)
+    if parallel_on_y:
+        main_d = [math.inf] * k
+        main_i = [0] * k
+        for v, i in zip(heap_d, heap_i):
+            heap_push(main_d, main_i, v, i)
+        heap_d, heap_i = main_d, main_i
     simultaneous_sort(heap_d, heap_i, 0, k)
     return [rdist_to_dist(v, metric) for v in heap_d], heap_i
 
@@ -434,12 +459,16 @@ class KNN:
         self.tree = KDTree(self.X, LEAF_SIZE, self.metric) if self.method == "kd_tree" else None
 
     def kneighbors(self, Q: np.ndarray, plain: bool = False) -> tuple[np.ndarray, np.ndarray]:
+        """sklearn's kneighbors(Q) in ONE call with threadpool_limits(1): with brute force
+        the order of tied neighbours depends on len(Q) (ArgKmin strategy)."""
         D, I = [], []
-        for pt in np.asarray(Q, dtype=np.float64):
+        Q = np.asarray(Q, dtype=np.float64)
+        on_y = brute_parallel_on_y(self.X.shape[0], len(Q))
+        for pt in Q:
             if self.tree is not None:
                 d, i = self.tree.query(pt, self.k, plain)
             else:
-                d, i = brute_query(self.X, pt, self.k, self.metric, plain)
+                d, i = brute_query(self.X, pt, self.k, self.metric, plain, on_y)
             D.append(d)
             I.append(i)
         return np.asarray(D), np.asarray(I, dtype=np.int64)

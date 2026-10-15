@@ -89,11 +89,18 @@ pub fn bounds(xs: &[f64], ys: &[f64]) -> [f64; 4] {
     [x0, x1, y0, y1]
 }
 
-/// The test points of one canvas request (more would only slow the drag down).
+/// The test points of one canvas request (more would only slow the drag down). The UI
+/// stops adding points at the same number (`ui/src/lib/lessons/knn/state.svelte.ts`).
 pub const MAX_PLAYGROUND_POINTS: usize = 200;
 
-/// Validates the points of a canvas request (finite, at most [`MAX_PLAYGROUND_POINTS`]).
-pub fn validate_points(points: &[[f64; 2]]) -> Result<(), CommandError> {
+/// Validates the points of a canvas request (finite, at most [`MAX_PLAYGROUND_POINTS`])
+/// and keeps them inside the canvas `bounds` (`[x_min, x_max, y_min, y_max]`), as the
+/// drag of the UI does: a value typed in the table (`1e300`) cannot move a point out
+/// of the plot nor overflow the distances.
+pub fn validate_points(
+    points: &[[f64; 2]],
+    bounds: [f64; 4],
+) -> Result<Vec<[f64; 2]>, CommandError> {
     if points.len() > MAX_PLAYGROUND_POINTS {
         return Err(CommandError::invalid_input(format!(
             "El lienzo admite como máximo {MAX_PLAYGROUND_POINTS} puntos de prueba."
@@ -104,18 +111,44 @@ pub fn validate_points(points: &[[f64; 2]]) -> Result<(), CommandError> {
             "Las coordenadas del punto de prueba no son números válidos.",
         ));
     }
-    Ok(())
+    let [x0, x1, y0, y1] = bounds;
+    let clamp = |v: f64, lo: f64, hi: f64| if lo <= hi { v.clamp(lo, hi) } else { v };
+    Ok(points
+        .iter()
+        .map(|&[x, y]| [clamp(x, x0, x1), clamp(y, y0, y1)])
+        .collect())
 }
 
-/// Python's verdict (thresholds > 5 and > 2), with D67 for two classes.
-pub fn verdict(n_classes: usize, ratio: f64) -> SeparationVerdict {
-    match n_classes {
-        0 | 1 => SeparationVerdict::TooFewClasses,
-        2 => SeparationVerdict::Binary,
-        _ if ratio > 5.0 => SeparationVerdict::Separated,
-        _ if ratio > 2.0 => SeparationVerdict::Moderate,
-        _ => SeparationVerdict::Close,
+/// Core verdict → IPC. `Binary` (the former D67 verdict) is no longer produced by the
+/// core; it falls back to `fallback`, Python's verdict on the ratio.
+pub fn ipc_verdict(
+    verdict: mltutor_core::knn::SeparationVerdict,
+    fallback: mltutor_core::knn::SeparationVerdict,
+) -> SeparationVerdict {
+    use mltutor_core::knn::SeparationVerdict as V;
+    match verdict {
+        V::Separated => SeparationVerdict::Separated,
+        V::Moderate => SeparationVerdict::Moderate,
+        V::Close => SeparationVerdict::Close,
+        V::TooFewClasses => SeparationVerdict::TooFewClasses,
+        V::Binary => match fallback {
+            V::Separated => SeparationVerdict::Separated,
+            V::Moderate => SeparationVerdict::Moderate,
+            V::Close | V::Binary => SeparationVerdict::Close,
+            V::TooFewClasses => SeparationVerdict::TooFewClasses,
+        },
     }
+}
+
+/// J2 (the rule of `mltutor_core::knn::class_distances`): on the separation for any
+/// number of classes, on Python's ratio (> 5, > 2) when there is no separation.
+pub fn verdict(n_classes: usize, separation: Option<f64>, ratio: f64) -> SeparationVerdict {
+    use mltutor_core::knn::class_distances::{verdict_of_ratio, verdict_of_separation};
+    if n_classes < 2 {
+        return SeparationVerdict::TooFewClasses;
+    }
+    let by_ratio = verdict_of_ratio(ratio);
+    ipc_verdict(separation.map_or(by_ratio, verdict_of_separation), by_ratio)
 }
 
 /// Context of `knn_entrenamiento.py.j2` (every key is always sent, `None` as `null`;
@@ -194,9 +227,16 @@ mod tests {
     fn k_range_and_points_are_validated() {
         assert!(validate_k(0).is_err() && validate_k(21).is_err());
         assert!(validate_k(1).is_ok() && validate_k(20).is_ok());
-        assert!(validate_points(&[[1.0, 2.0]]).is_ok());
-        assert!(validate_points(&[[f64::NAN, 2.0]]).is_err());
-        assert!(validate_points(&vec![[0.0, 0.0]; MAX_PLAYGROUND_POINTS + 1]).is_err());
+        let b = [3.3, 8.9, 1.0, 5.4];
+        assert_eq!(validate_points(&[[4.0, 2.0]], b).unwrap(), vec![[4.0, 2.0]]);
+        assert!(validate_points(&[[f64::NAN, 2.0]], b).is_err());
+        assert!(validate_points(&vec![[0.0, 0.0]; MAX_PLAYGROUND_POINTS + 1], b).is_err());
+        assert!(validate_points(&vec![[0.0, 0.0]; MAX_PLAYGROUND_POINTS], b).is_ok());
+        // Typed values out of the canvas are kept at its edges.
+        assert_eq!(
+            validate_points(&[[1e300, -1e300], [0.0, 9.0]], b).unwrap(),
+            vec![[8.9, 1.0], [3.3, 5.4]]
+        );
     }
 
     #[test]
@@ -211,13 +251,16 @@ mod tests {
         }
     }
 
+    /// J2: the separation decides for two classes too; Python's ratio only without it.
     #[test]
-    fn verdicts_follow_the_thresholds_and_d67() {
-        assert_eq!(verdict(3, 5.01), SeparationVerdict::Separated);
-        assert_eq!(verdict(3, 5.0), SeparationVerdict::Moderate);
-        assert_eq!(verdict(3, 2.53), SeparationVerdict::Moderate);
-        assert_eq!(verdict(3, 2.0), SeparationVerdict::Close);
-        assert_eq!(verdict(2, 1.0), SeparationVerdict::Binary);
-        assert_eq!(verdict(1, 0.0), SeparationVerdict::TooFewClasses);
+    fn verdicts_follow_the_separation_then_the_ratio() {
+        assert_eq!(verdict(3, Some(2.0), 1.0), SeparationVerdict::Separated);
+        assert_eq!(verdict(3, Some(1.58), 2.53), SeparationVerdict::Moderate);
+        assert_eq!(verdict(2, Some(1.26), 1.0), SeparationVerdict::Moderate);
+        assert_eq!(verdict(2, Some(0.79), 1.0), SeparationVerdict::Close);
+        assert_eq!(verdict(3, None, 5.01), SeparationVerdict::Separated);
+        assert_eq!(verdict(3, None, 5.0), SeparationVerdict::Moderate);
+        assert_eq!(verdict(3, None, 2.0), SeparationVerdict::Close);
+        assert_eq!(verdict(1, Some(3.0), 0.0), SeparationVerdict::TooFewClasses);
     }
 }

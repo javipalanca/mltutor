@@ -4,7 +4,6 @@
 use ndarray::ArrayView2;
 use serde::{Deserialize, Serialize};
 
-use crate::grid::np_arange;
 use crate::stats::{histogram, Histogram};
 
 /// Bins of every probability histogram (`ax.hist(..., bins=20)`).
@@ -24,7 +23,8 @@ pub struct ClassHistogram {
 /// One row of the threshold table (C6).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ThresholdRow {
-    /// Exact `np.arange(0.1, 1.0, 0.1)` value (0.30000000000000004, …).
+    /// `i / 10` for `i = 1..=9`: exactly 0.3, 0.5, 0.7… (Python's
+    /// `np.arange(0.1, 1.0, 0.1)` gives 0.30000000000000004 and 0.7000000000000001).
     pub threshold: f64,
     pub accuracy: f64,
     pub precision: f64,
@@ -138,9 +138,22 @@ pub fn distribution(
     }
 }
 
-/// C6: for each `t` in `np.arange(0.1, 1.0, 0.1)`, predict the positive class when
+/// C6: for each threshold `t = 0.1, 0.2, …, 0.9`, predict the positive class when
 /// `p ≥ t` and compute accuracy/precision/recall/F1 (`zero_division=0`); rows
 /// where only one class is predicted are skipped, as in Python.
+///
+/// Differences with `plot_threshold_analysis` (F4 review):
+///
+/// * the thresholds are the decimal values `i / 10` (Python used the
+///   `np.arange` values, so `p = 0.3` — 3 of 10 KNN votes — was *below* the
+///   "0.3" threshold);
+/// * in the **0.5 row** the positive class needs `p > 0.5`, so that the row is
+///   exactly `predict`: at an exact tie `p = 0.5` scikit-learn predicts
+///   `classes_[0]` (logistic regression: `decision_function > 0`; KNN and trees:
+///   `argmax`, which takes the first, lower code), and `positive` is
+///   `classes_[1]`. Python's `p ≥ 0.5` disagreed with the Evaluation tab whenever
+///   K was even (Cancer, K = 10 uniform, test 0.3: 0.9591 vs 0.9825). Continuous
+///   probabilities (F2) never hit the tie, so their rows do not change.
 pub fn threshold_analysis(
     y_true: &[usize],
     p_positive: &[f64],
@@ -148,8 +161,12 @@ pub fn threshold_analysis(
 ) -> ThresholdAnalysis {
     let n = y_true.len().min(p_positive.len());
     let mut rows = Vec::new();
-    for t in np_arange(0.1, 1.0, 0.1) {
-        let pred: Vec<bool> = p_positive[..n].iter().map(|&p| p >= t).collect();
+    for i in 1..=9_u32 {
+        let t = f64::from(i) / 10.0;
+        let pred: Vec<bool> = p_positive[..n]
+            .iter()
+            .map(|&p| if i == 5 { p > t } else { p >= t })
+            .collect();
         let n_pos = pred.iter().filter(|&&b| b).count();
         if n_pos == 0 || n_pos == n {
             continue;
@@ -191,11 +208,108 @@ pub fn threshold_analysis(
     let shown_thresholds = rows
         .iter()
         .map(|r| r.threshold)
-        .filter(|t| SHOWN_THRESHOLDS.iter().any(|s| (s - t).abs() < 1e-9))
+        .filter(|t| SHOWN_THRESHOLDS.contains(t))
         .collect();
     ThresholdAnalysis {
         best_f1_threshold: best.map(|r| r.threshold),
         rows,
         shown_thresholds,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::dataset::{load_builtin, DatasetId};
+    use crate::knn::{fit, KnnConfig, KnnMetric, KnnWeights};
+    use crate::model::{Prediction, Predictor, TrainControl};
+    use crate::split::train_test_split;
+    use ndarray::Axis;
+
+    #[test]
+    fn thresholds_are_decimal_and_include_the_ties() {
+        // p = 0.3 and 0.7 (3 and 7 of 10 votes) are at the threshold: positive.
+        let y = [0, 1, 0, 1];
+        let p = [0.3, 0.7, 0.2, 0.9];
+        let t = threshold_analysis(&y, &p, 1);
+        assert_eq!(t.shown_thresholds, vec![0.3, 0.5, 0.7]);
+        let at = |th: f64| {
+            t.rows
+                .iter()
+                .find(|r| r.threshold == th)
+                .unwrap_or_else(|| panic!("{th}"))
+        };
+        // 0.3: all of 0.3, 0.7, 0.9 positive → 1 FP.
+        assert_eq!(at(0.3).accuracy, 0.75);
+        // 0.7: 0.7 and 0.9 positive → perfect.
+        assert_eq!(at(0.7).accuracy, 1.0);
+    }
+
+    #[test]
+    fn default_row_is_predict_on_exact_ties() {
+        let y = [0, 1, 1];
+        let p = [0.5, 0.5, 0.9];
+        let t = threshold_analysis(&y, &p, 1);
+        let r = t
+            .rows
+            .iter()
+            .find(|r| r.threshold == 0.5)
+            .unwrap_or_else(|| panic!("0.5"));
+        // p = 0.5 → classes_[0]: one hit (row 0), one miss (row 1).
+        assert!((r.accuracy - 2.0 / 3.0).abs() < 1e-15);
+        assert_eq!(r.recall, 0.5);
+    }
+
+    #[test]
+    fn cancer_k10_default_row_matches_the_evaluation() {
+        let ds = load_builtin(DatasetId::BreastCancer).unwrap_or_else(|e| panic!("{e}"));
+        // The lesson's default test size (0.3): 168/171 = 0.9825.
+        let s = train_test_split(ds.n_rows(), 0.3, 42).unwrap_or_else(|e| panic!("{e}"));
+        let (xtr, xte) = (
+            ds.features.select(Axis(0), &s.train),
+            ds.features.select(Axis(0), &s.test),
+        );
+        let cfg = KnnConfig {
+            n_neighbors: 10,
+            weights: KnnWeights::Uniform,
+            metric: KnnMetric::Minkowski,
+        };
+        let m = fit(
+            cfg,
+            xtr.view(),
+            &ds.target.select(&s.train),
+            &TrainControl::none(),
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        let y: Vec<usize> = ds.target.select(&s.test).class_codes().unwrap_or_default();
+        let Ok(Prediction::Classes(pred)) = m.predict(xte.view()) else {
+            panic!("classes expected")
+        };
+        let acc = pred.iter().zip(&y).filter(|(a, b)| a == b).count() as f64 / y.len() as f64;
+        assert!((acc - 0.9825).abs() < 5e-5, "{acc}");
+        let proba = m
+            .predict_proba(xte.view())
+            .unwrap_or_else(|| panic!("proba"))
+            .unwrap_or_else(|e| panic!("{e}"));
+        let ProbabilityView::Binary(b) = distribution(&y, proba.view(), &[0, 1]) else {
+            panic!("binary expected")
+        };
+        let row = b
+            .thresholds
+            .rows
+            .iter()
+            .find(|r| r.threshold == 0.5)
+            .unwrap_or_else(|| panic!("0.5"));
+        assert_eq!(row.accuracy, acc);
+        // Some test row is an exact tie (K even), so Python's `p >= 0.5` differed.
+        assert!(proba.column(1).iter().any(|&p| p == 0.5));
+        let py = proba
+            .column(1)
+            .iter()
+            .zip(&y)
+            .filter(|(&p, &t)| (p >= 0.5) == (t == 1))
+            .count() as f64
+            / y.len() as f64;
+        println!("cancer k10: predict {acc}, python p>=0.5 {py}");
     }
 }

@@ -14,6 +14,13 @@ export const LESSON = "knn" as const;
 export const K_MIN = 1;
 export const K_MAX = 20;
 
+/**
+ * Test points of the canvas: the same limit as the backend (`MAX_PLAYGROUND_POINTS` in
+ * `src-tauri/src/knn.rs`, which also rejects longer requests with this text).
+ */
+export const MAX_PLAYGROUND_POINTS = 200;
+export const MAX_POINTS_MESSAGE = `El lienzo admite como máximo ${MAX_PLAYGROUND_POINTS} puntos de prueba.`;
+
 export interface TestPoint {
   /** Stable id (keys of the table, drag target). */
   id: number;
@@ -70,7 +77,16 @@ class KnnState {
     };
   }
 
-  addPoint(x: number, y: number): TestPoint {
+  /** Whether another test point fits ([`MAX_PLAYGROUND_POINTS`]). */
+  canAddPoint(): boolean {
+    return this.playground.points.length < MAX_PLAYGROUND_POINTS;
+  }
+
+  /** Adds a test point; `null` when the canvas is full. */
+  addPoint(x: number, y: number): TestPoint | null {
+    if (!this.canAddPoint()) {
+      return null;
+    }
     const point = { id: this.#nextPoint++, x, y };
     this.playground.points = [...this.playground.points, point];
     return point;

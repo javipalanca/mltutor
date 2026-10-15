@@ -252,6 +252,29 @@ pub trait Predictor: Send + Sync + fmt::Debug {
     /// no `predict_proba`.
     fn predict_proba(&self, x: ArrayView2<'_, f64>) -> Option<Result<Array2<f64>, ModelError>>;
 
+    /// [`Predictor::predict`] that checks `ctl` while it predicts. Only models whose
+    /// prediction is expensive (KNN: a neighbour search per row) override it; the
+    /// default ignores `ctl` and delegates to `predict`.
+    fn predict_with_control(
+        &self,
+        x: ArrayView2<'_, f64>,
+        ctl: &TrainControl<'_>,
+    ) -> Result<Prediction, ModelError> {
+        let _ = ctl;
+        self.predict(x)
+    }
+
+    /// [`Predictor::predict_proba`] that checks `ctl` while it predicts (see
+    /// [`Predictor::predict_with_control`]).
+    fn predict_proba_with_control(
+        &self,
+        x: ArrayView2<'_, f64>,
+        ctl: &TrainControl<'_>,
+    ) -> Option<Result<Array2<f64>, ModelError>> {
+        let _ = ctl;
+        self.predict_proba(x)
+    }
+
     /// Fast path for repeated predictions on the same, already validated data
     /// (permutation importance): `rows` is row-major float32 (`n × n_features`),
     /// the values of an input that [`Predictor::predict`] accepted, converted

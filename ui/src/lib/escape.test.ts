@@ -4,7 +4,7 @@ import Notice from "../components/Notice.svelte";
 import type { PairplotData } from "./bindings/PairplotData";
 import { csvTargetFigure, pairplotFigure } from "./charts";
 import { csvText, datosText } from "./content";
-import { escapeMarkdown, escapePlotly } from "./escape";
+import { escapeMarkdown, escapePlotly, escapePlotlyTemplate } from "./escape";
 import { fmt, fmtText, MISSING } from "./fmt";
 import { renderMarkdown } from "./markdown";
 
@@ -96,6 +96,13 @@ describe("data values in Plotly labels are text", () => {
     }
     const csv = csvTargetFigure(STYLED, { kind: "classes", value_counts: [[LINK, 3]] });
     expect(JSON.stringify(csv)).not.toMatch(/<a |<div/);
+  });
+
+  it("neutralises %{…} in values inserted into Plotly templates", () => {
+    expect(escapePlotlyTemplate("precio %{x}")).toBe("precio &#37;{x}");
+    expect(escapePlotlyTemplate("<b>x & 50%")).toBe("&lt;b&gt;x &amp; 50&#37;");
+    // Plotly's TEMPLATE_STRING_REGEX does not match the result.
+    expect(/%{([^\s%{}:]*)([:|\|][^}]*)?}/.test(escapePlotlyTemplate("a %{x:.2f} %{customdata[0]}"))).toBe(false);
   });
 
   it("draws a continuous hue with missing values and no range", () => {

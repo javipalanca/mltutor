@@ -768,14 +768,12 @@ pub enum PredictionResult {
 #[serde(rename_all = "snake_case")]
 #[ts(export)]
 pub enum SeparationVerdict {
-    /// ratio > 5: "🟢 Las clases están bien separadas".
+    /// J2: separation ≥ 2 (`veredicto_separadas`); Python's ratio > 5 without separation.
     Separated,
-    /// 2 < ratio ≤ 5: "🟡 Separación moderada".
+    /// J2: 1 ≤ separation < 2 (`veredicto_moderadas`); Python's 2 < ratio ≤ 5.
     Moderate,
-    /// ratio ≤ 2: "🔴 Las clases están muy próximas".
+    /// J2: separation < 1 (`veredicto_proximas`); Python's ratio ≤ 2.
     Close,
-    /// D67: two classes, the ratio is always 1 and does not measure the separation.
-    Binary,
     /// Fewer than 2 classes in the train set ("Se necesitan al menos 2 clases…").
     TooFewClasses,
 }
@@ -795,12 +793,23 @@ pub struct ClassDistancesView {
     /// Smallest / largest off-diagonal cell (`None` without off-diagonal cells > 0).
     pub min: Option<f64>,
     pub max: Option<f64>,
-    /// `max / min` (0 when there is no minimum).
+    /// `max / min` (0 when there is no minimum): Python's criterion, only informative.
     pub ratio: f64,
+    /// J2: `min_{i≠j} matrix[i][j] / max(within[i], within[j])`, for 2 or more classes;
+    /// `None` when some class has one sample or identical samples.
+    pub separation: Option<f64>,
+    /// The separation is +∞ (a class with zero spread far from the others): serde would send
+    /// it as `null`, so it travels as `separation: None` plus this flag (shown as "∞").
+    pub separation_unbounded: bool,
+    /// On `separation` (any number of classes); on Python's ratio when it is `None`.
     pub verdict: SeparationVerdict,
     pub metric: KnnMetric,
     /// Training samples used.
     pub n_samples: u32,
+    /// Some class had more than `sample_limit` rows and was sampled (`aviso_muestreo`).
+    pub sampled: bool,
+    /// Rows per class from which the analysis samples.
+    pub sample_limit: u32,
 }
 
 // --- C18: interactive canvas ---

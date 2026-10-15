@@ -87,9 +87,15 @@ fn score_of(model: &dyn Predictor, pred: Prediction, y: &Target) -> Result<f64, 
     }
 }
 
-/// `estimator.score(x, y)`.
-fn score(model: &dyn Predictor, x: ArrayView2<'_, f64>, y: &Target) -> Result<f64, ModelError> {
-    score_of(model, model.predict(x)?, y)
+/// `estimator.score(x, y)`; `control` reaches inside the prediction
+/// ([`Predictor::predict_with_control`]: a KNN cancels between blocks of rows).
+fn score(
+    model: &dyn Predictor,
+    x: ArrayView2<'_, f64>,
+    y: &Target,
+    control: &TrainControl<'_>,
+) -> Result<f64, ModelError> {
+    score_of(model, model.predict_with_control(x, control)?, y)
 }
 
 /// The data being permuted. Models with [`Predictor::predict_f32_rows`] (trees)
@@ -130,7 +136,12 @@ impl Work {
         }
     }
 
-    fn score(&self, model: &dyn Predictor, y: &Target) -> Result<f64, ModelError> {
+    fn score(
+        &self,
+        model: &dyn Predictor,
+        y: &Target,
+        control: &TrainControl<'_>,
+    ) -> Result<f64, ModelError> {
         match self {
             Work::F32(buf) => {
                 let pred = model.predict_f32_rows(buf).ok_or(ModelError::Numerical {
@@ -138,7 +149,7 @@ impl Work {
                 })??;
                 score_of(model, pred, y)
             }
-            Work::F64(xp) => score(model, xp.view(), y),
+            Work::F64(xp) => score(model, xp.view(), y, control),
         }
     }
 }
@@ -154,7 +165,9 @@ impl Work {
 /// 3. `importances[c, r] = baseline − score`.
 ///
 /// Works with any [`Predictor`] (trees here, KNN in F4). Cancellation is checked
-/// before every repetition; progress reports one iteration per column.
+/// before every repetition and, through [`Predictor::predict_with_control`], inside
+/// the predictions of models that support it (KNN); progress reports one iteration
+/// per column.
 pub fn permutation(
     model: &dyn Predictor,
     x: ArrayView2<'_, f64>,
@@ -179,7 +192,7 @@ pub fn permutation(
         });
     }
     control.check()?;
-    let baseline = score(model, x, y)?;
+    let baseline = score(model, x, y, control)?;
     let seed_i = RandomState::new(options.random_state).randint(0, 1 << 31);
     let seed = u32::try_from(seed_i).unwrap_or(0);
     let mut importances = Array2::<f64>::zeros((p, options.n_repeats));
@@ -205,7 +218,7 @@ pub fn permutation(
             }
             std::mem::swap(&mut current, &mut column);
             work.set_column(c, p, &current);
-            importances[[c, r]] = baseline - work.score(model, y)?;
+            importances[[c, r]] = baseline - work.score(model, y, control)?;
         }
         // Restore the column: the next one starts from the original data.
         current.clear();
@@ -292,6 +305,67 @@ mod tests {
         let r = rows(&names, &[0.5, 0.0, 0.0], None);
         let idx: Vec<usize> = r.iter().map(|r| r.feature_index).collect();
         assert_eq!(idx, vec![1, 2, 0]);
+    }
+
+    /// Says whether the control it receives carries the caller's cancel flag.
+    #[derive(Debug)]
+    struct Probe;
+
+    impl Predictor for Probe {
+        fn task(&self) -> TaskType {
+            TaskType::Regression
+        }
+        fn n_features(&self) -> usize {
+            1
+        }
+        fn classes(&self) -> Option<&[usize]> {
+            None
+        }
+        fn predict(&self, _x: ArrayView2<'_, f64>) -> Result<Prediction, ModelError> {
+            Err(ModelError::Numerical {
+                message: "predict without control".to_owned(),
+            })
+        }
+        fn predict_proba(
+            &self,
+            _x: ArrayView2<'_, f64>,
+        ) -> Option<Result<Array2<f64>, ModelError>> {
+            None
+        }
+        fn predict_with_control(
+            &self,
+            x: ArrayView2<'_, f64>,
+            ctl: &TrainControl<'_>,
+        ) -> Result<Prediction, ModelError> {
+            if ctl.cancel_flag().is_none() {
+                return self.predict(x);
+            }
+            Ok(Prediction::Values(x.column(0).to_vec()))
+        }
+        fn refit(
+            &self,
+            _x: ArrayView2<'_, f64>,
+            _y: &Target,
+            _control: &TrainControl<'_>,
+        ) -> Result<Box<dyn Predictor>, ModelError> {
+            Ok(Box::new(Probe))
+        }
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
+    }
+
+    #[test]
+    fn the_control_reaches_the_predictions() {
+        let x = ndarray::array![[1.0], [2.0], [3.0], [4.0]];
+        let y = Target::Values {
+            values: vec![1.0, 2.0, 3.0, 4.0],
+        };
+        let flag = std::sync::atomic::AtomicBool::new(false);
+        let ctl = TrainControl::none().with_cancel(&flag);
+        let pi = permutation(&Probe, x.view(), &y, PermutationOptions::default(), &ctl)
+            .unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(pi.baseline, 1.0);
     }
 
     #[test]

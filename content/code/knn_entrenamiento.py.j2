@@ -13,6 +13,12 @@
     entrenamiento con weights="distance" vale 1 con cualquier K, no solo con K=1; y el análisis de
     distancias añade la distancia media dentro de cada clase y, con dos clases, el aviso de D67 en lugar
     del veredicto por ratio (que con dos clases vale siempre 1).
+    CORREGIDO (revisión ML de F4, 2026-10-15): (1) threadpool_limits(1) antes de buscar vecinos: con varios
+    hilos, la fuerza bruta de scikit-learn fusiona montículos por hilo y sus empates cambian con el número de
+    núcleos (Dígitos K=20 manhattan: 104 de 540 filas con otros vecinos); (2) el veredicto del análisis de
+    distancias usa la separación min M[i,j] / max(W_i, W_j) (J2: ≥ 2 separadas, ≥ 1 moderadas, < 1 próximas,
+    también en binaria) y el ratio Max/Min queda como dato; (3) nota sobre la distancia 0 en la euclídea por
+    fuerza bruta (‖x‖² − 2x·y + ‖y‖² da ~1e-5 en lugar de 0).
 
     Los bloques "import ... sklearn.datasets" y "1. Cargar los datos" son copia literal de
     regresion_entrenamiento.py.j2 / arbol_entrenamiento.py.j2 (con `task == "classification"`);
@@ -100,6 +106,7 @@ from sklearn.neighbors import {% if task == "classification" %}KNeighborsClassif
 {%- if dataset in ["titanic", "tips", "penguins", "mpg", "diamonds", "csv"] %}
 from sklearn.preprocessing import LabelEncoder
 {%- endif %}
+from threadpoolctl import threadpool_limits  # se instala con scikit-learn
 
 # ---------------------------------------------------------------------------
 # 1. Cargar los datos (igual que MLTutor)
@@ -210,7 +217,12 @@ print(f"Entrenamiento: {len(X_train)} muestras · Prueba: {len(X_test)} muestras
 # 15 características o menos y K < n_train // 2 (la mitad de las muestras de entrenamiento,
 # redondeada hacia abajo), y por fuerza bruta si no.
 # Si dos muestras están exactamente a la misma distancia y solo cabe una, cada método puede
-# quedarse con una distinta; MLTutor reproduce la elección de scikit-learn.
+# quedarse con una distinta; MLTutor reproduce la elección de scikit-learn con UN hilo.
+# Un solo hilo: con varios núcleos, la fuerza bruta de scikit-learn reparte las muestras de
+# entrenamiento entre hilos y junta sus resultados, así que en los empates elegiría otros vecinos
+# según cuántos núcleos tenga el equipo. A partir de aquí, kneighbors(), predict(),
+# predict_proba() y permutation_importance() usan un hilo (el árbol k-d ya usaba uno).
+threadpool_limits(limits=1)
 modelo = {% if task == "classification" %}KNeighborsClassifier{% else %}KNeighborsRegressor{% endif %}(n_neighbors={{ n_neighbors }}, weights={{ weights | pyrepr }}, metric={{ metric | pyrepr }})
 modelo.fit(X_train, y_train)
 
@@ -289,6 +301,8 @@ else:
 # Celda (i, j) = distancia media entre las muestras de entrenamiento de la clase i y las de la
 # clase j, con la métrica del modelo. La diagonal queda a 0 para calcular la mínima, la máxima y
 # el ratio; MLTutor dibuja en ella la distancia media DENTRO de cada clase (distancias_dentro).
+# Este script usa todas las muestras de entrenamiento; en clases muy numerosas MLTutor puede usar
+# una muestra de ellas, y entonces las cifras varían un poco.
 codigos = np.unique(y_train)
 X_tr, y_tr = X_train.to_numpy(dtype=float), y_train.to_numpy()
 distancias_clases = np.zeros((len(codigos), len(codigos)))
@@ -314,16 +328,20 @@ if len(codigos) > 1:
     d_min = distancias_clases[distancias_clases > 0].min()
     d_max = distancias_clases.max()
     ratio = d_max / d_min
-    print(f"Distancia mínima {d_min:.3f} · máxima {d_max:.3f} · ratio {ratio:.2f}")
-    if len(codigos) == 2:
-        print("Con dos clases solo hay una distancia entre clases, así que el ratio siempre vale 1 y "
-              "no mide la separación. Compárala con la distancia media dentro de cada clase.")
-    elif ratio > 5:
-        print("🟢 Las clases están bien separadas (ratio > 5)")
-    elif ratio > 2:
-        print("🟡 Separación moderada entre clases (2 < ratio ≤ 5)")
+    # El ratio Max/Min (el criterio de la versión original) solo es un dato: compara el par de
+    # clases más alejado con el más próximo, no si se solapan (con dos clases vale siempre 1).
+    print(f"Distancia mínima {d_min:.3f} · máxima {d_max:.3f} · ratio {ratio:.2f} (informativo)")
+    # Separación: para cada par de clases, su distancia media dividida por la dispersión de la más
+    # dispersa de las dos (distancia media dentro de la clase); se queda el par peor. np.fmax y
+    # np.nanmin ignoran las clases con una sola muestra (sin distancia interna).
+    separacion = np.nanmin([distancias_clases[i, j] / np.fmax(distancias_dentro[i], distancias_dentro[j])
+                            for i in range(len(codigos)) for j in range(len(codigos)) if i != j])
+    if separacion >= 2:
+        print(f"🟢 Las clases están separadas (separación {separacion:.2f} ≥ 2)")
+    elif separacion >= 1:
+        print(f"🟡 Separación moderada entre clases (separación {separacion:.2f}, entre 1 y 2)")
     else:
-        print("🔴 Las clases están muy próximas (ratio ≤ 2)")
+        print(f"🔴 Las clases están muy próximas (separación {separacion:.2f} < 1)")
 {%- else %}
 mse = mean_squared_error(y_test, y_pred)
 rmse = np.sqrt(mse)
@@ -373,6 +391,10 @@ distancias, vecinos = modelo.kneighbors(muestra)  # posiciones dentro de X_train
 distancias, vecinos = distancias[0], vecinos[0]
 {%- if weights == "distance" %}
 # Pesos de los vecinos: 1/distancia, o solo los que están a distancia 0 si hay alguno
+{%- if metric != "manhattan" %}
+# (Con la distancia euclídea y fuerza bruta, scikit-learn calcula ‖x‖² − 2x·y + ‖y‖² y una muestra
+# idéntica a una de entrenamiento puede salir a ~1e-5 en lugar de 0; MLTutor calcula la distancia exacta.)
+{%- endif %}
 pesos = (distancias == 0).astype(float) if np.any(distancias == 0) else 1 / distancias
 {%- else %}
 pesos = np.ones_like(distancias)  # weights="uniform": todos los vecinos votan igual

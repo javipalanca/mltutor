@@ -72,8 +72,16 @@ pub fn n_levels(n: usize, leaf_size: usize) -> usize {
 }
 
 impl KdTree {
-    /// Builds the tree over `data` (row-major `n × p`, finite values).
-    pub fn build(data: &[f64], p: usize, metric: EffectiveMetric) -> Self {
+    /// Builds the tree over `data` (row-major `n × p`).
+    ///
+    /// Invariant: every value is finite. [`super::fit`] (the only caller) has already
+    /// rejected NaN and ±∞ with `check_input`; with a NaN the spreads and the
+    /// `nth_element` comparator would stop being a total order, so it is crate-private.
+    pub(crate) fn build(data: &[f64], p: usize, metric: EffectiveMetric) -> Self {
+        debug_assert!(
+            data.iter().all(|v| v.is_finite()),
+            "KdTree::build needs finite data"
+        );
         let n = data.len().checked_div(p).unwrap_or(0);
         let levels = n_levels(n, LEAF_SIZE);
         // 2^levels − 1; `levels` is at most ~60 for any n that fits in memory.

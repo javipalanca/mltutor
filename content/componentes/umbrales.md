@@ -1,10 +1,22 @@
-<!-- viz/roc.py::plot_threshold_analysis, bajo '### 🎯 Análisis de Umbrales de Decisión' (solo binaria). Expander cerrado. Título del expander: "ℹ️ ¿Cómo interpretar el Análisis de Umbrales?". CORREGIDO en Rust (2026-10-14): (1) el ejemplo del spam estaba al revés: un falso positivo (un email bueno en spam) es el error caro, así que se prefiere un umbral alto; (2) el diagnóstico médico aparecía como ejemplo de umbral ALTO y más abajo como caso en el que se prefieren falsos positivos (umbral BAJO), que es lo correcto; (3) "No se pierde tantos"; (4) NUEVO: aviso de fuga de datos al elegir el umbral con el conjunto de prueba (D21 enseña ahora tres filas). -->
+<!-- viz/roc.py::plot_threshold_analysis, bajo '### 🎯 Análisis de Umbrales de Decisión' (solo binaria). Expander cerrado. Título del expander: "ℹ️ ¿Cómo interpretar el Análisis de Umbrales?". CORREGIDO en Rust (2026-10-14): (1) el ejemplo del spam estaba al revés: un falso positivo (un email bueno en spam) es el error caro, así que se prefiere un umbral alto; (2) el diagnóstico médico aparecía como ejemplo de umbral ALTO y más abajo como caso en el que se prefieren falsos positivos (umbral BAJO), que es lo correcto; (3) "No se pierde tantos"; (4) NUEVO: aviso de fuga de datos al elegir el umbral con el conjunto de prueba (D21 enseña ahora tres filas). CORREGIDO (revisión ML de F4, 2026-10-15): Python decía "**Probabilidad ≥ 0.5** → Clase Positiva / **Probabilidad < 0.5** → Clase Negativa", que no es la regla de `predict`: en la logística es `decision_function > 0`, es decir, p > 0,5; en árboles y KNN es la clase de mayor probabilidad y, en un empate exacto a 0,5, gana la de código menor (la negativa). La tabla (crates/mltutor-core/src/probabilities.rs::threshold_analysis) usa p ≥ t con umbrales exactos i/10, salvo la fila 0,5, que usa p > 0,5 para coincidir con predict (revisión F4). NUEVO: el párrafo sobre las probabilidades discretas de KNN y árboles (🔬 Cáncer, KNN con K = 10 uniform: 4 de las 171 muestras de prueba tienen p = 0,5 exacto y predict las da como malignant). -->
 **¿Qué es el umbral de decisión?**
 
 El umbral de decisión es el valor que determina cuándo el modelo clasifica una muestra como 
 positiva o negativa. Por defecto, este umbral es **0.5**:
-- **Probabilidad ≥ 0.5** → Clase Positiva
-- **Probabilidad < 0.5** → Clase Negativa
+- **Probabilidad > 0.5** → Clase Positiva
+- **Probabilidad ≤ 0.5** → Clase Negativa
+
+Es la regla de `predict` en scikit-learn: la regresión logística da la clase positiva solo si la 
+probabilidad supera 0,5, y los árboles y KNN eligen la clase más probable y, si empatan justo en 0,5, 
+la de código menor (la negativa). La tabla de abajo cuenta como positiva toda muestra con **probabilidad ≥ umbral**, salvo 
+en la fila de 0,5, que usa **probabilidad > 0,5** para coincidir siempre con `predict` y con la 
+📈 Evaluación. Por eso, una muestra con probabilidad exactamente 0,3 o 0,7 sí cuenta como positiva en 
+esa fila.
+
+La diferencia importa en árboles y KNN, cuyas probabilidades solo toman unos pocos valores: con un KNN 
+de $K = 10$ y pesos `uniform` solo puede salir 0, 0,1, 0,2… hasta 1, y muchas muestras caen justo en un 
+umbral (en 🔬 Cáncer de mama, 4 de las 171 muestras de prueba tienen exactamente 0,5). Por eso, al mover 
+el umbral, las métricas cambian a saltos: dos umbrales que caen entre los mismos dos valores de probabilidad dan las mismas métricas.
 
 **¿Por qué cambiar el umbral?**
 

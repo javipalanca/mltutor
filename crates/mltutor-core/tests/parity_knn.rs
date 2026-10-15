@@ -119,7 +119,11 @@ fn neighbours_and_kd_tree_match_sklearn() {
                     kd_rows += 1;
                 }
                 SearchEngine::Brute => {
-                    if near.contains(&r) {
+                    // Manhattan distances are exact on both sides, so even the order of
+                    // tied neighbours must match (parallel_on_Y merge, F4 review); the
+                    // Euclidean ones differ by BLAS rounding, so near ties may swap.
+                    let exact = m.effective_metric() == knn::EffectiveMetric::Manhattan;
+                    if near.contains(&r) && !exact {
                         let (mut a, mut b) = (gi.to_vec(), wi.clone());
                         a.sort_unstable();
                         b.sort_unstable();
@@ -370,11 +374,19 @@ fn check_distance_block(name: &str, d: &knn::ClassDistances, e: &Value, err: &mu
         _ => SeparationVerdict::Close,
     };
     assert_eq!(d.ratio_verdict, python, "{name}: verdict");
-    if d.classes.len() == 2 {
-        assert_eq!(d.verdict, SeparationVerdict::Binary);
-    } else {
-        assert_eq!(d.verdict, python);
+    // J2 (F4 review): the app's verdict is on min M[i,j] / max(W_i, W_j).
+    let sep = e["separation_J2"].as_f64();
+    match (d.separation, sep) {
+        (Some(a), Some(b)) => add(a, b, "separation"),
+        (a, b) => assert_eq!(a, b, "{name}: separation"),
     }
+    let expected = match e["separation_verdict_J2"].as_str() {
+        Some("separated") => SeparationVerdict::Separated,
+        Some("moderate") => SeparationVerdict::Moderate,
+        Some(_) => SeparationVerdict::Close,
+        None => python,
+    };
+    assert_eq!(d.verdict, expected, "{name}: J2 verdict");
 }
 
 #[test]
@@ -609,4 +621,61 @@ fn ties_at_the_kth_neighbour_match() {
         }
     }
     println!("ties at the K-th neighbour checked: {n}");
+}
+
+/// F4 review: the ORDER of tied brute-force neighbours (Digits, 64 features). With
+/// ≤ 1024 query rows scikit-learn merges its heap (`parallel_on_Y`), which reorders
+/// the ties in 493 of 540 test rows (K = 20, Manhattan); with 1080 rows it does not.
+#[test]
+fn brute_tie_order_matches_sklearn() {
+    use mltutor_core::dataset::{load_builtin, DatasetId};
+    let fx = fixture("knn/brute_tie_order.json");
+    let ds = load_builtin(DatasetId::Digits).unwrap();
+    let split = train_test_split(ds.n_rows(), 0.3, 42).unwrap();
+    assert_eq!(&split.train[..5], &usizes(&fx["train_indices_head"])[..]);
+    assert_eq!(&split.test[..5], &usizes(&fx["test_indices_head"])[..]);
+    let x_train = ds.features.select(Axis(0), &split.train);
+    let x_test = ds.features.select(Axis(0), &split.test);
+    let y_train = ds.target.select(&split.train);
+    let mut euclid_swaps = 0;
+    for (key, c) in fx["cases"].as_object().unwrap() {
+        let k = c["n_neighbors"].as_u64().unwrap() as u32;
+        let metric = match c["metric"].as_str().unwrap() {
+            "manhattan" => knn::KnnMetric::Manhattan,
+            _ => knn::KnnMetric::Euclidean,
+        };
+        let cfg = knn::KnnConfig {
+            n_neighbors: k,
+            weights: knn::KnnWeights::Uniform,
+            metric,
+        };
+        let m = knn::fit(cfg, x_train.view(), &y_train, &TrainControl::none()).unwrap();
+        assert_eq!(m.engine(), SearchEngine::Brute, "{key}");
+        let q = match c["query"].as_str().unwrap() {
+            "test" => x_test.clone(),
+            "first_test_row" => x_test.slice(ndarray::s![..1, ..]).to_owned(),
+            _ => ndarray::concatenate(Axis(0), &[x_test.view(), x_test.view()]).unwrap(),
+        };
+        assert_eq!(q.nrows() as u64, c["n_query"].as_u64().unwrap());
+        assert_eq!(
+            knn::search::brute_parallel_on_y(m.n_train(), q.nrows()),
+            c["parallel_on_y"].as_bool().unwrap(),
+            "{key}"
+        );
+        let nb = m.kneighbors(q.view(), &TrainControl::none()).unwrap();
+        for (r, want) in rows_of(&c["indices"], usizes).iter().enumerate() {
+            let got = nb.row_indices(r);
+            if metric == knn::KnnMetric::Manhattan {
+                assert_eq!(got, &want[..], "{key}: row {r}");
+            } else if got != &want[..] {
+                // Euclidean: BLAS rounding may break a near tie differently.
+                let (mut a, mut b) = (got.to_vec(), want.clone());
+                a.sort_unstable();
+                b.sort_unstable();
+                assert_eq!(a, b, "{key}: neighbour set of row {r}");
+                euclid_swaps += 1;
+            }
+        }
+    }
+    println!("brute tie order: Euclidean rows with another order {euclid_swaps}");
 }

@@ -213,6 +213,20 @@ def distance_analysis(X: pd.DataFrame, y: pd.Series, metric: str, class_names,
             D = _exact_dist(a, a, kr.effective_metric(metric))
             n = len(a)
             within.append(float(D[np.triu_indices(n, 1)].sum() / (n * (n - 1) / 2)) if n > 1 else None)
+        # J2 (F4 review, not in the Python app): separation = min_{i!=j} Mx[i,j] /
+        # max(W_i, W_j) on the exact distances, with the rule of knn_entrenamiento.py.j2:
+        # np.fmax ignores a missing W (one sample), np.nanmin ignores 0/0; None if no pair.
+        nc = len(classes)
+        sep = None
+        if nc >= 2:
+            Wn = np.array([np.nan if w is None else w for w in within], dtype=float)
+            with np.errstate(divide="ignore", invalid="ignore"):
+                vals = np.array([Mx[i, j] / np.fmax(Wn[i], Wn[j])
+                                 for i in range(nc) for j in range(nc) if i != j])
+            if np.any(~np.isnan(vals)):
+                sep = float(np.nanmin(vals))
+        sep_verdict = (None if nc < 2 else "close" if sep is None else
+                       "separated" if sep >= 2 else "moderate" if sep >= 1 else "close")
         pos = M[M > 0]
         mn, mx = (float(np.min(pos)), float(np.max(M))) if pos.size else (None, None)
         ratio = mx / mn if mn and mn > 0 else 0
@@ -228,6 +242,13 @@ def distance_analysis(X: pd.DataFrame, y: pd.Series, metric: str, class_names,
                                   "Ratio Max/Min": f"{ratio:.2f}"},
                 "verdict": verdict,
                 "within_class_mean_D67": within,
+                "separation_J2": sep,
+                "separation_verdict_J2": sep_verdict,
+                "separation_rule_J2": "min over i != j of the exact mean distance M[i,j] / "
+                                      "max(W_i, W_j) (W = within_class_mean_D67; np.fmax "
+                                      "ignores a missing W, np.nanmin a 0/0); verdict "
+                                      ">= 2 separated, >= 1 moderate, else (or no pair) "
+                                      "close",
                 "within_rule_D67": "mean exact distance over the n(n-1)/2 distinct pairs of each "
                                    "class (upper triangle); not shown by the Python app"}
 
@@ -450,8 +471,16 @@ def onnx_reference(model, X_test: pd.DataFrame, X_all: np.ndarray, classifier: b
     return out
 
 
-def _onnx_proposal_model(model, X_train: np.ndarray, y_train, classifier: bool):
-    """D57: the graph Rust (mltutor-export) should write. Built with onnx.helper."""
+def _onnx_proposal_model(model, X_train: np.ndarray, y_train, classifier: bool,
+                         scan_state: bool = False):
+    """D57: the graph Rust (mltutor-export) should write. Built with onnx.helper.
+
+    The Scan body reads ``train_X`` from the outer graph (F4 review: it is not a
+    state variable). onnx 1.17's ReferenceEvaluator cannot resolve outer-scope
+    names inside a Scan body, so ``scan_state=True`` builds the equivalent graph of
+    the first proposal (``train_X`` carried as a Scan state through an Identity)
+    only to evaluate it; the fixture records the outer-scope graph.
+    """
     import onnx
     from onnx import TensorProto, helper, numpy_helper
 
@@ -467,24 +496,30 @@ def _onnx_proposal_model(model, X_train: np.ndarray, y_train, classifier: bool):
                          value=numpy_helper.from_array(np.array([k], dtype=np.int64), "kc")),
         helper.make_node("Constant", [], ["axes1_in"], name="body_axes",
                          value=numpy_helper.from_array(np.array([1], dtype=np.int64), "ac")),
-        helper.make_node("Sub", ["x_row", "train_X_in"], ["diff"], name="body_sub"),
+        # train_X is read from the outer graph (not a Scan state, F4 review).
+        helper.make_node("Sub", ["x_row", "train_X_in" if scan_state else "train_X"], ["diff"],
+                         name="body_sub"),
         (helper.make_node("Abs", ["diff"], ["term"], name="body_abs") if em == "manhattan"
          else helper.make_node("Mul", ["diff", "diff"], ["term"], name="body_sq")),
         helper.make_node("ReduceSum", ["term", "axes1_in"], ["r"], keepdims=0, name="body_sum"),
         helper.make_node("TopK", ["r", "k_in"], ["r_k", "i_k"], axis=0, largest=0, sorted=1,
                          name="body_topk"),
-        helper.make_node("Identity", ["train_X_in"], ["train_X_out"], name="body_id_x"),
     ]
-    body = helper.make_graph(
-        body_nodes, "knn_row",
-        [helper.make_tensor_value_info("train_X_in", TensorProto.DOUBLE, ["N", n_feat]),
-         helper.make_tensor_value_info("x_row", TensorProto.DOUBLE, [n_feat])],
-        [helper.make_tensor_value_info("train_X_out", TensorProto.DOUBLE, ["N", n_feat]),
-         helper.make_tensor_value_info("r_k", TensorProto.DOUBLE, [k]),
-         helper.make_tensor_value_info("i_k", TensorProto.INT64, [k])])
+    body_in = [helper.make_tensor_value_info("x_row", TensorProto.DOUBLE, [n_feat])]
+    body_out = [helper.make_tensor_value_info("r_k", TensorProto.DOUBLE, [k]),
+                helper.make_tensor_value_info("i_k", TensorProto.INT64, [k])]
+    if scan_state:
+        body_nodes.append(helper.make_node("Identity", ["train_X_in"], ["train_X_out"],
+                                           name="body_id_x"))
+        body_in.insert(0, helper.make_tensor_value_info("train_X_in", TensorProto.DOUBLE,
+                                                        ["N", n_feat]))
+        body_out.insert(0, helper.make_tensor_value_info("train_X_out", TensorProto.DOUBLE,
+                                                         ["N", n_feat]))
+    body = helper.make_graph(body_nodes, "knn_row", body_in, body_out)
     nodes = [
         helper.make_node("Cast", ["float_input"], ["X64"], to=TensorProto.DOUBLE, name="cast_in"),
-        helper.make_node("Scan", ["train_X", "X64"], ["train_X_final", "rdist_k", "idx_k"],
+        helper.make_node("Scan", (["train_X"] if scan_state else []) + ["X64"],
+                         (["train_X_final"] if scan_state else []) + ["rdist_k", "idx_k"],
                          body=body, num_scan_inputs=1, name="scan_rows"),
     ]
     nodes.append(helper.make_node("Sqrt", ["rdist_k"], ["dist_k"], name="sqrt")
@@ -553,7 +588,7 @@ def _onnx_proposal_model(model, X_train: np.ndarray, y_train, classifier: bool):
     m = helper.make_model(graph, producer_name="mltutor-proposal",
                           opset_imports=[helper.make_opsetid("", 15)])
     m.ir_version = 8
-    onnx.checker.check_model(m)
+    onnx.checker.check_model(m, full_check=True)
     return m
 
 
@@ -561,13 +596,16 @@ def onnx_proposal(model, X_train: np.ndarray, y_train, X_test: np.ndarray, class
     from onnx.reference import ReferenceEvaluator
 
     m = _onnx_proposal_model(model, X_train, y_train, classifier)
-    sess = ReferenceEvaluator(m)
+    sess = ReferenceEvaluator(_onnx_proposal_model(model, X_train, y_train, classifier,
+                                                   scan_state=True))
     X_all = np.vstack([X_train, X_test])
     sel = X_all if len(X_all) <= 3000 else X_all[np.r_[0:1500, -1500:0]]
     f32 = sel.astype(np.float32)
     res = sess.run(None, {"float_input": f32})
     out = {"producer": "tools/golden_knn.py::_onnx_proposal_model (onnx.helper), checked with "
-                       "onnx.checker and run with onnx.reference (also validated with "
+                       "onnx.checker (full_check) and run with onnx.reference (on the equivalent "
+                       "graph with train_X as a Scan state, which onnx.reference needs; the "
+                       "recorded graph reads it from the outer scope). Also validated with "
                        "onnxruntime 1.31: same labels except ties at the K-th distance)",
            "opset": 15, "ir_version": 8, "input": "float_input float32 [N, n_features]",
            "op_types": sorted({nd.op_type for nd in m.graph.node}),
@@ -728,6 +766,16 @@ def _predict_vector(model, x):
 
 
 def case_knn(eg, name: str, spec: dict, writer) -> None:
+    """One KNN fixture with ONE BLAS/OpenMP thread: scikit-learn's brute force merges
+    per-thread heaps, so tied neighbours would otherwise depend on the machine's
+    cores (F4 review)."""
+    from threadpoolctl import threadpool_limits
+
+    with threadpool_limits(1):
+        _case_knn(eg, name, spec, writer)
+
+
+def _case_knn(eg, name: str, spec: dict, writer) -> None:
     import tempfile
 
     import golden_trees as gt
@@ -945,9 +993,57 @@ def case_knn(eg, name: str, spec: dict, writer) -> None:
     writer.write_json(eg.PARITY_DIR / MODULE / f"{name}.json", doc, gt.dumps_compact)
 
 
+def case_brute_tie_order(eg, writer) -> None:
+    """F4 review: the ORDER of tied brute-force neighbours with one thread. ArgKmin uses
+    parallel_on_Y when the call has <= 1024 rows and no more than n_train, and its heap
+    merge reorders the ties; Digits (64 features -> brute) with Manhattan has many."""
+    import golden_trees as gt
+    from sklearn.datasets import load_digits
+    from sklearn.model_selection import train_test_split
+    from sklearn.neighbors import KNeighborsClassifier
+    from threadpoolctl import threadpool_limits
+
+    import knn_reference as kr
+
+    X, y = load_digits(return_X_y=True)
+    idx = np.arange(len(X))
+    tr, te = train_test_split(idx, test_size=0.3, random_state=42)
+    queries = {"test": te, "first_test_row": te[:1], "test_twice": np.r_[te, te]}
+    out = {"meta": eg.make_meta({"indices": "exact (order included)"},
+                                "Order of tied brute-force neighbours, one thread (F4 review)"),
+           "dataset": "digits", "test_size": 0.3, "random_state": 42,
+           "train_indices_head": tr[:5], "test_indices_head": te[:5],
+           "rule": "sklearn kneighbors(Q) in ONE call under threadpool_limits(1); "
+                   "parallel_on_Y iff n_query <= n_train and n_query <= 1024 "
+                   "(knn_reference.brute_parallel_on_y)",
+           "cases": {}}
+    with threadpool_limits(1):
+        for k, metric in [(20, "manhattan"), (5, "manhattan"), (20, "euclidean")]:
+            m = KNeighborsClassifier(n_neighbors=k, metric=metric).fit(X[tr], y[tr])
+            ref = kr.KNN(X[tr], k, metric)
+            for qn, q in queries.items():
+                Q = X[q]
+                _, i_sk = m.kneighbors(Q)
+                _, i_ref = ref.kneighbors(Q)
+                on_y = kr.brute_parallel_on_y(len(tr), len(Q))
+                # what the search would give without the merge (to show it matters)
+                no_merge = np.array([kr.brute_query(ref.X, pt, k, ref.metric)[1] for pt in Q])
+                key = f"k{k}_{metric}_{qn}"
+                out["cases"][key] = {
+                    "n_neighbors": k, "metric": metric, "query": qn, "n_query": int(len(Q)),
+                    "fit_method": m._fit_method, "parallel_on_y": bool(on_y),
+                    "indices": i_sk if qn != "test_twice" else i_sk[:len(te)],
+                    "reference_equal_in_order": bool(np.array_equal(i_sk, i_ref)),
+                    "rows_where_order_differs_without_merge": int(
+                        np.sum(np.any(no_merge != i_sk, axis=1))),
+                }
+    writer.write_json(eg.PARITY_DIR / MODULE / "brute_tie_order.json", out, gt.dumps_compact)
+
+
 def register(cases: dict, eg) -> None:
     for name, spec in KNN_CASES.items():
         cases[f"{MODULE}/{name}"] = (lambda n, s: (lambda w: case_knn(eg, n, s, w)))(name, spec)
+    cases[f"{MODULE}/brute_tie_order"] = lambda w: case_brute_tie_order(eg, w)
     register_code(cases, eg)
 
 
@@ -970,6 +1066,8 @@ TRAINING_CONTEXT_KEYS = ["dataset", "dataset_label", "csv_file", "csv_target", "
 _TRAINING_PROBE = """\
 import json, runpy, sys
 import numpy as np
+from threadpoolctl import threadpool_limits
+threadpool_limits(1)  # tied brute-force neighbours must not depend on the cores
 g = runpy.run_path(sys.argv[1], run_name="__main__")
 m = g["modelo"]
 out = {k: float(g[k]) for k in ("accuracy", "precision", "recall", "f1", "auc", "ap", "auc_micro",
@@ -1139,6 +1237,8 @@ import json, runpy, sys
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
+from threadpoolctl import threadpool_limits
+threadpool_limits(1)  # tied brute-force neighbours must not depend on the cores
 g = runpy.run_path(sys.argv[1], run_name="__main__")
 m2 = g["model_2d"]
 Q = np.array(json.loads(sys.argv[3]), dtype=float)

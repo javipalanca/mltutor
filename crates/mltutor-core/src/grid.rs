@@ -198,8 +198,13 @@ impl Default for GridOptions {
     }
 }
 
+/// Smallest number of mesh cells predicted per call (see [`decision_grid`]): more
+/// than scikit-learn's `4 · chunk_size` = 1024 query rows of a one-thread `ArgKmin`.
+const GRID_BLOCK_MIN_POINTS: usize = 1025;
+
 /// C8: refits `model` on training columns `fx`/`fy` and predicts on the grid. The
-/// cancellation flag is checked before the refit and before every grid row.
+/// cancellation flag is checked before the refit, before every block of rows and,
+/// for KNN, inside the prediction ([`Predictor::predict_with_control`]).
 pub fn decision_grid(
     model: &dyn Predictor,
     x_train: ArrayView2<'_, f64>,
@@ -230,18 +235,34 @@ pub fn decision_grid(
     let ys = points.column(1).to_vec();
     let axes = decision_axes(&xs, &ys, options.step)?;
 
-    let mut row_points = Array2::<f64>::zeros((axes.x.len(), 2));
-    for (r, &x) in axes.x.iter().enumerate() {
-        row_points[[r, 0]] = x;
-    }
     let classification = model_2d.task() == TaskType::Classification;
-    let total = axes.x.len() * axes.y.len();
+    let (nx, ny) = (axes.x.len(), axes.y.len());
+    let total = nx * ny;
     let mut classes = Vec::with_capacity(if classification { total } else { 0 });
     let mut values = Vec::with_capacity(if classification { 0 } else { total });
-    for &y in &axes.y {
+    // Python predicts the whole mesh in one call. Rows of the mesh are predicted in
+    // blocks of at least `GRID_BLOCK_MIN_POINTS` cells (the last block takes the
+    // remainder) or the whole mesh if it is smaller, so that every call sees the same
+    // brute-force strategy as scikit-learn's single call (a KNN orders tied
+    // neighbours differently with ≤ 1024 query rows, `knn::search`).
+    let rows_per_block = GRID_BLOCK_MIN_POINTS.div_ceil(nx.max(1)).max(1);
+    let n_blocks = (ny / rows_per_block).max(1);
+    for b in 0..n_blocks {
         control.check()?;
-        row_points.column_mut(1).fill(y);
-        match model_2d.predict(row_points.view())? {
+        let start = b * rows_per_block;
+        let end = if b + 1 == n_blocks {
+            ny
+        } else {
+            start + rows_per_block
+        };
+        let mut block = Array2::<f64>::zeros(((end - start) * nx, 2));
+        for (r, &y) in axes.y[start..end].iter().enumerate() {
+            for (c, &x) in axes.x.iter().enumerate() {
+                block[[r * nx + c, 0]] = x;
+                block[[r * nx + c, 1]] = y;
+            }
+        }
+        match model_2d.predict_with_control(block.view(), control)? {
             Prediction::Classes(c) => {
                 classes.extend(c.iter().map(|&v| u16::try_from(v).unwrap_or(u16::MAX)));
             }

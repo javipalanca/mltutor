@@ -153,3 +153,91 @@ fn knn_budgets() {
         10,
     );
 }
+
+/// F4 review: the class distances of 70 000 rows (8 features). Before: O(n²) on one
+/// thread, 14.6 s (2 classes) and 10.1 s (10 classes) on an M-series Mac; now the
+/// classes are capped at 5 000 rows (`sampled`) and the rows run on up to 8 threads.
+#[test]
+#[ignore = "benchmark: run in release with --ignored"]
+fn class_distances_70k() {
+    let n = 70_000;
+    let x = ndarray::Array2::from_shape_fn((n, 8), |(i, j)| {
+        ((i.wrapping_mul(2_654_435_761) ^ (j * 40_503)) % 1000) as f64 / 100.0
+    });
+    for (k, budget) in [(2usize, 300), (10, 3000)] {
+        let codes: Vec<usize> = (0..n).map(|i| i % k).collect();
+        let mut sampled = false;
+        let d = median(|| {
+            sampled = knn::class_distances(
+                x.view(),
+                &codes,
+                KnnMetric::Minkowski,
+                &TrainControl::none(),
+            )
+            .unwrap()
+            .sampled;
+        });
+        assert!(sampled);
+        report(
+            &format!("class distances 70 000 × 8, {k} classes"),
+            d,
+            budget,
+        );
+    }
+}
+
+/// F4 review: how long a cancellation takes to arrive (flag set 20 ms after the
+/// start) in the permutation importance of California and the class distances of
+/// 70 000 rows.
+#[test]
+#[ignore = "benchmark: run in release with --ignored"]
+fn cancellation_latency() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    fn latency(work: impl FnOnce(&TrainControl<'_>) -> bool + Send) -> Duration {
+        let flag = AtomicBool::new(false);
+        std::thread::scope(|s| {
+            let h = s.spawn(|| {
+                let ctl = TrainControl::none().with_cancel(&flag);
+                let cancelled = work(&ctl);
+                (Instant::now(), cancelled)
+            });
+            std::thread::sleep(Duration::from_millis(20));
+            let t = Instant::now();
+            flag.store(true, Ordering::Relaxed);
+            let (end, cancelled) = h.join().unwrap();
+            assert!(cancelled);
+            end.saturating_duration_since(t)
+        })
+    }
+    let ds = load_builtin(DatasetId::CaliforniaHousing).unwrap();
+    let s = split::train_test_split(ds.n_rows(), 0.3, 42).unwrap();
+    let x_train = ds.features.select(Axis(0), &s.train);
+    let x_test = ds.features.select(Axis(0), &s.test);
+    let (y_train, y_test) = (ds.target.select(&s.train), ds.target.select(&s.test));
+    let m = knn::fit(
+        KnnConfig::default(),
+        x_train.view(),
+        &y_train,
+        &TrainControl::none(),
+    )
+    .unwrap();
+    let d = latency(|ctl| {
+        importance::permutation(
+            &m,
+            x_test.view(),
+            &y_test,
+            PermutationOptions::default(),
+            ctl,
+        )
+        .is_err()
+    });
+    report("California permutation: cancellation latency", d, 20);
+    let n = 70_000;
+    let x = ndarray::Array2::from_shape_fn((n, 8), |(i, j)| {
+        ((i.wrapping_mul(2_654_435_761) ^ (j * 40_503)) % 1000) as f64 / 100.0
+    });
+    let codes: Vec<usize> = (0..n).map(|i| i % 10).collect();
+    let d =
+        latency(|ctl| knn::class_distances(x.view(), &codes, KnnMetric::Minkowski, ctl).is_err());
+    report("class distances 70 000: cancellation latency", d, 20);
+}

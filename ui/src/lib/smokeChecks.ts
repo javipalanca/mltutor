@@ -269,7 +269,8 @@ const CHECKS: Readonly<Record<string, () => Promise<void>>> = {
       ["Probabilidades", "[data-probabilities=\"binary\"] [data-plot-rendered=\"true\"]"],
       ["ROC", "[data-roc=\"binary\"] [data-plot-rendered=\"true\"]"],
       ["Frontera", "[data-grid-view] [data-plot-rendered=\"true\"]"],
-      ["Distancias", "[data-class-distances=\"binary\"] [data-plot-rendered=\"true\"]"],
+      // J2: binary has a verdict on the separation too (1.26 → moderate).
+      ["Distancias", "[data-class-distances=\"moderate\"][data-n-classes=\"2\"] [data-plot-rendered=\"true\"]"],
     ]),
   knn_regresion_diabetes_k5: () => knnChecks({ dataset: "diabetes" }, KNN_REGRESSION),
   knn_california_k5: () => knnChecks({ dataset: "california_housing" }, KNN_REGRESSION),

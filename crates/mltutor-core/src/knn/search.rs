@@ -82,6 +82,40 @@ pub fn rdist(x: &[f64], y: &[f64], metric: EffectiveMetric) -> f64 {
     }
 }
 
+/// Per-feature `(min, max)` of the row-major rows `data` (`p` columns): the
+/// bounding box of the training data, for [`max_rdist_to_box`].
+pub(crate) fn bounding_box(data: &[f64], p: usize) -> (Vec<f64>, Vec<f64>) {
+    let mut lo = vec![f64::INFINITY; p];
+    let mut hi = vec![f64::NEG_INFINITY; p];
+    if p == 0 {
+        return (lo, hi);
+    }
+    for row in data.chunks_exact(p) {
+        for j in 0..p {
+            lo[j] = lo[j].min(row[j]);
+            hi[j] = hi[j].max(row[j]);
+        }
+    }
+    (lo, hi)
+}
+
+/// An upper bound of the reduced distance from `pt` to **any** point of the box
+/// `[lo, hi]` (its farthest corner). If it is finite (with a factor 2 of margin for
+/// the kd-tree's `d_lo + |d_lo|`), no distance of the search can overflow, so a
+/// non-finite value means the search would rank with `inf` and return false
+/// neighbours: the caller rejects the query with `ModelError::NonFinite`.
+pub(crate) fn max_rdist_to_box(pt: &[f64], lo: &[f64], hi: &[f64], metric: EffectiveMetric) -> f64 {
+    let mut s = 0.0;
+    for ((&x, &a), &b) in pt.iter().zip(lo).zip(hi) {
+        let d = (x - a).abs().max((x - b).abs());
+        s += match metric {
+            EffectiveMetric::Euclidean => d * d,
+            EffectiveMetric::Manhattan => d,
+        };
+    }
+    s
+}
+
 /// scikit-learn's `NeighborsHeap` for one query (`sklearn/utils/_heap.pyx`): a
 /// max-heap of fixed size `k` initialised to +∞. A value is **rejected when it is
 /// `>=` the largest** one, so among equal distances the first pushed stays.
@@ -146,6 +180,17 @@ impl NeighborHeap {
         }
         v[cur] = val;
         ix[cur] = idx;
+    }
+
+    /// `_parallel_on_Y_synchronize` with one thread: the `k` entries, in heap-array
+    /// order, pushed into a fresh heap. Same set, but the tied ones change places
+    /// (`scratch` keeps the allocation between rows).
+    pub fn repush(&mut self, scratch: &mut NeighborHeap) {
+        std::mem::swap(self, scratch);
+        self.reset();
+        for (&v, &i) in scratch.values.iter().zip(&scratch.indices) {
+            self.push(v, i);
+        }
     }
 
     /// The `k` results in ascending order ([`simultaneous_sort`]).
@@ -213,9 +258,34 @@ pub fn simultaneous_sort(values: &mut [f64], indices: &mut [usize]) {
     }
 }
 
-/// Brute force: every training row (row-major `data`, `p` columns) in index order
-/// into the heap, so among equal distances the **lowest index** wins. The heap is
-/// left unsorted.
+/// `chunk_size` of scikit-learn's `ArgKmin` (pairwise distances reductions).
+pub const ARGKMIN_CHUNK_SIZE: usize = 256;
+
+/// The strategy scikit-learn's brute force (`ArgKmin`, one thread) picks for **one
+/// call** with `n_query` rows: `parallel_on_X` if `n_train < n_query` or
+/// `4 · 256 < n_query`, else `parallel_on_Y`. With `parallel_on_Y` the thread heap is
+/// merged into the main one ([`NeighborHeap::repush`]) before sorting, which changes
+/// the **order** of tied neighbours (not the set). So the order depends on how many
+/// rows are searched together, and callers that split a query must keep the
+/// strategy of the whole (`grid::decision_grid` predicts blocks of > 1024 cells).
+pub fn brute_parallel_on_y(n_train: usize, n_query: usize) -> bool {
+    n_train >= n_query && n_query <= 4 * ARGKMIN_CHUNK_SIZE
+}
+
+/// Brute force: every training row (row-major `data`, `p` columns) pushed in index
+/// order into the heap; the heap is left unsorted.
+///
+/// This is **not** "the lowest index wins ties": [`NeighborHeap::push`] rejects a
+/// value `>=` the root, but a smaller value evicts the root, and which of several
+/// tied maxima sits at the root depends on the heap layout. So among rows tied at
+/// the K-th distance the survivors are not always the lowest indices. It is what
+/// scikit-learn's single-threaded brute force does (`tools/knn_reference.py`); with
+/// several threads scikit-learn splits the training rows and merges heaps, so its
+/// ties change with the number of cores (MEMORY.md, F4). With K = n_train every
+/// row is kept and only the order *inside* runs of equal distances can differ from
+/// a given scikit-learn build; that is accepted (the set and the distances agree).
+/// With `parallel_on_Y` ([`brute_parallel_on_y`]) the caller then calls
+/// [`NeighborHeap::repush`].
 pub(crate) fn brute_query(
     data: &[f64],
     p: usize,

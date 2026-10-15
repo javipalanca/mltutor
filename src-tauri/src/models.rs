@@ -861,14 +861,17 @@ pub async fn feature_importance(
 /// C19: 📏 Análisis de Distancias (KNN classifiers).
 #[tauri::command]
 pub async fn class_distances(
+    data: State<'_, DataState>,
     models: State<'_, ModelState>,
     model_id: u32,
+    task_id: u32,
 ) -> Result<ClassDistancesView, CommandError> {
-    with_model("class_distances", &models, model_id, |m| {
+    let guard = data.tasks.start(task_id);
+    with_model("class_distances", &models, model_id, move |m| {
         if !m.config.is_knn() {
             return Err(CommandError::not_knn());
         }
-        m.model.class_distances()
+        m.model.class_distances(&guard.token())
     })
     .await
 }
@@ -888,7 +891,7 @@ pub async fn knn_playground(
         }
         validate_pair(m, req.feature_x, req.feature_y)?;
         crate::knn::validate_k(req.n_neighbors)?;
-        crate::knn::validate_points(&req.points)?;
+        // The points are validated and clamped by the facade (it knows the bounds).
         m.model.knn_playground(&req, &guard.token())
     })
     .await

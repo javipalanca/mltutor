@@ -62,10 +62,14 @@ fn core_config(config: ModelConfig) -> Option<core::linear::ModelConfig> {
 /// True codes of the test set, probabilities and `classes_` of a classifier.
 type ClassifierOutputs<'a> = (Vec<usize>, ArrayView2<'a, f64>, &'a [usize]);
 
-/// Predictions of the test set, computed once per model.
+/// Predictions of the test set, computed once per model (`EvaluationCache`).
 struct TestOutputs {
     prediction: Prediction,
     proba: Option<Array2<f64>>,
+    /// KNN (fase4-knn.md §5.2): the K neighbours of every test row, searched once for
+    /// both `predict` and `predict_proba`.
+    #[cfg_attr(not(test), allow(dead_code))]
+    test_neighbors: Option<core::knn::Neighbors>,
 }
 
 pub struct CoreModel {
@@ -81,6 +85,8 @@ pub struct CoreModel {
     notices: Vec<TrainNotice>,
     outputs: OnceLock<Result<TestOutputs, CommandError>>,
     form: OnceLock<core::form::PredictionForm>,
+    /// C18: the last 2-feature KNN of the canvas (a drag only moves points).
+    pub(crate) playground: crate::real_knn::PlaygroundCache,
 }
 
 /// `train_model`: split (D7), fit and report progress.
@@ -94,7 +100,7 @@ pub fn train(
     Ok(Arc::new(fit(dataset, id, spec, progress, cancel)?))
 }
 
-fn fit(
+pub(crate) fn fit(
     dataset: &Arc<core::Dataset>,
     id: Option<core::DatasetId>,
     spec: &TrainSpec,
@@ -143,7 +149,7 @@ fn fit(
             });
         }
     }
-    Ok(CoreModel {
+    let model = CoreModel {
         dataset: dataset.clone(),
         id,
         spec: spec.clone(),
@@ -154,7 +160,17 @@ fn fit(
         notices,
         outputs: OnceLock::new(),
         form: OnceLock::new(),
-    })
+        playground: crate::real_knn::PlaygroundCache::default(),
+    };
+    // KNN "training" only stores the rows: the expensive part is the neighbour search
+    // of the test set, so it runs here, with the cancellation of the training, and the
+    // views of 📊 Evaluación read the cache.
+    if model.knn().is_some() {
+        let outputs = model.test_outputs(&TrainControl::none().with_cancel(cancel))?;
+        // The cell is new and unshared: `set` cannot fail.
+        let _ = model.outputs.set(Ok(outputs));
+    }
+    Ok(model)
 }
 
 /// Display names of the feature columns with a non-finite value (NaN = missing cell).
@@ -247,18 +263,39 @@ impl CoreModel {
             .unwrap_or_else(|| code.to_string())
     }
 
+    /// Predictions of the test set. KNN searches the neighbours once and derives both
+    /// the prediction and the probabilities from them.
+    fn test_outputs(&self, control: &TrainControl<'_>) -> Result<TestOutputs, CommandError> {
+        let x_test = self.x_test();
+        if let Some(knn) = self.knn() {
+            let nb = knn
+                .kneighbors(x_test.view(), control)
+                .map_err(model_error)?;
+            return Ok(TestOutputs {
+                prediction: knn.predict_from(&nb),
+                proba: knn.proba_from(&nb),
+                test_neighbors: Some(nb),
+            });
+        }
+        let prediction = self
+            .model
+            .predict_with_control(x_test.view(), control)
+            .map_err(model_error)?;
+        let proba = self
+            .model
+            .predict_proba_with_control(x_test.view(), control)
+            .transpose()
+            .map_err(model_error)?;
+        Ok(TestOutputs {
+            prediction,
+            proba,
+            test_neighbors: None,
+        })
+    }
+
     fn outputs(&self) -> Result<&TestOutputs, CommandError> {
         self.outputs
-            .get_or_init(|| {
-                let x_test = self.x_test();
-                let prediction = self.model.predict(x_test.view()).map_err(model_error)?;
-                let proba = self
-                    .model
-                    .predict_proba(x_test.view())
-                    .transpose()
-                    .map_err(model_error)?;
-                Ok(TestOutputs { prediction, proba })
-            })
+            .get_or_init(|| self.test_outputs(&TrainControl::none()))
             .as_ref()
             .map_err(Clone::clone)
     }
@@ -765,8 +802,11 @@ impl ModelView for CoreModel {
         crate::real_trees::diagram(self)
     }
 
-    fn class_distances(&self) -> Result<ipc::ClassDistancesView, CommandError> {
-        crate::real_knn::class_distances(self)
+    fn class_distances(
+        &self,
+        cancel: &AtomicBool,
+    ) -> Result<ipc::ClassDistancesView, CommandError> {
+        crate::real_knn::class_distances(self, cancel)
     }
 
     fn knn_playground(
@@ -900,6 +940,70 @@ mod tests {
                 FormControlKind::Slider { default, .. } => *default,
             })
             .collect()
+    }
+
+    fn knn_spec() -> TrainSpec {
+        TrainSpec {
+            config: ModelConfig::Knn {
+                n_neighbors: 5,
+                weights: ipc::KnnWeights::Distance,
+                metric: ipc::KnnMetric::Minkowski,
+            },
+            test_size: 0.3,
+            dataset_label: String::new(),
+        }
+    }
+
+    /// fase4-knn.md §5.2: the K neighbours of the test set are searched once, during the
+    /// (cancellable) training, and both `predict` and `predict_proba` come from them.
+    #[test]
+    fn knn_searches_the_test_neighbours_once_and_can_be_cancelled() {
+        let dataset = Arc::new(core::dataset::load_builtin(core::DatasetId::Iris).unwrap());
+        let model = fit(
+            &dataset,
+            Some(core::DatasetId::Iris),
+            &knn_spec(),
+            &|_, _| {},
+            &AtomicBool::new(false),
+        )
+        .unwrap();
+        let cached = model.outputs.get().unwrap().as_ref().unwrap();
+        let nb = cached.test_neighbors.as_ref().unwrap();
+        assert_eq!((nb.n_rows(), nb.k), (model.split.test.len(), 5));
+        let x_test = model.x_test();
+        assert_eq!(
+            cached.prediction,
+            model.model.predict(x_test.view()).unwrap()
+        );
+        assert_eq!(
+            cached.proba.as_ref(),
+            Some(&model.model.predict_proba(x_test.view()).unwrap().unwrap())
+        );
+        // Other models keep the lazy evaluation.
+        let linear = fit(
+            &dataset,
+            None,
+            &TrainSpec {
+                config: LOGISTIC,
+                ..knn_spec()
+            },
+            &|_, _| {},
+            &AtomicBool::new(false),
+        )
+        .unwrap();
+        assert!(linear.outputs.get().is_none());
+        assert!(linear.outputs().unwrap().test_neighbors.is_none());
+        // A cancelled training does not leave a model behind.
+        let error = fit(
+            &dataset,
+            None,
+            &knn_spec(),
+            &|_, _| {},
+            &AtomicBool::new(true),
+        )
+        .err()
+        .unwrap();
+        assert!(matches!(error, CommandError::Cancelled { .. }), "{error:?}");
     }
 
     /// Both facades must show the same thing (the fixtures are scikit-learn's values;

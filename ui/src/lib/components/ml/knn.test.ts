@@ -12,9 +12,10 @@ import type { ClassDistancesView } from "../../bindings/ClassDistancesView";
 import type { Matrix } from "../../bindings/Matrix";
 import type { PlaygroundView } from "../../bindings/PlaygroundView";
 import type { TrainedModelInfo } from "../../bindings/TrainedModelInfo";
-import { knn } from "../../lessons/knn/state.svelte";
+import { knnText } from "../../content";
+import { knn, MAX_PLAYGROUND_POINTS, MAX_POINTS_MESSAGE } from "../../lessons/knn/state.svelte";
 import ClassDistanceHeatmap from "./ClassDistanceHeatmap.svelte";
-import { aggregateByClass, arc, cellTextColor, classColor, distanceHeatmapFigure, percent, PLAYGROUND_PALETTE, playgroundFigure, pointSize } from "./knnFigures";
+import { aggregateByClass, arc, cellTextColor, clampPoint, classColor, distanceHeatmapFigure, percent, PLAYGROUND_PALETTE, playgroundFigure, pointSize } from "./knnFigures";
 import KnnNeighborsTable from "./KnnNeighborsTable.svelte";
 
 afterEach(() => cleanup());
@@ -159,10 +160,64 @@ describe("canvas of 🎮 Visualización Interactiva (C18)", () => {
     expect(groups.get(0)?.count).toEqual([2]);
     expect(groups.get(1)?.count).toEqual([1]);
   });
+
+  it("stops at the backend limit of test points (MAX_PLAYGROUND_POINTS)", () => {
+    knn.reset();
+    for (let i = 0; i < MAX_PLAYGROUND_POINTS; i += 1) {
+      expect(knn.addPoint(i, i)).not.toBeNull();
+    }
+    expect(knn.canAddPoint()).toBe(false);
+    expect(knn.addPoint(0, 0)).toBeNull();
+    expect(knn.playground.points).toHaveLength(MAX_PLAYGROUND_POINTS);
+    // The same number and text as `src-tauri/src/knn.rs` (which rejects longer requests).
+    const rust = readFileSync(resolve(process.cwd(), "../src-tauri/src/knn.rs"), "utf8");
+    expect(rust).toContain(`pub const MAX_PLAYGROUND_POINTS: usize = ${MAX_PLAYGROUND_POINTS};`);
+    expect(MAX_POINTS_MESSAGE.replace(String(MAX_PLAYGROUND_POINTS), "{MAX_PLAYGROUND_POINTS}")).toBe("El lienzo admite como máximo {MAX_PLAYGROUND_POINTS} puntos de prueba.");
+    expect(rust).toContain('"El lienzo admite como máximo {MAX_PLAYGROUND_POINTS} puntos de prueba."');
+    knn.clearPoints();
+    expect(knn.addPoint(1, 1)).not.toBeNull();
+    knn.reset();
+  });
+
+  it("keeps typed points inside the canvas", () => {
+    const b: [number, number, number, number] = [3.3, 8.9, 1, 5.4];
+    expect(clampPoint([1e9, -1e9], b)).toEqual([8.9, 1]);
+    expect(clampPoint([5, 2], b)).toEqual([5, 2]);
+    expect(clampPoint([-3, 99], b)).toEqual([3.3, 5.4]);
+  });
+
+  it("shows column and class names literally in labels and tooltips", () => {
+    const { view: v, data, codes } = view();
+    const hostile: PlaygroundView = { ...v, feature_names: ["precio %{x}", "<i>y</i>"], class_names: ["<b>x", "versicolor", "virginica"] };
+    const fig = playgroundFigure(hostile, data, codes, { showConfidence: true, showDistances: true, scale: { dx: 0.01, dy: 0.01 } });
+    const templates = fig.data.map((d) => (d as { hovertemplate?: string }).hovertemplate ?? "").filter(Boolean);
+    expect(templates.length).toBeGreaterThan(0);
+    for (const template of templates) {
+      // Plotly would replace `%{x}` of the column name with the x value, and draw `<b>`/`<i>`.
+      expect(template).not.toContain("precio %{x}");
+      expect(template).not.toContain("<i>y</i>");
+      expect(template).not.toContain("<b>x");
+    }
+    expect(templates.some((t) => t.includes("precio &#37;{x}") && t.includes("&lt;i&gt;y&lt;/i&gt;"))).toBe(true);
+    const json = JSON.stringify(fig.data);
+    expect(json).not.toContain("<b>x");
+    expect(json).toContain("&lt;b&gt;x");
+    const legend = fig.data.map((d) => (d as { name?: string }).name).filter(Boolean);
+    expect(legend[0]).toBe("&lt;b&gt;x");
+    // Test points: the predicted class goes through `customdata` (not scanned again by Plotly), escaped.
+    const test = fig.data.find((d) => ((d as { hovertemplate?: string }).hovertemplate ?? "").startsWith("Punto ")) as { customdata: unknown[][] };
+    expect(test.customdata.map((row) => row[1])).not.toContain("<b>x");
+    const xaxis = fig.layout.xaxis as { title: { text: string } };
+    expect(xaxis.title.text).toBe("precio %{x}");
+  });
 });
 
-function distances(app: DistanceApp, verdict: ClassDistancesView["verdict"]): ClassDistancesView {
+function distances(app: DistanceApp, verdict: ClassDistancesView["verdict"], separation: number | null = null, sampled = false, unbounded = false): ClassDistancesView {
   return {
+    separation,
+    separation_unbounded: unbounded,
+    sampled,
+    sample_limit: 5000,
     classes: app.classes,
     class_names: app.class_labels,
     matrix: app.matrix,
@@ -177,6 +232,12 @@ function distances(app: DistanceApp, verdict: ClassDistancesView["verdict"]): Cl
 }
 
 describe("📏 Análisis de Distancias (C19)", () => {
+  it("shows an unbounded (+∞) separation as ∞ with the separated verdict", () => {
+    const app = IRIS.expected.distance_analysis.app;
+    const { container } = render(ClassDistanceHeatmap, { view: distances(app, "separated", null, false, true), idPrefix: "t" });
+    expect(container.textContent).toContain("∞");
+  });
+
   it("writes {:.2f} outside the diagonal and the within-class means on it (D67)", () => {
     const app = IRIS.expected.distance_analysis.app;
     const fig = distanceHeatmapFigure(distances(app, "moderate"));
@@ -194,18 +255,44 @@ describe("📏 Análisis de Distancias (C19)", () => {
 
   it("shows the metrics of Python and the verdict", () => {
     const app = IRIS.expected.distance_analysis.app;
-    render(ClassDistanceHeatmap, { view: distances(app, "moderate"), idPrefix: "t" });
+    const { container } = render(ClassDistanceHeatmap, { view: distances(app, "moderate", 1.5843), idPrefix: "t" });
     for (const value of Object.values(app.metrics_shown)) {
       expect(screen.getByText(value)).toBeTruthy();
     }
-    expect(screen.getByText(/Separación moderada entre clases/)).toBeTruthy();
+    // J2: the verdict on the separation, with its value; the ratio is only informative.
+    expect(screen.getByText(/Separación entre clases/)).toBeTruthy();
+    expect(screen.getByText(/Separación moderada entre clases \(separación 1\.58, entre 1 y 2\)/)).toBeTruthy();
+    expect(screen.queryByText(/2 < ratio ≤ 5/)).toBeNull();
+    expect(screen.getByText(/se muestra solo como dato/)).toBeTruthy();
+    expect(container.querySelector("[data-distances-sampled]")).toBeNull();
   });
 
-  it("replaces the binary verdict, always 🔴 in Python (D67)", () => {
+  it("gives two classes a verdict too, always 🔴 in Python (J2)", () => {
     const app = CANCER.expected.distance_analysis.app;
-    render(ClassDistanceHeatmap, { view: distances(app, "binary"), idPrefix: "t" });
-    expect(screen.queryByText(/muy próximas/)).toBeNull();
+    const { container } = render(ClassDistanceHeatmap, { view: distances(app, "close", 0.79), idPrefix: "t" });
+    expect(screen.getByText(/muy próximas \(separación 0\.79 < 1\)/)).toBeTruthy();
     expect(screen.getByText(/Con dos clases solo hay una distancia/)).toBeTruthy();
+    expect(screen.queryByText(/se muestra solo como dato/)).toBeNull();
+    expect(container.querySelector("[data-class-distances]")?.getAttribute("data-n-classes")).toBe("2");
+  });
+
+  it("falls back to Python's ratio without a separation and warns about the sample", () => {
+    const app = IRIS.expected.distance_analysis.app;
+    render(ClassDistanceHeatmap, { view: distances(app, "moderate", null, true), idPrefix: "t" });
+    expect(screen.getByText(/2 < ratio ≤ 5/)).toBeTruthy();
+    expect(screen.getByText(/más de 5000 muestras de entrenamiento/)).toBeTruthy();
+  });
+
+  it("has every text it needs in content/knn/mensajes.toml", () => {
+    for (const key of ["separacion_titulo", "veredicto_separadas", "veredicto_moderadas", "veredicto_proximas", "aviso_muestreo", "ratio_informativo"]) {
+      const text = knnText("distancias", key);
+      expect(text, key).toBeTruthy();
+      expect(text, key).not.toContain("[distancias]");
+    }
+    for (const key of ["veredicto_separadas", "veredicto_moderadas", "veredicto_proximas"]) {
+      expect(knnText("distancias", key)).toContain("{separacion:.2f}");
+    }
+    expect(knnText("distancias", "aviso_muestreo")).toContain("{max}");
   });
 });
 

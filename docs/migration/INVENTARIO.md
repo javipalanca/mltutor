@@ -106,19 +106,19 @@ Pestañas: 📊 Datos · 🏋️ Entrenamiento · 📈 Evaluación · 📉 Visua
 Pestañas: 📊 Datos · 🏋️ Entrenamiento · 📈 Evaluación · 📉 Visualización · 🔍 Características ·
 🔮 Predicciones · 💾 Exportar
 
-- [ ] Entrenamiento: vecinos (K), pesos (uniform/distance), métrica
+- [x] Entrenamiento: vecinos (K), pesos (uniform/distance), métrica
       (minkowski/euclidean/manhattan) y tamaño de test. KNN propio con kd-tree exacto (D52)
-- [ ] Evaluación: clasificación o regresión.
-- [ ] Visualización de clasificación: 📊 distribución de probabilidades, 📉 ROC,
+- [x] Evaluación: clasificación o regresión.
+- [x] Visualización de clasificación: 📊 distribución de probabilidades, 📉 ROC,
       🌈 frontera de decisión, 🎮 visualización interactiva nativa (D54) y 📏 análisis de distancias
       (separabilidad y distancias entre clases).
       🐍 `create_interactive_knn_visualization`, con un punto de prueba de valores
       editables y su animación HTML de vecinos.
-- [ ] Visualización de regresión: 📊 distribución de predicciones (residuos) y
+- [x] Visualización de regresión: 📊 distribución de predicciones (residuos) y
       🌐 superficie de predicción.
-- [ ] Características: permutation importance (C10 de F3).
-- [ ] Predicciones con formulario, probabilidades y los K vecinos (D58).
-- [ ] Exportar: código de entrenamiento, ONNX propio y paquete Python ZIP (D57). Python solo tenía el
+- [x] Características: permutation importance (C10 de F3).
+- [x] Predicciones con formulario, probabilidades y los K vecinos (D58).
+- [x] Exportar: código de entrenamiento, ONNX propio y paquete Python ZIP (D57). Python solo tenía el
       pickle (`linear_regression_model.pkl`) y el fragmento de Regresión.
 
 ## 6. 🧠 Redes Neuronales 🐍 `apps/neural_network_app.py`, `viz/nn.py`, `viz/nn_extra.py`
@@ -128,16 +128,16 @@ Pestañas: 📊 Datos · 🏗️ Arquitectura · ⚙️ Entrenamiento · 📈 Ev
 
 - [ ] Arquitectura: nº de capas ocultas, neuronas por capa, activación oculta
       (relu/tanh/sigmoid), activación de salida (sigmoid/softmax/linear/tanh, según la
-      tarea), dropout y diagrama interactivo de la red con el nº de parámetros. Incluye
-      el código Keras de la arquitectura con descarga. 🐍 `create_neural_network_visualization`
+      tarea), dropout y diagrama nativo con tooltip y nº de parámetros por capa (D80). Incluye
+      el código Keras con descarga (script corregido, D74). 🐍 `create_neural_network_visualization`
 - [ ] Entrenamiento: tamaño de batch, optimizador (adam/sgd/rmsprop), learning rate,
       épocas y % de validación. Opciones avanzadas: parada temprana (paciencia) y
       reducción automática del LR (factor). Progreso por pasos (1/4…4/4) y cancelación.
-      Muestra la distribución train/val/test.
-- [ ] Evaluación: métricas principales, informe de clasificación, matriz de confusión,
-      probabilidades por clase y diagnóstico del entrenamiento (estado general,
-      tendencias por fase, patrones, alertas y recomendaciones), más el código Python
-      de evaluación. 🐍 `model_evaluation.py::neural_network_diagnostics` y siguientes
+      Muestra la distribución train/val/test. Split estratificado con test 0,2 fijo y
+      escalado (D72); semilla (D70); salidas no entrenables bloqueadas (D71).
+- [ ] Evaluación: métricas principales, informe de clasificación, matriz de confusión y
+      diagnóstico del entrenamiento (estado general, tendencias por fase, patrones, alertas
+      y recomendaciones; D84). 🐍 `model_evaluation.py::neural_network_diagnostics` y siguientes
 - [ ] Visualización:
   - [ ] 📊 Historial: pérdida y métricas por época, train frente a validación.
   - [ ] 🧠 Pesos: histogramas de pesos y sesgos (bins, escala log) y resumen por capa.
@@ -147,11 +147,10 @@ Pestañas: 📊 Datos · 🏗️ Arquitectura · ⚙️ Entrenamiento · 📈 Ev
         constante, mapa de la red con opciones de dibujo (dispersión, % de conexiones,
         radio adaptativo, agrupación de capas, espaciado, subcolumnas), histogramas y
         medias por capa, y mapa de neuronas muertas 💀 y constantes 😴.
-  - [ ] 🎲 Exploración interactiva: índice de muestra y característica a explorar.
-- [ ] Predicciones: predicción individual (formulario) y por lotes.
-- [ ] Exportar: 🤖 modelo TensorFlow (SavedModel ZIP, HDF5, TFLite y "modo seguro"),
-      📊 modelo completo, 📝 código Python y 📋 metadatos. ⚠️ Los formatos TF no se pueden
-      generar desde Rust.
+- [ ] Predicciones: individual (formulario), por lotes y exploración (índice de muestra y
+      característica). Por lotes y exploración son nuevas (D81): en Python eran inalcanzables.
+- [ ] Exportar: 📦 paquete Keras ZIP (genera .keras, .h5, SavedModel y .tflite), 💾 ONNX, 📝
+      predictor NumPy + script y 📋 metadatos (D75).
 
 ## 7. Código Python generado 🐍 `algorithms/code_examples.py`, `utils.py`
 
@@ -169,7 +168,10 @@ lo contrario: `show_network_anatomy_tab`, `show_enhanced_decision_surface_tab`,
 `display_model_export_options`, `export_model_pickle`, `export_modelo_onnx` (`ui.py`);
 `viz/tree_visualization.py` entero; `tree_visualizer.create_tree_visualization` y
 `render_tree_visualization`; `utils.generate_model_code`; `model_training.predict_sample`;
-`DECISION_BOUNDARY_CODE`; `create_animated_neighbors_plot`, la tabla y el respaldo de puntos de
+`DECISION_BOUNDARY_CODE`; `viz/nn_extra.py` entero; `show_neural_network_evaluation`,
+`show_neural_network_visualizations`, `initialize_model_safely`,
+`generate_neural_network_{evaluation,visualization,complete}_code` y el surrogate KNN de la superficie de
+regresión; `create_animated_neighbors_plot`, la tabla y el respaldo de puntos de
 prueba de `create_interactive_knn_visualization`, `knn_metrics` y `dataset_loaded` (`knn_app.py`).
 Antes de descartar cada una, `migration-porter` debe confirmar que no se puede alcanzar.
 

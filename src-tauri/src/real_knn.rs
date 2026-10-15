@@ -3,6 +3,7 @@
 //! function; here only the orchestration lives.
 
 use std::sync::atomic::AtomicBool;
+use std::sync::{Arc, Mutex};
 
 use mltutor_core as core;
 use mltutor_core::knn::Knn;
@@ -125,13 +126,17 @@ pub fn neighbors(model: &CoreModel, values: &[f64]) -> Result<KnnNeighbors, Comm
     })
 }
 
-/// C19: the distances between the classes of the train set of the model (D56).
-pub fn class_distances(model: &CoreModel) -> Result<ClassDistancesView, CommandError> {
+/// C19: the distances between the classes of the train set of the model (D56), with
+/// the J2 verdict; checks `cancel` (O(n²) pairs, a newer request supersedes it).
+pub fn class_distances(
+    model: &CoreModel,
+    cancel: &AtomicBool,
+) -> Result<ClassDistancesView, CommandError> {
     let knn = require_knn(model)?;
     let codes = knn.train_codes().ok_or_else(CommandError::not_classifier)?;
     let m = knn.config().metric;
-    let d = core::knn::class_distances(knn.train_x(), &codes, m, &TrainControl::none())
-        .map_err(model_error)?;
+    let control = TrainControl::none().with_cancel(cancel);
+    let d = core::knn::class_distances(knn.train_x(), &codes, m, &control).map_err(model_error)?;
     Ok(ClassDistancesView {
         class_names: d
             .classes
@@ -144,19 +149,74 @@ pub fn class_distances(model: &CoreModel) -> Result<ClassDistancesView, CommandE
         min: d.min,
         max: d.max,
         ratio: d.ratio,
-        verdict: match d.verdict {
-            core::knn::SeparationVerdict::Separated => ipc::SeparationVerdict::Separated,
-            core::knn::SeparationVerdict::Moderate => ipc::SeparationVerdict::Moderate,
-            core::knn::SeparationVerdict::Close => ipc::SeparationVerdict::Close,
-            core::knn::SeparationVerdict::Binary => ipc::SeparationVerdict::Binary,
-            core::knn::SeparationVerdict::TooFewClasses => ipc::SeparationVerdict::TooFewClasses,
-        },
+        separation: d.separation.filter(|s| s.is_finite()),
+        separation_unbounded: d.separation.is_some_and(f64::is_infinite),
+        verdict: crate::knn::ipc_verdict(d.verdict, d.ratio_verdict),
         metric: ipc_metric(d.metric),
         n_samples: to_u32(d.n_samples),
+        sampled: d.sampled,
+        sample_limit: to_u32(core::knn::class_distances::MAX_ROWS_PER_CLASS),
     })
 }
 
-/// C18: the 2D KNN of the canvas over every row of the dataset (D63).
+/// What identifies the 2-feature KNN of the canvas: the pair, K, weights and metric.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct PlaygroundKey {
+    features: [usize; 2],
+    k: u8,
+    weights: KnnWeights,
+    metric: KnnMetric,
+}
+
+/// A fitted 2-feature KNN of the canvas and the bounds of its plot.
+struct PlaygroundModel {
+    knn: Knn,
+    bounds: [f64; 4],
+}
+
+/// The last 2-feature KNN of the canvas of a trained model. Dragging a point only
+/// changes the points, so every frame reuses it instead of refitting (the kd-tree of
+/// California, 20 640 rows, takes several ms). The lock is held only to read or
+/// replace the entry, never while fitting or searching.
+#[derive(Default)]
+pub struct PlaygroundCache {
+    entry: Mutex<Option<(PlaygroundKey, Arc<PlaygroundModel>)>>,
+    #[cfg(test)]
+    fits: std::sync::atomic::AtomicUsize,
+}
+
+impl PlaygroundCache {
+    fn lock(&self) -> std::sync::MutexGuard<'_, Option<(PlaygroundKey, Arc<PlaygroundModel>)>> {
+        // Each update replaces the whole entry: a poisoned lock still holds a valid one.
+        self.entry.lock().unwrap_or_else(|p| p.into_inner())
+    }
+
+    fn get_or_fit(
+        &self,
+        key: PlaygroundKey,
+        fit: impl FnOnce() -> Result<PlaygroundModel, CommandError>,
+    ) -> Result<Arc<PlaygroundModel>, CommandError> {
+        if let Some((cached, model)) = self.lock().as_ref() {
+            if *cached == key {
+                return Ok(model.clone());
+            }
+        }
+        // Two requests with a new key may both fit; the last one stays (same result).
+        let model = Arc::new(fit()?);
+        #[cfg(test)]
+        self.fits.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        *self.lock() = Some((key, model.clone()));
+        Ok(model)
+    }
+
+    #[cfg(test)]
+    fn fits(&self) -> usize {
+        self.fits.load(std::sync::atomic::Ordering::SeqCst)
+    }
+}
+
+/// C18: the 2D KNN of the canvas over every row of the dataset (D63), fitted once per
+/// pair and controls ([`PlaygroundCache`]); the points are kept inside the canvas.
 pub fn playground(
     model: &CoreModel,
     req: &PlaygroundRequest,
@@ -168,13 +228,29 @@ pub fn playground(
     // A canvas K larger than the dataset would be D59: use every sample instead.
     let k = u8::try_from(usize::from(req.n_neighbors).min(n)).unwrap_or(req.n_neighbors);
     let (fx, fy) = (req.feature_x as usize, req.feature_y as usize);
-    let request = core::knn::PlaygroundRequest {
-        features: [fx, fy],
-        config: config(k, req.weights, req.metric),
-        points: req.points.clone(),
-    };
     let control = TrainControl::none().with_cancel(cancel);
-    let p = core::knn::playground(dataset.features.view(), &dataset.target, &request, &control)
+    let key = PlaygroundKey {
+        features: [fx, fy],
+        k,
+        weights: req.weights,
+        metric: req.metric,
+    };
+    let fitted = model.playground.get_or_fit(key, || {
+        let knn = core::knn::playground::playground_model(
+            dataset.features.view(),
+            &dataset.target,
+            [fx, fy],
+            config(k, req.weights, req.metric),
+            &control,
+        )
+        .map_err(model_error)?;
+        let train = knn.train_x();
+        let column = |c: usize| train.column(c).to_vec();
+        let bounds = crate::knn::bounds(&column(0), &column(1));
+        Ok(PlaygroundModel { knn, bounds })
+    })?;
+    let points = crate::knn::validate_points(&req.points, fitted.bounds)?;
+    let p = core::knn::playground::playground_points(&fitted.knn, [fx, fy], &points, &control)
         .map_err(model_error)?;
     let n_codes = model
         .class_names()
@@ -400,7 +476,7 @@ mod tests {
                 }
             }
             if summary.model_task == TaskType::Classification {
-                let d = real.class_distances().unwrap();
+                let d = real.class_distances(&AtomicBool::new(false)).unwrap();
                 let app = &e["distance_analysis"]["app"];
                 for (row, expected) in d.matrix.iter().zip(app["matrix"].as_array().unwrap()) {
                     for (a, b) in row.iter().zip(floats(expected)) {
@@ -425,6 +501,37 @@ mod tests {
                 .code(crate::ipc::CodeTemplate::KnnTraining, None)
                 .unwrap();
             assert!(code.contains("KNeighbors"), "{name}");
+        }
+    }
+
+    /// J2: a verdict with its separation for binary and multiclass, equal in both
+    /// facades, and the analysis is cancellable.
+    #[test]
+    fn class_distances_have_the_separation_verdict_and_cancel() {
+        let go = AtomicBool::new(false);
+        for (id, separation, verdict) in [
+            (DatasetId::Iris, 1.58, ipc::SeparationVerdict::Moderate),
+            (
+                DatasetId::BreastCancer,
+                1.26,
+                ipc::SeparationVerdict::Moderate,
+            ),
+        ] {
+            let config = knn(5, KnnWeights::Uniform, KnnMetric::Minkowski);
+            let real = trained(&RealFacade, id, config);
+            let fake = trained(&FixtureFacade::from_checkout(), id, config);
+            let d = real.class_distances(&go).unwrap();
+            let s = d.separation.unwrap();
+            assert!((s - separation).abs() < 5e-3, "{id:?}: {s}");
+            assert_eq!(d.verdict, verdict, "{id:?}");
+            assert!(!d.sampled && d.sample_limit == 5000, "{id:?}");
+            let f = fake.class_distances(&go).unwrap();
+            assert!((f.separation.unwrap() - s).abs() <= 1e-10 * s, "{id:?}");
+            assert_eq!(f.verdict, d.verdict, "{id:?}");
+            assert!(matches!(
+                real.class_distances(&AtomicBool::new(true)),
+                Err(CommandError::Cancelled { .. })
+            ));
         }
     }
 
@@ -484,6 +591,63 @@ mod tests {
             assert_eq!(point.proba, floats(&sk["proba"]));
         }
         assert!(elapsed.as_millis() < 500, "{elapsed:?}");
+    }
+
+    /// C18: the 2D KNN is fitted once per (pair, K, weights, metric); a drag (other
+    /// points) reuses it with the same result, and typed points stay in the canvas.
+    #[test]
+    fn playground_reuses_the_2d_model_and_clamps_the_points() {
+        let dataset =
+            std::sync::Arc::new(core::dataset::load_builtin(core::DatasetId::Iris).unwrap());
+        let spec = TrainSpec {
+            config: knn(5, KnnWeights::Uniform, KnnMetric::Minkowski),
+            test_size: 0.3,
+            dataset_label: String::new(),
+        };
+        let go = AtomicBool::new(false);
+        let model = crate::real_models::fit(&dataset, None, &spec, &|_, _| {}, &go).unwrap();
+        let mut req = PlaygroundRequest {
+            model_id: 1,
+            feature_x: 0,
+            feature_y: 1,
+            n_neighbors: 5,
+            weights: KnnWeights::Uniform,
+            metric: KnnMetric::Minkowski,
+            points: vec![[5.0, 3.0]],
+            include_data: false,
+            task_id: 1,
+        };
+        let first = playground(&model, &req, &go).unwrap();
+        req.points = vec![[6.5, 3.1], [1e300, -1e300]];
+        let dragged = playground(&model, &req, &go).unwrap();
+        assert_eq!(model.playground.fits(), 1, "the drag must not refit");
+        // The same as a fresh fit (the cache does not change the result).
+        let fresh = crate::real_models::fit(&dataset, None, &spec, &|_, _| {}, &go).unwrap();
+        assert_eq!(playground(&fresh, &req, &go).unwrap(), dragged);
+        // Clamped to [min − 1, max + 1] of sepal length (4.3–7.9) and width (2.0–4.4).
+        let far = dragged.points[1].point;
+        assert!(
+            (far[0] - 8.9).abs() < 1e-12 && (far[1] - 1.0).abs() < 1e-12,
+            "{far:?}"
+        );
+        assert_eq!(first.bounds, dragged.bounds);
+        // Another K, metric or pair refits.
+        req.n_neighbors = 3;
+        playground(&model, &req, &go).unwrap();
+        req.metric = KnnMetric::Manhattan;
+        playground(&model, &req, &go).unwrap();
+        req.feature_y = 2;
+        playground(&model, &req, &go).unwrap();
+        assert_eq!(model.playground.fits(), 4);
+        playground(&model, &req, &go).unwrap();
+        assert_eq!(model.playground.fits(), 4);
+        // Cancelled before the fit: nothing is cached.
+        req.n_neighbors = 7;
+        assert!(matches!(
+            playground(&model, &req, &AtomicBool::new(true)),
+            Err(CommandError::Cancelled { .. })
+        ));
+        assert_eq!(model.playground.fits(), 4);
     }
 
     /// D59 in the real facade: K = 20 with 15 training rows is an error in Spanish.
