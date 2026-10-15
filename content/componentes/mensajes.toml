@@ -248,7 +248,10 @@ knn_info = """**Modelo KNN**
 [importancia]   # viz/features.py::display_feature_importance (no la usa Regresión; Árboles y KNN en F3/F4)
 titulo = "### Importancia de Características"
 metodo_nativo = "Importancia Nativa del Modelo"
-metodo_nativo_desc = "Basada en la reducción de impureza (Gini/Entropy) o varianza (MSE) durante la construcción del árbol."
+# CORREGIDO (Fase 3, revisión de contenido): con criterion="absolute_error" la impureza es el error
+# absoluto medio, no la varianza; y la reducción se mide con los datos de entrenamiento (D38).
+# Python: "Basada en la reducción de impureza (Gini/Entropy) o varianza (MSE) durante la construcción del árbol."
+metodo_nativo_desc = "Basada en la reducción de impureza (Gini/Entropy) o del error (varianza con MSE, error absoluto con absolute_error) durante la construcción del árbol, con los datos de entrenamiento."
 calculando = "🔄 Calculando Permutation Importance... Esto puede tomar unos segundos."   # st.info
 spinner = "Calculando importancia por permutación..."
 metodo_perm = "Permutation Importance"                          # permutation_importance(n_repeats=10, random_state=42, n_jobs=1)
@@ -279,8 +282,10 @@ nativa_clasificacion = """**Importancia Nativa - Clasificación:**
 - Mide cuánto contribuye cada característica a reducir la impureza (Gini o Entropy)
 - Valores más altos = más útiles para separar las clases
 - La suma de todas las importancias = 1.0"""
+# CORREGIDO (Fase 3, revisión de contenido): ídem. Python, segunda línea:
+# "- Mide cuánto contribuye cada característica a reducir la varianza (MSE)"
 nativa_regresion = """**Importancia Nativa - Regresión:**
-- Mide cuánto contribuye cada característica a reducir la varianza (MSE)
+- Mide cuánto contribuye cada característica a reducir el error de las predicciones (la varianza con MSE o Friedman MSE, el error absoluto con absolute_error)
 - Valores más altos = más útiles para predecir el valor objetivo
 - La suma de todas las importancias = 1.0"""
 permutacion = """**Permutation Importance:**

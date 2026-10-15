@@ -34,6 +34,8 @@ fn fixture_name(id: DatasetId, config: ModelConfig) -> String {
         (DatasetId::Iris, ModelConfig::Linear) => "iris_linear_mismatch".to_owned(),
         (_, ModelConfig::Linear) => format!("{}_linear", id.slug()),
         (_, ModelConfig::Logistic { .. }) => format!("{}_logistic", id.slug()),
+        // Trees are replayed by `super::tree` (never reaches here).
+        (_, ModelConfig::Tree { .. }) => format!("{}_tree", id.slug()),
     }
 }
 
@@ -51,7 +53,7 @@ fn rows_of(value: &Value) -> Vec<Vec<f64>> {
     }
 }
 
-fn indices(value: &Value) -> Vec<usize> {
+pub(super) fn indices(value: &Value) -> Vec<usize> {
     value
         .as_array()
         .map(|a| {
@@ -63,9 +65,10 @@ fn indices(value: &Value) -> Vec<usize> {
 }
 
 /// x axis, y axis and the notices of the grid.
-type Axes = (Vec<f64>, Vec<f64>, Vec<GridNotice>);
+pub(super) type Axes = (Vec<f64>, Vec<f64>, Vec<GridNotice>);
 
-/// A model replayed from a fixture.
+/// A model replayed from a fixture. Trees (`super::tree`) reuse it for the views they
+/// share with F2 (evaluation, curves, residuals, the form).
 pub struct FixtureModel {
     config: ModelConfig,
     task: TaskType,
@@ -95,6 +98,9 @@ pub fn train(
     progress: &Progress<'_>,
     cancel: &AtomicBool,
 ) -> Result<ModelHandle, CommandError> {
+    if spec.config.is_tree() {
+        return super::tree::train(root, id, frame, dataset_task, spec, progress, cancel);
+    }
     progress("Entrenando modelo...", Some(10.0));
     let name = fixture_name(id, spec.config);
     let read = |relative: &str| -> Result<Value, CommandError> {
@@ -153,6 +159,57 @@ pub fn train(
         code,
         notices,
     }))
+}
+
+impl FixtureModel {
+    /// The shared part of a tree fixture (no coefficients).
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn for_tree(
+        config: ModelConfig,
+        dataset_task: TaskType,
+        frame: &Frame,
+        expected: Value,
+        code: Value,
+        class_names: Option<Vec<String>>,
+        notices: Vec<TrainNotice>,
+    ) -> Self {
+        let proba = expected["proba"]
+            .as_array()
+            .map(|rows| rows.iter().map(floats).collect());
+        Self {
+            config,
+            task: config.task(),
+            dataset_task,
+            frame: frame.clone(),
+            train: indices(&expected["train_indices"]),
+            test: indices(&expected["test_indices"]),
+            coef: Vec::new(),
+            intercept: Vec::new(),
+            y_test: floats(&expected["y_test"]),
+            y_pred: floats(&expected["y_pred"]),
+            proba,
+            class_names,
+            expected,
+            code,
+            notices,
+        }
+    }
+
+    pub(super) fn train_rows(&self) -> &[usize] {
+        &self.train
+    }
+
+    pub(super) fn frame(&self) -> &Frame {
+        &self.frame
+    }
+
+    pub(super) fn expected(&self) -> &Value {
+        &self.expected
+    }
+
+    pub(super) fn class_names_ref(&self) -> Option<&[String]> {
+        self.class_names.as_deref()
+    }
 }
 
 /// `intercept_` is an array for the logistic models and a number for OLS.
@@ -440,7 +497,7 @@ impl FixtureModel {
     }
 
     /// Axes of §C8 (`h = 0.02`, ±1, resized above 50 000 points).
-    fn axes(xs: &[f64], ys: &[f64]) -> Result<Axes, CommandError> {
+    pub(super) fn axes(xs: &[f64], ys: &[f64]) -> Result<Axes, CommandError> {
         let range = |v: &[f64]| {
             let lo = v.iter().copied().fold(f64::INFINITY, f64::min) - 1.0;
             let hi = v.iter().copied().fold(f64::NEG_INFINITY, f64::max) + 1.0;
@@ -517,6 +574,7 @@ impl ModelView for FixtureModel {
             class_names: self.class_names.clone(),
             model_classes: self.model_classes(),
             notices: self.notices.clone(),
+            tree: None,
         }
     }
 
@@ -965,6 +1023,7 @@ impl ModelView for FixtureModel {
                         })
                         .collect(),
                 ),
+                path: None,
             });
         }
         let p = Self::probabilities(&scores);
@@ -986,6 +1045,7 @@ impl ModelView for FixtureModel {
                     })
                     .collect(),
             ),
+            path: None,
         })
     }
 
@@ -999,6 +1059,7 @@ impl ModelView for FixtureModel {
                 serde_json::to_vec_pretty(&self.expected["export_package"]["model_json"])
                     .map_err(CommandError::export)
             }
+            ExportFormat::TreeRules | ExportFormat::TreePython => Err(CommandError::not_tree()),
         }
     }
 

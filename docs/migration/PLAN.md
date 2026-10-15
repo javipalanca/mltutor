@@ -152,14 +152,14 @@ reutilizarán el resto de lecciones.
 
 #### Pendientes de la verificación de F2 (se hacen con la F3)
 
-- [ ] OLS: la SVD de R (linfa-linalg) cuesta O(p³) y no se puede cancelar (1500 columnas: 11 s).
+- [ ] (parcial: con R bien condicionada ya se usa sustitución hacia atrás; 3000×1500 pasa de 14,4 s a 1,4 s; queda el caso de rango deficiente: 1500×1500 tarda 12,7 s sin poder cancelar) OLS: la SVD de R (linfa-linalg) cuesta O(p³) y no se puede cancelar (1500 columnas: 11 s).
       Resolver por sustitución hacia atrás cuando R esté bien condicionada y dejar la SVD solo
       para el rango deficiente, o limitar p con un error claro.
-- [ ] OLS: con valores de ±1e308 devuelve `Ok` con el intercepto NaN. Comprobar la finitud de los
+- [x] OLS: con valores de ±1e308 devuelve `Ok` con el intercepto NaN. Comprobar la finitud de los
       offsets, de R y c y del intercepto, y devolver `values_too_large()`.
-- [ ] `last_seq` por lección: tras recargar con el reloj atrasado, una lección puede quedar sin
+- [x] `last_seq` por lección: tras recargar con el reloj atrasado, una lección puede quedar sin
       entrenar. Exponer el máximo de TODAS las seq aceptadas en `get_selected_dataset`.
-- [ ] Newton: `Objective::hessian` reserva matrices n×(p+1) en cada iteración; reutilizar los búferes.
+- [x] Newton: `Objective::hessian` reserva matrices n×(p+1) en cada iteración; reutilizar los búferes.
 
 ### Fase 3 — 🌲 Árboles de Decisión  *(riesgo: alto · tamaño: L)*
 

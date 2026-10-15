@@ -208,3 +208,28 @@ fn ols_large_design_matrices() {
         assert!((m.coef()[p - 1] - p as f64).abs() < 1e-2);
     }
 }
+
+/// Review F2 (pending): 1 500 columns. With the SVD of R always: about 11 s.
+/// Full rank (3 000 × 1 500) takes the back-substitution path; 1 500 × 1 500 is
+/// rank deficient after centring (rank ≤ n − 1) and needs the SVD.
+/// `cargo test -p mltutor-core --release --test bench_regression ols_wide -- --ignored --nocapture`
+#[test]
+#[ignore = "benchmark: run in release with --ignored"]
+fn ols_wide_design_matrices() {
+    for (n, p) in [(3_000_usize, 1_500_usize), (1_500, 1_500)] {
+        let mut s = 7_u64;
+        let x = ndarray::Array2::from_shape_fn((n, p), |_| uniform(&mut s) * 2.0 - 1.0);
+        let y = ndarray::Array1::from_shape_fn(n, |i| x[[i, 0]] * 3.0 + uniform(&mut s));
+        let t = Instant::now();
+        let m =
+            mltutor_core::linear::LinearRegression::fit(x.view(), y.view(), &TrainControl::none())
+                .unwrap();
+        println!("OLS {n} x {p}: {:>10.2?} (rank {})", t.elapsed(), m.rank());
+        assert_eq!(m.rank(), p.min(n - 1));
+        let pred = m.predict_values(x.view()).unwrap();
+        if n > p {
+            let r2 = mltutor_core::metrics::r2_score(&y.to_vec(), &pred);
+            assert!(r2 > 0.9, "{r2}");
+        }
+    }
+}

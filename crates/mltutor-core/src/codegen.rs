@@ -13,6 +13,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::pyfmt::py_float_repr;
 
+pub mod tree;
+
+pub use tree::{
+    corrected_context as tree_python_corrected_context, f32_floor, f64_switch_threshold,
+    literal_context as tree_python_literal_context, py_identifiers, TreePythonContext,
+    TreePythonCorrectedContext,
+};
+
 mod embedded {
     include!(concat!(env!("OUT_DIR"), "/templates.rs"));
 }
@@ -51,6 +59,24 @@ pub enum CodeTemplate {
     PackageScript,
     /// `paquete_leeme.txt.j2`: `LEEME.txt` of the Python package (D28).
     PackageReadme,
+    /// 🌲 `visualizar_arbol.py.j2` (no variables).
+    TreeViz,
+    /// 🌲 `texto_arbol.py.j2` (no variables).
+    TreeText,
+    /// 🌲 `camino_decision.py.j2` (no variables).
+    DecisionPath,
+    /// 🌲 `usar_modelo_arbol.py.j2`: [`TreeUsageContext`].
+    TreeUsage,
+    /// 🌲 `arbol_python_corregido.py.j2` (D44): [`TreePythonCorrectedContext`].
+    TreePython,
+    /// 🌲 `arbol_python.py.j2` (Python's literal text): [`TreePythonContext`].
+    TreePythonLiteral,
+    /// 🌲 `paquete_modelo_arbol.py.j2`: script of the tree's Python package (D43).
+    TreePackageScript,
+    /// 🌲 `paquete_leeme_arbol.txt.j2`: `LEEME.txt` of the tree's package.
+    TreePackageReadme,
+    /// 🌲 `arbol_entrenamiento.py.j2`: [`TreeTrainingContext`] (training script).
+    TreeTraining,
 }
 
 impl CodeTemplate {
@@ -66,6 +92,15 @@ impl CodeTemplate {
             CodeTemplate::RegressionTraining => "regresion_entrenamiento.py.j2",
             CodeTemplate::PackageScript => "paquete_modelo_lineal.py.j2",
             CodeTemplate::PackageReadme => "paquete_leeme.txt.j2",
+            CodeTemplate::TreeViz => "visualizar_arbol.py.j2",
+            CodeTemplate::TreeText => "texto_arbol.py.j2",
+            CodeTemplate::DecisionPath => "camino_decision.py.j2",
+            CodeTemplate::TreeUsage => "usar_modelo_arbol.py.j2",
+            CodeTemplate::TreePython => "arbol_python_corregido.py.j2",
+            CodeTemplate::TreePythonLiteral => "arbol_python.py.j2",
+            CodeTemplate::TreePackageScript => "paquete_modelo_arbol.py.j2",
+            CodeTemplate::TreePackageReadme => "paquete_leeme_arbol.txt.j2",
+            CodeTemplate::TreeTraining => "arbol_entrenamiento.py.j2",
         }
     }
 }
@@ -100,6 +135,40 @@ pub struct RegressionTrainingContext {
     pub class_names: Option<Vec<String>>,
     /// Form values (codes, column order); `None` = first test row.
     pub sample: Option<Vec<f64>>,
+}
+
+/// Context of `arbol_entrenamiento.py.j2` (every key is always sent, `None` as
+/// `null` when it does not apply), the tree's equivalent of
+/// [`RegressionTrainingContext`].
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TreeTrainingContext {
+    /// Built-in slug (`"iris"`…) or `"csv"`.
+    pub dataset: String,
+    pub dataset_label: String,
+    pub csv_file: Option<String>,
+    pub csv_target: Option<String>,
+    pub csv_sep: Option<String>,
+    pub csv_decimal: Option<String>,
+    pub csv_encoding: Option<String>,
+    /// `"classification"` or `"regression"` (the model's task).
+    pub task: String,
+    /// scikit-learn's criterion name ([`crate::tree::TreeCriterion::as_str`]).
+    pub criterion: String,
+    pub max_depth: u32,
+    pub min_samples_split: u32,
+    pub test_size: f64,
+    pub feature_names: Vec<String>,
+    /// By class code; `None` in regression.
+    pub class_names: Option<Vec<String>>,
+    /// Form values (codes, column order); `None` = first test row.
+    pub sample: Option<Vec<f64>>,
+}
+
+/// Context of `usar_modelo_arbol.py.j2` ("Código para Usar el Modelo").
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TreeUsageContext {
+    /// Readable feature names, in column order.
+    pub feature_names: Vec<String>,
 }
 
 /// Names of the embedded templates.

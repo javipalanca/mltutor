@@ -118,6 +118,15 @@ pub enum ModelError {
     /// Invalid input values (prediction form).
     #[error("Entrada no válida: {reason}")]
     InvalidInput { reason: String },
+    /// D37: a classification model (decision tree) on a regression target, which
+    /// scikit-learn either rejects ("Unknown label type: continuous") or turns into
+    /// one class per distinct value.
+    #[error("La variable objetivo de este dataset es numérica continua. Para predecirla, elige 📈 Regresión.")]
+    ContinuousTarget,
+    /// Invalid hyperparameters (a regression criterion for a classification tree,
+    /// `max_depth = 0`…).
+    #[error("Configuración no válida: {reason}")]
+    InvalidConfig { reason: String },
 }
 
 /// Progress of a training run, reported through [`TrainControl`].

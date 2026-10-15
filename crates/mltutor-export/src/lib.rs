@@ -10,6 +10,9 @@
 //! |---|---|
 //! | ONNX (any F2 model) | [`onnx_model`]`(&dyn Predictor, class_values: Option<&[f64]>) -> Result<onnx::Model, ExportError>`, then [`onnx::Model::to_bytes`]`() -> Vec<u8>`; suggested names [`onnx_file_name`]`(&dyn Predictor)` (`regresion_lineal.onnx` / `regresion_logistica.onnx`) |
 //! | ONNX by parts | [`onnx::linear_regressor`]`(coef: &[f64], intercept: f64)`, [`onnx::linear_classifier`]`(coef: &[f64], n_features, intercept: &[f64], classes: &[i64])`; [`onnx::evaluate`] (float32 reference evaluation) |
+//! | ONNX of a tree (F3) | [`onnx_model`] with a [`mltutor_core::tree::DecisionTree`] → `TreeEnsembleClassifier` / `TreeEnsembleRegressor` (thresholds = largest float32 ≤ t, D47); [`onnx_file_name`] = `arbol_decision.onnx`; by parts [`onnx::tree_ensemble_classifier`]`(&DecisionTree, class_labels: &[i64])`, [`onnx::tree_ensemble_regressor`]`(&DecisionTree)` |
+//! | Python package of a tree (F3, D43) | the same [`package::python_package`]: `modelo.json` with `tree_` (rebuilt with `Tree.__setstate__`), `reconstruir_modelo.py` (`paquete_modelo_arbol.py.j2`, writes `decision_tree_model.pkl`) and `LEEME.txt` (`paquete_leeme_arbol.txt.j2`); [`package::zip_name`]`(&dyn Predictor)` = `modelo_arbol.zip` |
+//! | Tree rules (.txt) and code (.py) | core: [`mltutor_core::tree::export_text()`] (`decision_tree_rules.txt`) and [`mltutor_core::codegen::render`]`(CodeTemplate::TreePython, &tree_python_corrected_context(..))` (`arbol_decision.py`) |
 //! | Python package (.zip) | [`package::python_package`]`(&PackageInput) -> Result<PythonPackage, ExportError>`, then [`package::PythonPackage::to_zip`]`() -> Result<Vec<u8>, ExportError>`; [`package::ZIP_NAME`] = `modelo_regresion.zip`; [`package::model_json`] alone; [`package::python_zip`]`(&[(&str, &[u8])])` |
 
 pub mod onnx;
@@ -18,6 +21,7 @@ pub mod package;
 use mltutor_core::codegen::CodegenError;
 use mltutor_core::linear::{LinearRegression, LogisticRegression};
 use mltutor_core::model::{ModelError, Predictor};
+use mltutor_core::tree::DecisionTree;
 use serde::Serialize;
 
 pub use package::{PackageInput, PythonPackage};
@@ -58,6 +62,14 @@ pub fn onnx_model(
     model: &dyn Predictor,
     class_values: Option<&[f64]>,
 ) -> Result<onnx::Model, ExportError> {
+    if let Some(tree) = model.as_any().downcast_ref::<DecisionTree>() {
+        return match tree.classes() {
+            Some(codes) => {
+                onnx::tree_ensemble_classifier(tree, &onnx_class_labels(codes, class_values))
+            }
+            None => onnx::tree_ensemble_regressor(tree),
+        };
+    }
     let coefs = model
         .linear_coefficients()
         .ok_or(ExportError::Unsupported)?;
@@ -104,7 +116,9 @@ pub fn onnx_class_labels(codes: &[usize], class_values: Option<&[f64]>) -> Vec<i
 
 /// File name suggested by the "Guardar" dialog.
 pub fn onnx_file_name(model: &dyn Predictor) -> &'static str {
-    if model.as_any().is::<LogisticRegression>() {
+    if model.as_any().is::<DecisionTree>() {
+        "arbol_decision.onnx"
+    } else if model.as_any().is::<LogisticRegression>() {
         "regresion_logistica.onnx"
     } else {
         "regresion_lineal.onnx"

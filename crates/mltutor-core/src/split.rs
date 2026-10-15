@@ -3,7 +3,9 @@
 //! `preprocess_data` calls `train_test_split(X, y, test_size, random_state=42)`
 //! without stratification. scikit-learn's `ShuffleSplit` takes
 //! `RandomState(seed).permutation(n)`, puts the first `ceil(test_size * n)` rows in
-//! the test set and the next `floor((1 - test_size) * n)` rows in the training set.
+//! the test set and the remaining `n - n_test` rows in the training set (sklearn's
+//! `_validate_shuffle_split` with `train_size=None`; `floor((1 - t) * n)` would lose a row
+//! to rounding, e.g. California: `0.7 * 20640 = 14447.999…`).
 
 use serde::{Deserialize, Serialize};
 
@@ -36,7 +38,7 @@ pub fn train_test_split(
     let n = n_rows as f64;
     // Same float expressions as sklearn's `_validate_shuffle_split`.
     let n_test = (test_size * n).ceil() as usize;
-    let n_train = ((1.0 - test_size) * n).floor() as usize;
+    let n_train = n_rows.saturating_sub(n_test);
     if n_test == 0 || n_train == 0 || n_test + n_train > n_rows {
         return Err(DatasetError::InvalidSelection {
             reason: format!(
@@ -60,6 +62,11 @@ mod tests {
         assert!(train_test_split(10, 0.0, 42).is_err());
         assert!(train_test_split(10, 1.0, 42).is_err());
         assert!(train_test_split(1, 0.3, 42).is_err());
+        let california = train_test_split(20_640, 0.3, 42).unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(
+            (california.test.len(), california.train.len()),
+            (6192, 14_448)
+        );
         let s = train_test_split(10, 0.3, 42).unwrap_or_else(|e| panic!("{e}"));
         assert_eq!((s.train.len(), s.test.len()), (7, 3));
     }

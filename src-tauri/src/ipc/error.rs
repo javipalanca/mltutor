@@ -71,6 +71,15 @@ pub enum CommandError {
     NotRegressor {
         message: String,
     },
+    /// The view needs a decision tree (diagram, rules, native importance, tree code).
+    NotTree {
+        message: String,
+    },
+    /// Hyperparameters out of range or incompatible (a regression criterion for a
+    /// classification tree).
+    InvalidConfig {
+        message: String,
+    },
     /// The grid of the decision boundary/surface has fewer than 2 rows or columns.
     GridTooSmall {
         message: String,
@@ -199,6 +208,18 @@ impl CommandError {
         }
     }
 
+    pub fn not_tree() -> Self {
+        Self::NotTree {
+            message: "Esta vista necesita un árbol de decisión.".into(),
+        }
+    }
+
+    pub fn invalid_config(message: impl Into<String>) -> Self {
+        Self::InvalidConfig {
+            message: message.into(),
+        }
+    }
+
     pub fn grid_too_small(rows: usize, cols: usize) -> Self {
         Self::GridTooSmall {
             message: format!(
@@ -259,6 +280,8 @@ impl CommandError {
             | Self::InvalidTarget { message }
             | Self::NotClassifier { message }
             | Self::NotRegressor { message }
+            | Self::NotTree { message }
+            | Self::InvalidConfig { message }
             | Self::GridTooSmall { message }
             | Self::InvalidInput { message }
             | Self::TooManyClasses { message, .. }

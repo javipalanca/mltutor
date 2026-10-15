@@ -12,6 +12,14 @@
 //!    `lstsq(Xc, yc)` (LAPACK `gelsd`), also with collinear or constant columns and
 //!    with more columns than rows.
 //!
+//! When `R` is square and clearly well conditioned (the usual case: `n > p` and no
+//! collinear columns) step 2 is a back substitution `R·β = c` (`O(p²)`,
+//! cancellable): the solution is unique, so it is the same `β` (to rounding). The
+//! check is conservative: an inverse-iteration estimate of `σ_min(R)` (an upper
+//! bound that converges from above) must exceed the rank cutoff by a factor of
+//! 10⁶; anything closer goes to the SVD. 3 000 × 1 500: 14.4 s → see
+//! `bench_regression::ols_wide_design_matrices`.
+//!
 //! Singular values `≤ f64::EPSILON · max(n, p) · σ_max` count as zero: scikit-learn
 //! passes `cond = max(X.shape) * eps` to `scipy.linalg.lstsq` (numpy's `lstsq` uses the
 //! same default `rcond`). A smaller cutoff (`eps · σ_max`) keeps the rounding noise of
@@ -69,9 +77,17 @@ impl LinearRegression {
         // np.average(X, axis=0) and np.average(y): pairwise sums like NumPy.
         let x_offset: Array1<f64> = x.axis_iter(Axis(1)).map(column_mean).collect();
         let y_offset = column_mean(y);
+        // Review F2: with values near ±1e308 the means (or later R, c, β and the
+        // intercept) overflow; fail with a message instead of returning NaN.
+        if !y_offset.is_finite() || x_offset.iter().any(|v| !v.is_finite()) {
+            return Err(values_too_large());
+        }
 
         let (beta, rank) = solve_centered(x, x_offset.view(), y, y_offset, control)?;
         let intercept = y_offset - x_offset.dot(&beta);
+        if !intercept.is_finite() || beta.iter().any(|v| !v.is_finite()) {
+            return Err(values_too_large());
+        }
         control.report(TrainProgress {
             iteration: 0,
             max_iter: 0,
@@ -162,7 +178,102 @@ fn solve_centered(
     let c = a.slice(s![p, ..m]).to_owned();
     drop(a);
     control.check()?;
+    if r.iter().chain(c.iter()).any(|v| !v.is_finite()) {
+        return Err(values_too_large());
+    }
+    if m == p {
+        if let Some(beta) = well_conditioned_solve(&r, &c, n.max(p), control)? {
+            return Ok((beta, p));
+        }
+    }
+    control.check()?;
     min_norm_lstsq(r, c, n.max(p))
+}
+
+/// The overflow error of the logistic regression, for the same cause.
+fn values_too_large() -> ModelError {
+    ModelError::Numerical {
+        message: "valores demasiado grandes; escala las características (por ejemplo, \
+                  con StandardScaler o cambiando las unidades)"
+            .to_owned(),
+    }
+}
+
+/// Solves `R·x = b` (upper triangular, non-zero diagonal) by back substitution.
+fn back_substitution(
+    r: &Array2<f64>,
+    b: &Array1<f64>,
+    control: &TrainControl<'_>,
+) -> Result<Array1<f64>, ModelError> {
+    let p = r.ncols();
+    let mut x = b.clone();
+    for i in (0..p).rev() {
+        if i % 64 == 0 {
+            control.check()?;
+        }
+        let row = r.row(i);
+        let mut acc = x[i];
+        for j in i + 1..p {
+            acc -= row[j] * x[j];
+        }
+        x[i] = acc / row[i];
+    }
+    Ok(x)
+}
+
+/// Solves `Rᵀ·x = b` (forward substitution).
+fn forward_substitution_t(r: &Array2<f64>, b: &Array1<f64>) -> Array1<f64> {
+    let p = r.ncols();
+    let mut x = b.clone();
+    for i in 0..p {
+        let mut acc = x[i];
+        for j in 0..i {
+            acc -= r[[j, i]] * x[j];
+        }
+        x[i] = acc / r[[i, i]];
+    }
+    x
+}
+
+/// `β = R⁻¹·c` when `R` (square) is clearly full rank, `None` otherwise (then the
+/// SVD decides the rank). `σ_min` is estimated with 3 steps of inverse iteration on
+/// `RᵀR` from a fixed start vector (deterministic); `σ_max ≤ ‖R‖_F`.
+fn well_conditioned_solve(
+    r: &Array2<f64>,
+    c: &Array1<f64>,
+    max_dim: usize,
+    control: &TrainControl<'_>,
+) -> Result<Option<Array1<f64>>, ModelError> {
+    const MARGIN: f64 = 1e6;
+    let p = r.ncols();
+    let fro = r.iter().map(|v| v * v).sum::<f64>().sqrt();
+    let cutoff = rank_cutoff(fro, max_dim);
+    if !(fro.is_finite() && fro > 0.0) || r.diag().iter().any(|d| d.abs() <= cutoff * MARGIN) {
+        return Ok(None);
+    }
+    let mut z = Array1::from_shape_fn(p, |i| 1.0 + (i % 7) as f64 / 7.0);
+    let mut sigma_min = f64::INFINITY;
+    for _ in 0..3 {
+        control.check()?;
+        let norm = z.dot(&z).sqrt();
+        if !(norm.is_finite() && norm > 0.0) {
+            return Ok(None);
+        }
+        z /= norm;
+        // w = (RᵀR)⁻¹ z  ⇒  ‖R⁻ᵀ z‖ ≤ 1/σ_min, so σ_min ≤ 1/‖R⁻ᵀ z‖.
+        let u = forward_substitution_t(r, &z);
+        let un = u.dot(&u).sqrt();
+        if !(un.is_finite() && un > 0.0) {
+            return Ok(None);
+        }
+        sigma_min = sigma_min.min(1.0 / un);
+        z = back_substitution(r, &u, control)?;
+    }
+    if sigma_min.is_nan() || sigma_min <= cutoff * MARGIN {
+        return Ok(None);
+    }
+    let beta = back_substitution(r, c, control)?;
+    Ok(beta.iter().all(|v| v.is_finite()).then_some(beta))
 }
 
 /// In-place Householder QR of the transposed matrix `a` (`(p + 1) × n`: the `p`
@@ -323,6 +434,49 @@ impl Predictor for LinearRegression {
 mod tests {
     use super::*;
     use ndarray::array;
+
+    #[test]
+    fn huge_values_fail_with_a_message() {
+        // Review F2: ±1e308 used to give Ok with a NaN intercept.
+        let x = array![[1e308], [-1e308], [1e308], [5.0]];
+        let y = array![1.0, 2.0, 3.0, 4.0];
+        let err = LinearRegression::fit(x.view(), y.view(), &TrainControl::none()).unwrap_err();
+        assert!(matches!(err, ModelError::Numerical { .. }), "{err:?}");
+        let x = array![[1.0], [2.0], [3.0]];
+        let y = array![1e308, -1e308, 1e308];
+        assert!(LinearRegression::fit(x.view(), y.view(), &TrainControl::none()).is_err());
+    }
+
+    #[test]
+    fn back_substitution_equals_the_svd_solution() {
+        let x = Array2::from_shape_fn((40, 5), |(i, j)| {
+            ((i * 7 + j * 13) % 11) as f64 + (i * j) as f64 * 0.01
+        });
+        let y = Array1::from_shape_fn(40, |i| (i as f64).sin() * 3.0 + 1.0);
+        let off: Array1<f64> = x.axis_iter(Axis(1)).map(column_mean).collect();
+        let yo = column_mean(y.view());
+        let mut a = Array2::<f64>::zeros((6, 40));
+        for j in 0..5 {
+            for i in 0..40 {
+                a[[j, i]] = x[[i, j]] - off[j];
+            }
+        }
+        for i in 0..40 {
+            a[[5, i]] = y[i] - yo;
+        }
+        let ctl = TrainControl::none();
+        let m = householder_qr(&mut a, 5, &ctl).unwrap_or_else(|e| panic!("{e}"));
+        let r = Array2::from_shape_fn((m, 5), |(i, j)| if i <= j { a[[j, i]] } else { 0.0 });
+        let c = a.slice(s![5, ..m]).to_owned();
+        let fast = well_conditioned_solve(&r, &c, 40, &ctl)
+            .unwrap_or_else(|e| panic!("{e}"))
+            .unwrap_or_else(|| panic!("well conditioned"));
+        let (svd, rank) = min_norm_lstsq(r, c, 40).unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(rank, 5);
+        for (a, b) in fast.iter().zip(&svd) {
+            assert!((a - b).abs() <= 1e-10 * b.abs().max(1.0), "{a} vs {b}");
+        }
+    }
 
     #[test]
     fn exact_line() {

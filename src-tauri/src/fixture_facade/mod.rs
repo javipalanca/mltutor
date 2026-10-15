@@ -10,6 +10,7 @@ pub mod csv;
 pub mod frame;
 pub mod model;
 pub mod stats;
+mod tree;
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;

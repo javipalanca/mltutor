@@ -1,8 +1,21 @@
-{#- Literal de mltutor/algorithms/code_examples.py::TEXT_TREE_CODE (sin el salto de línea inicial).
-    Pestaña 📉 Visualización → 📝 Texto: show_code_with_download(TEXT_TREE_CODE, "Código para obtener el texto del árbol", "texto_arbol.py"). Sin variables. -#}
+{#- CORREGIDO (D40, Fase 3) de mltutor/algorithms/code_examples.py::TEXT_TREE_CODE.
+    Pestaña 📉 Visualización → 📝 Texto: show_code_with_download(código, "Código para obtener el texto
+    del árbol", "texto_arbol.py"). Sin variables.
+    Python llamaba a export_text sin class_names, así que las hojas decían "class: 0" (el código) en
+    lugar de "class: setosa", y el parámetro show_class_name de get_tree_text no hacía nada.
+    Aquí se pasan los nombres en el orden de model.classes_ (es lo que exige export_text). El literal
+    de Python queda en tests/parity/code/trees.json (python_text). Diferencias con ese literal:
+      def get_tree_text(model, feature_names, show_class_name=True)
+          -> def get_tree_text(model, feature_names, class_names=None)
+      docstring de show_class_name -> el de class_names
+      export_text(model, feature_names=feature_names, show_weights=True)
+          -> + class_names=nombres_clase (None en regresión)
+      tree_text = get_tree_text(tree_model, feature_names)
+          -> get_tree_text(tree_model, feature_names, class_names)
+-#}
 from sklearn.tree import export_text
 
-def get_tree_text(model, feature_names, show_class_name=True):
+def get_tree_text(model, feature_names, class_names=None):
     """
     Obtiene una representación de texto de un árbol de decisión.
 
@@ -12,22 +25,28 @@ def get_tree_text(model, feature_names, show_class_name=True):
         Modelo de árbol entrenado
     feature_names : list
         Nombres de las características
-    show_class_name : bool
-        Si es True, muestra los nombres de las clases (para clasificación)
+    class_names : list, optional
+        Nombres de las clases, en el orden de sus códigos 0, 1, 2... (solo para clasificación).
+        Sin ellos, las hojas muestran el código de la clase ("class: 0").
 
     Returns:
     --------
     str
         Representación de texto del árbol
     """
+    nombres_clase = None
+    if class_names is not None and hasattr(model, "classes_"):
+        # export_text quiere un nombre por cada clase que vio el modelo, en el orden de classes_
+        nombres_clase = [str(class_names[int(c)]) for c in model.classes_]
     return export_text(
         model,
         feature_names=feature_names,
+        class_names=nombres_clase,
         show_weights=True
     )
 
 # Ejemplo de uso:
-tree_text = get_tree_text(tree_model, feature_names)
+tree_text = get_tree_text(tree_model, feature_names, class_names)
 print(tree_text)
 
 # Para guardar a un archivo:

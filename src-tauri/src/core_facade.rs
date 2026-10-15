@@ -15,9 +15,10 @@ use std::sync::Arc;
 use crate::ipc::{
     CodeTemplate, CoefficientsView, CommandError, CorrelationMatrix, CsvPreview, CsvTargetStats,
     DatasetEntry, DatasetId, DatasetSummary, DecisionGrid, DescribeTable, DiagKind, Evaluation,
-    ExportFormat, ModelConfig, PairplotData, PredictionForm, PredictionResult, ProbabilityView,
-    ResidualsView, RocData, TablePreview, TargetDistribution, TargetInfo, TaskChoice, TaskType,
-    TrainNotice,
+    ExportFormat, FeatureImportanceView, ImportanceMethod, ModelConfig, PairplotData,
+    PredictionForm, PredictionResult, ProbabilityView, ResidualsView, RocData, RulesKind,
+    TablePreview, TargetDistribution, TargetInfo, TaskChoice, TaskType, TrainNotice, TreeDiagram,
+    TreeSummary,
 };
 
 /// Maximum number of pairplot features (slider limit of §2.6).
@@ -72,6 +73,8 @@ pub struct ModelSummary {
     /// into `class_names`. `None` for regressors.
     pub model_classes: Option<Vec<usize>>,
     pub notices: Vec<TrainNotice>,
+    /// Decision trees: size of the tree.
+    pub tree: Option<TreeSummary>,
 }
 
 /// A trained model with its split, ready for the views of tabs 2–6 (fase2 §3).
@@ -99,9 +102,11 @@ pub trait ModelView: Send + Sync {
     fn coefficients(&self, class_index: Option<usize>) -> Result<CoefficientsView, CommandError>;
     /// C9, with the metadata of the training dataset (D32).
     fn prediction_form(&self) -> Result<PredictionForm, CommandError>;
-    /// C9. `values` already checked: one finite value per feature.
+    /// C9. `values` already checked: one finite value per feature. Trees add the decision
+    /// path (C16) and the probabilities of the leaf (D46).
     fn predict_one(&self, values: &[f64]) -> Result<PredictionResult, CommandError>;
-    /// C11: the bytes of the `.onnx` file or the `.zip` package.
+    /// C11: the bytes of the `.onnx` file, the `.zip` package, or (trees) the rules `.txt`
+    /// and the Python function `.py`.
     fn export(&self, format: ExportFormat) -> Result<Vec<u8>, CommandError>;
     /// C12. `pair` = features of the decision boundary (D30).
     fn code(
@@ -109,6 +114,24 @@ pub trait ModelView: Send + Sync {
         template: CodeTemplate,
         pair: Option<(usize, usize)>,
     ) -> Result<String, CommandError>;
+    /// C13 (fase3-arboles.md): boxes, colours and layout of `plot_tree`.
+    fn tree_diagram(&self) -> Result<TreeDiagram, CommandError> {
+        Err(CommandError::not_tree())
+    }
+    /// C14: `export_text`, with weights (`View`) or without (`Export`); D40 names.
+    fn tree_rules(&self, _kind: RulesKind, _class_names: bool) -> Result<String, CommandError> {
+        Err(CommandError::not_tree())
+    }
+    /// C10: native importance (trees) or permutation importance on the test set
+    /// (any model; checks `cancel` between columns).
+    fn feature_importance(
+        &self,
+        _method: ImportanceMethod,
+        _progress: &Progress<'_>,
+        _cancel: &AtomicBool,
+    ) -> Result<FeatureImportanceView, CommandError> {
+        Err(CommandError::not_tree())
+    }
 }
 
 pub type ModelHandle = Arc<dyn ModelView>;

@@ -9,6 +9,7 @@ import csvMensajes from "@content/csv/mensajes.toml";
 import csvEjemplos from "@content/csv/ejemplos.toml";
 import componentesMensajes from "@content/componentes/mensajes.toml";
 import regresionMensajes from "@content/regresion/mensajes.toml";
+import arbolesMensajes from "@content/arboles/mensajes.toml";
 
 const markdown = import.meta.glob<string>("../../../content/**/*.md", {
   query: "?raw",
@@ -108,6 +109,10 @@ export const compList = messageList(componentesMensajes, "componentes/mensajes.t
 export const regText = messages(regresionMensajes, "regresion/mensajes.toml");
 export const regList = messageList(regresionMensajes, "regresion/mensajes.toml");
 
+/** `content/arboles/mensajes.toml` */
+export const arbText = messages(arbolesMensajes, "arboles/mensajes.toml");
+export const arbList = messageList(arbolesMensajes, "arboles/mensajes.toml");
+
 function rawValue(source: unknown) {
   const data = source as Readonly<Record<string, Readonly<Record<string, unknown>>>>;
   return (section: string, key: string): unknown => data[section]?.[key];
@@ -117,6 +122,8 @@ function rawValue(source: unknown) {
 export const compRaw = rawValue(componentesMensajes);
 /** Any value of `regresion/mensajes.toml`; `undefined` if absent. */
 export const regRaw = rawValue(regresionMensajes);
+/** Any value of `arboles/mensajes.toml` (panels of subviews); `undefined` if absent. */
+export const arbRaw = rawValue(arbolesMensajes);
 
 /** Optional text (new texts of the content author may not exist yet): `fallback` if absent. */
 export function optionalText(raw: (section: string, key: string) => unknown, section: string, key: string, fallback: string): string {

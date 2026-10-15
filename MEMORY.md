@@ -257,6 +257,38 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
   - El umbral es `x[p−1]/2 + x[p]/2` en f64 de valores f32. Una columna es constante si
     `max ≤ f32(min + 1e-7)`, en float32. `predict` compara `f32(x) <= t`.
   - La wheel macOS arm64 de sklearn usa FMA: las impurezas difieren 1–4 ulp (la estructura, no).
+- **Split: tamaño de train (2026-10-15):** sklearn con `train_size=None` usa `n_train = n − ceil(t·n)`.
+  `floor((1−t)·n)` perdía una fila por redondeo (California: 0.7·20640 = 14447.999…) y afectaba a F2 y F3.
+  Los tests de paridad no lo detectaban porque usan los índices del fixture: ahora hay un test explícito.
+- **TreeDiagram (2026-10-15):** la unidad horizontal de Buchheim es la caja más ancha (más un margen), así
+  que con letra fija las cajas no se solapan. Si ajustar todo deja la escala < 0,45, la primera vista va a
+  la raíz al 80 %. PNG en canvas a 3× (límite de 16 000 px por lado). California d8 (407 nodos): unos 65 ms.
+  En ventanas ocultas `requestAnimationFrame` no se ejecuta, así que se mide con `getBoundingClientRect()`.
+- **vitest y fixtures:** `new URL(…, import.meta.url)` choca con `fs.allow` de Vite; hay que usar
+  `resolve(process.cwd(), "../tests/…")`. `fmt` también escapa dentro de los bloques de código, así que
+  los identificadores entre comillas invertidas se sustituyen antes.
+- **Smoke test:** en 1 de 5 ejecuciones locales acabó en timeout (2) tras `predict_one` de Cáncer,
+  posiblemente por los timers congelados con la ventana oculta. Vigilarlo en CI.
+- **CART de Rust (2026-10-15):** `tree/cart.rs` transcribe `cart_reference.py` y reproduce bit a bit la
+  estructura y los umbrales de los 40 árboles de los fixtures. Las impurezas difieren ≤ 1,1e-13 por la FMA
+  de la wheel arm64. California d10 tarda unos 48 ms (sklearn 59 ms), de los que 33 son del introsort. No
+  se puede sustituir por `sort_unstable`: el orden en que deja los empates decide las sumas. MAE es
+  O(n²) por nodo, como en sklearn (California d3: 3,6 s, cancelable).
+- **ONNX binario de árbol:** `TreeEnsembleClassifier` debe llevar UN peso por hoja (P(clase 1) con
+  `class_ids = 0`), como skl2onnx; con las dos clases, onnxruntime equivoca 537 de 891 etiquetas en Titanic.
+- **`py_float_repr`:** `format!("{:e}")` da la representación más corta, pero no siempre la más cercana
+  (1400.50006103515625: Rust `…563`, CPython `…562`); se usa `{:.Ne}` con el mismo nº de dígitos.
+- **OLS:** se resuelve por sustitución hacia atrás si σ_min estimado supera en 1e6 el umbral de rango. Un
+  1500×1500 centrado pierde rango y sigue en 12,7 s en la SVD de linfa-linalg, sin cancelación (pendiente).
+- **friedman_mse = squared_error en un árbol único (2026-10-15):** la puntuación de Friedman es exactamente
+  la reducción del SSE, así que los árboles salen idénticos. Solo difiere en boosting.
+- **Plantillas de F3:** `arbol_entrenamiento.py.j2` copia literalmente los bloques de imports y carga de
+  datos de `regresion_entrenamiento.py.j2`, y `golden_trees._training_shared_blocks` falla si divergen.
+  El camino de decisión en Python se lee de `children_left` y no comparando `np.float32(x) <= umbral`:
+  con NEP 50 (numpy ≥ 2) esa comparación se hace en float32 y contradice a sklearn.
+- **Verificar scripts sin red:** `sns.load_dataset("titanic", data_home="mltutor/dataset/data/sample_datasets")`.
+  minijinja de Python: `uv run --with minijinja python …` con `undefined_behavior="strict"` y
+  `keep_trailing_newline=True` reproduce `codegen.rs`.
 - **permutation_importance (sklearn ≥ 1.5):** usa UNA sola semilla `randint(2^31)` para todas las
   columnas y baraja de forma acumulativa (`shuffle(idx)` y `X[:, c] = X[idx, c]`).
 - **Umbrales de árbol en ONNX y Python:** skl2onnx redondea los umbrales al float32 más cercano; hay

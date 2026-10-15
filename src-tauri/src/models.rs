@@ -20,9 +20,9 @@ use crate::core_facade::{check_cancelled, ModelHandle, TrainSpec};
 use crate::data::{blocking, DataState};
 use crate::ipc::{
     CodeExtra, CodeTemplate, CoefficientsView, CommandError, DatasetRef, DecisionGrid, Evaluation,
-    ExportFormat, GridRequest, LessonId, ModelConfig, PredictRequest, PredictionForm,
-    PredictionResult, ProbabilityView, ResidualsView, RocData, TaskProgress, TaskType, TrainNotice,
-    TrainRequest, TrainedModelInfo,
+    ExportFormat, FeatureImportanceView, GridRequest, ImportanceMethod, LessonId, ModelConfig,
+    PredictRequest, PredictionForm, PredictionResult, ProbabilityView, ResidualsView, RocData,
+    RulesRequest, TaskProgress, TaskType, TrainNotice, TrainRequest, TrainedModelInfo, TreeDiagram,
 };
 use crate::tasks::CancelToken;
 
@@ -48,6 +48,74 @@ pub fn not_converged_message(max_iter: u32) -> String {
             })
     });
     template.replace("{max_iter}", &max_iter.to_string())
+}
+
+/// `content/arboles/mensajes.toml`: texts of 🌲 Árboles de Decisión that the backend
+/// sends (D37 error, type mismatch warning). The UI reads the same file.
+const TREE_MESSAGES: &str = include_str!("../../content/arboles/mensajes.toml");
+
+/// A text of `content/arboles/mensajes.toml` (`fallback` if the file lacks it, logged).
+pub fn tree_text(section: &str, key: &str, fallback: &str) -> String {
+    static MESSAGES: std::sync::OnceLock<Option<mltutor_core::content::Messages>> =
+        std::sync::OnceLock::new();
+    let messages = MESSAGES.get_or_init(|| {
+        mltutor_core::content::Messages::parse("content/arboles/mensajes.toml", TREE_MESSAGES)
+            .map_err(|error| log::error!("contenido: {error}"))
+            .ok()
+    });
+    match messages.as_ref().map(|m| m.text(section, key)) {
+        Some(Ok(text)) => text.to_owned(),
+        Some(Err(error)) => {
+            log::error!("contenido: {error}");
+            fallback.to_owned()
+        }
+        None => fallback.to_owned(),
+    }
+}
+
+/// D37: a classification tree on a continuous target.
+pub fn tree_needs_classes_message() -> String {
+    tree_text(
+        "entrenamiento",
+        "error_clasificacion_regresion",
+        "Un árbol de clasificación necesita una variable objetivo con clases.",
+    )
+}
+
+/// D46: label of a categorical value of the decision path ("0 (Mujer)"), from the select
+/// of the prediction form of `feature`. `None` for sliders and checkboxes.
+pub fn path_display(
+    form: &crate::ipc::PredictionForm,
+    feature: usize,
+    value: f64,
+) -> Option<String> {
+    let control = form.controls.iter().find(|c| c.index as usize == feature)?;
+    let crate::ipc::FormControlKind::Select { options, .. } = &control.control else {
+        return None;
+    };
+    // `value` is the float32 of the input: compare with the float32 of each code.
+    let option = options
+        .iter()
+        .find(|o| f64::from(o.code as f32) == value || o.code == value)?;
+    let template = tree_text(
+        "predicciones",
+        "camino_valor_categorico",
+        "{codigo:g} ({etiqueta})",
+    );
+    Some(
+        template
+            .replace("{codigo:g}", &python_g(option.code))
+            .replace("{etiqueta}", &option.label),
+    )
+}
+
+/// `format(x, "g")` of Python for the codes of the form (integers in practice).
+pub fn python_g(x: f64) -> String {
+    if x.is_finite() && x.fract() == 0.0 && x.abs() < 1e15 {
+        format!("{}", x as i64)
+    } else {
+        format!("{x}")
+    }
 }
 
 /// A model of a lesson and what it was trained on.
@@ -81,7 +149,13 @@ impl TrainedModel {
             model_classes: summary
                 .model_classes
                 .map(|c| c.into_iter().map(crate::ipc::to_u32).collect()),
-            notices: with_mismatch(summary.notices, summary.model_task, summary.dataset_task),
+            notices: with_mismatch(
+                summary.notices,
+                self.config,
+                summary.model_task,
+                summary.dataset_task,
+            ),
+            tree: summary.tree,
         }
     }
 }
@@ -90,6 +164,7 @@ impl TrainedModel {
 /// model is trained anyway: Lineal on Iris, D25).
 fn with_mismatch(
     mut notices: Vec<TrainNotice>,
+    config: ModelConfig,
     model_task: TaskType,
     dataset_task: TaskType,
 ) -> Vec<TrainNotice> {
@@ -98,13 +173,26 @@ fn with_mismatch(
             .iter()
             .any(|n| matches!(n, TrainNotice::ModelTaskMismatch { .. }))
     {
-        let message = match dataset_task {
-            TaskType::Classification => "Este dataset parece ser más adecuado para Regresión Logística. La selección actual podría no ofrecer resultados óptimos.",
-            TaskType::Regression => "Este dataset parece ser más adecuado para Regresión Lineal. La selección actual podría no ofrecer resultados óptimos.",
+        let message = if config.is_tree() {
+            // `aviso_tipo` of 🏋️ Entrenamiento, with the task of the dataset.
+            let task = match dataset_task {
+                TaskType::Classification => "Clasificación",
+                TaskType::Regression => "Regresión",
+            };
+            tree_text(
+                "entrenamiento",
+                "aviso_tipo",
+                "Este dataset parece ser más adecuado para {tarea}. La selección actual podría no ofrecer resultados óptimos.",
+            )
+            .replace("{tarea}", task)
+        } else {
+            match dataset_task {
+                TaskType::Classification => "Este dataset parece ser más adecuado para Regresión Logística. La selección actual podría no ofrecer resultados óptimos.",
+                TaskType::Regression => "Este dataset parece ser más adecuado para Regresión Lineal. La selección actual podría no ofrecer resultados óptimos.",
+            }
+            .to_owned()
         };
-        notices.push(TrainNotice::ModelTaskMismatch {
-            message: message.to_owned(),
-        });
+        notices.push(TrainNotice::ModelTaskMismatch { message });
     }
     notices
 }
@@ -177,6 +265,12 @@ impl LessonModels {
     pub fn by_id(&self, id: u32) -> Option<Arc<TrainedModel>> {
         self.slots.values().find(|m| m.id == id).cloned()
     }
+
+    /// The highest `seq` accepted by any lesson (0 if none): `get_selected_dataset`
+    /// reports it so that a reloaded page never reuses a `seq` (clock gone backwards).
+    pub fn max_seq(&self) -> u64 {
+        self.last_seq.values().copied().max().unwrap_or(0)
+    }
 }
 
 #[derive(Clone, Default)]
@@ -194,6 +288,11 @@ impl ModelState {
 
     pub fn model(&self, id: u32) -> Result<Arc<TrainedModel>, CommandError> {
         self.lock().by_id(id).ok_or_else(CommandError::model_stale)
+    }
+
+    /// See [`LessonModels::max_seq`].
+    pub fn last_seq(&self) -> u64 {
+        self.lock().max_seq()
     }
 
     pub fn lesson_model(&self, lesson: LessonId) -> Option<TrainedModelInfo> {
@@ -231,10 +330,18 @@ impl ModelState {
         progress: &(dyn Fn(&str, Option<f32>) + Sync),
     ) -> Result<TrainedModelInfo, CommandError> {
         let (dataset, label) = data.resolve(req.dataset)?;
+        let dataset_task = dataset.summary().task;
         if matches!(req.config, ModelConfig::Logistic { .. })
-            && dataset.summary().task == TaskType::Regression
+            && dataset_task == TaskType::Regression
         {
             return Err(CommandError::invalid_target(LOGISTIC_NEEDS_CLASSES));
+        }
+        // D37: a classification tree needs classes (Python trained 192 "classes" on
+        // Diabetes and failed in English on California).
+        if matches!(req.config, ModelConfig::Tree { task, .. } if task.task() == TaskType::Classification)
+            && dataset_task == TaskType::Regression
+        {
+            return Err(CommandError::invalid_target(tree_needs_classes_message()));
         }
         check_cancelled(cancel)?;
         let spec = TrainSpec {
@@ -280,12 +387,42 @@ fn validate_train(req: &TrainRequest) -> Result<(), CommandError> {
             "El tamaño del conjunto de prueba debe estar entre 0,1 y 0,5.",
         ));
     }
-    if let ModelConfig::Logistic { max_iter } = req.config {
-        if !(MIN_MAX_ITER..=MAX_MAX_ITER).contains(&max_iter) {
+    match req.config {
+        ModelConfig::Logistic { max_iter }
+            if !(MIN_MAX_ITER..=MAX_MAX_ITER).contains(&max_iter) =>
+        {
             return Err(CommandError::invalid_selection(
                 "El máximo de iteraciones debe estar entre 100 y 2000.",
             ));
         }
+        ModelConfig::Tree {
+            task,
+            criterion,
+            max_depth,
+            min_samples_split,
+        } => {
+            if !(1..=10).contains(&max_depth) {
+                return Err(CommandError::invalid_config(
+                    "La profundidad máxima debe estar entre 1 y 10.",
+                ));
+            }
+            if !(2..=10).contains(&min_samples_split) {
+                return Err(CommandError::invalid_config(
+                    "Las muestras mínimas para división deben estar entre 2 y 10.",
+                ));
+            }
+            if !criterion.fits(task) {
+                return Err(CommandError::invalid_config(format!(
+                    "El criterio «{}» no sirve para un árbol de {}.",
+                    criterion.sklearn_name(),
+                    match task {
+                        crate::ipc::TreeTask::Classification => "clasificación",
+                        crate::ipc::TreeTask::Regression => "regresión",
+                    }
+                )));
+            }
+        }
+        _ => {}
     }
     Ok(())
 }
@@ -323,22 +460,53 @@ pub fn validate_values(values: &[f64], n_features: usize) -> Result<(), CommandE
     Ok(())
 }
 
-/// Default file name and save-dialog filter of each export (§5.4).
-fn export_target(
-    config: ModelConfig,
-    format: ExportFormat,
-) -> (&'static str, &'static str, &'static str) {
-    match (format, config) {
+/// Default file name and save-dialog filter of each export (§5.4). Trees read them from
+/// `[exportar]` of `content/arboles/mensajes.toml`.
+fn export_target(config: ModelConfig, format: ExportFormat) -> (String, String, &'static str) {
+    const ONNX: &str = "Modelo ONNX (*.onnx)";
+    const ZIP: &str = "Paquete Python (*.zip)";
+    let tree = |name: &str, default_name: &str, filter: &str, default_filter: &str| {
+        (
+            tree_text("exportar", name, default_name),
+            tree_text("exportar", filter, default_filter),
+        )
+    };
+    let ((name, filter), extension) = match (format, config) {
         (ExportFormat::Onnx, ModelConfig::Linear) => {
-            ("regresion_lineal.onnx", "Modelo ONNX (*.onnx)", "onnx")
+            (("regresion_lineal.onnx".into(), ONNX.into()), "onnx")
         }
         (ExportFormat::Onnx, ModelConfig::Logistic { .. }) => {
-            ("regresion_logistica.onnx", "Modelo ONNX (*.onnx)", "onnx")
+            (("regresion_logistica.onnx".into(), ONNX.into()), "onnx")
         }
-        (ExportFormat::PythonPackage, _) => {
-            ("modelo_regresion.zip", "Paquete Python (*.zip)", "zip")
-        }
-    }
+        (ExportFormat::Onnx, ModelConfig::Tree { .. }) => (
+            tree("archivo_onnx", "arbol_decision.onnx", "filtro_onnx", ONNX),
+            "onnx",
+        ),
+        (ExportFormat::PythonPackage, ModelConfig::Tree { .. }) => (
+            tree("archivo_paquete", "modelo_arbol.zip", "filtro_zip", ZIP),
+            "zip",
+        ),
+        (ExportFormat::PythonPackage, _) => (("modelo_regresion.zip".into(), ZIP.into()), "zip"),
+        (ExportFormat::TreeRules, _) => (
+            tree(
+                "archivo_reglas",
+                "decision_tree_rules.txt",
+                "filtro_txt",
+                "Texto (*.txt)",
+            ),
+            "txt",
+        ),
+        (ExportFormat::TreePython, _) => (
+            tree(
+                "archivo_codigo",
+                "arbol_decision.py",
+                "filtro_py",
+                "Código Python (*.py)",
+            ),
+            "py",
+        ),
+    };
+    (name, filter, extension)
 }
 
 fn models(state: &State<'_, ModelState>) -> ModelState {
@@ -565,11 +733,62 @@ pub async fn generate_code(
     extra: Option<CodeExtra>,
 ) -> Result<String, CommandError> {
     with_model("generate_code", &models, model_id, move |m| {
+        if template.needs_tree() && !m.config.is_tree() {
+            return Err(CommandError::not_tree());
+        }
         let pair = match extra {
             Some(extra) => Some(validate_pair(m, extra.feature_x, extra.feature_y)?),
             None => None,
         };
         m.model.code(template, pair)
+    })
+    .await
+}
+
+/// C13: the boxes of `plot_tree` for the SVG diagram (D41).
+#[tauri::command]
+pub async fn tree_diagram(
+    models: State<'_, ModelState>,
+    model_id: u32,
+) -> Result<TreeDiagram, CommandError> {
+    with_model("tree_diagram", &models, model_id, |m| {
+        m.model.tree_diagram()
+    })
+    .await
+}
+
+/// C14: `export_text` of the tree (📝 Texto or the rules of 💾 Exportar).
+#[tauri::command]
+pub async fn tree_rules(
+    models: State<'_, ModelState>,
+    req: RulesRequest,
+) -> Result<String, CommandError> {
+    with_model("tree_rules", &models, req.model_id, move |m| {
+        m.model.tree_rules(req.kind, req.class_names)
+    })
+    .await
+}
+
+/// C10: native importance or permutation importance (cancellable, with progress).
+#[tauri::command]
+pub async fn feature_importance(
+    app: AppHandle,
+    data: State<'_, DataState>,
+    models: State<'_, ModelState>,
+    model_id: u32,
+    method: ImportanceMethod,
+    task_id: u32,
+) -> Result<FeatureImportanceView, CommandError> {
+    let guard = data.tasks.start(task_id);
+    with_model("feature_importance", &models, model_id, move |m| {
+        let throttle = ProgressThrottle::default();
+        let progress = |message: &str, percent: Option<f32>| {
+            if throttle.admit(message, percent, std::time::Instant::now()) {
+                emit_progress(&app, task_id, message, percent);
+            }
+        };
+        m.model
+            .feature_importance(method, &progress, &guard.token())
     })
     .await
 }
@@ -589,7 +808,7 @@ pub async fn export_model(
         let bytes = model.model.export(format)?;
         let (name, filter, extension) = export_target(model.config, format);
         drop(model);
-        let Some(path) = ask_save_path(&app, name, filter, extension)? else {
+        let Some(path) = ask_save_path(&app, &name, &filter, extension)? else {
             return Ok(None);
         };
         std::fs::write(&path, &bytes).map_err(CommandError::file_save)?;
@@ -935,6 +1154,214 @@ mod tests {
         assert_eq!(message, template.replace("{max_iter}", "300"));
     }
 
+    const TREE: ModelConfig = ModelConfig::Tree {
+        task: crate::ipc::TreeTask::Classification,
+        criterion: crate::ipc::TreeCriterion::Gini,
+        max_depth: 3,
+        min_samples_split: 2,
+    };
+
+    fn tree_request(dataset: DatasetRef, config: ModelConfig, seq: u64) -> TrainRequest {
+        TrainRequest {
+            lesson: LessonId::Trees,
+            ..request(dataset, config, seq)
+        }
+    }
+
+    /// D37: a classification tree on a continuous target is an error in Spanish (from
+    /// `content/arboles/mensajes.toml`); a regression tree on Iris trains with the warning.
+    #[test]
+    fn classification_trees_need_classes() {
+        let (data, models) = setup();
+        let diabetes = DatasetRef::Builtin {
+            id: DatasetId::Diabetes,
+        };
+        let error = models
+            .train(
+                &data,
+                &tree_request(diabetes, TREE, 1),
+                &CancelToken::default(),
+                &quiet,
+            )
+            .unwrap_err();
+        assert_eq!(
+            error,
+            CommandError::invalid_target(tree_needs_classes_message())
+        );
+        assert!(tree_needs_classes_message().contains("📈 Regresión"));
+        let regression = ModelConfig::Tree {
+            task: crate::ipc::TreeTask::Regression,
+            criterion: crate::ipc::TreeCriterion::SquaredError,
+            max_depth: 3,
+            min_samples_split: 2,
+        };
+        let info = models
+            .train(
+                &data,
+                &tree_request(iris(), regression, 2),
+                &CancelToken::default(),
+                &quiet,
+            )
+            .unwrap();
+        assert_eq!(info.model_task, TaskType::Regression);
+        assert!(info.tree.is_some());
+        assert_eq!(
+            info.notices,
+            vec![TrainNotice::ModelTaskMismatch {
+                message: "Este dataset parece ser más adecuado para Clasificación. La selección actual podría no ofrecer resultados óptimos.".into()
+            }]
+        );
+        let iris_tree = models
+            .train(
+                &data,
+                &tree_request(iris(), TREE, 3),
+                &CancelToken::default(),
+                &quiet,
+            )
+            .unwrap();
+        assert!(iris_tree.notices.is_empty());
+        assert_eq!(iris_tree.tree.map(|t| t.node_count), Some(9));
+    }
+
+    #[test]
+    fn tree_configs_are_validated() {
+        let bad = |config| validate_train(&tree_request(iris(), config, 1));
+        assert!(bad(TREE).is_ok());
+        for (depth, mss) in [(0, 2), (11, 2), (3, 1), (3, 11)] {
+            let config = ModelConfig::Tree {
+                task: crate::ipc::TreeTask::Classification,
+                criterion: crate::ipc::TreeCriterion::Gini,
+                max_depth: depth,
+                min_samples_split: mss,
+            };
+            assert!(
+                matches!(bad(config), Err(CommandError::InvalidConfig { .. })),
+                "{depth} {mss}"
+            );
+        }
+        let mixed = ModelConfig::Tree {
+            task: crate::ipc::TreeTask::Classification,
+            criterion: crate::ipc::TreeCriterion::SquaredError,
+            max_depth: 3,
+            min_samples_split: 2,
+        };
+        assert!(matches!(
+            bad(mixed),
+            Err(CommandError::InvalidConfig { .. })
+        ));
+        assert_eq!(
+            export_target(TREE, ExportFormat::TreeRules).0,
+            "decision_tree_rules.txt"
+        );
+        assert_eq!(
+            export_target(TREE, ExportFormat::Onnx).0,
+            "arbol_decision.onnx"
+        );
+        assert_eq!(
+            export_target(TREE, ExportFormat::PythonPackage).0,
+            "modelo_arbol.zip"
+        );
+        assert_eq!(
+            export_target(TREE, ExportFormat::TreePython).0,
+            "arbol_decision.py"
+        );
+    }
+
+    /// Pending from F2: after a reload with the clock gone backwards, the UI continues
+    /// above every accepted `seq` (selection AND trainings), so no lesson is left with
+    /// trainings rejected as old.
+    #[test]
+    fn selected_dataset_reports_the_highest_seq_of_selection_and_trainings() {
+        let (data, models) = setup();
+        data.select(iris(), 10).unwrap();
+        assert_eq!(
+            crate::data::selection_with_models(&data, &models).last_seq,
+            10
+        );
+        models
+            .train(
+                &data,
+                &tree_request(iris(), TREE, 500),
+                &CancelToken::default(),
+                &quiet,
+            )
+            .unwrap();
+        models
+            .train(
+                &data,
+                &request(iris(), ModelConfig::Logistic { max_iter: 1000 }, 300),
+                &CancelToken::default(),
+                &quiet,
+            )
+            .unwrap();
+        let selection = crate::data::selection_with_models(&data, &models);
+        assert_eq!(selection.last_seq, 500);
+        assert_eq!(selection.dataset, iris());
+        // A training continued above it is accepted in every lesson.
+        let next = selection.last_seq + 1;
+        assert!(models
+            .train(
+                &data,
+                &tree_request(iris(), TREE, next),
+                &CancelToken::default(),
+                &quiet
+            )
+            .is_ok());
+        assert!(models
+            .train(
+                &data,
+                &request(iris(), ModelConfig::Logistic { max_iter: 1000 }, next),
+                &CancelToken::default(),
+                &quiet
+            )
+            .is_ok());
+        // A failed training also raises it (its `seq` was accepted).
+        let diabetes = DatasetRef::Builtin {
+            id: DatasetId::Diabetes,
+        };
+        let _ = models.train(
+            &data,
+            &tree_request(diabetes, TREE, 900),
+            &CancelToken::default(),
+            &quiet,
+        );
+        assert_eq!(
+            crate::data::selection_with_models(&data, &models).last_seq,
+            900
+        );
+    }
+
+    #[test]
+    fn categorical_path_values_show_the_option() {
+        use crate::ipc::{FormControl, FormControlKind, PredictionForm, SelectOption};
+        let form = PredictionForm {
+            controls: vec![FormControl {
+                index: 1,
+                column: "sex".into(),
+                label: "Sexo".into(),
+                description: None,
+                control: FormControlKind::Select {
+                    options: vec![
+                        SelectOption {
+                            label: "Mujer".into(),
+                            code: 0.0,
+                        },
+                        SelectOption {
+                            label: "Hombre".into(),
+                            code: 1.0,
+                        },
+                    ],
+                    default_index: 0,
+                },
+            }],
+        };
+        assert_eq!(path_display(&form, 1, 0.0).as_deref(), Some("0 (Mujer)"));
+        assert_eq!(path_display(&form, 1, 0.5), None);
+        assert_eq!(path_display(&form, 0, 0.0), None);
+        assert_eq!(python_g(3.0), "3");
+        assert_eq!(python_g(0.25), "0.25");
+    }
+
     #[test]
     fn export_names_follow_the_contract() {
         assert_eq!(
@@ -946,7 +1373,11 @@ mod tests {
                 ModelConfig::Logistic { max_iter: 100 },
                 ExportFormat::PythonPackage
             ),
-            ("modelo_regresion.zip", "Paquete Python (*.zip)", "zip")
+            (
+                "modelo_regresion.zip".to_owned(),
+                "Paquete Python (*.zip)".to_owned(),
+                "zip"
+            )
         );
     }
 }

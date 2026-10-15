@@ -2,6 +2,7 @@
 #![allow(dead_code, clippy::unwrap_used, clippy::expect_used)]
 
 pub mod lm;
+pub mod trees;
 
 use std::path::PathBuf;
 

@@ -58,6 +58,23 @@ impl RandomState {
         }
     }
 
+    /// `RandomState.randint(low, high)` (one value in `low..high`, legacy masked
+    /// rejection sampling). `high <= low` returns `low`, where NumPy would raise.
+    ///
+    /// ```
+    /// use mltutor_core::sampling::RandomState;
+    /// // numpy: RandomState(42).randint(0, 2**31 - 1) — the seed of sklearn's splitter
+    /// assert_eq!(RandomState::new(42).randint(0, 2_147_483_647), 1_608_637_542);
+    /// ```
+    pub fn randint(&mut self, low: i64, high: i64) -> i64 {
+        if high <= low {
+            return low;
+        }
+        // `high - low - 1` is non-negative here; values up to 2^63 fit in u64.
+        let range = high.wrapping_sub(low).wrapping_sub(1) as u64;
+        low.wrapping_add(self.interval(range) as i64)
+    }
+
     /// `RandomState.shuffle` of a 1-D sequence (in place).
     pub fn shuffle<T>(&mut self, values: &mut [T]) {
         for i in (1..values.len()).rev() {

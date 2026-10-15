@@ -34,6 +34,11 @@ pub fn model_error(error: ModelError) -> CommandError {
         ModelError::TooManyClasses { n_classes, max } => {
             CommandError::too_many_classes(n_classes, max, error.to_string())
         }
+        // D37: the text of the lesson (`content/arboles/mensajes.toml`).
+        ModelError::ContinuousTarget => {
+            CommandError::invalid_target(crate::models::tree_needs_classes_message())
+        }
+        ModelError::InvalidConfig { .. } => CommandError::invalid_config(error.to_string()),
         other => CommandError::training(other),
     }
 }
@@ -42,10 +47,13 @@ fn content_error(error: impl std::fmt::Display) -> CommandError {
     CommandError::internal(format!("contenido: {error}"))
 }
 
-fn core_config(config: ModelConfig) -> core::linear::ModelConfig {
+fn core_config(config: ModelConfig) -> Option<core::linear::ModelConfig> {
     match config {
-        ModelConfig::Linear => core::linear::ModelConfig::Linear,
-        ModelConfig::Logistic { max_iter } => core::linear::ModelConfig::Logistic { max_iter },
+        ModelConfig::Linear => Some(core::linear::ModelConfig::Linear),
+        ModelConfig::Logistic { max_iter } => {
+            Some(core::linear::ModelConfig::Logistic { max_iter })
+        }
+        ModelConfig::Tree { .. } => None,
     }
 }
 
@@ -59,15 +67,15 @@ struct TestOutputs {
 }
 
 pub struct CoreModel {
-    dataset: Arc<core::Dataset>,
-    id: Option<core::DatasetId>,
-    spec: TrainSpec,
-    model: Box<dyn Predictor>,
+    pub(crate) dataset: Arc<core::Dataset>,
+    pub(crate) id: Option<core::DatasetId>,
+    pub(crate) spec: TrainSpec,
+    pub(crate) model: Box<dyn Predictor>,
     /// Rows of the split (§5.2): the feature matrices are selected on demand from the
     /// shared dataset instead of keeping a copy per model.
-    split: core::split::TrainTestSplit,
+    pub(crate) split: core::split::TrainTestSplit,
     y_train: core::Target,
-    y_test: core::Target,
+    pub(crate) y_test: core::Target,
     notices: Vec<TrainNotice>,
     outputs: OnceLock<Result<TestOutputs, CommandError>>,
     form: OnceLock<core::form::PredictionForm>,
@@ -106,8 +114,11 @@ fn fit(
     let control = TrainControl::none()
         .with_cancel(cancel)
         .with_progress(&report);
-    let model = core::linear::fit(core_config(spec.config), x_train.view(), &y_train, &control)
-        .map_err(model_error)?;
+    let model = match core_config(spec.config) {
+        Some(linear) => core::linear::fit(linear, x_train.view(), &y_train, &control),
+        None => crate::real_trees::fit(spec.config, x_train.view(), &y_train, &control),
+    }
+    .map_err(model_error)?;
     let mut notices = Vec::new();
     if let (ModelConfig::Logistic { max_iter }, Some(fit)) = (spec.config, model.fit_report()) {
         if !fit.converged {
@@ -168,15 +179,22 @@ impl CoreModel {
         self.dataset.features.select(Axis(0), &self.split.train)
     }
 
-    fn x_test(&self) -> Array2<f64> {
+    pub(crate) fn x_test(&self) -> Array2<f64> {
         self.dataset.features.select(Axis(0), &self.split.test)
     }
 
-    fn class_names(&self) -> Option<Vec<String>> {
+    /// The decision tree, if the model is one.
+    pub(crate) fn tree(&self) -> Option<&core::tree::DecisionTree> {
+        self.model
+            .as_any()
+            .downcast_ref::<core::tree::DecisionTree>()
+    }
+
+    pub(crate) fn class_names(&self) -> Option<Vec<String>> {
         self.dataset.class_names().map(<[String]>::to_vec)
     }
 
-    fn name_of(&self, code: usize) -> String {
+    pub(crate) fn name_of(&self, code: usize) -> String {
         self.dataset
             .class_names()
             .and_then(|names| names.get(code).cloned())
@@ -228,7 +246,7 @@ impl CoreModel {
         })
     }
 
-    fn training_context(&self) -> core::codegen::RegressionTrainingContext {
+    pub(crate) fn training_context(&self) -> core::codegen::RegressionTrainingContext {
         let csv = self.id.is_none();
         // How the app read the CSV, so that `pd.read_csv` reads the same table (I1).
         let dialect = self.dataset.csv_dialect.as_ref().filter(|_| csv);
@@ -245,9 +263,10 @@ impl CoreModel {
             model: match self.spec.config {
                 ModelConfig::Linear => "linear".to_owned(),
                 ModelConfig::Logistic { .. } => "logistic".to_owned(),
+                ModelConfig::Tree { .. } => "tree".to_owned(),
             },
             max_iter: match self.spec.config {
-                ModelConfig::Linear => None,
+                ModelConfig::Linear | ModelConfig::Tree { .. } => None,
                 ModelConfig::Logistic { max_iter } => Some(max_iter),
             },
             test_size: self.spec.test_size,
@@ -272,6 +291,7 @@ impl ModelView for CoreModel {
             class_names: self.class_names(),
             model_classes: self.model.classes().map(<[usize]>::to_vec),
             notices: self.notices.clone(),
+            tree: self.tree().map(crate::real_trees::summary),
         }
     }
 
@@ -616,6 +636,10 @@ impl ModelView for CoreModel {
     }
 
     fn predict_one(&self, values: &[f64]) -> Result<ipc::PredictionResult, CommandError> {
+        let path = match self.tree() {
+            Some(tree) => Some(crate::real_trees::decision_path(self, tree, values)?),
+            None => None,
+        };
         match core::form::predict_one(self.model.as_ref(), values).map_err(model_error)? {
             core::form::PredictionOutcome::Class { class, proba } => {
                 Ok(ipc::PredictionResult::Class {
@@ -629,6 +653,7 @@ impl ModelView for CoreModel {
                             })
                             .collect()
                     }),
+                    path,
                 })
             }
             core::form::PredictionOutcome::Value { value } => Ok(ipc::PredictionResult::Value {
@@ -644,12 +669,38 @@ impl ModelView for CoreModel {
                         })
                         .collect()
                 }),
+                path,
             }),
         }
     }
 
     fn export(&self, format: ExportFormat) -> Result<Vec<u8>, CommandError> {
-        crate::real_exports::export(self, format)
+        match format {
+            ExportFormat::TreeRules => {
+                crate::real_trees::rules(self, ipc::RulesKind::Export, true).map(String::into_bytes)
+            }
+            ExportFormat::TreePython => {
+                crate::real_trees::code(self, CodeTemplate::TreePython).map(String::into_bytes)
+            }
+            _ => crate::real_exports::export(self, format),
+        }
+    }
+
+    fn tree_diagram(&self) -> Result<ipc::TreeDiagram, CommandError> {
+        crate::real_trees::diagram(self)
+    }
+
+    fn tree_rules(&self, kind: ipc::RulesKind, class_names: bool) -> Result<String, CommandError> {
+        crate::real_trees::rules(self, kind, class_names)
+    }
+
+    fn feature_importance(
+        &self,
+        method: ipc::ImportanceMethod,
+        progress: &Progress<'_>,
+        cancel: &AtomicBool,
+    ) -> Result<ipc::FeatureImportanceView, CommandError> {
+        crate::real_trees::importance(self, method, progress, cancel)
     }
 
     fn code(
@@ -680,6 +731,13 @@ impl ModelView for CoreModel {
             }
             // D29: the complete training script (Python's literal snippet did not run).
             CodeTemplate::RegressionCode => render(T::RegressionTraining, &self.training_context()),
+            CodeTemplate::TreeViz
+            | CodeTemplate::TreeText
+            | CodeTemplate::DecisionPath
+            | CodeTemplate::TreeUsage
+            | CodeTemplate::TreePython
+            | CodeTemplate::TreePythonLiteral
+            | CodeTemplate::TreeTraining => return crate::real_trees::code(self, template),
         };
         rendered.map_err(|error| CommandError::internal(format!("plantilla: {error}")))
     }

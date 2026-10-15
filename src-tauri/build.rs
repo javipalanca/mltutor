@@ -38,6 +38,9 @@ fn main() {
         "predict_one",
         "export_model",
         "generate_code",
+        "tree_diagram",
+        "tree_rules",
+        "feature_importance",
     ]);
     if let Err(error) =
         tauri_build::try_build(tauri_build::Attributes::new().app_manifest(manifest))

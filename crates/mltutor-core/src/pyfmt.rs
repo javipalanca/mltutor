@@ -15,11 +15,33 @@ pub fn py_float_repr(x: f64) -> String {
     if x.is_infinite() {
         return if x > 0.0 { "inf" } else { "-inf" }.to_owned();
     }
-    // `{:e}` gives the shortest round-trip digits: "-1.2345e-7", "3e0".
-    let sci = format!("{x:e}");
+    // `{:e}` gives the shortest round-trip digits ("-1.2345e-7", "3e0"), but when
+    // two strings of that length round-trip it may not pick the nearest one.
+    // CPython (David Gay's dtoa) writes the nearest, ties to even: that is the
+    // correctly rounded value with the same number of digits, which `{:.Ne}`
+    // gives (1400.50006103515625 → "1400.5000610351562", not "…563").
+    let shortest = format!("{x:e}");
+    let n_sig = shortest
+        .split('e')
+        .next()
+        .map_or(1, |m| m.chars().filter(char::is_ascii_digit).count())
+        .max(1);
+    let nearest = format!("{:.*e}", n_sig - 1, x);
+    // At a power of two the round-trip interval is asymmetric: keep the shortest
+    // string if the nearest one does not read back as `x`.
+    let sci = if nearest.parse::<f64>().ok() == Some(x) {
+        nearest
+    } else {
+        shortest
+    };
     let (mantissa, exp) = match sci.split_once('e') {
         Some((m, e)) => (m, e.parse::<i32>().unwrap_or(0)),
         None => (sci.as_str(), 0),
+    };
+    let mantissa = if mantissa.contains('.') {
+        mantissa.trim_end_matches('0').trim_end_matches('.')
+    } else {
+        mantissa
     };
     let (sign, mantissa) = match mantissa.strip_prefix('-') {
         Some(rest) => ("-", rest),
@@ -213,6 +235,8 @@ mod tests {
     fn matches_cpython_repr() {
         let cases = [
             (3.0, "3.0"),
+            // Two 17-digit strings round-trip; CPython writes the nearest (tie → even).
+            (f64::from_bits(0x4095_e200_1000_0000), "1400.5000610351562"),
             (-2.0069, "-2.0069"),
             (0.1, "0.1"),
             (1e-5, "1e-05"),

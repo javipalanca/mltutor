@@ -12,6 +12,11 @@ import type { CommandError } from "./bindings/CommandError";
 import type { DecisionGrid } from "./bindings/DecisionGrid";
 import type { Evaluation } from "./bindings/Evaluation";
 import type { ExportFormat } from "./bindings/ExportFormat";
+import type { FeatureImportanceView } from "./bindings/FeatureImportanceView";
+import type { ImportanceMethod } from "./bindings/ImportanceMethod";
+import type { RulesKind } from "./bindings/RulesKind";
+import type { RulesRequest } from "./bindings/RulesRequest";
+import type { TreeDiagram } from "./bindings/TreeDiagram";
 import type { GridRequest } from "./bindings/GridRequest";
 import type { LessonId as BackendLessonId } from "./bindings/LessonId";
 import type { PredictionForm } from "./bindings/PredictionForm";
@@ -230,7 +235,7 @@ export function setCsvTarget(draftId: number, target: string, task: TaskChoice, 
   return cancellable("set_csv_target", { draftId, target, task, seq });
 }
 
-export type SaveKind = "png" | "python";
+export type SaveKind = "png" | "svg" | "python" | "text";
 
 /**
  * Native save dialog + writing, in Rust (`save_file`). The bytes go as the raw IPC body;
@@ -317,6 +322,24 @@ export function exportModel(modelId: number, format: ExportFormat): Promise<stri
 
 export function generateCode(modelId: number, template: CodeTemplate, extra: CodeExtra | null = null): Promise<string> {
   return call("generate_code", { modelId, template, extra });
+}
+
+// --- Decision trees (fase3-arboles.md §5.4) ---
+
+/** C13: boxes, colours and Buchheim layout of `plot_tree`. */
+export function treeDiagram(modelId: number): Promise<TreeDiagram> {
+  return call("tree_diagram", { modelId });
+}
+
+/** C14: `export_text` (📝 Texto with weights, or the rules of 💾 Exportar); D40 names. */
+export function treeRules(modelId: number, kind: RulesKind, classNames = true): Promise<string> {
+  const req: RulesRequest = { model_id: modelId, kind, class_names: classNames };
+  return call("tree_rules", { req });
+}
+
+/** C10: native importance or permutation importance (cancellable, with progress). */
+export function featureImportance(modelId: number, method: ImportanceMethod): Cancellable<FeatureImportanceView> {
+  return cancellable("feature_importance", { modelId, method });
 }
 
 /** Subscribes to `task-progress`; returns the unsubscribe function. */

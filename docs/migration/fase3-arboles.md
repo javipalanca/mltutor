@@ -609,6 +609,42 @@ Paletas (hex): `_color_brew(n)` (§C13; los colores exactos de cada caja están 
   redondeados); `str(round(x, 3))` = parsear `format!("{:.3}")` e imprimir con ryu; `np.around(x, 3)` =
   `(x·1000).round_ties_even()/1000` impreso con ryu.
 
+### 8.4 Implementación de `rust-ml-engineer` y desviaciones del contrato (2026-10-15)
+
+API estable: tabla "Public API of Phase 3" de `crates/mltutor-core/src/lib.rs` y de
+`crates/mltutor-export/src/lib.rs`. Diferencias con §3 y §5:
+
+- **`ModelConfig` no se amplía en core:** `linear::ModelConfig` sigue siendo solo de F2. El árbol se
+  entrena con `tree::fit(TreeConfig, x, &Target, &TrainControl)` (o `tree::fit_boxed`). `TreeConfig`
+  incluye `task`, `criterion`, `max_depth: u32`, `min_samples_split: u32` y `random_state` (42 en
+  `TreeConfig::new`). La capa Tauri traduce su `ModelConfig::Tree` a este tipo.
+- **Errores nuevos en `ModelError`:** `ContinuousTarget` (D37: clasificación con objetivo continuo,
+  con mensaje en español) e `InvalidConfig { reason }` (un criterio de la otra tarea, `max_depth = 0` o
+  `min_samples_split < 2`). La clasificación también exige entre 2 y 50 clases en train
+  (`TooFewClasses`/`TooManyClasses`). Para reproducir las 192 clases de Diabetes queda
+  `DecisionTree::fit_classifier(config, x, codes, ctl)`, sin límites.
+- **Nombres de los tipos de core:** el contrato llama `TreeDiagramNode` a `tree::plot::DiagramNode`, que
+  además trae `xy_axes` (la posición de `plot_tree` en `[0, 1]²`), y `TreeDiagram`, que añade
+  `edge_labels` ("True  "/"  False" con su `ha`). `class_code` es el código del dataset. Los índices son
+  `usize`, y `u32` en los DTO. El `PathStep` de core no lleva `name` ni `display`: los pone la capa Tauri.
+- **`class_names` siempre por código del dataset** (`export_text`, `diagram` y código corregido). En
+  `plot_tree`, Python indexa los nombres con el índice de la clase en el árbol, así que el nombre sale mal
+  si falta una clase en train. Rust usa el código.
+- **Impureza negativa por redondeo:** en una hoja de valor constante, la MSE (`Σy²/n − ȳ²`) puede dar
+  ±1e-13. Según la FMA, la wheel de sklearn para arm64 escribe `"-0.0"` en unas hojas y `"0.0"` en otras.
+  El diagrama de Rust muestra siempre `0.0`: un caso en los fixtures, California d8, caja 392. El test lo
+  tolera y la impureza numérica sigue dentro de 1e-12.
+- **ONNX binario:** se sigue a skl2onnx (un peso por hoja, P(clase 1) bajo `class_ids = 0`). Si se
+  escriben las dos clases, onnxruntime devuelve etiquetas erróneas: 537 de 891 en Titanic.
+- **Paquete de CSV con clases de texto:** Python llama a las clases "Clase i" (F1) y Rust conserva los
+  nombres reales. El test usa los nombres del fixture para comparar el resto.
+- **`py_float_repr` (compartido):** cuando dos cadenas de 17 dígitos vuelven al mismo float, el `{:e}`
+  de Rust no siempre elige la más cercana. Ahora se elige como CPython (`1400.5000610351562`, no `…563`).
+  Afectaba al código corregido de California.
+- **Rendimiento:** California d10, entrenamiento en 48–49 ms (sklearn 1.7.2: 59 ms en el mismo Mac).
+  Unos 33 ms son del introsort, que no se puede cambiar sin perder la paridad. El MAE es O(n²) por nodo,
+  como en sklearn 1.7.2: California d3 tarda unos 3,6 s y se cancela entre características.
+
 ---
 
 ## 9. Reparto de tareas y checklist

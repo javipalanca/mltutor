@@ -15,7 +15,7 @@ use crate::ipc::CommandError;
 
 /// Header with the suggested file name, percent-encoded (`encodeURIComponent`).
 pub const NAME_HEADER: &str = "x-mltutor-file-name";
-/// Header with the kind of file: `png` or `python`.
+/// Header with the kind of file: `png`, `svg`, `python` or `text`.
 pub const KIND_HEADER: &str = "x-mltutor-file-kind";
 /// Larger bodies are rejected (a 2× PNG of the biggest pairplot is a few MB). The IPC
 /// layer has already received the whole body when the command runs, so this limit does not
@@ -26,14 +26,18 @@ const MAX_SAVE_BYTES: usize = 64 * 1024 * 1024;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SaveKind {
     Png,
+    Svg,
     Python,
+    Text,
 }
 
 impl SaveKind {
     pub fn parse(value: &str) -> Option<Self> {
         match value {
             "png" => Some(Self::Png),
+            "svg" => Some(Self::Svg),
             "python" => Some(Self::Python),
+            "text" => Some(Self::Text),
             _ => None,
         }
     }
@@ -41,14 +45,18 @@ impl SaveKind {
     pub fn extension(self) -> &'static str {
         match self {
             Self::Png => "png",
+            Self::Svg => "svg",
             Self::Python => "py",
+            Self::Text => "txt",
         }
     }
 
     pub fn filter_name(self) -> &'static str {
         match self {
             Self::Png => "Imagen PNG",
+            Self::Svg => "Imagen SVG",
             Self::Python => "Código Python",
+            Self::Text => "Texto",
         }
     }
 }
@@ -221,6 +229,11 @@ mod tests {
             Some("py")
         );
         assert_eq!(SaveKind::parse("exe"), None);
+        assert_eq!(SaveKind::parse("svg").map(SaveKind::extension), Some("svg"));
+        assert_eq!(
+            SaveKind::parse("text").map(SaveKind::extension),
+            Some("txt")
+        );
         assert_eq!(SaveKind::Python.filter_name(), "Código Python");
     }
 

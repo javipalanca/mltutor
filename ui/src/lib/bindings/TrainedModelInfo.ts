@@ -4,6 +4,7 @@ import type { LessonId } from "./LessonId";
 import type { ModelConfig } from "./ModelConfig";
 import type { TaskType } from "./TaskType";
 import type { TrainNotice } from "./TrainNotice";
+import type { TreeSummary } from "./TreeSummary";
 
 export type TrainedModelInfo = { model_id: number, lesson: LessonId, 
 /**
@@ -35,4 +36,8 @@ class_names: Array<string> | null,
  * train set, sorted. Row `i` of `coef_` belongs to `model_classes[i]`; with 2 of 3
  * classes the model is binary and `model_classes[1]` is the positive class.
  */
-model_classes: Array<number> | null, notices: Array<TrainNotice>, };
+model_classes: Array<number> | null, notices: Array<TrainNotice>, 
+/**
+ * Decision trees: size of the tree (💾 Exportar, "Información del código generado").
+ */
+tree: TreeSummary | null, };

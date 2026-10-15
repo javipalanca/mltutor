@@ -49,6 +49,26 @@
 //! | `generate_code` | [`codegen::render`]`(CodeTemplate, &impl Serialize) -> Result<String, CodegenError>` ([`codegen::DecisionBoundaryContext`], [`codegen::RegressionTrainingContext`]); [`codegen::render_static`]; any `content/code/*.j2` by name: [`codegen::render_named`] |
 //! | `export_model` | `mltutor-export` (see its crate docs) |
 //!
+//! # Public API of Phase 3 — 🌲 Árboles (fase3-arboles.md §5 and §8) — stable
+//!
+//! [`tree::DecisionTree`] is a [`model::Predictor`] (downcast with `as_any()` for the
+//! tree-only views). Exact parity with scikit-learn 1.7.2 (D36): structure,
+//! thresholds, predictions, probabilities, paths and texts bit for bit.
+//!
+//! | Command | Core function |
+//! |---|---|
+//! | `train_model` (`ModelConfig::Tree`) | [`tree::fit`]`(TreeConfig, x_train: ArrayView2, y_train: &Target, &TrainControl) -> Result<DecisionTree, ModelError>` (or [`tree::fit_boxed`] → `Box<dyn Predictor>`); [`tree::TreeConfig::new`]`(TreeTask, TreeCriterion, max_depth: u32, min_samples_split: u32)` (`random_state` = 42); D37: classification on a regression target → [`model::ModelError::ContinuousTarget`]; wrong criterion/depth → [`model::ModelError::InvalidConfig`]; options of the select: [`tree::TreeCriterion::for_task`], name [`tree::TreeCriterion::as_str`]. Cancellation per node (and per feature), progress every 64 nodes |
+//! | `TrainedModelInfo.tree` | [`tree::DecisionTree::summary`]`() -> TreeSummary { node_count, n_leaves, max_depth, n_features }` |
+//! | `tree_diagram` | [`tree::plot::diagram`]`(&DecisionTree, feature_names: &[String], class_names: Option<&[String]>) -> TreeDiagram { nodes: Vec<DiagramNode>, edge_labels, max_x, max_y, criterion, summary }` (C13; `class_names` by code, only for classifiers); layout alone: [`tree::layout::buchheim`] |
+//! | `tree_rules` | [`tree::export_text()`]`(&DecisionTree, feature_names, &ExportTextOptions { class_names: Option<&[String]> /* D40 */, show_weights /* View: true, Export: false */, .. })` |
+//! | `feature_importance(Native)` | [`importance::native`]`(&DecisionTree) -> Vec<f64>` (= [`tree::DecisionTree::feature_importances`]) |
+//! | `feature_importance(Permutation)` | [`importance::permutation`]`(&dyn Predictor, x_test, y_test: &Target, PermutationOptions::default(), &TrainControl) -> Result<PermutationImportance { seed, baseline, importances: Array2 /* n_features × n_repeats */, mean, std }, ModelError>` (any model: KNN reuses it in F4; cancellable per repetition, progress per column) |
+//! | rows of the chart/table | [`importance::rows`]`(names, importance, std: Option<&[f64]>) -> Vec<ImportanceRow>` (ascending, ties by column) and [`importance::ImportanceMethod`] |
+//! | `predict_one` (+ `path`) | [`form::predict_one`] as in F2 (proba = leaf fractions, D46) and [`tree::DecisionTree::decision_path`]`(values: &[f64]) -> Result<DecisionPath { steps: Vec<PathStep { node, feature, value /* f32 */, threshold, goes_left }>, leaf, leaf_samples, leaf_value, leaf_class }, ModelError>` (C16) |
+//! | other per-row data | [`tree::DecisionTree::apply`] (leaf of each row), [`tree::DecisionTree::nodes`], sklearn-style arrays (`children_left()`, `feature()`, `threshold()`…) |
+//! | `generate_code` | new [`codegen::CodeTemplate`]s: `TreeViz`, `TreeText`, `DecisionPath` (no variables), `TreeUsage` ([`codegen::TreeUsageContext`]), `TreePython` ([`codegen::tree_python_corrected_context`]`(&tree, feature_names, class_names) -> TreePythonCorrectedContext`, D44), `TreePythonLiteral` ([`codegen::tree_python_literal_context`]), `TreeTraining` ([`codegen::TreeTrainingContext`]), `TreePackageScript`/`TreePackageReadme` (used by `mltutor-export`) |
+//! | `export_model` | `mltutor-export`: ONNX `TreeEnsemble*`, Python package (`modelo_arbol.zip`); rules `.txt` = `export_text` without weights; `.py` = `TreePython` |
+//!
 //! Python-style formatting of the TOML messages: [`pyfmt::py_format`]; embedded
 //! TOML: [`content::Messages`].
 //!
@@ -69,6 +89,7 @@ pub mod explore;
 pub mod form;
 pub mod frame;
 pub mod grid;
+pub mod importance;
 pub mod interpretation;
 pub mod linear;
 pub mod metrics;
@@ -79,6 +100,7 @@ pub mod residuals;
 pub mod sampling;
 pub mod split;
 pub mod stats;
+pub mod tree;
 
 pub use dataset::{
     ColumnKind, CsvDialect, CsvEncoding, Dataset, DatasetEntry, DatasetId, DatasetSummary,

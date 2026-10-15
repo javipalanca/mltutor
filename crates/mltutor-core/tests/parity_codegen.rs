@@ -57,3 +57,34 @@ fn every_template_name_is_embedded() {
     // Strict mode: a missing variable is an error, not an empty string.
     assert!(codegen::render(CodeTemplate::DecisionBoundary, &serde_json::json!({})).is_err());
 }
+
+#[test]
+fn tree_training_script_matches_jinja2_exactly() {
+    use mltutor_core::codegen::TreeTrainingContext;
+    let fx = fixture("code/trees_training.json");
+    let mut n = 0;
+    for (case, v) in fx["expected"].as_object().unwrap() {
+        let ctx: TreeTrainingContext = serde_json::from_value(v["context"].clone()).unwrap();
+        let rendered = codegen::render(CodeTemplate::TreeTraining, &ctx).unwrap();
+        assert_eq!(rendered, v["text"].as_str().unwrap(), "{case}");
+        n += 1;
+    }
+    assert_eq!(n, 16);
+}
+
+#[test]
+fn tree_templates_are_embedded() {
+    for t in [
+        CodeTemplate::TreeViz,
+        CodeTemplate::TreeText,
+        CodeTemplate::DecisionPath,
+        CodeTemplate::TreeUsage,
+        CodeTemplate::TreePython,
+        CodeTemplate::TreePythonLiteral,
+        CodeTemplate::TreePackageScript,
+        CodeTemplate::TreePackageReadme,
+        CodeTemplate::TreeTraining,
+    ] {
+        assert!(codegen::template_source(t.file_name()).is_some(), "{t:?}");
+    }
+}

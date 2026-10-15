@@ -8,6 +8,7 @@ use std::io::{Cursor, Write};
 use mltutor_core::codegen::{self, CodeTemplate};
 use mltutor_core::linear::{LinearRegression, LogisticRegression};
 use mltutor_core::model::{Prediction, Predictor};
+use mltutor_core::tree::DecisionTree;
 use ndarray::ArrayView2;
 use serde::Serialize;
 use serde_json::{json, Value};
@@ -22,6 +23,21 @@ pub const README: &str = "LEEME.txt";
 pub const PKL_NAME: &str = "modelo.pkl";
 /// Suggested ZIP name (Python app: `modelo_regresion.zip`).
 pub const ZIP_NAME: &str = "modelo_regresion.zip";
+/// Suggested ZIP name of a decision tree's package.
+pub const TREE_ZIP_NAME: &str = "modelo_arbol.zip";
+/// Pickle written by the tree's script (the name the Python app used, so that its
+/// "Código para Usar el Modelo" works unchanged; D43).
+pub const TREE_PKL_NAME: &str = "decision_tree_model.pkl";
+
+/// Suggested ZIP name for `model`.
+pub fn zip_name(model: &dyn Predictor) -> &'static str {
+    if model.as_any().is::<DecisionTree>() {
+        TREE_ZIP_NAME
+    } else {
+        ZIP_NAME
+    }
+}
+
 /// Version of the `modelo.json` schema.
 pub const FORMAT_VERSION: u32 = 1;
 /// Rows of the test set embedded in `check` (`X_test.head(5)`).
@@ -71,7 +87,13 @@ fn rows(x: ArrayView2<'_, f64>) -> Vec<Vec<f64>> {
 /// The `estimator` of the model (`sklearn.linear_model.*`).
 pub fn estimator_name(model: &dyn Predictor) -> Result<&'static str, ExportError> {
     let any = model.as_any();
-    if any.is::<LinearRegression>() {
+    if let Some(tree) = any.downcast_ref::<DecisionTree>() {
+        Ok(if tree.is_classifier() {
+            "sklearn.tree.DecisionTreeClassifier"
+        } else {
+            "sklearn.tree.DecisionTreeRegressor"
+        })
+    } else if any.is::<LinearRegression>() {
         Ok("sklearn.linear_model.LinearRegression")
     } else if any.is::<LogisticRegression>() {
         Ok("sklearn.linear_model.LogisticRegression")
@@ -80,9 +102,128 @@ pub fn estimator_name(model: &dyn Predictor) -> Result<&'static str, ExportError
     }
 }
 
+/// `get_params()` of the tree (keys in scikit-learn's alphabetical order).
+fn tree_params(tree: &DecisionTree, random_state: u32) -> Value {
+    let c = tree.config();
+    let mut p = serde_json::Map::new();
+    p.insert("ccp_alpha".into(), json!(0.0));
+    if tree.is_classifier() {
+        // DecisionTreeRegressor has no `class_weight`.
+        p.insert("class_weight".into(), Value::Null);
+    }
+    p.insert("criterion".into(), json!(c.criterion.as_str()));
+    p.insert("max_depth".into(), json!(c.max_depth));
+    p.insert("max_features".into(), Value::Null);
+    p.insert("max_leaf_nodes".into(), Value::Null);
+    p.insert("min_impurity_decrease".into(), json!(0.0));
+    p.insert("min_samples_leaf".into(), json!(1));
+    p.insert("min_samples_split".into(), json!(c.min_samples_split));
+    p.insert("min_weight_fraction_leaf".into(), json!(0.0));
+    p.insert("monotonic_cst".into(), Value::Null);
+    p.insert("random_state".into(), json!(random_state));
+    p.insert("splitter".into(), json!("best"));
+    Value::Object(p)
+}
+
+/// `modelo.json` of a decision tree: the arrays of `tree_`, enough for
+/// `Tree.__setstate__` (schema v1, as `export_package.model_json` of the fixtures).
+fn tree_model_json(input: &PackageInput<'_>, tree: &DecisionTree) -> Result<Value, ExportError> {
+    let estimator = estimator_name(input.model)?;
+    let n_check = input.x_test.nrows().min(CHECK_ROWS);
+    let x_check = input.x_test.slice(ndarray::s![..n_check, ..]);
+    let nodes = tree.nodes();
+    if nodes
+        .iter()
+        .any(|n| !n.impurity.is_finite() || n.value.iter().any(|v| !v.is_finite()))
+    {
+        return Err(ExportError::InvalidModel {
+            reason: "valores no finitos en el árbol".to_owned(),
+        });
+    }
+    let s = tree.summary();
+    let mut doc = serde_json::Map::new();
+    doc.insert("format".into(), json!("mltutor-model"));
+    doc.insert("format_version".into(), json!(FORMAT_VERSION));
+    doc.insert("estimator".into(), json!(estimator));
+    doc.insert("params".into(), tree_params(tree, input.random_state));
+    doc.insert("feature_names_in".into(), json!(input.feature_columns));
+    doc.insert("display_names".into(), json!(input.display_names));
+    doc.insert("n_features_in".into(), json!(s.n_features));
+    doc.insert("n_outputs".into(), json!(1));
+    doc.insert("max_features_".into(), json!(s.n_features));
+    doc.insert(
+        "tree".into(),
+        json!({
+            "max_depth": s.max_depth,
+            "node_count": s.node_count,
+            "n_leaves": s.n_leaves,
+            "children_left": tree.children_left(),
+            "children_right": tree.children_right(),
+            "feature": tree.feature(),
+            "threshold": tree.threshold(),
+            "impurity": nodes.iter().map(|n| n.impurity).collect::<Vec<_>>(),
+            "n_node_samples": nodes.iter().map(|n| n.n_samples).collect::<Vec<_>>(),
+            "weighted_n_node_samples": nodes.iter().map(|n| n.n_samples as f64).collect::<Vec<_>>(),
+            "missing_go_to_left": tree.missing_go_to_left(),
+            "value": nodes.iter().map(|n| n.value.clone()).collect::<Vec<_>>(),
+        }),
+    );
+    doc.insert(
+        "training".into(),
+        json!({
+            "dataset": input.dataset_label, "test_size": input.test_size,
+            "random_state": input.random_state, "n_train": input.n_train, "n_test": input.n_test
+        }),
+    );
+    let class_value = |code: usize| -> Value {
+        input
+            .class_values
+            .and_then(|v| v.get(code))
+            .map_or_else(|| json!(code), |&v| number(v))
+    };
+    let mut check = serde_json::Map::new();
+    check.insert("X".into(), json!(rows(x_check)));
+    match input.model.predict(x_check)? {
+        Prediction::Classes(c) => {
+            check.insert(
+                "prediction".into(),
+                Value::Array(c.iter().map(|&c| class_value(c)).collect()),
+            );
+        }
+        Prediction::Values(v) => {
+            check.insert("prediction".into(), json!(v));
+        }
+    }
+    if let Some(p) = input.model.predict_proba(x_check) {
+        check.insert("probabilities".into(), json!(rows(p?.view())));
+    }
+    doc.insert("check".into(), Value::Object(check));
+    if let Some(classes) = tree.classes() {
+        doc.insert(
+            "classes_".into(),
+            Value::Array(classes.iter().map(|&c| class_value(c)).collect()),
+        );
+        doc.insert("n_classes_".into(), json!(classes.len()));
+        doc.insert(
+            "class_names".into(),
+            match input.class_names {
+                Some(names) => json!(classes
+                    .iter()
+                    .map(|&c| names.get(c).cloned().unwrap_or_else(|| c.to_string()))
+                    .collect::<Vec<_>>()),
+                None => Value::Null,
+            },
+        );
+    }
+    Ok(Value::Object(doc))
+}
+
 /// `modelo.json` (schema v1).
 pub fn model_json(input: &PackageInput<'_>) -> Result<Value, ExportError> {
     let model = input.model;
+    if let Some(tree) = model.as_any().downcast_ref::<DecisionTree>() {
+        return tree_model_json(input, tree);
+    }
     let estimator = estimator_name(model)?;
     let coefs = model
         .linear_coefficients()
@@ -233,8 +374,91 @@ impl PythonPackage {
     }
 }
 
-/// Builds `modelo.json`, `reconstruir_modelo.py` and `LEEME.txt`.
+#[derive(Serialize)]
+struct TreeScriptContext<'a> {
+    estimator: &'a str,
+    dataset: &'a str,
+    classifier: bool,
+    task_type: &'a str,
+    json_name: &'a str,
+    pkl_name: &'a str,
+}
+
+#[derive(Serialize)]
+struct TreeReadmeContext<'a> {
+    estimator: &'a str,
+    dataset: &'a str,
+    feature_names: &'a [String],
+    classes: Option<Vec<ReadmeClass>>,
+    n_train: usize,
+    n_test: usize,
+    test_size: f64,
+    node_count: usize,
+    n_leaves: usize,
+    max_depth: usize,
+    pkl_name: &'a str,
+}
+
+fn pretty(doc: &Value) -> Result<String, ExportError> {
+    let mut s = serde_json::to_string_pretty(doc).map_err(|e| ExportError::Json {
+        message: e.to_string(),
+    })?;
+    s.push('\n');
+    Ok(s)
+}
+
+fn tree_package(
+    input: &PackageInput<'_>,
+    tree: &DecisionTree,
+) -> Result<PythonPackage, ExportError> {
+    let doc = tree_model_json(input, tree)?;
+    let estimator = estimator_name(input.model)?;
+    let classifier = tree.is_classifier();
+    let script = codegen::render(
+        CodeTemplate::TreePackageScript,
+        &TreeScriptContext {
+            estimator,
+            dataset: input.dataset_label,
+            classifier,
+            task_type: if classifier {
+                "Clasificación"
+            } else {
+                "Regresión"
+            },
+            json_name: MODEL_JSON,
+            pkl_name: TREE_PKL_NAME,
+        },
+    )?;
+    let s = tree.summary();
+    let readme = codegen::render(
+        CodeTemplate::TreePackageReadme,
+        &TreeReadmeContext {
+            estimator,
+            dataset: input.dataset_label,
+            feature_names: input.display_names,
+            classes: classifier.then(|| readme_classes(&doc)),
+            n_train: input.n_train,
+            n_test: input.n_test,
+            test_size: input.test_size,
+            node_count: s.node_count,
+            n_leaves: s.n_leaves,
+            max_depth: s.max_depth,
+            pkl_name: TREE_PKL_NAME,
+        },
+    )?;
+    Ok(PythonPackage {
+        model_json: pretty(&doc)?,
+        script,
+        readme,
+    })
+}
+
+/// Builds `modelo.json`, `reconstruir_modelo.py` and `LEEME.txt` (linear models or
+/// decision trees).
 pub fn python_package(input: &PackageInput<'_>) -> Result<PythonPackage, ExportError> {
+    if let Some(tree) = input.model.as_any().downcast_ref::<DecisionTree>() {
+        return tree_package(input, tree);
+    }
     let doc = model_json(input)?;
     let estimator = estimator_name(input.model)?;
     let classifier = input.model.classes().is_some();

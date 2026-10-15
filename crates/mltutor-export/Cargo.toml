@@ -21,6 +21,8 @@ zip = { version = "9", default-features = false, features = ["deflate-flate2-zli
 
 [dev-dependencies]
 approx = "0.5"
+# Tree fixtures of user CSVs (base64 in tests/parity/csv).
+base64 = "0.22"
 
 [lints]
 workspace = true

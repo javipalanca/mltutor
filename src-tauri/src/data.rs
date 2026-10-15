@@ -397,11 +397,24 @@ pub async fn list_datasets(data: State<'_, DataState>) -> Result<Vec<DatasetEntr
     blocking(move || data.list_datasets()).await
 }
 
+/// The selection and the highest `seq` accepted anywhere: the selection, the CSV
+/// registrations and the `last_seq` of every lesson's training. After a reload with the
+/// clock gone backwards, the UI continues above it, so no request is rejected as old.
+pub fn selection_with_models(
+    data: &DataState,
+    models: &crate::models::ModelState,
+) -> SelectedDataset {
+    let mut selection = data.selection();
+    selection.last_seq = selection.last_seq.max(models.last_seq());
+    selection
+}
+
 #[tauri::command]
 pub async fn get_selected_dataset(
     data: State<'_, DataState>,
+    models: State<'_, crate::models::ModelState>,
 ) -> Result<SelectedDataset, CommandError> {
-    Ok(data.selection())
+    Ok(selection_with_models(&data, &models))
 }
 
 #[tauri::command]

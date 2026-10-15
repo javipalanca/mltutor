@@ -42,6 +42,7 @@ pub fn export(model: &CoreModel, format: ExportFormat) -> Result<Vec<u8>, Comman
                 .and_then(|p| p.to_zip())
                 .map_err(export_error)
         }
+        ExportFormat::TreeRules | ExportFormat::TreePython => Err(CommandError::not_tree()),
     }
 }
 

@@ -12,7 +12,18 @@
 //!   `multi_class=1`, followed by `Normalizer(norm="L1")` → `probabilities`.
 //!   Binary: like skl2onnx, two rows `[−w, w]`, intercepts `[−b, b]` and
 //!   `post_transform="LOGISTIC"` (σ(−z), σ(z)), a single node.
+//! * [`tree_ensemble_classifier`] / [`tree_ensemble_regressor`] (F3): one
+//!   `TreeEnsembleClassifier` (→ `label` int64 + `probabilities`, no ZipMap) or
+//!   `TreeEnsembleRegressor` (→ `variable`) with one tree. Thresholds are the
+//!   **largest float32 ≤ the threshold** (D47): ONNX compares float32 inputs with
+//!   float32 thresholds, and `x ≤ floor32(t) ⇔ x ≤ t` for every float32 `x`, which is
+//!   exactly scikit-learn's rule (skl2onnx rounds to nearest and can misroute).
+//!   Binary classifiers follow skl2onnx (one weight per leaf, P(class 1) under
+//!   class id 0), which onnxruntime evaluates with its binary rule; listing both
+//!   classes makes onnxruntime return wrong labels (checked: 537/891 in Titanic).
 
+use mltutor_core::codegen::f32_floor;
+use mltutor_core::tree::DecisionTree;
 use prost::Message;
 
 use crate::ExportError;
@@ -48,6 +59,7 @@ pub enum AttributeType {
     String = 3,
     Floats = 6,
     Ints = 7,
+    Strings = 8,
 }
 
 /// `AttributeProto` (only scalar and list fields).
@@ -65,6 +77,8 @@ pub struct Attribute {
     pub floats: Vec<f32>,
     #[prost(int64, repeated, tag = "8")]
     pub ints: Vec<i64>,
+    #[prost(bytes = "vec", repeated, tag = "9")]
+    pub strings: Vec<Vec<u8>>,
     #[prost(int32, tag = "20")]
     pub r#type: i32,
 }
@@ -366,6 +380,270 @@ pub fn linear_classifier(
     }))
 }
 
+fn floats_attr(name: &str, v: Vec<f32>) -> Attribute {
+    Attribute::floats(name, v)
+}
+
+fn strings_attr(name: &str, v: &[&str]) -> Attribute {
+    Attribute {
+        name: name.to_owned(),
+        strings: v.iter().map(|s| s.as_bytes().to_vec()).collect(),
+        r#type: AttributeType::Strings as i32,
+        ..Attribute::default()
+    }
+}
+
+fn to_i64(v: usize) -> Result<i64, ExportError> {
+    i64::try_from(v).map_err(|_| ExportError::InvalidModel {
+        reason: "árbol demasiado grande".to_owned(),
+    })
+}
+
+/// The `nodes_*` attributes shared by both tree ensembles (tree id 0).
+fn tree_node_attributes(tree: &DecisionTree) -> Result<Vec<Attribute>, ExportError> {
+    let nodes = tree.nodes();
+    let n = nodes.len();
+    let (mut ids, mut feat, mut modes, mut values) = (vec![], vec![], vec![], vec![]);
+    let (mut t_ids, mut f_ids) = (vec![], vec![]);
+    for (i, node) in nodes.iter().enumerate() {
+        ids.push(to_i64(i)?);
+        match node.split {
+            Some(s) => {
+                if !s.threshold.is_finite() {
+                    return Err(ExportError::InvalidModel {
+                        reason: "umbral no finito".to_owned(),
+                    });
+                }
+                feat.push(to_i64(s.feature)?);
+                modes.push("BRANCH_LEQ");
+                values.push(f32_floor(s.threshold));
+                t_ids.push(to_i64(s.left)?);
+                f_ids.push(to_i64(s.right)?);
+            }
+            None => {
+                feat.push(0);
+                modes.push("LEAF");
+                values.push(0.0);
+                t_ids.push(0);
+                f_ids.push(0);
+            }
+        }
+    }
+    Ok(vec![
+        Attribute::ints("nodes_falsenodeids", f_ids),
+        Attribute::ints("nodes_featureids", feat),
+        floats_attr("nodes_hitrates", vec![1.0; n]),
+        Attribute::ints("nodes_missing_value_tracks_true", vec![0; n]),
+        strings_attr("nodes_modes", &modes),
+        Attribute::ints("nodes_nodeids", ids),
+        Attribute::ints("nodes_treeids", vec![0; n]),
+        Attribute::ints("nodes_truenodeids", t_ids),
+        floats_attr("nodes_values", values),
+        Attribute::string("post_transform", "NONE"),
+    ])
+}
+
+/// `DecisionTreeClassifier` → `ai.onnx.ml.TreeEnsembleClassifier`.
+/// `class_labels` = `classlabels_int64s`, one per class of the tree.
+pub fn tree_ensemble_classifier(
+    tree: &DecisionTree,
+    class_labels: &[i64],
+) -> Result<Model, ExportError> {
+    let p = mltutor_core::model::Predictor::n_features(tree);
+    let k = class_labels.len();
+    if !tree.is_classifier() || k == 0 {
+        return Err(ExportError::InvalidModel {
+            reason: "el árbol no es de clasificación".to_owned(),
+        });
+    }
+    let mut attrs = tree_node_attributes(tree)?;
+    let (mut cids, mut cnodes, mut cweights) = (vec![], vec![], vec![]);
+    for (i, node) in tree.nodes().iter().enumerate() {
+        if node.is_leaf() {
+            if node.value.len() != k {
+                return Err(ExportError::InvalidModel {
+                    reason: "número de clases".to_owned(),
+                });
+            }
+            if k == 2 {
+                // Binary, as skl2onnx: one weight per leaf, P(class 1) under class
+                // id 0. onnxruntime's binary rule then gives [1 − p, p] and the
+                // label `classlabels[1]` only when p > 0.5 (ties → class 0, like
+                // scikit-learn's argmax).
+                cids.push(0);
+                cnodes.push(to_i64(i)?);
+                cweights.push(node.value[1] as f32);
+            } else {
+                for (c, &v) in node.value.iter().enumerate() {
+                    cids.push(to_i64(c)?);
+                    cnodes.push(to_i64(i)?);
+                    cweights.push(v as f32);
+                }
+            }
+        }
+    }
+    let n_leaf_entries = cids.len();
+    attrs.push(Attribute::ints("class_ids", cids));
+    attrs.push(Attribute::ints("class_nodeids", cnodes));
+    attrs.push(Attribute::ints("class_treeids", vec![0; n_leaf_entries]));
+    attrs.push(floats_attr("class_weights", cweights));
+    attrs.push(Attribute::ints("classlabels_int64s", class_labels.to_vec()));
+    attrs.sort_by(|a, b| a.name.cmp(&b.name));
+    let node = Node {
+        input: vec![INPUT_NAME.to_owned()],
+        output: vec!["label".to_owned(), "probabilities".to_owned()],
+        name: "TreeEnsembleClassifier".to_owned(),
+        op_type: "TreeEnsembleClassifier".to_owned(),
+        attribute: attrs,
+        domain: "ai.onnx.ml".to_owned(),
+    };
+    Ok(model(Graph {
+        node: vec![node],
+        name: "mltutor_decision_tree_classifier".to_owned(),
+        input: vec![tensor_value(INPUT_NAME, ELEM_FLOAT, Some(to_i64(p)?))],
+        output: vec![
+            tensor_value("label", ELEM_INT64, None),
+            tensor_value("probabilities", ELEM_FLOAT, Some(to_i64(k)?)),
+        ],
+    }))
+}
+
+/// `DecisionTreeRegressor` → `ai.onnx.ml.TreeEnsembleRegressor`.
+pub fn tree_ensemble_regressor(tree: &DecisionTree) -> Result<Model, ExportError> {
+    if tree.is_classifier() {
+        return Err(ExportError::InvalidModel {
+            reason: "el árbol no es de regresión".to_owned(),
+        });
+    }
+    let p = mltutor_core::model::Predictor::n_features(tree);
+    let mut attrs = tree_node_attributes(tree)?;
+    let (mut tnodes, mut tweights) = (vec![], vec![]);
+    for (i, node) in tree.nodes().iter().enumerate() {
+        if node.is_leaf() {
+            let v = node.value.first().copied().unwrap_or(f64::NAN);
+            if !v.is_finite() {
+                return Err(ExportError::InvalidModel {
+                    reason: "valor de hoja no finito".to_owned(),
+                });
+            }
+            tnodes.push(to_i64(i)?);
+            tweights.push(v as f32);
+        }
+    }
+    let n_leaves = tnodes.len();
+    attrs.push(Attribute::int("n_targets", 1));
+    attrs.push(Attribute::ints("target_ids", vec![0; n_leaves]));
+    attrs.push(Attribute::ints("target_nodeids", tnodes));
+    attrs.push(Attribute::ints("target_treeids", vec![0; n_leaves]));
+    attrs.push(floats_attr("target_weights", tweights));
+    attrs.sort_by(|a, b| a.name.cmp(&b.name));
+    let node = Node {
+        input: vec![INPUT_NAME.to_owned()],
+        output: vec!["variable".to_owned()],
+        name: "TreeEnsembleRegressor".to_owned(),
+        op_type: "TreeEnsembleRegressor".to_owned(),
+        attribute: attrs,
+        domain: "ai.onnx.ml".to_owned(),
+    };
+    Ok(model(Graph {
+        node: vec![node],
+        name: "mltutor_decision_tree_regressor".to_owned(),
+        input: vec![tensor_value(INPUT_NAME, ELEM_FLOAT, Some(to_i64(p)?))],
+        output: vec![tensor_value("variable", ELEM_FLOAT, Some(1))],
+    }))
+}
+
+/// float32 evaluation of a one-tree `TreeEnsemble*` node (BRANCH_LEQ only).
+fn evaluate_tree_ensemble(
+    node: &Node,
+    x: &[Vec<f32>],
+) -> Result<(Vec<i64>, Vec<Vec<f32>>), ExportError> {
+    let err = |m: &str| ExportError::Onnx {
+        message: m.to_owned(),
+    };
+    let attr = |name: &str| node.attribute.iter().find(|a| a.name == name);
+    let ints = |name: &str| attr(name).map(|a| a.ints.clone()).ok_or_else(|| err(name));
+    let floats = |name: &str| {
+        attr(name)
+            .map(|a| a.floats.clone())
+            .ok_or_else(|| err(name))
+    };
+    let modes: Vec<Vec<u8>> = attr("nodes_modes")
+        .map(|a| a.strings.clone())
+        .ok_or_else(|| err("nodes_modes"))?;
+    let feat = ints("nodes_featureids")?;
+    let vals = floats("nodes_values")?;
+    let tn = ints("nodes_truenodeids")?;
+    let fnn = ints("nodes_falsenodeids")?;
+    let idx = |v: i64| usize::try_from(v).map_err(|_| err("índice negativo"));
+    let classifier = node.op_type == "TreeEnsembleClassifier";
+    let (leaf_ids, leaf_cls, leaf_w, labels) = if classifier {
+        (
+            ints("class_nodeids")?,
+            ints("class_ids")?,
+            floats("class_weights")?,
+            ints("classlabels_int64s")?,
+        )
+    } else {
+        let n = ints("target_nodeids")?;
+        let z = vec![0; n.len()];
+        (n, z, floats("target_weights")?, vec![0])
+    };
+    let k = labels.len();
+    let mut out_l = Vec::with_capacity(x.len());
+    let mut out_s = Vec::with_capacity(x.len());
+    for row in x {
+        let mut cur = 0usize;
+        let mut guard = 0;
+        while modes.get(cur).map(Vec::as_slice) == Some(b"BRANCH_LEQ".as_slice()) {
+            let f = idx(*feat.get(cur).ok_or_else(|| err("nodo"))?)?;
+            let v = *row.get(f).ok_or_else(|| err("número de columnas"))?;
+            cur = if v <= vals[cur] {
+                idx(tn[cur])?
+            } else {
+                idx(fnn[cur])?
+            };
+            guard += 1;
+            if guard > modes.len() {
+                return Err(err("árbol con ciclos"));
+            }
+        }
+        let mut scores = vec![0.0_f32; k];
+        for ((&n, &c), &w) in leaf_ids.iter().zip(&leaf_cls).zip(&leaf_w) {
+            if idx(n)? == cur {
+                if let Some(s) = scores.get_mut(idx(c)?) {
+                    *s += w;
+                }
+            }
+        }
+        if classifier && k == 2 && leaf_cls.iter().all(|&c| c == 0) {
+            // onnxruntime's binary case: the single score is P(class 1).
+            let p = scores[0];
+            out_l.push(if p > 0.5 { labels[1] } else { labels[0] });
+            out_s.push(vec![1.0 - p, p]);
+            continue;
+        }
+        let best = scores
+            .iter()
+            .enumerate()
+            .fold((0, f32::NEG_INFINITY), |(bi, bv), (i, &v)| {
+                if v > bv {
+                    (i, v)
+                } else {
+                    (bi, bv)
+                }
+            })
+            .0;
+        out_l.push(if classifier {
+            labels.get(best).copied().unwrap_or(0)
+        } else {
+            0
+        });
+        out_s.push(scores);
+    }
+    Ok((out_l, out_s))
+}
+
 /// Reference evaluation of the graphs above in float32, like onnxruntime, for
 /// tests and for the export check: returns `(labels, scores)` with one row of
 /// scores per sample (`variable` for the regressor, `probabilities` for the
@@ -376,6 +654,9 @@ pub fn evaluate(model: &Model, x: &[Vec<f32>]) -> Result<(Vec<i64>, Vec<Vec<f32>
     };
     let graph = model.graph.as_ref().ok_or_else(|| err("sin grafo"))?;
     let first = graph.node.first().ok_or_else(|| err("sin nodos"))?;
+    if first.op_type.starts_with("TreeEnsemble") {
+        return evaluate_tree_ensemble(first, x);
+    }
     let attr = |name: &str| first.attribute.iter().find(|a| a.name == name);
     let coef = &attr("coefficients")
         .ok_or_else(|| err("sin coefficients"))?

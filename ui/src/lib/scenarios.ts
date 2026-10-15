@@ -11,6 +11,7 @@ import type { DiagKind } from "./bindings/DiagKind";
 import type { LessonId } from "./content";
 import { loadScenarioCsv, setTarget } from "./csvFlow";
 import { REGRESSION_SCENARIOS } from "./lessons/regression/scenarios";
+import { TREES_SCENARIOS } from "./lessons/trees/scenarios";
 import { router } from "./router.svelte";
 import { chooseDataset } from "./selection";
 import { session, type Analysis } from "./session.svelte";
@@ -83,6 +84,7 @@ const SCENARIOS: Readonly<Record<string, (arg: string | undefined) => Promise<vo
     session.setExpander("csv-distribucion", true);
   },
   ...REGRESSION_SCENARIOS,
+  ...TREES_SCENARIOS,
 };
 
 async function loadCsv(path: string | undefined): Promise<void> {

@@ -895,6 +895,14 @@ CODE_LITERALS = {
                                                    "petal length (cm)", "petal width (cm)"]}),
 }
 
+# Templates that deliberately differ from the app's text: 'text' is the expected render and
+# 'python_text' the app's string (like CODE_TEMPLATES_CHANGED of export_golden.py).
+CODE_CHANGED = {
+    "texto_arbol.py.j2": "D40: export_text receives class_names (in the order of classes_), so the "
+                         "leaves say 'class: setosa' instead of 'class: 0'; the unused "
+                         "show_class_name parameter becomes class_names=None",
+}
+
 
 def case_code_trees(eg, writer) -> None:
     import importlib
@@ -906,13 +914,20 @@ def case_code_trees(eg, writer) -> None:
         app_text = obj(**ctx) if callable(obj) else obj
         tctx = dict(ctx or {})
         rendered = eg._render_code_template(template, tctx)
+        if template in CODE_CHANGED:
+            out[template] = {"source": dotted, "context": tctx, "text": rendered,
+                             "python_text": app_text, "changed": CODE_CHANGED[template],
+                             "compare": "text == render(template, context)"}
+            continue
         if rendered.strip("\n") != app_text.strip("\n"):
             raise AssertionError(f"{template} does not reproduce {dotted}")
         out[template] = {"source": dotted, "context": tctx, "text": app_text,
                          "compare": "text.strip('\\n') == render(template, context).strip('\\n')"}
     doc = {
         "meta": eg.make_meta({"text": "exact (ignoring leading/trailing newlines)"},
-                             "Verbatim copies of the lesson's code strings. arbol_python.py.j2 "
+                             "Verbatim copies of the lesson's code strings, except those with a "
+                             "'changed' entry (a decision fixed the app's code; 'text' is then the "
+                             "expected render and 'python_text' the app's). arbol_python.py.j2 "
                              "and arbol_python_corregido.py.j2 (export_tree_as_python_code) and "
                              "paquete_modelo_arbol.py.j2 are checked inside each trees/*.json "
                              "(python_code, export_package), because their context comes from "
@@ -923,7 +938,232 @@ def case_code_trees(eg, writer) -> None:
     writer.write_json(eg.PARITY_DIR / "code" / "trees.json", doc, dumps_compact)
 
 
+# ---------------------------------------------------------------------------
+# code/trees_training.json: the complete training script (arbol_entrenamiento.py.j2)
+# ---------------------------------------------------------------------------
+# Like code/regression_training.json (D29 of F2): each case renders the template with the
+# context Rust will pass, EXECUTES it in a fresh interpreter and checks that the tree, the
+# predictions, the metrics and the importances it computes equal the app's (trees/*.json).
+# Only datasets bundled with scikit-learn and CSVs, so the case needs no network.
+TRAINING_CASES: dict[str, dict[str, Any]] = {
+    "iris_gini_d3": {"fixture": "iris_gini_d3", "sample": None},
+    "iris_gini_d3_form_sample": {"fixture": "iris_gini_d3", "sample": "custom"},
+    "iris_entropy_d5_mss5": {"fixture": "iris_entropy_d5_mss5", "sample": None},
+    "iris_gini_d1": {"fixture": "iris_gini_d1", "sample": None},
+    "wine_gini_d4": {"fixture": "wine_gini_d4", "sample": None},
+    "wine_entropy_d3_mss10": {"fixture": "wine_entropy_d3_mss10", "sample": None},
+    "breast_cancer_gini_d3": {"fixture": "breast_cancer_gini_d3", "sample": None},
+    "breast_cancer_entropy_d10": {"fixture": "breast_cancer_entropy_d10", "sample": None},
+    "csv_string_target_gini_d3": {"fixture": "csv_string_target_gini_d3", "sample": None},
+    "diabetes_squared_error_d3": {"fixture": "diabetes_squared_error_d3", "sample": None},
+    "diabetes_squared_error_d3_form_sample": {"fixture": "diabetes_squared_error_d3",
+                                              "sample": "custom"},
+    "diabetes_friedman_mse_d5_mss10": {"fixture": "diabetes_friedman_mse_d5_mss10",
+                                       "sample": None},
+    "diabetes_absolute_error_d4": {"fixture": "diabetes_absolute_error_d4", "sample": None},
+    "diabetes_squared_error_d10": {"fixture": "diabetes_squared_error_d10", "sample": None},
+    "csv_numeric_regression_squared_error_d3": {
+        "fixture": "csv_numeric_regression_squared_error_d3", "sample": None},
+    "iris_regression_mismatch": {"fixture": "iris_regression_mismatch", "sample": None},
+}
+TRAINING_CONTEXT_KEYS = ["dataset", "dataset_label", "csv_file", "csv_target", "csv_sep",
+                         "csv_decimal", "csv_encoding", "task", "criterion", "max_depth",
+                         "min_samples_split", "test_size", "feature_names", "class_names",
+                         "sample"]
+TRAINING_TEMPLATE = "arbol_entrenamiento.py.j2"
+_TRAINING_PROBE = """\
+import json, runpy, sys
+import numpy as np
+g = runpy.run_path(sys.argv[1], run_name="__main__")
+m, t = g["modelo"], g["modelo"].tree_
+out = {k: float(g[k]) for k in ("accuracy", "precision", "recall", "f1", "auc", "ap", "auc_micro",
+                                "auc_macro", "ap_micro", "ap_macro", "mse", "rmse", "mae", "r2")
+       if k in g}
+out["params"] = {k: v for k, v in m.get_params().items()}
+out["tree"] = {"children_left": t.children_left.tolist(), "children_right": t.children_right.tolist(),
+               "feature": t.feature.tolist(), "threshold": t.threshold.tolist(),
+               "n_node_samples": t.n_node_samples.tolist(), "impurity": t.impurity.tolist(),
+               "value": np.asarray(t.value, dtype=float).tolist()}
+out["y_pred"] = np.asarray(g["y_pred"]).tolist()
+if hasattr(m, "predict_proba"):
+    out["proba"] = m.predict_proba(g["X_test"]).tolist()
+out["feature_importances"] = m.feature_importances_.tolist()
+out["perm_mean"] = g["importancia_perm"].importances_mean.tolist()
+out["perm_std"] = g["importancia_perm"].importances_std.tolist()
+out["test_positions"] = [int(g["X"].index.get_loc(i)) for i in g["X_test"].index]
+out["prediction"] = np.asarray(g["prediccion"]).item()
+out["path"] = [int(n) for n in g["camino"]]
+out["leaf"] = int(g["hoja"])
+with open(sys.argv[2], "w", encoding="utf-8") as f:
+    json.dump(out, f)
+"""
+
+
+def _training_shared_blocks(eg) -> None:
+    """The dataset blocks of arbol_entrenamiento.py.j2 must stay copies of F2's template."""
+    code = eg.REPO_ROOT / "content" / "code"
+    reg = (code / "regresion_entrenamiento.py.j2").read_text("utf-8")
+    tree = (code / TRAINING_TEMPLATE).read_text("utf-8")
+
+    def block(text: str, start: str, end: str) -> str:
+        i = text.index(start)
+        return text[i:text.index(end, i) + len(end)]
+
+    blocks = [("import numpy as np\n", "make_moons\n{%- endif %}\n"),
+              ("# 1. Cargar los datos", "{%- endif %}\n{%- endif %}\n")]
+    for start, end in blocks:
+        a = block(reg, start, end).replace('model == "logistic"', 'task == "classification"')
+        if a != block(tree, start, end):
+            raise AssertionError(f"{TRAINING_TEMPLATE}: the block '{start.strip()}' differs "
+                                 "from regresion_entrenamiento.py.j2")
+
+
+def _training_context(eg, spec: dict) -> tuple[dict, dict[str, bytes], dict]:
+    fixture = json.loads((eg.PARITY_DIR / MODULE / f"{spec['fixture']}.json").read_text("utf-8"))
+    inp, exp = fixture["input"], fixture["expected"]
+    classification = exp["estimator"] == "DecisionTreeClassifier"
+    files: dict[str, bytes] = {}
+    ctx = dict.fromkeys(TRAINING_CONTEXT_KEYS)
+    class_names = exp["class_names"] if classification else None
+    if "csv_fixture" in inp:
+        name = Path(inp["csv_fixture"]).stem
+        raw = eg._csv_cases()[name]
+        files[f"{name}.csv"] = raw
+        ctx.update(dataset="csv", csv_file=f"{name}.csv", csv_target=inp["target"], csv_sep=",",
+                   csv_decimal=".", csv_encoding="utf-8")
+        target = pd.read_csv(__import__("io").BytesIO(raw))[inp["target"]]
+        if classification and target.dtype == object:  # D10: Rust keeps the class names
+            class_names = sorted(target.astype(str).unique().tolist())
+    else:
+        ctx["dataset"] = Path(inp["dataset"]).stem
+    sample = None
+    if spec["sample"] == "custom":  # the 🔮 form values (sliders at their maximum)
+        sample = exp["prediction_form"]["custom"]["input_float32"]
+    ctx.update(dataset_label=inp["app_label"],
+               task="classification" if classification else "regression",
+               criterion=inp["criterion"], max_depth=inp["max_depth"],
+               min_samples_split=inp["min_samples_split"], test_size=inp["test_size"],
+               feature_names=exp["feature_names"], class_names=class_names, sample=sample)
+    return ctx, files, fixture
+
+
+def _close(a, b, rel=1e-12) -> bool:
+    return np.allclose(np.asarray(a, dtype=float), np.asarray(b, dtype=float), rtol=rel,
+                       atol=rel)
+
+
+def case_code_trees_training(eg, writer) -> None:
+    import subprocess
+    import sys
+    import tempfile
+
+    _training_shared_blocks(eg)
+    out = {}
+    for name, spec in TRAINING_CASES.items():
+        ctx, files, fixture = _training_context(eg, spec)
+        script = eg._render_code_template(TRAINING_TEMPLATE, ctx)
+        compile(script, f"{name}.py", "exec")
+        with tempfile.TemporaryDirectory() as tmp:
+            for fname, data in files.items():
+                (Path(tmp) / fname).write_bytes(data)
+            (Path(tmp) / "script.py").write_text(script, encoding="utf-8")
+            (Path(tmp) / "probe.py").write_text(_TRAINING_PROBE, encoding="utf-8")
+            proc = subprocess.run([sys.executable, "probe.py", "script.py", "numbers.json"],
+                                  cwd=tmp, capture_output=True, text=True, timeout=300,
+                                  env={**__import__("os").environ, "PYTHONWARNINGS": "ignore"})
+            if proc.returncode != 0:
+                raise RuntimeError(f"{name}: script failed:\n{proc.stdout}\n{proc.stderr}")
+            got = json.loads((Path(tmp) / "numbers.json").read_text("utf-8"))
+        exp = fixture["expected"]
+        fail = lambda what: AssertionError(f"{name}: {what} differs from trees/{spec['fixture']}")  # noqa: E731
+        if got["test_positions"] != exp["test_indices"]:
+            raise fail("the split")
+        if eg.to_jsonable(got["params"]) != eg.to_jsonable(exp["params"]):
+            raise fail("get_params()")
+        tree = exp["tree"]
+        for key in ("children_left", "children_right", "feature", "n_node_samples"):
+            if got["tree"][key] != tree[key]:
+                raise fail(f"tree_.{key}")
+        if got["tree"]["threshold"] != tree["threshold"]:  # bit for bit (JSON floats = repr)
+            raise fail("tree_.threshold")
+        if not _close(got["tree"]["impurity"], tree["impurity"]):
+            raise fail("tree_.impurity")
+        value = np.asarray(got["tree"]["value"], dtype=float)[:, 0, :]
+        if not _close(value, np.asarray(tree["value"], dtype=float).reshape(value.shape)):
+            raise fail("tree_.value")
+        classification = ctx["task"] == "classification"
+        if classification:
+            if got["y_pred"] != exp["y_pred"] or got["proba"] != exp["proba"]:
+                raise fail("predict/predict_proba")
+        elif not _close(got["y_pred"], exp["y_pred"]):
+            raise fail("predict")
+        if not _close(got["feature_importances"], exp["feature_importances"]):
+            raise fail("feature_importances_")
+        checked = {}
+        if "evaluation" in exp:
+            ref = (eg._classification_reference(exp["evaluation"]) if classification
+                   else {k: exp["evaluation"][k] for k in ("mse", "rmse", "mae", "r2")})
+            for key, val in ref.items():
+                if not math.isclose(got[key], val, rel_tol=1e-12, abs_tol=1e-12):
+                    raise fail(f"{key} ({got[key]!r} vs {val!r})")
+            checked = {k: got[k] for k in ref}
+        else:  # tree type / task mismatch: the fixture has y_test/y_pred, not the metrics
+            ref = eg._training_script_reference(fixture)
+            for key, val in ref.items():
+                if not math.isclose(got[key], val, rel_tol=1e-12, abs_tol=1e-12):
+                    raise fail(key)
+            checked = {k: got[k] for k in ref}
+        perm = exp.get("permutation_importance")
+        if perm is not None:
+            if not (np.allclose(got["perm_mean"], perm["importances_mean"], rtol=0, atol=1e-12)
+                    and np.allclose(got["perm_std"], perm["importances_std"], rtol=0,
+                                    atol=1e-12)):
+                raise fail("permutation_importance")
+        if spec["sample"] == "custom":
+            ref_pred = exp["prediction_form"]["custom"]
+        else:
+            ref_pred = {"leaf": exp["test_leaves"][0],
+                        "path": {"nodes": exp["decision_paths_test_head"][0]["nodes"]},
+                        "predict": exp["y_pred"][0]}
+        if got["leaf"] != ref_pred["leaf"] or got["path"] != ref_pred["path"]["nodes"]:
+            raise fail("the decision path of the sample")
+        if not math.isclose(float(got["prediction"]), float(ref_pred["predict"]), rel_tol=1e-12,
+                            abs_tol=1e-12):
+            raise fail("the prediction of the sample")
+        out[name] = {
+            "context": ctx,
+            "text": script,
+            "stdout": proc.stdout,
+            "checked_against": f"{MODULE}/{spec['fixture']}.json",
+            "checked_numbers": checked,
+            "permutation_importance_checked": perm is not None,
+            "sample": {"prediction": got["prediction"], "leaf": got["leaf"], "path": got["path"]},
+        }
+    doc = {
+        "meta": eg.make_meta(
+            {"text": "exact", "stdout": "informational (depends on the scikit-learn version)",
+             "tree": "structure, thresholds (bit), predictions and probabilities exact; "
+                     "impurity, value, importances and metrics rel 1e-12; permutation 1e-12 abs"},
+            "The training script of 🌲 Árboles de Decisión (like D29 of F2) is rendered with "
+            "jinja2 (identical to minijinja for the constructs it uses) and executed. Its split, "
+            "get_params(), tree_ arrays, predictions, probabilities, metrics, native and "
+            "permutation importances and the decision path of the sample equal the app's "
+            "(trees/*.json). Rust must render 'text' exactly from 'context' (filters pyrepr = "
+            "Python repr(), pycomment = remove CR/LF, then every triple quote, then double the "
+            "backslashes). The dataset blocks are checked to be copies of "
+            "regresion_entrenamiento.py.j2."),
+        "input": {"template": f"content/code/{TRAINING_TEMPLATE}",
+                  "engine": "jinja2 with keep_trailing_newline=True, StrictUndefined, "
+                            "filters pyrepr = repr() and pycomment",
+                  "context_keys": TRAINING_CONTEXT_KEYS,
+                  "file_name": "arbol_decision_entrenamiento.py"},
+        "expected": out,
+    }
+    writer.write_json(eg.PARITY_DIR / "code" / "trees_training.json", doc)
+
+
 def register(cases: dict, eg) -> None:
     for name, spec in TREE_CASES.items():
         cases[f"{MODULE}/{name}"] = (lambda n, s: (lambda w: case_tree(eg, n, s, w)))(name, spec)
     cases["code/trees"] = lambda w: case_code_trees(eg, w)
+    cases["code/trees_training"] = lambda w: case_code_trees_training(eg, w)

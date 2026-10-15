@@ -10,6 +10,7 @@ import { router } from "./router.svelte";
 import { chooseDataset } from "./selection";
 import { session } from "./session.svelte";
 import { regressionScenario, type RegressionScenario } from "./lessons/regression/scenarios";
+import { treesScenario, type TreesScenario } from "./lessons/trees/scenarios";
 
 const LESSON = "regresion";
 const IRIS = { kind: "builtin", id: "iris" } as const;
@@ -71,6 +72,36 @@ async function regressionChecks(base: Omit<RegressionScenario, "tab">, vizs: rea
   await regressionView({ ...base, tab: 6, code: true }, "[data-export-panel] h4", "el código generado");
 }
 
+/** Opens a screen of 🌲 Árboles and waits for `selector`. */
+async function treesView(options: TreesScenario, selector: string, what: string): Promise<void> {
+  void backend.logToBackend("info", `smoke test: árboles, ${what}`);
+  await treesScenario(options);
+  await waitFor(selector, 30000, what);
+  await waitForIdle(() => busy.active, 60000);
+  const error = document.querySelector('[data-content] .notice.error, [data-plot-rendered="error"]');
+  if (error) {
+    throw new Error(`${what}: ${error.textContent?.trim() ?? "error"}`);
+  }
+}
+
+/** Every tab of a trained tree (fase3-arboles.md §9.2.3). */
+async function treesChecks(base: Omit<TreesScenario, "tab">, vizs: readonly [string, string][]): Promise<void> {
+  await treesView({ ...base, train: true, tab: 1 }, "[data-train-tab] .notice.success", "el entrenamiento");
+  await treesView({ ...base, tab: 2 }, "[data-evaluation] [data-plot-rendered=\"true\"]", "la evaluación");
+  for (const [viz, selector] of vizs) {
+    await treesView({ ...base, tab: 3, viz }, selector, `la vista ${viz}`);
+  }
+  await treesView({ ...base, tab: 4 }, "[data-importance=\"native\"] [data-plot-rendered=\"true\"]", "la importancia nativa");
+  await treesView({ ...base, tab: 4, importance: "permutation" }, "[data-importance=\"permutation\"] [data-plot-rendered=\"true\"]", "la importancia por permutación");
+  await treesView({ ...base, tab: 5, predict: true }, "[data-decision-path]", "el camino de decisión");
+  await treesView({ ...base, tab: 6, open: ["arboles-vista-previa"] }, "[data-export-panel] [data-export-format=\"tree_python\"]", "la exportación");
+}
+
+const TREE_VIZ: readonly [string, string][] = [
+  ["Árbol", "[data-tree-diagram] [data-node]"],
+  ["Texto", "[data-tree-rules]"],
+];
+
 const CHECKS: Readonly<Record<string, () => Promise<void>>> = {
   datos_vistas: datosVistas,
   datos_correlacion: correlacion,
@@ -91,6 +122,23 @@ const CHECKS: Readonly<Record<string, () => Promise<void>>> = {
     regressionChecks({ dataset: "diabetes", model: "linear" }, [
       ["Residuos", "[data-residuals]"],
       ["Superficie", "[data-grid-view]"],
+    ]),
+  arboles_gini_iris: () =>
+    treesChecks({ dataset: "iris" }, [
+      ...TREE_VIZ,
+      ["Frontera", "[data-grid-view] [data-plot-rendered=\"true\"]"],
+      ["ROC", "[data-roc] [data-plot-rendered=\"true\"]"],
+    ]),
+  arboles_regresion_diabetes: () =>
+    treesChecks({ dataset: "diabetes" }, [
+      ...TREE_VIZ,
+      ["Residuos", "[data-residuals] [data-plot-rendered=\"true\"]"],
+      ["Superficie", "[data-grid-view] [data-plot-rendered=\"true\"]"],
+    ]),
+  arboles_binaria_cancer: () =>
+    treesChecks({ dataset: "breast_cancer", criterion: "entropy", depth: 10 }, [
+      ...TREE_VIZ,
+      ["ROC", "[data-roc=\"binary\"] [data-plot-rendered=\"true\"]"],
     ]),
 };
 

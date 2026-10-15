@@ -42,6 +42,9 @@
     "allow-predict-one",
     "allow-export-model",
     "allow-generate-code",
+    "allow-tree-diagram",
+    "allow-tree-rules",
+    "allow-feature-importance",
     "core:event:allow-listen",
     "core:event:allow-unlisten"
   ]

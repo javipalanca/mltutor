@@ -2,7 +2,9 @@
     (sin el salto de línea inicial). Pestaña 💾 Exportar, al final: show_code_with_download(código,
     "Código para Usar el Modelo", "usar_modelo.py"). Carga 'decision_tree_model.pkl' (el pickle
     de "📦 Exportar como Pickle"), que Rust no genera (D1): el paquete Python lo crea con este formato (D43).
-    Variables: feature_names (list[str], nombres legibles; Python los imprime con str(list) = repr). -#}
+    Variables: feature_names (list[str], nombres legibles; Python los imprime con str(list) = repr).
+    Van dentro del docstring: `pyrepr | pycomment` (pycomment quita las comillas triples de un nombre
+    de columna de un CSV, que cerrarían el docstring; con nombres normales no cambia nada). -#}
 # Código para usar el modelo de árbol de decisión
 import pickle
 import numpy as np
@@ -23,7 +25,7 @@ def predecir(valores_caracteristicas):
     
     Args:
         valores_caracteristicas (list): Lista con valores para cada característica
-                                      en el orden: {{ feature_names | pyrepr }}
+                                      en el orden: {{ feature_names | pyrepr | pycomment }}
     
     Returns:
         Predicción del modelo

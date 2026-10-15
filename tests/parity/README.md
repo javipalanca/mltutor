@@ -77,3 +77,4 @@ bytes del archivo.
 - Cada fixture indica su tolerancia en `meta.tolerance`. Si Rust no puede cumplirla (otro
   desempate, otro RNG), se documenta en MEMORY.md. La tolerancia no se relaja sin
   justificarla.
+- `code/trees_training.json`: the decision tree training script (`arbol_entrenamiento.py.j2`) rendered and executed for 16 cases, checked against `trees/*.json`.

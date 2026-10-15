@@ -61,6 +61,7 @@ use argmin::core::{
 };
 use argmin::solver::linesearch::MoreThuenteLineSearch;
 use argmin::solver::quasinewton::LBFGS;
+use ndarray::linalg::general_mat_mul;
 use ndarray::{s, Array1, Array2, ArrayView1, ArrayView2, Axis};
 use serde::{Deserialize, Serialize};
 
@@ -171,6 +172,7 @@ impl LogisticRegression {
             k,
             inv_scale_sq: scaling.inv_scale_sq(),
             lambda: 1.0 / (params.c * n as f64),
+            work: HessianWork::default(),
         };
 
         let max_iter = u64::from(params.max_iter);
@@ -417,6 +419,28 @@ struct Objective<'a> {
     inv_scale_sq: Array1<f64>,
     /// `1/(C·n)`.
     lambda: f64,
+    /// Buffers of [`Objective::hessian`], reused between Newton iterations.
+    work: HessianWork,
+}
+
+/// `X̂ = [X̃, 1]` and `W·X̂` (both `n × (p+1)`): built once, on the first Hessian,
+/// instead of allocating them in every Newton iteration (review F2).
+#[derive(Default)]
+struct HessianWork {
+    buffers: std::cell::RefCell<Option<(Array2<f64>, Array2<f64>)>>,
+}
+
+impl Clone for HessianWork {
+    /// A clone starts with empty buffers (they are only a cache).
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+impl std::fmt::Debug for HessianWork {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("HessianWork")
+    }
 }
 
 impl Objective<'_> {
@@ -522,19 +546,41 @@ impl Objective<'_> {
         let p = self.p();
         let n = self.x.nrows();
         let d = self.k * (p + 1);
-        // X̂ = [X̃, 1].
-        let mut xh = Array2::<f64>::ones((n, p + 1));
-        xh.slice_mut(s![.., ..p]).assign(&self.x);
+        let mut work = self.work.buffers.borrow_mut();
+        let (xh, xw) = work.get_or_insert_with(|| {
+            // X̂ = [X̃, 1].
+            let mut xh = Array2::<f64>::ones((n, p + 1));
+            xh.slice_mut(s![.., ..p]).assign(&self.x);
+            let xw = Array2::<f64>::zeros((n, p + 1));
+            (xh, xw)
+        });
         let z = self.scores(theta);
         let mut h = Array2::<f64>::zeros((d, d));
         let inv_n = 1.0 / n as f64;
+        // xw = diag(w)·X̂, then the block X̂ᵀ·diag(w)·X̂ is written into `h`.
+        let mut weighted_block = |w: &mut dyn FnMut(usize) -> f64, ra: usize, rb: usize| {
+            for (i, (mut dst, src)) in xw.rows_mut().into_iter().zip(xh.rows()).enumerate() {
+                let wi = w(i);
+                dst.zip_mut_with(&src, |d, &v| *d = v * wi);
+            }
+            general_mat_mul(
+                1.0,
+                &xw.t(),
+                &*xh,
+                0.0,
+                &mut h.slice_mut(s![ra..ra + p + 1, rb..rb + p + 1]),
+            );
+        };
         if self.k == 1 {
-            let w: Array1<f64> = z.column(0).mapv(|zi| {
-                let q = expit(zi);
-                q * (1.0 - q) * inv_n
-            });
-            let xw = &xh * &w.view().insert_axis(Axis(1));
-            h.assign(&xw.t().dot(&xh));
+            let col = z.column(0);
+            weighted_block(
+                &mut |i| {
+                    let q = expit(col[i]);
+                    q * (1.0 - q) * inv_n
+                },
+                0,
+                0,
+            );
         } else {
             let mut prob = z;
             for row in prob.rows_mut() {
@@ -542,23 +588,23 @@ impl Objective<'_> {
             }
             for a in 0..self.k {
                 for b in a..self.k {
-                    let w: Array1<f64> = prob
-                        .rows()
-                        .into_iter()
-                        .map(|row| {
-                            let delta = if a == b { row[a] } else { 0.0 };
-                            (delta - row[a] * row[b]) * inv_n
-                        })
-                        .collect();
-                    let xw = &xh * &w.view().insert_axis(Axis(1));
-                    let block = xw.t().dot(&xh);
+                    let pr = &prob;
+                    weighted_block(
+                        &mut |i| {
+                            let delta = if a == b { pr[[i, a]] } else { 0.0 };
+                            (delta - pr[[i, a]] * pr[[i, b]]) * inv_n
+                        },
+                        a * (p + 1),
+                        b * (p + 1),
+                    );
+                }
+            }
+            for a in 0..self.k {
+                for b in (a + 1)..self.k {
                     let (ra, rb) = (a * (p + 1), b * (p + 1));
-                    h.slice_mut(s![ra..ra + p + 1, rb..rb + p + 1])
+                    let block = h.slice(s![ra..ra + p + 1, rb..rb + p + 1]).t().to_owned();
+                    h.slice_mut(s![rb..rb + p + 1, ra..ra + p + 1])
                         .assign(&block);
-                    if a != b {
-                        h.slice_mut(s![rb..rb + p + 1, ra..ra + p + 1])
-                            .assign(&block.t());
-                    }
                 }
             }
             let flat = 1.0 / self.k as f64;
@@ -936,6 +982,7 @@ mod tests {
                 k,
                 inv_scale_sq: array![0.5, 2.0],
                 lambda: 0.1,
+                work: HessianWork::default(),
             };
             let theta = Array1::from_iter((0..k * 3).map(|i| 0.1 * i as f64 - 0.2));
             let g = obj.grad(theta.view());
@@ -1079,6 +1126,7 @@ mod tests {
             k: 1,
             inv_scale_sq: scaling.inv_scale_sq(),
             lambda: 1.0 / 8.0,
+            work: HessianWork::default(),
         };
         let ctl = TrainControl::none();
         let (newton, _) = run_newton(&problem, 3, 100, &ctl).unwrap_or_else(|e| panic!("{e}"));

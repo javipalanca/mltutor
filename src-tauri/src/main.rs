@@ -17,10 +17,12 @@ mod navigation;
 mod real_exports;
 mod real_facade;
 mod real_models;
+mod real_trees;
 mod screenshot;
 mod session;
 mod state;
 mod tasks;
+mod tree_code;
 
 use std::process::ExitCode;
 use std::time::Instant;
@@ -123,6 +125,9 @@ fn run(mode: Mode, started: Instant) -> i32 {
             models::predict_one,
             models::export_model,
             models::generate_code,
+            models::tree_diagram,
+            models::tree_rules,
+            models::feature_importance,
         ])
         .setup(move |app| {
             if automated {
