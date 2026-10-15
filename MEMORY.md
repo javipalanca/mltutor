@@ -277,6 +277,10 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
   - `tools/check_trees_platform.py` reentrena sklearn con los 45 árboles (sin la app ni red) y se ejecuta
     en el job de Linux del CI (x86-64, sin FMA). En arm64, `cart_reference` coincide bit a bit con
     sklearn en 30/45 árboles por la FMA, con la estructura igual en todos.
+  - Primera ejecución en x86-64 (CI Linux, 2026-10-15): los 45 árboles de los fixtures coinciden con
+    sklearn (estructura y umbrales; impurezas 31/45 bit a bit, error ≤ 1,14e-13), así que los fixtures
+    generados en arm64 valen también en x86-64. `cart_reference` coincide bit a bit con el sklearn de
+    x86-64 en 43/45 (en arm64, 30/45).
   - `export_golden.py --check` terminó dos veces con el código 144 y sin salida al ejecutarse en primer
     plano desde el agente; en segundo plano pasa. Parece un límite del entorno, no un fallo.
 - **Métricas con clases ausentes del train (2026-10-15):** los scripts de entrenamiento usan
