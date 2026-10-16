@@ -12,9 +12,15 @@ export type HistoryView = { metric: NnMetric, epochs: Array<EpochLog>, best_epoc
  */
 lr_drops: Array<number>, 
 /**
- * K1: first epoch (1-based) whose loss is NaN or infinite (the weights are useless).
+ * K1: first epoch (1-based) whose loss is NaN or infinite.
  */
 diverged_epoch: number | null, 
+/**
+ * K1: the weights are finite (`NeuralNetwork::is_valid`). After a divergence they
+ * can still be: EarlyStopping restored the weights of `best_epoch`. Only an invalid
+ * network blocks the views that need its weights.
+ */
+network_valid: boolean, 
 /**
  * The 4 cards of 📊 Historial (`st.metric` row); `None` if the history is empty or
  * the training diverged.

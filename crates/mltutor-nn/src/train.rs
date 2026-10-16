@@ -372,9 +372,10 @@ pub fn fit(
         mlp,
         history: History {
             metric: spec.metric,
-            epochs,
             best_epoch: early.then_some(es_best_epoch),
             stopped_epoch: early.then_some(stopped),
+            near_divergence: History::detect_near_divergence(&epochs, diverged),
+            epochs,
             diverged_epoch: diverged,
         },
         final_learning_rate: opt.learning_rate,

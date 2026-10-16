@@ -296,6 +296,14 @@ aviso_config_cambiada = "⚠️ Has cambiado la configuración en 🏗️ Arquit
 [evaluacion]
 # NUEVO (2026-10-16, K1): la pérdida se hizo NaN/inf (Python seguía mostrando métricas sin sentido).
 aviso_divergencia = "🚨 El entrenamiento **divergió** en la época {epoca}: la pérdida se hizo infinita o NaN (no es un número), así que los pesos de la red no sirven y no se pueden calcular las métricas, la superficie, los pesos ni las activaciones. Suele deberse a un *learning rate* demasiado alto para el optimizador: prueba con 0.01 o 0.001 y vuelve a entrenar."
+# NUEVO (revisión ML de F5c/F5d, 2026-10-16): st.warning en lugar de aviso_divergencia cuando la pérdida se hizo
+# NaN/inf pero EarlyStopping restauró (on_train_end) los pesos de una época anterior y finita. {epoca} = época de
+# la divergencia (diverged_epoch); {mejor} = época de los pesos restaurados (best_epoch). Misma numeración que
+# aviso_divergencia. Las métricas y las vistas se calculan con normalidad.
+aviso_divergencia_recuperada = "⚠️ El entrenamiento **divergió** en la época {epoca} (la pérdida se hizo infinita o NaN), pero EarlyStopping había guardado los pesos de la época {mejor}, la de menor pérdida de validación, y los recuperó al terminar. Las métricas y las vistas de estas pestañas son de esos pesos, que son válidos; lo que no vale es el historial a partir de la época {epoca}. Aun así, el *learning rate* es demasiado alto: bájalo (0.01 o 0.001) y vuelve a entrenar para que la red pueda seguir aprendiendo en lugar de romperse."
+# NUEVO (revisión ML de F5c/F5d, 2026-10-16): st.warning cuando la pérdida crece muchos órdenes de magnitud sin
+# llegar a NaN/inf (criterio en el core). Sin marcadores.
+aviso_casi_divergencia = "⚠️ La pérdida ha crecido **muchos órdenes de magnitud** durante el entrenamiento, aunque sin llegar a infinito. Casi siempre se debe a un *learning rate* demasiado alto: cada paso del optimizador se pasa del mínimo y cae más lejos que el anterior. Las métricas de abajo pueden no tener sentido; baja el learning rate (0.01 o 0.001) y vuelve a entrenar."
 # NUEVO (2026-10-16, D87): con salida tanh los valores no son probabilidades.
 aviso_salida_tanh = "⚠️ La salida de esta red es **tanh** (entre −1 y 1), así que sus valores **no son probabilidades**. La clase se decide igual (salida mayor que 0,5, o la neurona con el valor más alto), pero no interpretes esas salidas como la confianza de la red. Para obtener probabilidades usa **sigmoid** (binaria) o **softmax** (multiclase)."
 header = "📈 Evaluación del Modelo"
@@ -326,7 +334,11 @@ grafica_error = "Error graficando historial: {error}"
 # Después: show_detailed_evaluation (C1/C2 + C3, F2) y el diagnóstico ([diagnostico])
 # NUEVO (D84, solo regresión): st.warning cuando el R² de prueba es negativo (con los valores por defecto
 # Diabetes queda en R² ≈ −3 y el diagnóstico de Python dice "✅ Error de regresión aceptable").
-aviso_r2_negativo = "⚠️ El R² en prueba es {r2:.2f}: la red predice peor que si respondiera siempre la media del objetivo. El diagnóstico de abajo solo compara el error con el de las primeras épocas, así que puede decir «aceptable» aunque el modelo sea malo. Prueba un learning rate mayor (0.01 o 0.1) o más épocas."
+# CORREGIDO (revisión ML de F5c/F5d, 2026-10-16): solo con learning rate < 0,1. Antes: "… Prueba un learning rate
+# mayor (0.01 o 0.1) o más épocas." (con LR ≥ 0,1 subirlo empeora; ver aviso_r2_negativo_lr_alto).
+aviso_r2_negativo = "⚠️ El R² en prueba es {r2:.2f}: la red predice peor que si respondiera siempre la media del objetivo. El diagnóstico de abajo solo compara el error con el de las primeras épocas, así que puede decir «aceptable» aunque el modelo sea malo. Con un learning rate bajo, la red avanza tan despacio que no le dan las épocas para aprender: súbelo un orden de magnitud (por ejemplo, de 0.001 a 0.01) o entrena más épocas."
+# NUEVO (revisión ML de F5c/F5d, 2026-10-16): en lugar de aviso_r2_negativo cuando el learning rate es ≥ 0,1.
+aviso_r2_negativo_lr_alto = "⚠️ El R² en prueba es {r2:.2f}: la red predice peor que si respondiera siempre la media del objetivo. El diagnóstico de abajo solo compara el error con el de las primeras épocas, así que puede decir «aceptable» aunque el modelo sea malo. Con un learning rate tan alto, los pasos del optimizador se pasan del mínimo y la red oscila o se atasca (a veces con muchas neuronas ReLU muertas, mira 📉 Activaciones): **bájalo** a 0.01 o 0.001 y vuelve a entrenar."
 # Debajo del aviso: el expander [entrenamiento] defecto_expander (valores-defecto.md)
 
 [diagnostico]
@@ -371,9 +383,11 @@ regresion_aceptable = "✅ El error de validación es menor que al principio del
 regresion_alto = "❌ El error de validación no mejora el del principio del entrenamiento"
 # NUEVO (propuesta para C23): debajo de sobreajuste_accuracy cuando la validación tiene menos de 30 filas
 # (SMALL_VALIDATION en nn_diagnostics.rs). {n} = filas de validación; {pp} = 100 / n (Iris: 24 filas, 4,2
-# puntos por muestra). Con n ≈ 24 y una exactitud cercana a 0,5, la desviación típica es ≈ 0,1, así que
-# diferencias de hasta unos 0,2 entre entrenamiento y validación caben en el azar del muestreo.
-nota_validacion_pequena = "ℹ️ La validación solo tiene {n} muestras: cada una mueve la exactitud {pp:.1f} puntos, y con dropout la exactitud de entrenamiento se mide con neuronas apagadas. Diferencias como esta (hasta unos 0,2 con {n} muestras) pueden ser azar."
+# puntos por muestra). CORREGIDO (revisión ML de F5c/F5d, 2026-10-16): el margen ya no es un 0,2 fijo.
+# {margen} = 2·sqrt(p(1−p)/n) con p = exactitud de validación, calculado por el core (≈ dos desviaciones típicas
+# de una proporción medida con n filas; Iris, p = 0,9 y n = 24: 0,12). Antes: "… Diferencias como esta (hasta
+# unos 0,2 con {n} muestras) pueden ser azar."
+nota_validacion_pequena = "ℹ️ La validación solo tiene {n} muestras: cada una mueve la exactitud {pp:.1f} puntos, y con dropout la exactitud de entrenamiento se mide con neuronas apagadas. Diferencias de hasta unos {margen:.2f} con {n} muestras pueden ser azar."
 # columna 2
 puntuacion = "**🎯 Puntuación de Salud:**"
 salud_excelente = "🌟 Excelente: {pct:.0f}%"      # success; calidad excellent y >= 75
@@ -530,7 +544,10 @@ media_global = "Media global"                                 # {:.4f}
 std_global = "Std global"                                     # {:.4f}
 casi_cero_global = "% |w|<1e-3"                               # {:.1f}%
 capas_analizadas = "Capas analizadas"
-pesos_pequenos = "🟡 Muchos pesos muy pequeños: posible underfitting o regularización alta"   # warning: std global < 0.01
+# CORREGIDO (revisión ML de F5c/F5d, 2026-10-16; alineado con pesos-interpretar.md). Python: "🟡 Muchos pesos muy
+# pequeños: posible underfitting o regularización alta". MLTutor no regulariza, y una red que no aprende conserva
+# los pesos de Glorot, cuya std es sqrt(2/(entradas + neuronas)) (0,38 en la primera capa de Iris).
+pesos_pequenos = "🟡 Pesos con muy poca variación: no es lo esperable. MLTutor no regulariza, y una red que no aprende conserva los pesos iniciales (Glorot), que varían mucho más. Revisa el entrenamiento (learning rate, neuronas muertas en 📉 Activaciones)."   # warning: std global < 0.01
 pesos_varianza_alta = "⚠️ Pesos con varianza muy alta: posible inestabilidad del entrenamiento" # warning: > 2
 pesos_sanos = "✅ Varianza de pesos dentro de un rango saludable"                             # success
 distribucion_titulo = "### 🔍 Distribución por Capa"
@@ -547,7 +564,9 @@ pie_pesos = "Media={media:.4f} | Std={std:.4f} | %≈0={casi_cero:.1f}% | Rango=
 pie_sesgos = "Media={media:.4f} | Std={std:.4f} | Rango=[{min:.3f}, {max:.3f}]"
 evaluacion_titulo = "### 🩺 Evaluación General"
 # st.write("• {mensaje}") por cada uno que aplique, en este orden; si ninguno, el último
-insight_casi_cero = "Muchos pesos casi nulos → considera reducir regularización o entrenar más épocas."   # % casi cero global > 75
+# CORREGIDO (revisión ML de F5c/F5d, 2026-10-16; ver pesos_pequenos). Python: "Muchos pesos casi nulos → considera
+# reducir regularización o entrenar más épocas."
+insight_casi_cero = "Muchos pesos casi nulos → no se debe a la regularización (MLTutor no la usa) ni a entrenar poco: una red que no aprende conserva los pesos de Glorot, que casi nunca bajan de 1e-3. Revisa el learning rate y las neuronas muertas en 📉 Activaciones."   # % casi cero global > 75
 insight_varianza_baja = "Varianza extremadamente baja → el modelo quizá no aprendió patrones útiles."    # std < 0.01
 insight_varianza_alta = "Varianza muy alta → riesgo de explosión de gradientes/saturación."              # std > 2
 insight_ok = "Distribución equilibrada de pesos y sesgos. No se detectan anomalías destacables."
@@ -606,6 +625,9 @@ resumen_columnas = ["Capa", "Neuronas", "Muertas", "% Muertas", "Constantes", "%
 muertas_alta = "🚨 Alta proporción de neuronas muertas ({pct:.1f}%) → Revisa LR, inicialización o arquitectura"   # error: > 50
 muertas_moderada = "⚠️ Proporción moderada de neuronas muertas ({pct:.1f}%)"                                       # warning: > 20
 muertas_ok = "✅ Neuronas muertas bajo control ({pct:.1f}%)"                                                        # success
+# NUEVO (revisión ML de F5c/F5d, 2026-10-16): st.info debajo del aviso anterior cuando las ocultas usan tanh o
+# sigmoid (el criterio "muerta" = todas las activaciones ≤ umbral es el mismo para todas las activaciones).
+muertas_no_relu = "ℹ️ Con tanh o sigmoid, «muerta» solo significa que, en las muestras analizadas, la neurona nunca supera el umbral elegido (con tanh y umbral 0, que su salida es siempre negativa). No es como una ReLU muerta, cuyo gradiente es 0 y ya no puede recuperarse: estas neuronas siguen recibiendo gradiente (salvo si están saturadas), así que el consejo de revisar el learning rate no se aplica igual. Mira mejor la columna «% Saturación≈»."
 detalle_titulo = "### 🔍 Detalle de Activaciones"
 capa_expander = "{capa} ({nombre})"        # Python: "Capa {índice en model.layers + 1} ({layer.name})", p. ej. "Capa 2 (dense_1)" (D77)
 metrica_neuronas = "Neuronas"
@@ -649,7 +671,10 @@ escalado_nota = "Escribe los valores en sus unidades originales: antes de pasarl
 # NUEVO (F5d): st.warning bajo el resultado si algún valor queda fuera del [mínimo, máximo] de esa característica
 # en las filas de ENTRENAMIENTO (sin escalar). {detalles} = los fuera_rango_item unidos por "; "; los números con
 # el mismo formato que el formulario. Las predicciones se muestran igual: es un aviso, no un error.
-fuera_rango = "⚠️ **La red está extrapolando.** Estos valores quedan fuera del rango de los datos de entrenamiento: {detalles}. La red no ha visto muestras así y responde con lo que dicte su forma (con ReLU sigue sin límite la última tendencia que aprendió), a menudo con mucha seguridad. No te fíes de esta predicción."
+# CORREGIDO (revisión ML de F5c/F5d, 2026-10-16): dos variantes. `fuera_rango` es la genérica (ocultas tanh o
+# sigmoid) y `fuera_rango_relu` se usa cuando las ocultas son ReLU. Mismo marcador {detalles}.
+fuera_rango = "⚠️ **La red está extrapolando.** Estos valores quedan fuera del rango de los datos de entrenamiento: {detalles}. La red no ha visto muestras así y responde con lo que dicte su forma, que nadie ha comprobado en esa zona. No te fíes de esta predicción."
+fuera_rango_relu = "⚠️ **La red está extrapolando.** Estos valores quedan fuera del rango de los datos de entrenamiento: {detalles}. La red no ha visto muestras así. Una red con ReLU es lineal a trozos: lejos de los datos sigue en línea recta la última tendencia que aprendió, sin límite, así que en regresión la predicción crece o decrece sin freno y en clasificación la red se vuelve **cada vez más segura** cuanto más te alejas. Esa seguridad no significa nada: no te fíes de esta predicción."
 fuera_rango_item = "{caracteristica} = {valor} (entrenamiento: de {min} a {max})"
 # NUEVO (F5d): st.error si la salida de la red es NaN o infinita para esta entrada (en lugar de la tarjeta).
 prediccion_no_finita = "❌ La red ha devuelto un valor no numérico (NaN o infinito) para esta entrada. Suele pasar con valores enormes, muy lejos de los datos de entrenamiento: revisa lo que has escrito."
@@ -669,8 +694,20 @@ btn_elegir = "📂 Elegir CSV…"                                 # NUEVO (D81)
 # Revisión de F5d: deja claro que se usa el escalador del entrenamiento (D72), no uno ajustado con el archivo.
 nota_unidades = "Escribe los valores sin escalar, en sus unidades originales: MLTutor los escala con la media y la desviación que guardó al entrenar, no con las de tu archivo (como `scaler.transform` en scikit-learn; volver a ajustar el escalador con los datos nuevos cambiaría el significado de cada valor). Las columnas de texto deben venir ya codificadas como números, como en la tabla de 📊 Datos."
 # NUEVO (D81): help de las columnas Probabilidad (binaria) y Confianza (multiclase)
-probabilidad_help = "Salida de la neurona: la probabilidad de la clase positiva. La predicción es la positiva si es mayor que 0,5."
+# CORREGIDO (revisión ML de F5c/F5d, 2026-10-16): probabilidad_help solo se usa en binaria (salida sigmoid) y no
+# menciona la softmax; la Confianza tiene un help por tipo de tarea (confianza_help_binaria / _multiclase).
+# `confianza_help` se conserva igual que confianza_help_multiclase por compatibilidad.
+probabilidad_help = "La salida de la única neurona de salida (sigmoid): la probabilidad de la clase positiva, entre 0 y 1. La predicción es la clase positiva si es mayor que 0,5."
 confianza_help = "La probabilidad de la clase predicha (la mayor salida de la softmax). Alta no significa correcta: una red mal entrenada puede equivocarse con confianza."
+confianza_help_binaria = "La probabilidad de la clase predicha: max(p, 1 − p), donde p es la probabilidad de la clase positiva. Va de 0,5 a 1. Alta no significa correcta: una red mal entrenada puede equivocarse con confianza."
+confianza_help_multiclase = "La probabilidad de la clase predicha, es decir, la mayor salida de la softmax (las salidas suman 1). Alta no significa correcta: una red mal entrenada puede equivocarse con confianza."
+# NUEVO (revisión ML de F5c/F5d, 2026-10-16): texto de la celda Predicción (y del CSV descargado) cuando la salida
+# de la red es NaN o infinita para esa fila; las demás filas se predicen igual.
+fila_no_finita = "Sin predicción: la red dio una salida no numérica (NaN o infinito) para esta fila, normalmente porque tiene valores enormes"
+# NUEVO (revisión ML de F5c/F5d, 2026-10-16): st.error si el CSV supera el límite de filas; no se predice nada.
+demasiadas_filas = "❌ El archivo tiene demasiadas filas: el máximo para predecir por lotes es {max}. Divídelo en varios archivos más pequeños."
+# NUEVO (revisión ML de F5c/F5d, 2026-10-16): caption bajo `columnas` cuando el modelo usa una sola característica.
+una_columna_ok = "ℹ️ Este modelo usa una sola característica, así que basta un CSV de una columna: la cabecera con su nombre y debajo un valor por fila."
 cargado = "✅ Archivo cargado: {filas} filas, {columnas} columnas"
 faltan = "❌ Faltan características: {columnas}"
 sobran = "⚠️ Características adicionales (serán ignoradas): {columnas}"
@@ -735,6 +772,13 @@ serie_prediccion = "Predicción"
 eje_valor_predicho = "Valor Predicho"
 umbral = "Umbral de decisión"
 valor_base = "Valor Base"
+# NUEVO (revisión ML de F5c/F5d, 2026-10-16): con salida tanh en binaria, en lugar de serie_probabilidad (traza y
+# eje) y de "Probabilidad" en base_binaria; nota_tanh_binaria va como caption bajo la gráfica.
+salida_neurona = "Salida de la neurona"
+nota_tanh_binaria = "Con salida tanh, la curva es la salida de la neurona, entre −1 y 1: no es una probabilidad. La red elige la clase positiva cuando supera 0,5 (la línea roja «Umbral de decisión»)."
+# NUEVO (revisión ML de F5c/F5d, 2026-10-16): nombre de la serie que se dibuja en multiclase (la probabilidad de la
+# clase de la muestra base, ver multiclase_nota). {clase} = nombre de esa clase.
+probabilidad_clase_base = "Probabilidad de «{clase}»"
 analisis = "**📈 Análisis de Resultados:**"
 rango_probabilidades = "Rango de Probabilidades"          # {:.3f}
 rango_probabilidades_help = "Diferencia entre la probabilidad máxima y mínima observada"
@@ -746,6 +790,9 @@ rango_predicciones_help = "Diferencia entre la predicción máxima y la mínima 
 impacto_relativo = "Impacto Relativo"                     # {:.1f}%
 # NUEVO (F5d). Python: rango / |media de las 50 predicciones| · 100 (0 si la media es 0)
 impacto_relativo_help = "El rango dividido por el valor absoluto de la media de las predicciones, en %. Depende de dónde esté el cero del objetivo: si las predicciones rondan el 0 se dispara aunque el cambio sea pequeño."
+# NUEVO (revisión ML de F5c/F5d, 2026-10-16): caption VISIBLE bajo las métricas en regresión (el help no se ve si
+# no se pasa el ratón). Los veredictos *_regresion de abajo usan este impacto (> 20 % / > 5 %).
+impacto_relativo_nota = "ℹ️ El impacto relativo es el rango de las predicciones dividido por |media|, así que depende de dónde esté el cero del objetivo: con un objetivo centrado en 0 sale siempre alto, aunque el cambio sea pequeño, y con uno lejos de 0 sale bajo aunque el cambio sea grande. El veredicto de abajo lo usa; para juzgar el efecto, mira el rango de predicciones, que está en las unidades del objetivo."
 # CORREGIDO (revisión de F5d) las seis claves *influyente*/moderada*: añaden "en esta muestra" (Python generalizaba
 # el efecto de una muestra a todo el modelo). Python: las mismas frases sin "de esta muestra" / "en esta muestra".
 muy_influyente = "🎯 **Característica muy influyente:** '{caracteristica}' tiene un gran impacto en las predicciones de esta muestra"    # binaria: rango > 0.3
@@ -821,7 +868,9 @@ btn_onnx = "💾 Guardar ONNX…"                                   # red_neuron
 onnx_ok = "✅ Modelo ONNX guardado en {ruta}"
 onnx_salidas_clasificacion = "Salidas: `label` (el código de la clase) y `probabilities` (una columna por clase; en binaria, `[1 − p, p]`)."
 onnx_salidas_regresion = "Salida: `variable` (el valor predicho)."
-python_texto = "La red entrenada escrita en NumPy: lee modelo.json (va en el paquete Keras), escala la entrada y aplica cada capa. Útil para ver qué calcula la red; no necesita TensorFlow."
+# CORREGIDO (revisión ML de F5c/F5d, 2026-10-16): modelo.json va también en red_predictor_numpy.zip. Antes: "… lee
+# modelo.json (va en el paquete Keras), …"
+python_texto = "La red entrenada escrita en NumPy: lee modelo.json (va junto al script en red_predictor_numpy.zip, y también en el paquete Keras), escala la entrada y aplica cada capa. Útil para ver qué calcula la red; no necesita TensorFlow."
 codigo_entrenamiento = "**🐍 Script para entrenar la misma red con Keras:**"   # red_entrenamiento.py.j2 (D74)
 metadatos_texto = "Un JSON con la arquitectura, los hiperparámetros, las características, las clases y la fecha del entrenamiento. No contiene los pesos: sirve para documentar qué modelo es cuál, no para predecir."   # NUEVO (F5d): encima del st.json
 metadatos_fecha_nota = "La fecha es la del entrenamiento."

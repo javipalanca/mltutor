@@ -18,7 +18,7 @@ use crate::ipc::{
     ExploreKind, ExploreView, ExportFormat, Influence, ModelConfig, PredictionResult, TablePreview,
 };
 use crate::nn::nn_text;
-use crate::nn_predict::{csv_field, number};
+use crate::nn_predict::{csv_field, number, UTF8_BOM};
 use crate::real_models::model_error;
 use crate::real_nn::RealNn;
 
@@ -162,7 +162,11 @@ impl RealNn {
     fn train_ranges(&self) -> Vec<core::nn_predict::FeatureRange> {
         self.trained
             .training_ranges(self.core.dataset.features.view())
-            .unwrap_or_default()
+            .unwrap_or_else(|error| {
+                // Without ranges no row is flagged as out of range: logged, not hidden.
+                log::error!("rangos de entrenamiento de la red: {error}");
+                Vec::new()
+            })
     }
 
     pub fn batch_template_view(&self, rows: usize) -> BatchTemplate {
@@ -193,6 +197,16 @@ impl RealNn {
         }
     }
 
+    fn batch_kind(&self) -> ExploreKind {
+        if self.core.dataset.class_names().is_none() {
+            ExploreKind::Regression
+        } else if self.trained.network.mlp().n_outputs() == 1 {
+            ExploreKind::Binary
+        } else {
+            ExploreKind::Multiclass
+        }
+    }
+
     pub fn predict_batch_view(
         &self,
         path: &Path,
@@ -202,7 +216,7 @@ impl RealNn {
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
-        let table = match core::csv::read_csv_file_cancellable(path, cancel) {
+        let table = match read_batch_csv(path, cancel) {
             Ok(table) => table,
             // A header without rows (or an empty file): `[lotes] sin_filas`, not an error.
             Err(core::CsvError::Empty) => core::csv::RawTable {
@@ -211,53 +225,40 @@ impl RealNn {
                 separator: ',',
                 notices: Vec::new(),
             },
-            // The CSV reader needs two columns (features + target). A batch file with a
-            // single column cannot hold the features of a model with more than one: it is
-            // reported as `faltan` with the name of its header.
-            Err(core::CsvError::TooFewColumns { .. }) => {
-                let header = std::fs::read_to_string(path)
-                    .ok()
-                    .and_then(|text| text.lines().next().map(str::to_owned))
-                    .unwrap_or_default();
-                let name = header.trim().trim_matches('"').to_owned();
-                if self.core.dataset.feature_columns.len() == 1 {
-                    return Err(CommandError::invalid_input(
-                        "Añade una columna más al CSV (por ejemplo, un identificador): el lector de CSV necesita al menos dos columnas.",
-                    ));
-                }
-                core::csv::RawTable {
-                    columns: vec![core::csv::RawColumn {
-                        name,
-                        data: core::csv::ColumnData::Float(Vec::new()),
-                    }],
-                    n_rows: 1,
-                    separator: ',',
-                    notices: Vec::new(),
-                }
-            }
             Err(error) => return Err(crate::real_facade::csv_error(error)),
         };
-        let checked = check_table(&self.core.dataset, &table);
         let mut view = BatchPredictView {
             file_name,
             rows: u32_of(table.n_rows),
             cols: u32_of(table.columns.len()),
-            missing: checked.missing.clone(),
-            extra: checked.extra.clone(),
-            errors: checked.errors.clone(),
-            reordered: checked.reordered,
-            kind: if self.core.dataset.class_names().is_none() {
-                ExploreKind::Regression
-            } else if self.trained.network.mlp().n_outputs() == 1 {
-                ExploreKind::Binary
-            } else {
-                ExploreKind::Multiclass
-            },
+            missing: Vec::new(),
+            extra: Vec::new(),
+            errors: Vec::new(),
+            reordered: false,
+            kind: self.batch_kind(),
             output_is_probability: self.trained.network.output_is_probability(),
             out_of_range: None,
             results: None,
             predicted: 0,
+            non_finite: 0,
         };
+        // Checked before anything else: nothing of a too big file is predicted.
+        if table.n_rows > core::nn_predict::BATCH_MAX_ROWS {
+            view.errors.push(
+                nn_text(
+                    "lotes",
+                    "demasiadas_filas",
+                    "❌ El archivo tiene demasiadas filas: el máximo para predecir por lotes es {max}.",
+                )
+                .replace("{max}", &core::nn_predict::BATCH_MAX_ROWS.to_string()),
+            );
+            return Ok(BatchOutcome { view, csv: None });
+        }
+        let checked = check_table(&self.core.dataset, &table);
+        view.missing = checked.missing;
+        view.extra = checked.extra;
+        view.errors = checked.errors;
+        view.reordered = checked.reordered;
         let Some(x) = checked.matrix else {
             return Ok(BatchOutcome { view, csv: None });
         };
@@ -269,7 +270,10 @@ impl RealNn {
             .map_err(model_error)?;
         view.kind = kind(batch.kind);
         view.output_is_probability = batch.output_is_probability;
-        view.predicted = u32_of(batch.rows);
+        let n = batch.rows;
+        let n_valid = batch.finite.iter().filter(|&&f| f).count();
+        view.predicted = u32_of(n_valid);
+        view.non_finite = u32_of(n - n_valid);
 
         // Range (a): the training rows, original units.
         let columns = &self.core.dataset.feature_columns;
@@ -302,84 +306,11 @@ impl RealNn {
             );
         }
 
-        // Result columns (Python: Predicción, Probabilidad, Confianza / Confianza).
-        let t = |key: &str, fallback: &str| nn_text("lotes", key, fallback);
-        let yes = t("valor_si", "Sí");
-        let no = t("valor_no", "No");
+        let outputs = BatchOutputs::new(self, &batch, &outside);
         let mut header: Vec<String> = columns.clone();
-        header.push(t("columna_prediccion", "Predicción"));
-        let n = batch.rows;
-        // Each extra column: its value as a cell and as CSV text, by row.
-        let mut extra: Vec<Vec<(Cell, String)>> = Vec::new();
-        let f32_text = |v: f64| format!("{}", v as f32);
-        match &batch.predictions {
-            BatchPredictions::Binary {
-                predicted,
-                probability,
-                confidence,
-            } => {
-                header.push(t("columna_probabilidad", "Probabilidad"));
-                header.push(t("columna_confianza", "Confianza"));
-                extra.push(
-                    predicted
-                        .iter()
-                        .map(|&c| {
-                            let name = self.class_name(c);
-                            (Cell::Text { v: name.clone() }, name)
-                        })
-                        .collect(),
-                );
-                for series in [probability, confidence] {
-                    extra.push(
-                        series
-                            .iter()
-                            .map(|&v| (Cell::number(v), f32_text(v)))
-                            .collect(),
-                    );
-                }
-            }
-            BatchPredictions::Multiclass {
-                predicted,
-                confidence,
-                ..
-            } => {
-                header.push(t("columna_confianza", "Confianza"));
-                extra.push(
-                    predicted
-                        .iter()
-                        .map(|&c| {
-                            let name = self.class_name(c);
-                            (Cell::Text { v: name.clone() }, name)
-                        })
-                        .collect(),
-                );
-                extra.push(
-                    confidence
-                        .iter()
-                        .map(|&v| (Cell::number(v), f32_text(v)))
-                        .collect(),
-                );
-            }
-            BatchPredictions::Regression { values } => {
-                extra.push(
-                    values
-                        .iter()
-                        .map(|&v| (Cell::number(v), f32_text(v)))
-                        .collect(),
-                );
-            }
-        }
-        header.push(t("columna_fuera_rango", "Fuera de rango"));
-        extra.push(
-            outside
-                .iter()
-                .map(|&o| {
-                    let text = if o { yes.clone() } else { no.clone() };
-                    (Cell::Text { v: text.clone() }, text)
-                })
-                .collect(),
-        );
+        header.extend(outputs.header());
 
+        // Only the rows on screen become cells.
         let shown = n.min(RESULT_ROWS);
         view.results = Some(TablePreview {
             columns: header.clone(),
@@ -389,29 +320,44 @@ impl RealNn {
                     x.row(i)
                         .iter()
                         .map(|&v| Cell::number(v))
-                        .chain(extra.iter().map(|col| col[i].0.clone()))
+                        .chain(outputs.row(i).into_iter().map(|(cell, _)| cell))
                         .collect()
                 })
                 .collect(),
             total_rows: u32_of(n),
         });
-        let mut csv = String::with_capacity(n * (header.len() * 10));
-        let fields: Vec<String> = header.iter().map(|h| csv_field(h)).collect();
-        csv.push_str(&fields.join(","));
-        csv.push('\n');
+        // The CSV, row by row (BOM for Excel; text fields neutralised, see csv_field).
+        let mut csv: Vec<u8> = Vec::with_capacity(UTF8_BOM.len() + n * header.len() * 10);
+        csv.extend_from_slice(UTF8_BOM);
+        let mut line = String::new();
+        let mut push_line = |fields: &mut dyn Iterator<Item = String>, csv: &mut Vec<u8>| {
+            line.clear();
+            for (j, field) in fields.enumerate() {
+                if j > 0 {
+                    line.push(',');
+                }
+                line.push_str(&field);
+            }
+            line.push('\n');
+            csv.extend_from_slice(line.as_bytes());
+        };
+        push_line(&mut header.iter().map(|h| csv_field(h)), &mut csv);
         for i in 0..n {
-            let fields: Vec<String> = x
+            if i % core::csv::CANCEL_CHECK_ROWS == 0 {
+                crate::core_facade::check_cancelled(cancel)?;
+            }
+            let mut fields = x
                 .row(i)
                 .iter()
                 .map(|&v| number(v))
-                .chain(extra.iter().map(|col| csv_field(&col[i].1)))
-                .collect();
-            csv.push_str(&fields.join(","));
-            csv.push('\n');
+                .chain(outputs.row(i).into_iter().map(|(_, text)| csv_field(&text)))
+                .collect::<Vec<_>>()
+                .into_iter();
+            push_line(&mut fields, &mut csv);
         }
         Ok(BatchOutcome {
             view,
-            csv: Some(csv.into_bytes()),
+            csv: Some(csv),
         })
     }
 
@@ -500,6 +446,136 @@ impl RealNn {
     }
 }
 
+/// The batch CSV: one column is enough (a model of one feature, M2); the size is
+/// checked before reading, as `read_csv_file_cancellable`.
+fn read_batch_csv(path: &Path, cancel: &AtomicBool) -> Result<core::csv::RawTable, core::CsvError> {
+    let io = |e: std::io::Error| core::CsvError::Io {
+        message: e.to_string(),
+    };
+    let len = std::fs::metadata(path).map_err(io)?.len();
+    if len > core::csv::MAX_CSV_BYTES {
+        return Err(core::CsvError::TooLarge {
+            bytes: len,
+            limit: core::csv::MAX_CSV_BYTES,
+        });
+    }
+    let bytes = std::fs::read(path).map_err(io)?;
+    core::csv::read_csv_cancellable_with(&bytes, cancel, core::csv::ReadOptions { min_columns: 1 })
+}
+
+/// The result columns after the features, built row by row (only the rows on screen
+/// become cells; the CSV is written as it goes).
+struct BatchOutputs<'a> {
+    nn: &'a RealNn,
+    batch: &'a core::nn_predict::BatchView,
+    outside: &'a [bool],
+    yes: String,
+    no: String,
+    no_prediction: String,
+}
+
+impl<'a> BatchOutputs<'a> {
+    fn new(nn: &'a RealNn, batch: &'a core::nn_predict::BatchView, outside: &'a [bool]) -> Self {
+        let t = |key: &str, fallback: &str| nn_text("lotes", key, fallback);
+        Self {
+            nn,
+            batch,
+            outside,
+            yes: t("valor_si", "Sí"),
+            no: t("valor_no", "No"),
+            no_prediction: t(
+                "fila_no_finita",
+                "Sin predicción: la red dio una salida no numérica (NaN o infinito) para esta fila",
+            ),
+        }
+    }
+
+    fn header(&self) -> Vec<String> {
+        let t = |key: &str, fallback: &str| nn_text("lotes", key, fallback);
+        let probability = self.batch.output_is_probability;
+        let mut header = vec![t("columna_prediccion", "Predicción")];
+        match &self.batch.predictions {
+            BatchPredictions::Binary { .. } => {
+                // D87: a tanh output is the neuron's output, not a probability, and its
+                // "confidence" max(p, 1 − p) would not be one either (it can exceed 1).
+                header.push(if probability {
+                    t("columna_probabilidad", "Probabilidad")
+                } else {
+                    nn_text("exploracion", "salida_neurona", "Salida de la neurona")
+                });
+                if probability {
+                    header.push(t("columna_confianza", "Confianza"));
+                }
+            }
+            BatchPredictions::Multiclass { .. } => {
+                if probability {
+                    header.push(t("columna_confianza", "Confianza"));
+                }
+            }
+            BatchPredictions::Regression { .. } => {}
+        }
+        header.push(t("columna_fuera_rango", "Fuera de rango"));
+        header
+    }
+
+    /// A number cell and its CSV text (float32, as the network computes; empty if NaN).
+    fn value(v: f64) -> (Cell, String) {
+        if v.is_finite() {
+            (Cell::number(v), format!("{}", v as f32))
+        } else {
+            (Cell::Missing, String::new())
+        }
+    }
+
+    fn class(&self, class: Option<usize>) -> (Cell, String) {
+        let name = class.map_or_else(|| self.no_prediction.clone(), |c| self.nn.class_name(c));
+        (Cell::Text { v: name.clone() }, name)
+    }
+
+    fn row(&self, i: usize) -> Vec<(Cell, String)> {
+        let probability = self.batch.output_is_probability;
+        let finite = self.batch.finite.get(i).copied().unwrap_or(false);
+        let at = |series: &[f64]| series.get(i).copied().unwrap_or(f64::NAN);
+        let mut out = Vec::with_capacity(4);
+        match &self.batch.predictions {
+            BatchPredictions::Binary {
+                predicted,
+                probability: p,
+                confidence,
+            } => {
+                out.push(self.class(predicted.get(i).copied().flatten()));
+                out.push(Self::value(at(p)));
+                if probability {
+                    out.push(Self::value(at(confidence)));
+                }
+            }
+            BatchPredictions::Multiclass {
+                predicted,
+                confidence,
+                ..
+            } => {
+                out.push(self.class(predicted.get(i).copied().flatten()));
+                if probability {
+                    out.push(Self::value(at(confidence)));
+                }
+            }
+            BatchPredictions::Regression { values } => {
+                if finite {
+                    out.push(Self::value(at(values)));
+                } else {
+                    // A numeric column: the table says why, the CSV leaves it empty.
+                    let (cell, _) = self.class(None);
+                    out.push((cell, String::new()));
+                }
+            }
+        }
+        let o = self.outside.get(i).copied().unwrap_or(false);
+        let text = if o { self.yes.clone() } else { self.no.clone() };
+        out.push((Cell::Text { v: text.clone() }, text));
+        out
+    }
+}
+
 /// The outcome of the checks of a batch CSV.
 struct Checked {
     missing: Vec<String>,
@@ -548,19 +624,24 @@ fn check_table(dataset: &core::Dataset, table: &core::csv::RawTable) -> Checked 
         ));
         return checked;
     }
-    // The reader renames repeated headers as pandas does (`a, a.1`): `x.N` next to `x`
-    // is a repeated column.
+    // By name: the `X.columns` of the model (the "Formato esperado" list) or, if that
+    // finds fewer, the names of 📊 Datos.
+    let by_column = core::nn_predict::batch_columns(&dataset.feature_columns, &file_columns);
+    let by_display = core::nn_predict::batch_columns(&dataset.feature_display, &file_columns);
+    let (columns, features) = if by_display.missing.len() < by_column.missing.len() {
+        (by_display, &dataset.feature_display)
+    } else {
+        (by_column, &dataset.feature_columns)
+    };
+    // M3: the reader renamed the repeated headers (`a, a` → `a, a.1`). Only a repeated
+    // FEATURE is ambiguous; a repeated extra column is ignored like any other.
     let mut duplicated: Vec<String> = Vec::new();
-    for (i, name) in file_columns.iter().enumerate() {
-        let base = name
-            .rsplit_once('.')
-            .filter(|(_, n)| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
-            .map(|(base, _)| base)
-            .filter(|base| file_columns.iter().any(|c| c == base));
-        let repeated = file_columns[..i].contains(name).then_some(name.as_str());
-        if let Some(base) = repeated.or(base) {
-            if !duplicated.iter().any(|d| d == base) {
-                duplicated.push(base.to_owned());
+    for notice in &table.notices {
+        if let core::csv::CsvNotice::RenamedHeaders { renamed } = notice {
+            for (original, _) in renamed {
+                if features.contains(original) && !duplicated.contains(original) {
+                    duplicated.push(original.clone());
+                }
             }
         }
     }
@@ -571,15 +652,6 @@ fn check_table(dataset: &core::Dataset, table: &core::csv::RawTable) -> Checked 
         );
         return checked;
     }
-    // By name: the `X.columns` of the model (the "Formato esperado" list) or, if that
-    // finds fewer, the names of 📊 Datos.
-    let by_column = core::nn_predict::batch_columns(&dataset.feature_columns, &file_columns);
-    let by_display = core::nn_predict::batch_columns(&dataset.feature_display, &file_columns);
-    let columns = if by_display.missing.len() < by_column.missing.len() {
-        by_display
-    } else {
-        by_column
-    };
     checked.missing = columns.missing.clone();
     checked.extra = columns.extra.clone();
     if !columns.complete() {
@@ -590,7 +662,9 @@ fn check_table(dataset: &core::Dataset, table: &core::csv::RawTable) -> Checked 
         return checked;
     }
     let positions: Vec<usize> = columns.positions.iter().flatten().copied().collect();
-    checked.reordered = positions.iter().enumerate().any(|(i, &p)| i != p);
+    // In the file's order, not just at other indices (an extra column before them
+    // shifts the indices without changing the order).
+    checked.reordered = positions.windows(2).any(|w| w[0] > w[1]);
     let n = table.n_rows;
     let mut matrix = ndarray::Array2::<f64>::zeros((n, positions.len()));
     let mut bad: Vec<String> = Vec::new();
@@ -675,6 +749,30 @@ fn check_table(dataset: &core::Dataset, table: &core::csv::RawTable) -> Checked 
             )
             .replace("{columnas}", &empty_columns.join(", "))
             .replace("{filas}", &empty_rows.to_string()),
+        );
+        return checked;
+    }
+    // M1: a finite value beyond float32 would become ±∞ in the network.
+    if let Err(core::model::ModelError::NonFiniteCell { row, column }) =
+        core::nn_predict::check_f32_inputs(matrix.view())
+    {
+        let name = &table.columns[positions[column]].name;
+        checked.errors.push(
+            t(
+                "no_numericas",
+                "❌ Estas columnas tienen valores que no son números: {detalles}.",
+            )
+            .replace(
+                "{detalles}",
+                &nn_text(
+                    "lotes",
+                    "no_numericas_item",
+                    "{columna} (fila {fila}: «{valor}»)",
+                )
+                .replace("{columna}", name)
+                .replace("{fila}", &(row + 1).to_string())
+                .replace("{valor}", &matrix[[row, column]].to_string()),
+            ),
         );
         return checked;
     }
@@ -787,7 +885,9 @@ mod tests {
             4 + 3,
             "features + Predicción + Confianza + Fuera de rango"
         );
-        let csv = String::from_utf8(out.csv.unwrap()).unwrap();
+        let bytes = out.csv.unwrap();
+        assert!(bytes.starts_with(UTF8_BOM), "BOM for Excel");
+        let csv = String::from_utf8(bytes[UTF8_BOM.len()..].to_vec()).unwrap();
         let lines: Vec<&str> = csv.lines().collect();
         assert_eq!(lines.len(), 4);
         assert!(lines[0].starts_with("sepal length (cm),sepal width (cm)"));
@@ -796,7 +896,8 @@ mod tests {
         // The checks, in order.
         let cases = [
             ("vacio.csv", "sepal length (cm),sepal width (cm),petal length (cm),petal width (cm)\n", "cabecera"),
-            ("dup.csv", "a,a\n1,2\n", "repetidas"),
+            ("dup.csv", "sepal length (cm),sepal length (cm),sepal width (cm),petal length (cm),petal width (cm)\n1,1,2,3,4\n", "repetidas"),
+            ("grande.csv", "sepal length (cm),sepal width (cm),petal length (cm),petal width (cm)\n1,2,3,1e39\n", "petal width (cm) (fila 1"),
             ("faltan.csv", "sepal length (cm)\n1\n", "Faltan"),
             (
                 "texto.csv",
@@ -832,6 +933,88 @@ mod tests {
             .view
             .errors
             .is_empty());
+    }
+
+    /// M3: a repeated column that is not a feature does not block the batch; one-column
+    /// files are read (M2) and only fail as `faltan`.
+    #[test]
+    fn repeated_extra_columns_and_one_column_files() {
+        let iris = trained(DatasetId::Iris, NnActivation::Softmax, 42);
+        let dir = tempfile::tempdir().unwrap();
+        let cancel = AtomicBool::new(false);
+        let path = write(
+            &dir,
+            "extra.csv",
+            "id,sepal length (cm),sepal width (cm),petal length (cm),petal width (cm),id\n1,5.1,3.5,1.4,0.2,1\n",
+        );
+        let view = iris.nn_predict_batch(&path, &cancel).unwrap().view;
+        assert!(view.errors.is_empty(), "{view:?}");
+        assert!(!view.reordered, "an extra column first is not a new order");
+        assert_eq!(view.extra, vec!["id".to_owned(), "id.1".to_owned()]);
+        let path = write(&dir, "una.csv", "sepal length (cm)\n5.1\n");
+        let view = iris.nn_predict_batch(&path, &cancel).unwrap().view;
+        assert_eq!(view.missing.len(), 3, "{view:?}");
+        assert_eq!(view.cols, 1);
+    }
+
+    /// M1: a row whose output overflows float32 has no prediction; the others do.
+    #[test]
+    fn non_finite_rows_have_no_prediction() {
+        let mut model = trained(DatasetId::Diabetes, NnActivation::Linear, 42);
+        let template = model.nn_batch_template(2).unwrap();
+        let header = template.columns.join(",");
+        let ok: Vec<String> = template.sample.rows[0]
+            .iter()
+            .map(|c| match c {
+                Cell::Number { v } => v.to_string(),
+                _ => String::new(),
+            })
+            .collect();
+        let mut huge = ok.clone();
+        huge[0] = "3e38".into();
+        let dir = tempfile::tempdir().unwrap();
+        let path = write(
+            &dir,
+            "enorme.csv",
+            &format!("{header}\n{}\n{}\n", ok.join(","), huge.join(",")),
+        );
+        let out = model
+            .nn_predict_batch(&path, &AtomicBool::new(false))
+            .unwrap();
+        assert!(out.view.errors.is_empty(), "{:?}", out.view.errors);
+        assert_eq!((out.view.predicted, out.view.non_finite), (1, 1));
+        let results = out.view.results.unwrap();
+        let p = template.columns.len();
+        assert!(matches!(results.rows[0][p], Cell::Number { .. }));
+        let Cell::Text { v } = &results.rows[1][p] else {
+            panic!("{:?}", results.rows[1]);
+        };
+        assert!(v.starts_with("Sin predicción"), "{v}");
+        let csv = String::from_utf8(out.csv.unwrap()).unwrap();
+        let last = csv.lines().last().unwrap();
+        let fields: Vec<&str> = last.split(',').collect();
+        assert_eq!(fields[p], "", "empty numeric cell in regression: {last}");
+        // Classification: the class cell explains it in the CSV too.
+        model = trained(DatasetId::Iris, NnActivation::Softmax, 42);
+        let path = write(
+            &dir,
+            "enorme_iris.csv",
+            "sepal length (cm),sepal width (cm),petal length (cm),petal width (cm)\n5,3,1.5,0.2\n3e38,3,1.5,0.2\n",
+        );
+        let out = model
+            .nn_predict_batch(&path, &AtomicBool::new(false))
+            .unwrap();
+        assert_eq!(
+            (out.view.predicted, out.view.non_finite),
+            (1, 1),
+            "{:?}",
+            out.view
+        );
+        let csv = String::from_utf8(out.csv.unwrap()).unwrap();
+        assert!(
+            csv.lines().last().unwrap().contains("Sin predicción"),
+            "{csv}"
+        );
     }
 
     /// C28 / D75 / L1: the four formats and the scripts of 💾.

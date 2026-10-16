@@ -88,6 +88,11 @@ pub struct Outcome {
     /// K1 (1-based): the engine's own detection (a NaN batch loss can come before a NaN
     /// epoch log); `None` = look at the epoch logs.
     pub diverged_epoch: Option<u16>,
+    /// K1: `NeuralNetwork::is_valid` (finite weights and scaler). It can be `true` after
+    /// a divergence when EarlyStopping restored the weights of the best epoch.
+    pub network_valid: bool,
+    /// `History::near_divergence` (the loss grew by orders of magnitude, finite).
+    pub near_divergence: bool,
     pub started: Instant,
 }
 
@@ -153,6 +158,9 @@ pub struct NnModel {
     task: TaskType,
     n_val: usize,
     output_activation: NnActivation,
+    /// ⚙️ learning rate: the advice of `aviso_r2_negativo` depends on it (M6).
+    learning_rate: f64,
+    near_divergence: bool,
     engine: Option<Arc<dyn NnEngine>>,
 }
 
@@ -336,12 +344,15 @@ impl NnModel {
                 epochs: outcome.epochs,
                 best_epoch: outcome.best_epoch,
                 diverged_epoch: diverged,
+                network_valid: outcome.network_valid,
                 cards,
             },
             series,
             task,
             n_val: prepared.sizes.val as usize,
             output_activation: prepared.arch.output_activation,
+            learning_rate: f64::from(prepared.training.learning_rate),
+            near_divergence: outcome.near_divergence,
             engine: None,
         }
     }
@@ -356,17 +367,24 @@ impl NnModel {
     }
 
     fn divergence(&self) -> Option<Divergence> {
-        self.history
-            .diverged_epoch
-            .map(|epoch| Divergence { epoch })
+        self.history.diverged_epoch.map(|epoch| Divergence {
+            epoch,
+            network_valid: self.history.network_valid,
+            best_epoch: self.history.best_epoch,
+        })
     }
 
-    /// K1: the views that need meaningful weights are blocked after a divergence.
-    fn check_not_diverged(&self) -> Result<(), CommandError> {
-        match self.history.diverged_epoch {
-            Some(epoch) => Err(diverged_error(epoch)),
-            None => Ok(()),
+    /// K1: the views that need meaningful weights are blocked only when the weights are
+    /// not finite. A divergence after which EarlyStopping restored the best (finite)
+    /// weights leaves them available, with `aviso_divergencia_recuperada`.
+    fn check_valid(&self) -> Result<(), CommandError> {
+        if self.history.network_valid {
+            return Ok(());
         }
+        Err(match self.history.diverged_epoch {
+            Some(epoch) => diverged_error(epoch),
+            None => CommandError::invalid_selection(invalid_network_text()),
+        })
     }
 }
 
@@ -398,8 +416,8 @@ pub fn invalid_network_text() -> String {
     .replace("{motivo}", &motivo)
 }
 
-/// The error of an export of a diverged network (K1).
-pub fn not_exportable(_epoch: u16) -> CommandError {
+/// The error of an export of a network whose weights are not finite (K1).
+pub fn not_exportable() -> CommandError {
     CommandError::Export {
         message: invalid_network_text(),
     }
@@ -417,7 +435,7 @@ impl ModelView for NnModel {
         self.summary.clone()
     }
     fn evaluate(&self) -> Result<Evaluation, CommandError> {
-        self.check_not_diverged()?;
+        self.check_valid()?;
         self.engine()?.delegate().evaluate()
     }
     fn roc_curves(&self) -> Result<RocData, CommandError> {
@@ -436,7 +454,7 @@ impl ModelView for NnModel {
         _progress: &Progress<'_>,
         cancel: &AtomicBool,
     ) -> Result<DecisionGrid, CommandError> {
-        self.check_not_diverged()?;
+        self.check_valid()?;
         self.engine()?.mean_grid(x, y, cancel)
     }
     fn coefficients(&self, _class_index: Option<usize>) -> Result<CoefficientsView, CommandError> {
@@ -446,7 +464,7 @@ impl ModelView for NnModel {
         self.engine()?.delegate().prediction_form()
     }
     fn predict_one(&self, values: &[f64]) -> Result<PredictionResult, CommandError> {
-        if self.history.diverged_epoch.is_some() {
+        if !self.history.network_valid {
             return Err(CommandError::invalid_selection(invalid_network_text()));
         }
         let result = self.engine()?.delegate().predict_one(values)?;
@@ -470,9 +488,9 @@ impl ModelView for NnModel {
         if !matches!(format, ExportFormat::Onnx) && !format.needs_nn() {
             return Err(pending());
         }
-        // K1: a diverged network has NaN weights; nothing of it can be exported.
-        if let Some(epoch) = self.history.diverged_epoch {
-            return Err(not_exportable(epoch));
+        // K1: a network with NaN weights cannot be exported (a recovered one can).
+        if !self.history.network_valid {
+            return Err(not_exportable());
         }
         self.engine()?.export(format)
     }
@@ -491,8 +509,8 @@ impl ModelView for NnModel {
             // The training script does not need the weights: also after a divergence.
             CodeTemplate::NnTraining => self.engine()?.code(template),
             CodeTemplate::NnNumpyPredictor => {
-                if let Some(epoch) = self.history.diverged_epoch {
-                    return Err(not_exportable(epoch));
+                if !self.history.network_valid {
+                    return Err(not_exportable());
                 }
                 self.engine()?.code(template)
             }
@@ -503,7 +521,7 @@ impl ModelView for NnModel {
         Ok(self.history.clone())
     }
     fn nn_explore(&self, row: usize, feature: usize) -> Result<ExploreView, CommandError> {
-        self.check_not_diverged()?;
+        self.check_valid()?;
         self.engine()?.explore(row, feature)
     }
     fn nn_batch_template(&self, rows: usize) -> Result<BatchTemplate, CommandError> {
@@ -514,25 +532,27 @@ impl ModelView for NnModel {
         path: &std::path::Path,
         cancel: &AtomicBool,
     ) -> Result<BatchOutcome, CommandError> {
-        self.check_not_diverged()?;
+        self.check_valid()?;
         self.engine()?.predict_batch(path, cancel)
     }
     fn nn_metadata(&self, trained_at: &str) -> Result<String, CommandError> {
-        self.summary.nn.as_ref().ok_or_else(CommandError::not_nn)?;
-        self.engine()?.metadata(trained_at)
+        let nn = self.summary.nn.as_ref().ok_or_else(CommandError::not_nn)?;
+        let date = crate::nn_predict::trained_at(trained_at, nn.trained_at_ms);
+        self.engine()?.metadata(&date)
     }
     fn nn_evaluation(&self) -> Result<NnEvaluationView, CommandError> {
         let engine = self.engine()?;
         let (loss, metric) = engine.test_scores();
         let diverged = self.divergence();
-        let evaluation = if diverged.is_some() {
+        let evaluation = if !self.history.network_valid {
             None
         } else {
             Some(engine.delegate().evaluate()?)
         };
         let r2_negative = match &evaluation {
             Some(Evaluation::Regression(r)) => {
-                core::nn_diagnostics::r2_negative_notice(r.r2).map_err(content_error)?
+                core::nn_diagnostics::r2_negative_notice(r.r2, self.learning_rate)
+                    .map_err(content_error)?
             }
             _ => None,
         };
@@ -542,6 +562,11 @@ impl ModelView for NnModel {
             test_metric: nn::finite_log(metric),
             evaluation,
             r2_negative,
+            // Only without a real divergence (that one has its own warning).
+            near_divergence: core::nn_diagnostics::near_divergence_notice(
+                self.near_divergence && self.history.diverged_epoch.is_none(),
+            )
+            .map_err(content_error)?,
             diverged,
             output_is_probability: engine.output_is_probability(),
             output_activation: self.output_activation,
@@ -576,7 +601,7 @@ impl ModelView for NnModel {
         bins_weights: usize,
         bins_biases: usize,
     ) -> Result<WeightsView, CommandError> {
-        self.check_not_diverged()?;
+        self.check_valid()?;
         self.engine()?.weights(bins_weights, bins_biases)
     }
     fn nn_activations(
@@ -584,7 +609,7 @@ impl ModelView for NnModel {
         req: &ActivationsRequest,
         cancel: &AtomicBool,
     ) -> Result<ActivationsView, CommandError> {
-        self.check_not_diverged()?;
+        self.check_valid()?;
         self.engine()?.activations(req, cancel)
     }
 }

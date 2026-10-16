@@ -323,8 +323,12 @@ pub struct HistoryView {
     pub best_epoch: Option<u16>,
     /// Epochs (1-based) after which ReduceLROnPlateau lowered the learning rate.
     pub lr_drops: Vec<u16>,
-    /// K1: first epoch (1-based) whose loss is NaN or infinite (the weights are useless).
+    /// K1: first epoch (1-based) whose loss is NaN or infinite.
     pub diverged_epoch: Option<u16>,
+    /// K1: the weights are finite (`NeuralNetwork::is_valid`). After a divergence they
+    /// can still be: EarlyStopping restored the weights of `best_epoch`. Only an invalid
+    /// network blocks the views that need its weights.
+    pub network_valid: bool,
     /// The 4 cards of 📊 Historial (`st.metric` row); `None` if the history is empty or
     /// the training diverged.
     pub cards: Option<NnViewNode>,
@@ -387,13 +391,18 @@ pub enum NnViewNode {
     },
 }
 
-/// K1: the training diverged (NaN or infinite loss): the views that need the weights
-/// are blocked and show this instead.
+/// K1: the training diverged (NaN or infinite loss). If the network is not valid, the
+/// views that need the weights are blocked and show this instead; if it is (the weights
+/// of `best_epoch` were restored), they only warn.
 #[derive(Debug, Clone, PartialEq, Serialize, TS)]
 #[ts(export)]
 pub struct Divergence {
     /// 1-based.
     pub epoch: u16,
+    /// Finite weights (`NeuralNetwork::is_valid`): `[evaluacion] aviso_divergencia_recuperada`.
+    pub network_valid: bool,
+    /// 1-based epoch whose weights EarlyStopping restored.
+    pub best_epoch: Option<u16>,
 }
 
 /// 📈 Evaluación of a network (`nn_evaluation`): "📊 Resultados del Entrenamiento" (loss
@@ -409,6 +418,9 @@ pub struct NnEvaluationView {
     pub evaluation: Option<super::model::Evaluation>,
     /// D84: `[evaluacion] aviso_r2_negativo` already formatted (regression, R² < 0).
     pub r2_negative: Option<String>,
+    /// `[evaluacion] aviso_casi_divergencia`: the loss grew by orders of magnitude
+    /// without reaching NaN/∞ (`History::near_divergence`).
+    pub near_divergence: Option<String>,
     pub diverged: Option<Divergence>,
     /// D87: `false` with a tanh output, whose "probabilities" are neuron outputs in
     /// [−1, 1] (the class is still `> 0.5` or the argmax).
@@ -690,9 +702,13 @@ pub struct BatchPredictView {
     pub out_of_range: Option<String>,
     /// The first rows of the results: the features in model order + "Predicción" +
     /// "Probabilidad" and "Confianza" (binary) or "Confianza" (multiclass) + "Fuera de
-    /// rango". `None` if a check failed.
+    /// rango". With a tanh output (not a probability) there is no "Confianza" and the
+    /// binary column is "Salida de la neurona". `None` if a check failed.
     pub results: Option<super::types::TablePreview>,
-    /// Rows with predictions (all of the file); the CSV of "📥 Descargar Resultados" has
-    /// all of them (`nn_save_batch`).
+    /// Rows with a valid prediction ("✅ Predicciones generadas para {n} muestras"); the
+    /// CSV of "📥 Descargar Resultados" has every row of the file (`nn_save_batch`).
     pub predicted: u32,
+    /// Rows whose network output is NaN or infinite: no class, `[lotes] fila_no_finita`
+    /// in their "Predicción" cell.
+    pub non_finite: u32,
 }

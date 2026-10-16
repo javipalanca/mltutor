@@ -167,6 +167,8 @@ pub fn train(
             epochs,
             best_epoch,
             diverged_epoch: None,
+            network_valid: true,
+            near_divergence: false,
             started,
         },
         None,

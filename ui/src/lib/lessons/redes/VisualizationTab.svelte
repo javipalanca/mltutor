@@ -3,7 +3,8 @@
    * 🎯 Visualización of 🧠 Redes Neuronales (fase5-redes.md §2.5): 📊 Historial (C27 + the 4
    * cards), 🧠 Análisis de Pesos (C25), 🎯 Superficie de Decisión (C8 in D78 mode: the whole
    * network with the other features at their test mean, axes in original units) and 📉
-   * Análisis de Activaciones (C26). A diverged network (K1) only shows its history.
+   * Análisis de Activaciones (C26). A network whose weights are
+   * not finite (K1) only shows its history; a recovered divergence only warns.
    */
   import ButtonPanel from "../../../components/ButtonPanel.svelte";
   import Expander from "../../../components/Expander.svelte";
@@ -22,7 +23,7 @@
   import { models } from "../../ml/modelSession.svelte";
   import { ViewLoader } from "../../ml/viewLoader.svelte";
   import NnBanner from "./NnBanner.svelte";
-  import { divergenceText } from "./nnTexts";
+  import { divergenceText, recoveredDivergenceText } from "./nnTexts";
   import { LESSON } from "./state.svelte";
 
   const lessonState = models.lesson(LESSON);
@@ -45,6 +46,8 @@
   });
   const hist = $derived(history.for(String(lessonState.info?.model_id ?? "")));
   const diverged = $derived(hist?.diverged_epoch ?? null);
+  // K1: only non-finite weights block 🧠/🎯/📉; a recovered divergence only warns.
+  const blocked = $derived(diverged !== null && hist?.network_valid === false);
 </script>
 
 <section class="nn-visualization" data-nn-visualization={viz}>
@@ -56,7 +59,12 @@
     <NnBanner {info} />
     <Notice severity="info" markdown={md("redes/visualizacion-intro.md")} />
     <ButtonPanel label="Visualización" value={viz} {options} onchange={(value) => (lessonState.viz = value)} />
-    {#if diverged !== null && viz !== "Historial"}
+    {#if diverged !== null && !blocked && viz !== "Historial" && hist}
+      <div data-nn-diverged-recovered={diverged} data-pedagogical>
+        <Notice severity="warning" markdown={recoveredDivergenceText(diverged, hist.best_epoch)} />
+      </div>
+    {/if}
+    {#if blocked && diverged !== null && viz !== "Historial"}
       <div data-nn-diverged={diverged} data-pedagogical>
         <Notice severity="error" markdown={divergenceText(diverged)} />
       </div>
@@ -69,9 +77,13 @@
         <Notice severity="error" markdown={escapeMarkdown(history.error)} />
       {:else if hist}
         <TrainingHistoryChart logs={hist.epochs} metric={hist.metric} bestEpoch={hist.best_epoch} lrDrops={hist.lr_drops} downloadName="historial_entrenamiento.png" />
-        {#if diverged !== null}
+        {#if diverged !== null && blocked}
           <div data-nn-diverged={diverged} data-pedagogical>
             <Notice severity="error" markdown={divergenceText(diverged)} />
+          </div>
+        {:else if diverged !== null}
+          <div data-nn-diverged-recovered={diverged} data-pedagogical>
+            <Notice severity="warning" markdown={recoveredDivergenceText(diverged, hist.best_epoch)} />
           </div>
         {:else if hist.cards}
           <div data-nn-history-cards>
@@ -102,7 +114,7 @@
         />
       {/if}
     {:else if viz === "Activaciones"}
-      <NnActivations modelId={info.model_id} onstale={stale} />
+      <NnActivations modelId={info.model_id} hiddenActivation={info.config.kind === "neural_net" ? info.config.arch.activation : "relu"} onstale={stale} />
     {/if}
   {/if}
 </section>

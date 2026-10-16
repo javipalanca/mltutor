@@ -693,8 +693,13 @@ pub async fn train_model(
     app: AppHandle,
     data: State<'_, DataState>,
     models: State<'_, ModelState>,
+    batches: State<'_, crate::nn_predict::NnBatches>,
     req: TrainRequest,
 ) -> Result<TrainedModelInfo, CommandError> {
+    // The CSV of the last batch belongs to the previous network: freed now.
+    if matches!(req.config, ModelConfig::NeuralNet { .. }) {
+        batches.clear();
+    }
     let data = data.inner().clone();
     let models = self::models(&models);
     let guard = data.tasks.start(req.task_id);
@@ -1221,9 +1226,7 @@ pub async fn export_model(
         let bytes = match format {
             ExportFormat::NnMetadata => model
                 .model
-                .nn_metadata(&crate::nn_predict::clean_date(
-                    trained_at.as_deref().unwrap_or_default(),
-                ))?
+                .nn_metadata(trained_at.as_deref().unwrap_or_default())?
                 .into_bytes(),
             _ => model.model.export(format)?,
         };

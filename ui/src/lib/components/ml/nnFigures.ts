@@ -222,13 +222,19 @@ export interface ExploreFigureData {
   classes: readonly number[] | null;
   confidence: readonly number[] | null;
   baseValue: number;
+  /** D87: `false` with a tanh output (a neuron output in [−1, 1], not a probability). */
+  outputIsProbability: boolean;
+  /** Multiclass: the class of the base sample, whose curve (`ys`) the analysis follows. */
+  baseClass: number | null;
 }
 
 /**
  * `viz/nn.py::show_neural_network_predictions`, pestaña 🎲: `lines+markers`, height 500, the
  * green dashed "Valor Base" line; binary: "Probabilidad" and the red dashed threshold at 0.5;
  * multiclass: "Clase Predicha" (left axis, class names as ticks: Python showed the index) and
- * "Confianza" (right axis, red); regression: "Predicción" with "Valor Predicho".
+ * "Confianza" (right axis, red) plus, NEW, the probability of the base sample's class (the
+ * curve the analysis is computed on, right axis, dotted); regression: "Predicción" with
+ * "Valor Predicho". With a tanh output the series and axes say "Salida de la neurona".
  */
 export function exploreFigure(
   view: ExploreFigureData,
@@ -289,17 +295,34 @@ export function exploreFigure(
       marker,
       hovertemplate: `${name} = %{x:.4g}<br>%{text}<extra></extra>`,
     });
+    const rightLabel = view.outputIsProbability ? ex("serie_confianza") : ex("salida_neurona");
     data.push({
       type: "scatter",
       mode: "lines+markers",
       x: [...view.xs],
       y: [...(view.confidence ?? [])],
-      name: escapePlotly(ex("serie_confianza")),
+      name: escapePlotly(rightLabel),
       yaxis: "y2",
       line: { color: "red" },
       marker,
       hovertemplate: `${name} = %{x:.4g}<br>%{y:.3f}<extra></extra>`,
     });
+    if (view.baseClass !== null) {
+      const baseName = classNames[view.baseClass] ?? `Clase ${view.baseClass}`;
+      const series = view.outputIsProbability
+        ? ex("probabilidad_clase_base").replace("{clase}", baseName)
+        : `${ex("salida_neurona")} · ${baseName}`;
+      data.push({
+        type: "scatter",
+        mode: "lines",
+        x: [...view.xs],
+        y: [...view.ys],
+        name: escapePlotly(series),
+        yaxis: "y2",
+        line: { color: "#9467bd", width: 2.5, dash: "dot" },
+        hovertemplate: `${name} = %{x:.4g}<br>%{y:.3f}<extra>%{fullData.name}</extra>`,
+      });
+    }
     const shown = [...new Set(codes)].sort((a, b) => a - b);
     const all = classNames.map((_, i) => i);
     const ticks = all.length > 0 ? all : shown;
@@ -311,18 +334,19 @@ export function exploreFigure(
       range: [-0.5, Math.max(ticks.length - 1, 0) + 0.5],
     };
     layout.yaxis2 = {
-      ...axis(theme, escapePlotly(ex("serie_confianza"))),
+      ...axis(theme, escapePlotly(rightLabel)),
       side: "right",
       overlaying: "y",
       showgrid: false,
-      range: [0, 1.05],
+      range: view.outputIsProbability ? [0, 1.05] : [-1.05, 1.05],
       // Its own round ticks (0, 0.2 … 1), not the positions of the class ticks.
       tickmode: "linear",
       tick0: 0,
       dtick: 0.2,
     };
   } else {
-    const series = view.kind === "binary" ? ex("serie_probabilidad") : ex("serie_prediccion");
+    const probabilityLabel = view.outputIsProbability ? ex("serie_probabilidad") : ex("salida_neurona");
+    const series = view.kind === "binary" ? probabilityLabel : ex("serie_prediccion");
     data.push({
       type: "scatter",
       mode: "lines+markers",
@@ -333,7 +357,7 @@ export function exploreFigure(
       marker,
       hovertemplate: `${name} = %{x:.4g}<br>%{y:.4f}<extra></extra>`,
     });
-    layout.yaxis = axis(theme, escapePlotly(view.kind === "binary" ? ex("serie_probabilidad") : ex("eje_valor_predicho")));
+    layout.yaxis = axis(theme, escapePlotly(view.kind === "binary" ? probabilityLabel : ex("eje_valor_predicho")));
     if (view.kind === "binary") {
       shapes.push({ type: "line", xref: "paper", yref: "y", x0: 0, x1: 1, y0: 0.5, y1: 0.5, line: { color: "red", width: 1.5, dash: "dash" } });
       annotations.push({

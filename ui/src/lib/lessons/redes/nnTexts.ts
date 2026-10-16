@@ -2,7 +2,8 @@
  * Texts of 📈/🎯 that `ml-lesson-author` adds to `content/redes/mensajes.toml` in F5c; the
  * fallbacks keep the app working (and the smoke test green) until the keys exist.
  */
-import { nnRaw, optionalText } from "../../content";
+import type { HistoryView } from "../../bindings/HistoryView";
+import { nnRaw, nnText, optionalText } from "../../content";
 import { fmt } from "../../fmt";
 
 /** K1: the training diverged at `epoch` (1-based). */
@@ -66,4 +67,17 @@ export function invalidNetworkText(): string {
     "red_no_valida",
     "❌ **Esta red no se puede usar:** {motivo}. No se puede predecir con ella ni exportarla. Vuelve a ⚙️ Entrenamiento y entrena de nuevo.",
   ).replace("{motivo}", motivo);
+}
+
+/**
+ * K1: the loss became NaN/∞ at `epoch` but EarlyStopping restored the finite weights of
+ * `best` (both 1-based): every view works, with this warning.
+ */
+export function recoveredDivergenceText(epoch: number, best: number | null): string {
+  return fmt(nnText("evaluacion", "aviso_divergencia_recuperada"), { epoca: epoch, mejor: best ?? "—" });
+}
+
+/** K1: only a network whose weights are not finite blocks the views that need them. */
+export function networkBlocked(hist: Pick<HistoryView, "network_valid">): boolean {
+  return !hist.network_valid;
 }

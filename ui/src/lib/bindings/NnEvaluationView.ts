@@ -20,7 +20,12 @@ evaluation: Evaluation | null,
 /**
  * D84: `[evaluacion] aviso_r2_negativo` already formatted (regression, R² < 0).
  */
-r2_negative: string | null, diverged: Divergence | null, 
+r2_negative: string | null, 
+/**
+ * `[evaluacion] aviso_casi_divergencia`: the loss grew by orders of magnitude
+ * without reaching NaN/∞ (`History::near_divergence`).
+ */
+near_divergence: string | null, diverged: Divergence | null, 
 /**
  * D87: `false` with a tanh output, whose "probabilities" are neuron outputs in
  * [−1, 1] (the class is still `> 0.5` or the argmax).

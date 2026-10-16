@@ -297,14 +297,35 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
     `tools/knn_reference.py` lo reproduce bit a bit y es la especificación (D52, D66).
   - La wheel arm64 suma la distancia euclídea en bloques de 8 sin FMA, y el resto (`n % 8`) con FMA
     (D53, `mul_add`).
+- **Contenido de la revisión F5c/F5d (2026-10-16):**
+  - "Tu modelo de regresión lineal explica" pasa a "Tu modelo explica" en `[interpretacion] reg`. Los
+    fixtures de Árboles y KNN conservan el texto de Python, y `parity_components.rs` lo normaliza en el
+    valor esperado.
+  - `nota_validacion_pequena` usa `{margen}` = 2·sqrt(p(1−p)/n) en lugar de un 0,2 fijo (Iris: 24 filas,
+    p=0,9 → 0,12).
+  - R² negativo: con LR < 0,1, `aviso_r2_negativo` aconseja subirlo; con LR ≥ 0,1,
+    `aviso_r2_negativo_lr_alto` aconseja bajarlo.
+  - Una neurona "muerta" con tanh o sigmoid solo significa que no supera el umbral en las muestras
+    analizadas (`muertas_no_relu`). `fuera_rango` es genérico; `fuera_rango_relu` es para ocultas ReLU.
 - **F5d, interfaz (2026-10-16):**
   - En `--smoke-test`/`--screenshot` no se abre ningún diálogo: `export_model` y `nn_save_batch`
-    escriben en `$TMPDIR/mltutor-automatizacion-<pid>/`. El lote lee el CSV de `--scenario nombre:ruta`
-    o escribe uno con 25 filas.
+    escriben en `$TMPDIR/mltutor-automatizacion-XXXXXX/` (nombre aleatorio, 0700, sale en el log; archivos
+    con `create_new` y sufijo `-2` si ya existen). El lote lee el CSV de `--scenario nombre:ruta` o escribe
+    uno con 25 filas. **tempfile 3.27:** `Builder::tempdir()` crea con 0777 & umask (0755), no 0700: hay
+    que pasar `.permissions(Permissions::from_mode(0o700))`.
   - El CSV de resultados del lote se queda en Rust (`NnBatches`) y a la UI solo viajan 100 filas.
-  - El lector CSV renombra las cabeceras repetidas como pandas (`a`, `a.1`), así que las duplicadas se
-    detectan por ese patrón. Rechaza archivos de 1 columna (`TooFewColumns`).
-  - La fecha de los metadatos la formatea la UI (`trained_at`), porque el backend no tiene zona horaria.
+  - Las columnas repetidas del lote se detectan con `CsvNotice::RenamedHeaders` (solo bloquean si son
+    características del modelo) y el lote admite 1 columna (`min_columns: 1`).
+  - Fecha de los metadatos: el backend valida `AAAA-MM-DD HH:MM` enviado por la UI; si no encaja usa
+    `trained_at_ms` en UTC con el sufijo " UTC".
+  - CSV de resultados: BOM UTF-8 y los campos que empiezan por `= + @ \t \r` o `-`+no dígito llevan `'`
+    delante. Con salida tanh no hay columna "Confianza". Una fila no finita no tiene clase (regresión: celda
+    vacía).
+  - **Divergencia recuperada (K1):** las vistas se bloquean por `network_valid` (`is_valid()`), no por
+    `diverged_epoch`. Caso: California, [64,64], SGD, LR 0,3, dropout 0, batch 64, paciencia 10 → diverge
+    en la época 3 y restaura la 1 (base 1); escenario `redes_evaluacion_divergencia_recuperada`.
+  - Superficie de regresión: escala compartida salvo que el rango predicho sea < 20 % del real
+    (`OWN_SCALE_FRACTION`, el caso de Diabetes por defecto).
   - En Plotly, un eje derecho con `overlaying: "y"` toma las marcas del izquierdo; se fija con
     `tickmode: "linear"`.
   - Corregido por el coordinador: el predictor NumPy se guardaba con el filtro y la extensión de un `.py`
@@ -322,6 +343,20 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
   - Metadatos (D75): `num_classes` = 2 en binaria, la fecha del entrenamiento y el `target_column` real.
     Se pueden generar con una red divergida (`valid: false`).
   - Con 5×256 en California: exploración 2 ms; lote de 20 640 filas en 204 ms (431 KB).
+- **Revisión F5c/F5d, core (2026-10-16):**
+  - Lote 🧠: una fila con salida NaN/∞ queda con `finite[i] = false` y clase `None`; antes, `NaN > 0.5`
+    era falso y le daba la clase 0. Las entradas NaN, ±∞ o con `|v| > f32::MAX` se rechazan con
+    `ModelError::NonFiniteCell { row, column }` (índices desde 0; `NonFinite` sigue sin campos).
+  - CSV: `read_csv_cancellable_with(…, ReadOptions { min_columns })` (2 por defecto) permite el lote de una
+    red de una sola característica. `CsvNotice::RenamedHeaders` informa de las cabeceras repetidas (sin las
+    `Unnamed: i`) y también sale en 📁 Cargar CSV.
+  - Casi divergencia = `History.near_divergence`: alguna `val_loss` finita > 1e6 × `val_loss[0]`, sin
+    `diverged_epoch`. Con divergencia real solo se muestran los avisos de divergencia.
+  - `r2_negative_notice(r2, lr)` usa el LR configurado: con LR ≥ 0,1 (también el 0,1 en f32) → `_lr_alto`.
+  - Metadatos: `num_classes` es null en regresión; `weights_epoch` "best"/"last". Con EarlyStopping los
+    `best_*` describen los pesos del archivo y los `final_*`, la última época.
+  - El umbral binario `> 0.5` y el criterio de neurona muerta `all(a <= umbral)` no dependen de la
+    activación (tanh incluida).
 - **Contenido de F5d (2026-10-16):**
   - `red_entrenamiento.py.j2` recibe `seed` (obligatoria en modo strict): con Keras 3.12 en CPU, la
     misma semilla reproduce el historial bit a bit.

@@ -1,6 +1,6 @@
 # Plan de migración de MLTutor a Rust
 
-Rama: `feature/rust-migration` · Inicio: 2026-10-13 · Estado: **Fases 0 y 1 completadas (2026-10-14, revisadas por rust-reviewer), Fases 0–4 completadas (F4: 2026-10-15, revisada por rust-reviewer y ml-correctness-reviewer), Fase 5 en curso**
+Rama: `feature/rust-migration` · Inicio: 2026-10-13 · Estado: **Fases 0 y 1 completadas (2026-10-14, revisadas por rust-reviewer), Fases 0–4 completadas (F4: 2026-10-15, revisada por rust-reviewer y ml-correctness-reviewer), Fase 5 completada (2026-10-16, F5a–F5d revisadas por rust-reviewer y ml-correctness-reviewer), Fase 6 en curso**
 
 ## Objetivo
 
@@ -197,23 +197,23 @@ Cada subfase se cierra con el CI y la revisión.
 - [x] `mltutor-nn` (MLP propio, D68): MLP configurable, inicialización Glorot como en Keras,
       dropout, adam/sgd/rmsprop, batch, validación, early stopping y ReduceLROnPlateau
       propios, progreso por época y cancelación por batch.
-- [ ] Paridad en dos niveles (D69): exacta con los pesos iniciales de Keras, `shuffle=False` y dropout 0 (especificación ejecutable `tools/nn_reference.py`), y estadística: métricas finales dentro de una banda
+- [x] Paridad en dos niveles (D69): exacta con los pesos iniciales de Keras, `shuffle=False` y dropout 0 (especificación ejecutable `tools/nn_reference.py`), y estadística: métricas finales dentro de una banda
       sobre varias semillas.
-- [ ] Diagrama interactivo de la arquitectura con el nº de parámetros, historial, pesos,
+- [x] Diagrama interactivo de la arquitectura con el nº de parámetros, historial, pesos,
       superficie, activaciones y neuronas muertas, y exploración.
-- [ ] Diagnóstico del entrenamiento (estado, tendencias, patrones, alertas y
+- [x] Diagnóstico del entrenamiento (estado, tendencias, patrones, alertas y
       recomendaciones), portado como lógica pura y probado con historiales de fixture.
-- [ ] Predicción individual y por lotes. Exportación ONNX de la red (Gemm + activaciones)
+- [x] Predicción individual y por lotes. Exportación ONNX de la red (Gemm + activaciones)
       y paquete Keras (D1), más el código Keras generado.
-- [ ] Inventario §6 completo.
+- [x] Inventario §6 completo.
 
 #### Pendientes de F5b para F5d
 
 - [x] `red_entrenamiento.py.j2` fija `set_random_seed(42)` aunque se cambie la semilla en la app (D70): hay
       que añadir la variable `seed` a la plantilla y al contexto.
 - [x] Unificar el `NnTrainingContext` duplicado (`src-tauri/src/nn.rs` y `mltutor_core::codegen`).
-- [ ] Lote de predicción con un modelo de UNA sola característica: el lector CSV rechaza los archivos de
-      1 columna (`TooFewColumns`).
+- [x] Lote de predicción con un modelo de UNA sola característica: el lector CSV rechaza los archivos de
+      1 columna (`TooFewColumns`). Resuelto con `ReadOptions { min_columns: 1 }`.
 - [ ] El smoke test tarda 55–80 s con 23 comprobaciones (el límite es 180 s); vigilarlo en el CI de
       Windows/Linux y, si hace falta, partirlo o subir el límite en F7.
 

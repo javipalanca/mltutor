@@ -16,6 +16,7 @@
   import { fmt, fmtText } from "../../fmt";
   import { models } from "../../ml/modelSession.svelte";
   import { status } from "../../status.svelte";
+  import { tanhOutputText } from "./nnTexts";
   import { nnPredictions } from "./predictions.svelte";
   import { LESSON } from "./state.svelte";
 
@@ -72,11 +73,13 @@
       return [];
     }
     const out: string[] = [];
-    if (batch.kind === "binary") {
+    // D87: with a tanh output there is no probability nor "Confianza" column (the backend
+    // leaves it out: max(p, 1 − p) of a tanh output can exceed 1).
+    if (batch.output_is_probability && batch.kind === "binary") {
       out.push(`**${t("columna_probabilidad")}:** ${t("probabilidad_help")}`);
-    }
-    if (batch.kind !== "regression") {
-      out.push(`**${t("columna_confianza")}:** ${t("confianza_help")}`);
+      out.push(`**${t("columna_confianza")}:** ${t("confianza_help_binaria")}`);
+    } else if (batch.output_is_probability && batch.kind === "multiclass") {
+      out.push(`**${t("columna_confianza")}:** ${t("confianza_help_multiclase")}`);
     }
     out.push(`**${t("columna_fuera_rango")}:** ${t("columna_fuera_rango_help")}`);
     return out;
@@ -92,6 +95,9 @@
     <DataTable label="Formato esperado" columns={template.sample.columns} rows={template.sample.rows} index={template.sample.index} compact />
     <Markdown source={t("columnas")} />
     <CodeBlock code={template.columns.join(", ")} language="text" />
+    {#if template.columns.length === 1}
+      <p class="caption" data-nn-batch-one-column>{t("una_columna_ok")}</p>
+    {/if}
     <p class="caption">{t("nota_unidades")}</p>
   {/if}
 
@@ -118,6 +124,11 @@
       {/if}
       {#if batch.results}
         <Notice severity="success" markdown={fmt(t("generadas"), { n: batch.predicted })} />
+        {#if batch.non_finite > 0}
+          <div data-nn-batch-non-finite={batch.non_finite}>
+            <Notice severity="warning" markdown={`⚠️ **${batch.non_finite}** · ${fmt(t("fila_no_finita"), {})}`} />
+          </div>
+        {/if}
         {#if batch.out_of_range}
           <div data-nn-out-of-range>
             <Notice severity="warning" markdown={batch.out_of_range} />
@@ -132,16 +143,18 @@
             sortable
           />
         </div>
-        {#if batch.results.rows.length < batch.predicted}
+        {#if batch.results.rows.length < batch.results.total_rows}
           <p class="caption">
             {fmtText(optionalText(nnRaw, "lotes", "primeras_filas", "Se muestran las primeras {n} de {total} filas; el CSV descargado las contiene todas."), {
               n: batch.results.rows.length,
-              total: batch.predicted,
+              total: batch.results.total_rows,
             })}
           </p>
         {/if}
         {#if !batch.output_is_probability && batch.kind !== "regression"}
-          <p class="caption" data-nn-not-probability>{nnText("predicciones", "nota_tanh_multiclase")}</p>
+          <div data-nn-not-probability>
+            <Notice severity="warning" markdown={tanhOutputText()} />
+          </div>
         {/if}
         {#each helps as help (help)}
           <p class="caption"><Markdown inline source={help} /></p>

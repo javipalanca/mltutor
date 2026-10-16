@@ -31,6 +31,9 @@ pub fn model_error(error: ModelError) -> CommandError {
             CommandError::invalid_input(error.to_string())
         }
         ModelError::InvalidSelection { .. } => CommandError::invalid_selection(error.to_string()),
+        // M1: a bad cell of the input (1-based row and column in the message). The batch
+        // of 🧠 checks it first with the column NAME (`real_nn_predict::check_table`).
+        ModelError::NonFiniteCell { .. } => CommandError::invalid_input(error.to_string()),
         ModelError::TooManyClasses { n_classes, max } => {
             CommandError::too_many_classes(n_classes, max, error.to_string())
         }
@@ -1115,7 +1118,12 @@ mod tests {
                         (x.r2 - y.r2).abs() < 1e-9 && (x.mse - y.mse).abs() < 1e-6,
                         "{id:?}"
                     );
-                    assert_eq!(x.interpretation_md, y.interpretation_md);
+                    // The fixtures keep Python's "Tu modelo de regresión lineal explica"
+                    // (content corrected in the review of F5c/F5d).
+                    let python = y
+                        .interpretation_md
+                        .replace("Tu modelo de regresión lineal explica", "Tu modelo explica");
+                    assert_eq!(x.interpretation_md, python);
                 }
                 _ => panic!("tareas distintas en {id:?}"),
             }

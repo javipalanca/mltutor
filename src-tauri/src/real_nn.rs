@@ -127,6 +127,8 @@ pub fn train(
                 .history
                 .diverged_epoch
                 .and_then(|e| u16::try_from(e + 1).ok()),
+            network_valid: trained.network.is_valid(),
+            near_divergence: trained.history.near_divergence,
             started,
         },
         classes,
@@ -585,6 +587,10 @@ mod tests {
             panic!("SGD with LR 0.3 on Diabetes should diverge: {history:?}");
         };
         assert!(history.cards.is_none());
+        assert!(
+            !history.network_valid,
+            "without EarlyStopping the weights are NaN"
+        );
         let eval = model.nn_evaluation().unwrap();
         assert_eq!(eval.diverged.map(|d| d.epoch), Some(epoch));
         assert!(eval.evaluation.is_none());
@@ -594,6 +600,36 @@ mod tests {
         assert!(model
             .decision_grid(0, 1, &|_, _| {}, &AtomicBool::new(false))
             .is_err());
+    }
+
+    /// K1: a divergence after which EarlyStopping restored finite weights blocks nothing.
+    #[test]
+    fn recovered_divergence_keeps_every_view() {
+        let mut s = spec(NnActivation::Linear, 40, 0.3);
+        if let ModelConfig::NeuralNet { arch, training } = &mut s.config {
+            arch.hidden = vec![64, 64];
+            arch.optimizer = crate::ipc::NnOptimizer::Sgd;
+            arch.dropout = 0.0;
+            arch.batch_size = 64;
+            training.patience = Some(10);
+        }
+        let model = trained(DatasetId::CaliforniaHousing, &s);
+        let history = model.nn_history().unwrap();
+        assert_eq!(history.diverged_epoch, Some(3), "core diverged_epoch = 2");
+        assert_eq!(history.best_epoch, Some(1), "core best_epoch = 0");
+        assert!(history.network_valid);
+        let eval = model.nn_evaluation().unwrap();
+        let d = eval.diverged.clone().unwrap();
+        assert!(d.network_valid && d.best_epoch == Some(1));
+        assert!(eval.evaluation.is_some(), "C1/C2 with the restored weights");
+        let go = AtomicBool::new(false);
+        assert!(model.nn_weights(50, 20).is_ok());
+        assert!(model.decision_grid(0, 1, &|_, _| {}, &go).is_ok());
+        assert!(model.nn_explore(0, 0).is_ok());
+        assert!(model
+            .predict_one(&[3.0, 20.0, 5.0, 1.0, 1000.0, 3.0, 35.0, -120.0])
+            .is_ok());
+        assert!(model.export(crate::ipc::ExportFormat::Onnx).is_ok());
     }
 
     /// §3 of the task: the views of the largest network (5 × 256) stay small and fast.

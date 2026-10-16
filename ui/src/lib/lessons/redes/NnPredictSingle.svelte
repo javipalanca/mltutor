@@ -59,6 +59,8 @@
   const result = $derived(lessonState.prediction[info.model_id] ?? null);
   const output = $derived(info.config.kind === "neural_net" ? info.config.arch.output_activation : "linear");
   const tanh = $derived(output === "tanh");
+  // ReLU hidden layers extrapolate linearly without limit: their own warning.
+  const reluHidden = $derived(info.config.kind === "neural_net" && info.config.arch.activation === "relu");
   const binary = $derived(result?.kind === "class" && (result.proba?.length ?? 0) === 2 && info.nn?.layers.at(-1) === 1);
   const positive = $derived(result?.kind === "class" ? (result.proba?.[1] ?? null) : null);
 
@@ -137,7 +139,7 @@
       {/if}
       {#if outside.length > 0}
         <div data-nn-out-of-range>
-          <Notice severity="warning" markdown={fmt(t("fuera_rango"), { detalles: outside.join("; ") })} />
+          <Notice severity="warning" markdown={fmt(t(reluHidden ? "fuera_rango_relu" : "fuera_rango"), { detalles: outside.join("; ") })} />
         </div>
       {/if}
     {/if}

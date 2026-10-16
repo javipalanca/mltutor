@@ -39,11 +39,17 @@ out_of_range: string | null,
 /**
  * The first rows of the results: the features in model order + "Predicción" +
  * "Probabilidad" and "Confianza" (binary) or "Confianza" (multiclass) + "Fuera de
- * rango". `None` if a check failed.
+ * rango". With a tanh output (not a probability) there is no "Confianza" and the
+ * binary column is "Salida de la neurona". `None` if a check failed.
  */
 results: TablePreview | null, 
 /**
- * Rows with predictions (all of the file); the CSV of "📥 Descargar Resultados" has
- * all of them (`nn_save_batch`).
+ * Rows with a valid prediction ("✅ Predicciones generadas para {n} muestras"); the
+ * CSV of "📥 Descargar Resultados" has every row of the file (`nn_save_batch`).
  */
-predicted: number, };
+predicted: number, 
+/**
+ * Rows whose network output is NaN or infinite: no class, `[lotes] fila_no_finita`
+ * in their "Predicción" cell.
+ */
+non_finite: number, };

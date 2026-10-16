@@ -905,9 +905,37 @@ pub struct History {
     /// diverged.
     #[serde(default)]
     pub diverged_epoch: Option<usize>,
+    /// NEW (review of F5c/F5d): the training **almost** diverged: some validation
+    /// loss is more than [`NEAR_DIVERGENCE_FACTOR`] times that of epoch 0 while
+    /// every loss stayed finite (`diverged_epoch = None`). The UI warns with
+    /// `[evaluacion] aviso_casi_divergencia`. Set by [`History::detect_near_divergence`].
+    #[serde(default)]
+    pub near_divergence: bool,
 }
 
+/// Growth of the validation loss over epoch 0 that counts as "casi divergencia".
+pub const NEAR_DIVERGENCE_FACTOR: f64 = 1e6;
+
 impl History {
+    /// Whether `epochs` almost diverged (see [`History::near_divergence`]): the
+    /// validation loss of epoch 0 is finite and positive, some later one is finite
+    /// and more than [`NEAR_DIVERGENCE_FACTOR`] times larger, and `diverged_epoch`
+    /// is `None` (a real divergence has its own warning).
+    pub fn detect_near_divergence(epochs: &[EpochLog], diverged_epoch: Option<usize>) -> bool {
+        if diverged_epoch.is_some() {
+            return false;
+        }
+        let Some(first) = epochs.first().map(|e| e.val_loss) else {
+            return false;
+        };
+        if !(first.is_finite() && first > 0.0) {
+            return false;
+        }
+        epochs
+            .iter()
+            .any(|e| e.val_loss.is_finite() && e.val_loss > first * NEAR_DIVERGENCE_FACTOR)
+    }
+
     /// `history.history['loss']`.
     pub fn loss(&self) -> Vec<f64> {
         self.epochs.iter().map(|e| e.loss).collect()
@@ -1080,6 +1108,7 @@ mod tests {
             best_epoch: None,
             stopped_epoch: None,
             diverged_epoch: Some(0),
+            near_divergence: false,
         };
         let text = serde_json::to_string(&h).unwrap_or_default();
         assert!(text.contains(r#""loss":"nan""#), "{text}");
@@ -1095,5 +1124,29 @@ mod tests {
         let old = r#"{"metric":"mae","epochs":[],"best_epoch":null,"stopped_epoch":null}"#;
         let h: History = serde_json::from_str(old).unwrap_or_else(|e| panic!("{e}"));
         assert_eq!(h.diverged_epoch, None);
+        assert!(!h.near_divergence);
+    }
+
+    #[test]
+    fn near_divergence_needs_finite_growth() {
+        let log = |epoch: usize, val_loss: f64| EpochLog {
+            epoch,
+            loss: 1.0,
+            metric: 0.0,
+            val_loss,
+            val_metric: 0.0,
+            learning_rate: None,
+        };
+        let grow = |last: f64| vec![log(0, 2.0), log(1, 50.0), log(2, last)];
+        assert!(History::detect_near_divergence(&grow(2.1e6), None));
+        assert!(!History::detect_near_divergence(&grow(1.9e6), None));
+        assert!(!History::detect_near_divergence(&grow(f64::INFINITY), None));
+        // A real divergence has its own warning.
+        assert!(!History::detect_near_divergence(&grow(3e7), Some(2)));
+        assert!(!History::detect_near_divergence(&[], None));
+        assert!(!History::detect_near_divergence(
+            &[log(0, f64::NAN), log(1, 1e9)],
+            None
+        ));
     }
 }

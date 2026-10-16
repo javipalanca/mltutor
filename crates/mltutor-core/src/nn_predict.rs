@@ -545,13 +545,15 @@ pub fn batch_columns(features: &[String], file_columns: &[String]) -> BatchColum
     }
 }
 
-/// The result columns of the batch, by kind of output.
+/// The result columns of the batch, by kind of output. A row whose outputs are not
+/// all finite ([`BatchView::finite`] = `false`) has `None` as its class (it is not
+/// given class 0, nor any other) and keeps its NaN/∞ outputs as they are.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum BatchPredictions {
     /// Columns "Predicción", "Probabilidad", "Confianza".
     Binary {
-        predicted: Vec<usize>,
+        predicted: Vec<Option<usize>>,
         probability: Vec<f64>,
         confidence: Vec<f64>,
     },
@@ -559,7 +561,7 @@ pub enum BatchPredictions {
     /// (`probabilities[row][class]`, the network's class order) for a table or a
     /// download with one column per class.
     Multiclass {
-        predicted: Vec<usize>,
+        predicted: Vec<Option<usize>>,
         confidence: Vec<f64>,
         probabilities: Vec<Vec<f64>>,
     },
@@ -577,16 +579,40 @@ pub struct BatchView {
     pub classes: Vec<usize>,
     /// `false` with a tanh output.
     pub output_is_probability: bool,
+    /// One per row: whether every output of the row is finite. A `false` row (the
+    /// float32 forward pass overflowed: huge inputs, or weights near divergence)
+    /// has no class (`predicted[i] = None`); the UI must say it has no prediction.
+    pub finite: Vec<bool>,
     pub predictions: BatchPredictions,
+}
+
+/// Rejects the inputs the float32 network cannot read: NaN, ±∞ and finite values
+/// with `|v| > f32::MAX`, which become ±∞ when converted to float32 (Keras would
+/// cast them too). The error names the first such cell (0-based row and column, in
+/// the model's column order).
+pub fn check_f32_inputs(rows: ArrayView2<'_, f64>) -> Result<(), ModelError> {
+    for (row, values) in rows.rows().into_iter().enumerate() {
+        if let Some(column) = values
+            .iter()
+            .position(|v| !v.is_finite() || v.abs() > f64::from(f32::MAX))
+        {
+            return Err(ModelError::NonFiniteCell { row, column });
+        }
+    }
+    Ok(())
 }
 
 /// 📊 Predicción por lotes of `rows` (original units, the model's column order:
 /// see [`batch_columns`]). Predicted in chunks of [`BATCH_CHUNK_ROWS`] with a
 /// cancellation check before each one; at most [`BATCH_MAX_ROWS`] rows.
 ///
-/// Errors: `Empty`, `InvalidInput` (too many rows), `FeatureMismatch`, `NonFinite`
-/// (a missing or non-numeric value: Python's `scaler.transform` would fail or
+/// Errors: `Empty`, `InvalidInput` (too many rows), `FeatureMismatch`,
+/// `NonFiniteCell { row, column }` (the first missing, infinite or beyond-float32
+/// value, see [`check_f32_inputs`]: Python's `scaler.transform` would fail or
 /// predict NaN), `Cancelled` and the network's own errors.
+///
+/// Rows are predicted independently: a row whose output is NaN/∞ is flagged in
+/// [`BatchView::finite`] and gets no class, and the other rows are unaffected.
 pub fn nn_predict_batch(
     network: &dyn NetworkOutput,
     rows: ArrayView2<'_, f64>,
@@ -607,11 +633,10 @@ pub fn nn_predict_batch(
             found: rows.ncols(),
         });
     }
-    if rows.iter().any(|v| !v.is_finite()) {
-        return Err(ModelError::NonFinite);
-    }
+    check_f32_inputs(rows)?;
     let classes = network.classes().unwrap_or(&[]).to_vec();
     let mut kind = None;
+    let mut finite = Vec::with_capacity(n);
     let mut predicted = Vec::with_capacity(n);
     let mut first = Vec::with_capacity(n);
     let mut confidence = Vec::with_capacity(n);
@@ -624,13 +649,15 @@ pub fn nn_predict_batch(
         let k = *kind.get_or_insert_with(|| output_kind(network, out.ncols()));
         for row in out.rows() {
             let row = row.to_vec();
+            let ok = row.iter().all(|v| v.is_finite());
+            finite.push(ok);
             match read_row(k, &row, &classes) {
                 RowPrediction::Binary {
                     class,
                     probability,
                     confidence: c,
                 } => {
-                    predicted.push(class);
+                    predicted.push(ok.then_some(class));
                     first.push(probability);
                     confidence.push(c);
                 }
@@ -639,7 +666,7 @@ pub fn nn_predict_batch(
                     confidence: c,
                     probabilities: p,
                 } => {
-                    predicted.push(class);
+                    predicted.push(ok.then_some(class));
                     confidence.push(c);
                     probabilities.push(p);
                 }
@@ -667,6 +694,7 @@ pub fn nn_predict_batch(
         kind,
         classes,
         output_is_probability: network.output_is_probability(),
+        finite,
         predictions,
     })
 }
@@ -849,7 +877,8 @@ mod tests {
         else {
             panic!()
         };
-        assert_eq!(predicted, &[0, 0, 1]);
+        assert_eq!(predicted, &[Some(0), Some(0), Some(1)]);
+        assert_eq!(b.finite, vec![true; 3]);
         assert_eq!(probability[1], 0.5); // exactly 0.5 is class 0 (p > 0.5)
         assert_eq!(confidence[1], 0.5);
         let b = nn_predict_batch(&Toy(OutputKind::Multiclass), x.view(), &ctl).unwrap();
@@ -862,7 +891,7 @@ mod tests {
             panic!()
         };
         assert_eq!(probabilities.len(), 3);
-        assert_eq!(predicted, &[1, 1, 0]);
+        assert_eq!(predicted, &[Some(1), Some(1), Some(0)]);
         let empty = Array2::<f64>::zeros((0, 2));
         assert_eq!(
             nn_predict_batch(&Toy(OutputKind::Binary), empty.view(), &ctl),
@@ -875,6 +904,93 @@ mod tests {
         );
         let wide = Array2::<f64>::zeros((2, 3));
         assert!(nn_predict_batch(&Toy(OutputKind::Binary), wide.view(), &ctl).is_err());
+    }
+
+    /// Review M1: a row whose output is NaN gets no class (it used to be class 0),
+    /// and the other rows are unaffected.
+    #[test]
+    fn non_finite_outputs_have_no_class() {
+        let ctl = TrainControl::none();
+        // x0 = ±∞ is rejected before predicting; a finite x0 whose exp overflows
+        // in the toy softmax gives NaN outputs (∞/∞).
+        let x = ndarray::array![[800.0, 0.0], [0.0, 3.0]];
+        let b = nn_predict_batch(&Toy(OutputKind::Multiclass), x.view(), &ctl).unwrap();
+        assert_eq!(b.finite, vec![false, true]);
+        let BatchPredictions::Multiclass { predicted, .. } = &b.predictions else {
+            panic!()
+        };
+        assert_eq!(predicted, &[None, Some(1)]);
+        // Binary: a NaN probability is not "p ≤ 0.5 → class 0".
+        #[derive(Debug)]
+        struct NanBinary;
+        impl NetworkOutput for NanBinary {
+            fn raw_output(&self, x: ArrayView2<'_, f64>) -> Result<Array2<f64>, ModelError> {
+                Ok(x.slice(ndarray::s![.., 0..1])
+                    .mapv(|v| if v > 0.0 { f64::NAN } else { 0.9 }))
+            }
+            fn output_is_probability(&self) -> bool {
+                true
+            }
+        }
+        impl Predictor for NanBinary {
+            fn task(&self) -> TaskType {
+                TaskType::Classification
+            }
+            fn n_features(&self) -> usize {
+                2
+            }
+            fn classes(&self) -> Option<&[usize]> {
+                Some(&[0, 1])
+            }
+            fn predict(&self, _x: ArrayView2<'_, f64>) -> Result<Prediction, ModelError> {
+                Err(ModelError::Empty)
+            }
+            fn predict_proba(
+                &self,
+                _x: ArrayView2<'_, f64>,
+            ) -> Option<Result<Array2<f64>, ModelError>> {
+                None
+            }
+            fn refit(
+                &self,
+                _x: ArrayView2<'_, f64>,
+                _y: &Target,
+                _c: &TrainControl<'_>,
+            ) -> Result<Box<dyn Predictor>, ModelError> {
+                Err(ModelError::Empty)
+            }
+            fn as_any(&self) -> &dyn std::any::Any {
+                self
+            }
+        }
+        let x = ndarray::array![[1.0, 0.0], [-1.0, 0.0]];
+        let b = nn_predict_batch(&NanBinary, x.view(), &ctl).unwrap();
+        assert_eq!(b.finite, vec![false, true]);
+        let BatchPredictions::Binary { predicted, .. } = &b.predictions else {
+            panic!()
+        };
+        assert_eq!(predicted, &[None, Some(1)]);
+    }
+
+    /// Review M1: NaN, ∞ and values beyond float32 are rejected with their cell.
+    #[test]
+    fn inputs_beyond_f32_are_rejected_with_their_cell() {
+        let ctl = TrainControl::none();
+        let toy = Toy(OutputKind::Regression);
+        for bad in [f64::NAN, f64::INFINITY, 1e39, -4e38] {
+            let mut x = data();
+            x[[2, 1]] = bad;
+            assert_eq!(
+                nn_predict_batch(&toy, x.view(), &ctl),
+                Err(ModelError::NonFiniteCell { row: 2, column: 1 }),
+                "{bad}"
+            );
+        }
+        let mut x = data();
+        x[[0, 0]] = f64::from(f32::MAX);
+        assert!(nn_predict_batch(&toy, x.view(), &ctl).is_ok());
+        let msg = ModelError::NonFiniteCell { row: 2, column: 1 }.to_string();
+        assert!(msg.contains("fila 3") && msg.contains("columna 2"), "{msg}");
     }
 
     #[test]

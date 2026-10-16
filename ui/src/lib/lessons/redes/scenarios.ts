@@ -269,6 +269,20 @@ export const NN_SCENARIOS: Readonly<Record<string, () => Promise<void>>> = {
   redes_superficie_moons: S({ dataset: "moons", tab: 4, train: true, viz: "Superficie", ready: GRID }),
   // NEW: K1 (Diabetes with tanh and SGD at LR 0.3 diverges in epoch 7) and the biggest network.
   redes_evaluacion_divergencia: S({ ...DIVERGES, tab: 3, ready: "[data-nn-diverged]" }),
+  // K1: California [64, 64], SGD 0.3: NaN in epoch 3, EarlyStopping restores epoch 1 (valid weights).
+  redes_evaluacion_divergencia_recuperada: S({
+    dataset: "california_housing",
+    tab: 3,
+    train: true,
+    layers: 2,
+    neurons: [64, 64],
+    optimizer: "sgd",
+    learningRate: 0.3,
+    dropout: 0,
+    batch: 64,
+    epochs: 40,
+    ready: "[data-nn-diverged-recovered]",
+  }),
   redes_activaciones_5x256: S({ dataset: "digits", tab: 4, train: true, layers: 5, neurons: [256, 256, 256, 256, 256], epochs: 10, viz: "Activaciones", ready: MAP }),
   // F5d: 🔮 Predicciones and 💾 Exportar (Qt captures 00d, 00e, 23–29, 34, 40; the rest NEW).
   redes_predicciones_sin_entrenar: S({ ...IRIS, tab: 5 }),

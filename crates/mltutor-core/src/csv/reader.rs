@@ -90,6 +90,22 @@ fn detect_separator(text: &str) -> u8 {
     candidates[best]
 }
 
+/// Options of [`read_csv_cancellable_with`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReadOptions {
+    /// Fewest columns accepted ([`CsvError::TooFewColumns`] below it; values
+    /// under 1 count as 1). 2 for 📁 Cargar CSV (one feature and the target); the
+    /// batch prediction of a one-feature model needs 1.
+    pub min_columns: usize,
+}
+
+impl Default for ReadOptions {
+    /// `min_columns = 2`, what [`read_csv_cancellable`] uses.
+    fn default() -> Self {
+        Self { min_columns: 2 }
+    }
+}
+
 /// pandas names: empty headers become `Unnamed: {i}` and duplicates get `.1`, `.2`…
 ///
 /// Same algorithm as pandas 2 `read_csv` (`PythonParser._infer_columns`; the C
@@ -437,6 +453,18 @@ pub fn read_csv(bytes: &[u8]) -> Result<RawTable, CsvError> {
 /// are read in a second pass into a dictionary ([`TextColumn`]: 4 bytes per row
 /// plus each distinct value once). Measured in `tests/csv_memory.rs`.
 pub fn read_csv_cancellable(bytes: &[u8], cancel: &AtomicBool) -> Result<RawTable, CsvError> {
+    read_csv_cancellable_with(bytes, cancel, ReadOptions::default())
+}
+
+/// [`read_csv_cancellable`] with [`ReadOptions`] (the minimum number of columns).
+/// Everything else is the same, including [`CsvError::TooFewColumns`] (whose
+/// message speaks of "2 columnas": a caller with another minimum should show its
+/// own text, e.g. from `found`).
+pub fn read_csv_cancellable_with(
+    bytes: &[u8],
+    cancel: &AtomicBool,
+    options: ReadOptions,
+) -> Result<RawTable, CsvError> {
     let len = bytes.len() as u64;
     if len > MAX_CSV_BYTES {
         return Err(CsvError::TooLarge {
@@ -475,7 +503,7 @@ pub fn read_csv_cancellable(bytes: &[u8], cancel: &AtomicBool) -> Result<RawTabl
     if n_rows == 0 || header.is_empty() {
         return Err(CsvError::Empty);
     }
-    if header.len() < 2 {
+    if header.len() < options.min_columns.max(1) {
         return Err(CsvError::TooFewColumns {
             found: header.len(),
         });
@@ -508,6 +536,14 @@ pub fn read_csv_cancellable(bytes: &[u8], cancel: &AtomicBool) -> Result<RawTabl
     let mut comma_columns = Vec::new();
     let mut non_finite_columns = Vec::new();
     let names = header_names(&header);
+    // M3: the repeated headers that pandas renamed (`a, a` → `a, a.1`), so the
+    // caller does not have to guess them from the `.N` suffixes.
+    let renamed: Vec<(String, String)> = header
+        .iter()
+        .zip(&names)
+        .filter(|(raw, name)| !raw.is_empty() && raw != name)
+        .map(|(raw, name)| (raw.clone(), name.clone()))
+        .collect();
     let columns: Vec<RawColumn> = names
         .into_iter()
         .zip(builders.into_iter().zip(texts))
@@ -533,6 +569,9 @@ pub fn read_csv_cancellable(bytes: &[u8], cancel: &AtomicBool) -> Result<RawTabl
         notices.push(CsvNotice::NonFinite {
             columns: non_finite_columns,
         });
+    }
+    if !renamed.is_empty() {
+        notices.push(CsvNotice::RenamedHeaders { renamed });
     }
     Ok(RawTable {
         columns,
@@ -586,6 +625,46 @@ mod tests {
         let unique: std::collections::HashSet<&String> = names.iter().collect();
         assert_eq!(unique.len(), 20_000);
         assert!(start.elapsed() < std::time::Duration::from_secs(2));
+    }
+
+    #[test]
+    fn reports_renamed_headers() {
+        let t = read_csv(b"a,a,,b,a\n1,2,3,4,5\n").unwrap();
+        let names: Vec<&str> = t.columns.iter().map(|c| c.name.as_str()).collect();
+        assert_eq!(names, ["a", "a.1", "Unnamed: 2", "b", "a.2"]);
+        // Only repeated names: the empty header is not a repetition.
+        assert_eq!(
+            t.notices,
+            vec![CsvNotice::RenamedHeaders {
+                renamed: vec![
+                    ("a".to_owned(), "a.1".to_owned()),
+                    ("a".to_owned(), "a.2".to_owned())
+                ]
+            }]
+        );
+        assert!(t.notices[0].message().contains("a → a.1"));
+        // A header that only looks mangled is not reported.
+        let t = read_csv(b"a,a.1\n1,2\n").unwrap();
+        assert!(t.notices.is_empty());
+    }
+
+    #[test]
+    fn minimum_columns_is_configurable() {
+        let cancel = AtomicBool::new(false);
+        let one = b"x\n1\n2\n";
+        assert_eq!(
+            read_csv(one).unwrap_err(),
+            CsvError::TooFewColumns { found: 1 }
+        );
+        let t = read_csv_cancellable_with(one, &cancel, ReadOptions { min_columns: 1 }).unwrap();
+        assert_eq!((t.columns.len(), t.n_rows), (1, 2));
+        // 0 counts as 1: an empty header is still `Empty`.
+        assert!(read_csv_cancellable_with(b"", &cancel, ReadOptions { min_columns: 0 }).is_err());
+        assert_eq!(
+            read_csv_cancellable_with(b"a,b\n1,2\n", &cancel, ReadOptions { min_columns: 3 })
+                .unwrap_err(),
+            CsvError::TooFewColumns { found: 2 }
+        );
     }
 
     #[test]

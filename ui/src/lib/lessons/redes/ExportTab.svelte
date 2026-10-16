@@ -4,7 +4,7 @@
    * of the training, not of now), "📁 Opciones de Exportación" with the four panels of
    * `[exportar_rust]` (📦 Paquete Keras, 💾 ONNX, 📝 Código Python, 📋 Metadatos), the
    * "ℹ️ ¿Qué formato elijo?" expander and "💡 Información Adicional". Every file is built in
-   * Rust and saved with the native dialog. A diverged network (K1) is not exported.
+   * Rust and saved with the native dialog. A network with non-finite weights (K1) is not exported.
    */
   import ButtonPanel from "../../../components/ButtonPanel.svelte";
   import CodeBlock from "../../../components/CodeBlock.svelte";
@@ -23,7 +23,7 @@
   import { ViewLoader } from "../../ml/viewLoader.svelte";
   import { status } from "../../status.svelte";
   import NnBanner from "./NnBanner.svelte";
-  import { invalidNetworkText } from "./nnTexts";
+  import { invalidNetworkText, networkBlocked } from "./nnTexts";
   import { nnPredictions, type ExportSubview } from "./predictions.svelte";
   import { LESSON, thousands } from "./state.svelte";
 
@@ -141,7 +141,7 @@
     {/if}
     {#if !hist}
       <Spinner label="Cargando la red…" />
-    {:else if hist.diverged_epoch !== null}
+    {:else if networkBlocked(hist)}
       <div data-nn-diverged={hist.diverged_epoch} data-pedagogical>
         <Notice severity="error" markdown={invalidNetworkText()} />
       </div>

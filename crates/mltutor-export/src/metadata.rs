@@ -7,7 +7,7 @@
 //!
 //! Corrections (fase5-redes.md §12.16, D75):
 //! - `data_info.num_classes` is the number of classes (2 in binary); Python wrote
-//!   `output_size`, i.e. 1.
+//!   `output_size`, i.e. 1. In regression it is `null` (Python wrote 1).
 //! - `export_info.export_date` is replaced by `training_date`, the date of the
 //!   **training** (the caller passes it: the core has no clock); Python wrote the
 //!   current time.
@@ -18,6 +18,13 @@
 //! - `training_info` also has the MAE in regression (Python only kept the
 //!   accuracy), the test loss and metric, the best and the stopping epoch and the
 //!   divergence epoch (K1).
+//! - Which epoch the exported weights are from: `training_info.weights_epoch`
+//!   (`"best"` with EarlyStopping, which restores the weights of `best_epoch` at the
+//!   end, as Keras 3.12 always does; `"last"` without it). The `best_*` metrics are
+//!   those of that epoch and are the ones that describe the exported model; the
+//!   `final_*` ones (Python's) are those of the last epoch trained, which with
+//!   EarlyStopping are NOT the weights of the file. `test_*` are always computed
+//!   with the exported weights.
 //!
 //! Deterministic: no clock, no randomness, the key order is fixed and non-finite
 //! numbers (a diverged training) are written as `null`. A diverged network can
@@ -92,6 +99,29 @@ pub fn nn_metadata(
         format!("final_val_{metric_key}"),
         last.map_or(Value::Null, |e| num(e.val_metric)),
     );
+    // M7: the metrics of the epoch whose weights the model has (EarlyStopping);
+    // `null` without EarlyStopping (then the model is the last epoch: `final_*`).
+    let best = history.best_epoch.and_then(|b| history.epochs.get(b));
+    training_info.insert(
+        "weights_epoch".into(),
+        json!(if best.is_some() { "best" } else { "last" }),
+    );
+    training_info.insert(
+        "best_loss".into(),
+        best.map_or(Value::Null, |e| num(e.loss)),
+    );
+    training_info.insert(
+        "best_val_loss".into(),
+        best.map_or(Value::Null, |e| num(e.val_loss)),
+    );
+    training_info.insert(
+        format!("best_{metric_key}"),
+        best.map_or(Value::Null, |e| num(e.metric)),
+    );
+    training_info.insert(
+        format!("best_val_{metric_key}"),
+        best.map_or(Value::Null, |e| num(e.val_metric)),
+    );
     training_info.insert("test_loss".into(), num(trained.test_loss));
     training_info.insert(format!("test_{metric_key}"), num(trained.test_metric));
     // 1-based, as the UI shows the epochs.
@@ -107,6 +137,7 @@ pub fn nn_metadata(
         "diverged_epoch".into(),
         json!(history.diverged_epoch.map(|e| e + 1)),
     );
+    training_info.insert("near_divergence".into(), json!(history.near_divergence));
     training_info.insert(
         "final_learning_rate".into(),
         num(f32_as_decimal(trained.final_learning_rate)),
@@ -151,8 +182,8 @@ pub fn nn_metadata(
             "feature_columns": dataset.feature_columns,
             "target_column": dataset.target_column,
             "num_features": mlp.n_inputs(),
-            // 1 in regression, as Python.
-            "num_classes": num_classes.unwrap_or(1),
+            // `null` in regression (Python wrote 1, the output size).
+            "num_classes": num_classes,
             "class_names": class_names,
             "n_train": trained.sizes.train,
             "n_val": trained.sizes.val,

@@ -68,6 +68,17 @@ fn metadata_is_complete_corrected_and_deterministic() {
     assert_eq!(ti["epochs_trained"], trained.history.epochs.len());
     assert!(ti["final_accuracy"].is_number() && ti["final_val_accuracy"].is_number());
     assert!(ti["test_accuracy"].is_number() && ti["final_learning_rate"].is_number());
+    // M7: with EarlyStopping the model has the weights of best_epoch, whose
+    // metrics are written next to the final ones.
+    let best = trained.history.best_epoch.unwrap();
+    let e = trained.history.epochs[best];
+    assert_eq!(ti["weights_epoch"], "best");
+    assert_eq!(ti["best_epoch"], best + 1);
+    assert_eq!(ti["best_val_loss"], e.val_loss);
+    assert_eq!(ti["best_val_accuracy"], e.val_metric);
+    assert_eq!(ti["best_loss"], e.loss);
+    assert_eq!(ti["best_accuracy"], e.metric);
+    assert_eq!(ti["near_divergence"], false);
     let di = &m["data_info"];
     assert_eq!(di["num_classes"], 3);
     assert_eq!(di["class_names"].as_array().unwrap().len(), 3);
@@ -86,13 +97,18 @@ fn metadata_is_complete_corrected_and_deterministic() {
     let m = nn_metadata(&train(&cancer, &a, &tb), &cancer, &a, &tb, "x").unwrap();
     assert_eq!(m["data_info"]["num_classes"], 2);
     assert_eq!(m["config"]["patience"], Value::Null);
+    // Without EarlyStopping the model is the last epoch: no best_* metrics.
+    assert_eq!(m["training_info"]["weights_epoch"], "last");
+    assert_eq!(m["training_info"]["best_val_loss"], Value::Null);
+    assert_eq!(m["training_info"]["best_accuracy"], Value::Null);
 
-    // Regression: MAE, num_classes 1, no class names; a dataset of other width fails.
+    // Regression: MAE, num_classes null (Python wrote 1), no class names; a dataset
+    // of other width fails.
     let diabetes = load_builtin(DatasetId::Diabetes).unwrap();
     let a = arch(Activation::Linear, Activation::Relu, OptimizerKind::Adam);
     let tr = train(&diabetes, &a, &tb);
     let m = nn_metadata(&tr, &diabetes, &a, &tb, "x").unwrap();
-    assert_eq!(m["data_info"]["num_classes"], 1);
+    assert_eq!(m["data_info"]["num_classes"], Value::Null);
     assert_eq!(m["data_info"]["class_names"], Value::Null);
     assert!(m["training_info"]["final_mae"].is_number());
     assert!(matches!(

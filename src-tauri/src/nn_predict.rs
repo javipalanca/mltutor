@@ -10,8 +10,9 @@
 //! reads the CSV of `--scenario <nombre>:<ruta.csv>` (or a CSV written from the dataset
 //! itself) and every save goes to [`automation_dir`].
 
+use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_dialog::DialogExt;
@@ -33,39 +34,109 @@ pub const TEMPLATE_ROWS: usize = 3;
 pub const AUTOMATION_ROWS: usize = 25;
 /// Suggested name of "📥 Descargar Resultados" (Python's `predicciones_neural_network.csv`).
 pub const RESULTS_FILE: &str = "predicciones_neural_network.csv";
+/// The UTF-8 byte order mark: Excel needs it to read the accents of a CSV.
+pub const UTF8_BOM: &[u8] = b"\xEF\xBB\xBF";
 
-/// The CSV of a batch and the model that predicted it.
-type StoredBatch = Option<(u32, Vec<u8>)>;
+/// The CSV of a batch and the model that predicted it (shared, never copied).
+type StoredBatch = Option<(u32, Arc<[u8]>)>;
 
-/// The CSV with the predictions of the last batch (one per app: a new batch replaces it).
+/// The CSV with the predictions of the last batch (one per app: a new batch replaces it,
+/// and a new training releases it).
 #[derive(Default, Clone)]
 pub struct NnBatches {
     last: Arc<Mutex<StoredBatch>>,
 }
 
 impl NnBatches {
-    fn store(&self, model_id: u32, csv: Option<Vec<u8>>) {
+    fn replace(&self, next: StoredBatch) {
         let old = {
             let mut last = self.last.lock().unwrap_or_else(|p| p.into_inner());
-            std::mem::replace(&mut *last, csv.map(|c| (model_id, c)))
+            std::mem::replace(&mut *last, next)
         };
         // Released without the lock (it may be a few MB).
         drop(old);
     }
 
-    fn get(&self, model_id: u32) -> Option<Vec<u8>> {
+    fn store(&self, model_id: u32, csv: Option<Vec<u8>>) {
+        self.replace(csv.map(|c| (model_id, Arc::from(c))));
+    }
+
+    /// Frees the CSV of the last batch (a new model is being trained).
+    pub fn clear(&self) {
+        self.replace(None);
+    }
+
+    fn get(&self, model_id: u32) -> Option<Arc<[u8]>> {
         let last = self.last.lock().unwrap_or_else(|p| p.into_inner());
         last.as_ref()
             .filter(|(id, _)| *id == model_id)
-            .map(|(_, csv)| csv.clone())
+            .map(|(_, csv)| Arc::clone(csv))
     }
 }
 
-/// Where the automation modes write the files they would ask for (one folder per run).
+/// Where the automation modes write the files they would ask for: one private folder
+/// per run (0700 and a random name, so another user cannot plant or read its files).
+/// It is kept after the run (its path is in the log).
 pub fn automation_dir() -> Result<PathBuf, CommandError> {
-    let dir = std::env::temp_dir().join(format!("mltutor-automatizacion-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).map_err(CommandError::file_save)?;
-    Ok(dir)
+    static DIR: OnceLock<Result<PathBuf, String>> = OnceLock::new();
+    let dir = DIR.get_or_init(|| {
+        let mut builder = tempfile::Builder::new();
+        builder.prefix("mltutor-automatizacion-");
+        // tempfile creates directories with 0777 & umask: private on purpose.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            builder.permissions(std::fs::Permissions::from_mode(0o700));
+        }
+        builder
+            .tempdir()
+            .map(tempfile::TempDir::keep)
+            .map_err(|error| error.to_string())
+    });
+    match dir {
+        Ok(dir) => Ok(dir.clone()),
+        Err(error) => Err(CommandError::file_save(std::io::Error::other(
+            error.clone(),
+        ))),
+    }
+}
+
+/// `name` in `dir`, or `stem-2.ext`, `stem-3.ext`… if it exists: a new file opened with
+/// `create_new` (never follows or overwrites an existing path).
+fn create_unique(dir: &Path, name: &str) -> std::io::Result<(std::fs::File, PathBuf)> {
+    let (stem, ext) = match name.rsplit_once('.') {
+        Some((stem, ext)) if !stem.is_empty() => (stem, format!(".{ext}")),
+        _ => (name, String::new()),
+    };
+    for i in 1..=1000u32 {
+        let candidate = if i == 1 {
+            name.to_owned()
+        } else {
+            format!("{stem}-{i}{ext}")
+        };
+        let path = dir.join(candidate);
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+        {
+            Ok(file) => return Ok((file, path)),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(error) => return Err(error),
+        }
+    }
+    Err(std::io::Error::new(
+        std::io::ErrorKind::AlreadyExists,
+        format!("demasiados archivos llamados {name}"),
+    ))
+}
+
+/// Writes `bytes` as a new file named `name` in [`automation_dir`] and returns its path.
+fn write_automated(name: &str, bytes: &[u8]) -> Result<PathBuf, CommandError> {
+    let dir = automation_dir()?;
+    let (mut file, path) = create_unique(&dir, name).map_err(CommandError::file_save)?;
+    file.write_all(bytes).map_err(CommandError::file_save)?;
+    Ok(path)
 }
 
 /// `--smoke-test` and `--screenshot` never open a dialog (nobody would answer it).
@@ -75,8 +146,7 @@ pub fn is_automated(mode: &Mode) -> bool {
 
 /// Writes `bytes` as `name` in [`automation_dir`] and returns the name shown to the user.
 pub fn save_automated(name: &str, bytes: &[u8]) -> Result<String, CommandError> {
-    let path = automation_dir()?.join(name);
-    std::fs::write(&path, bytes).map_err(CommandError::file_save)?;
+    let path = write_automated(name, bytes)?;
     log::info!(
         "automatización: guardado {} ({} bytes)",
         path.display(),
@@ -85,12 +155,31 @@ pub fn save_automated(name: &str, bytes: &[u8]) -> Result<String, CommandError> 
     Ok(crate::files::display_name(&path))
 }
 
-/// A field of a CSV written by the app (RFC 4180 quoting).
+/// Whether a text field would run as a formula in a spreadsheet (CSV injection): it
+/// starts with `=`, `+`, `@`, a tab or a CR, or with `-` followed by something that is
+/// not a digit (`-3.5` is a number; `-cmd` is not).
+fn looks_like_formula(text: &str) -> bool {
+    let mut chars = text.chars();
+    match chars.next() {
+        Some('=' | '+' | '@' | '\t' | '\r') => true,
+        Some('-') => chars.next().is_some_and(|c| !c.is_ascii_digit()),
+        _ => false,
+    }
+}
+
+/// A text field of a CSV written by the app: neutralised if it looks like a formula (a
+/// leading `'`, as OWASP recommends) and quoted as RFC 4180 when needed. Numbers written
+/// by [`number`] do not go through here.
 pub fn csv_field(text: &str) -> String {
-    if text.contains([',', '"', '\n', '\r']) || text.trim() != text {
+    let text = if looks_like_formula(text) {
+        std::borrow::Cow::Owned(format!("'{text}"))
+    } else {
+        std::borrow::Cow::Borrowed(text)
+    };
+    if text.contains([',', '"', '\n', '\r', '\t']) || text.trim() != text {
         format!("\"{}\"", text.replace('"', "\"\""))
     } else {
-        text.to_owned()
+        text.into_owned()
     }
 }
 
@@ -178,9 +267,7 @@ fn batch_source(
             return Ok(Some(PathBuf::from(path)));
         }
         let template = model.nn_batch_template(AUTOMATION_ROWS)?;
-        let path = automation_dir()?.join("lote_prueba.csv");
-        std::fs::write(&path, sample_csv(&template)).map_err(CommandError::csv_io)?;
-        return Ok(Some(path));
+        return write_automated("lote_prueba.csv", &sample_csv(&template)).map(Some);
     }
     let mut dialog = app.dialog().file().add_filter(
         crate::nn::nn_text("exportar_rust", "filtro_csv", "Archivos (*.csv)"),
@@ -266,17 +353,66 @@ pub async fn nn_metadata(
     model_id: u32,
     trained_at: String,
 ) -> Result<String, CommandError> {
-    let trained_at = clean_date(&trained_at);
     with_model("nn_metadata", &models, model_id, move |m| {
         m.model.nn_metadata(&trained_at)
     })
     .await
 }
 
-/// The local date of the training sent by the UI ("2026-10-15 17:49"): at most 40
-/// characters, no control characters (it goes into a JSON string).
-pub fn clean_date(text: &str) -> String {
-    text.chars().filter(|c| !c.is_control()).take(40).collect()
+/// The local date of the training sent by the UI, if it has the shape `AAAA-MM-DD HH:MM`
+/// (it goes into a JSON string and a file): anything else is rejected.
+pub fn checked_date(text: &str) -> Option<String> {
+    let b = text.as_bytes();
+    let digits = |r: std::ops::Range<usize>| -> Option<u32> {
+        let part = b.get(r)?;
+        part.iter()
+            .all(u8::is_ascii_digit)
+            .then(|| std::str::from_utf8(part).ok()?.parse().ok())
+            .flatten()
+    };
+    let shape = b.len() == 16 && b[4] == b'-' && b[7] == b'-' && b[10] == b' ' && b[13] == b':';
+    let (month, day, hour, minute) = (
+        digits(5..7)?,
+        digits(8..10)?,
+        digits(11..13)?,
+        digits(14..16)?,
+    );
+    digits(0..4)?;
+    let valid =
+        shape && (1..=12).contains(&month) && (1..=31).contains(&day) && hour < 24 && minute < 60;
+    valid.then(|| text.to_owned())
+}
+
+/// `ms` since the Unix epoch as `AAAA-MM-DD HH:MM UTC` (when the UI sends no valid
+/// local date).
+pub fn utc_date(ms: u64) -> String {
+    let secs = ms / 1000;
+    let days = i64::try_from(secs / 86_400).unwrap_or(0);
+    let rem = secs % 86_400;
+    // Howard Hinnant's civil_from_days.
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    format!(
+        "{year:04}-{month:02}-{day:02} {:02}:{:02} UTC",
+        rem / 3600,
+        rem % 3600 / 60
+    )
+}
+
+/// The date of 📋 Metadatos: the one the UI sent if valid, else the UTC date of the
+/// training (`NnSummary.trained_at_ms`).
+pub fn trained_at(text: &str, trained_at_ms: u64) -> String {
+    checked_date(text).unwrap_or_else(|| {
+        log::warn!("fecha de entrenamiento no válida desde la interfaz: {text:?}");
+        utc_date(trained_at_ms)
+    })
 }
 
 #[cfg(test)]
@@ -285,10 +421,59 @@ mod tests {
     use crate::ipc::TablePreview;
 
     #[test]
-    fn dates_from_the_ui_are_cleaned() {
-        assert_eq!(clean_date("2026-10-15 17:49"), "2026-10-15 17:49");
-        assert_eq!(clean_date("a\nb"), "ab");
-        assert_eq!(clean_date(&"x".repeat(100)).len(), 40);
+    fn dates_from_the_ui_are_checked() {
+        assert_eq!(
+            checked_date("2026-10-15 17:49").as_deref(),
+            Some("2026-10-15 17:49")
+        );
+        for bad in [
+            "",
+            "a\nb",
+            "2026-13-15 17:49",
+            "2026-10-15 24:00",
+            "2026-10-15T17:49",
+            "2026-10-15 17:49\"x",
+        ] {
+            assert_eq!(checked_date(bad), None, "{bad:?}");
+        }
+        assert_eq!(utc_date(0), "1970-01-01 00:00 UTC");
+        assert_eq!(utc_date(1_792_152_540_000), "2026-10-16 12:09 UTC");
+        assert_eq!(trained_at("{\"x\": 1}", 0), "1970-01-01 00:00 UTC");
+    }
+
+    #[test]
+    fn csv_fields_cannot_be_formulas() {
+        assert_eq!(csv_field("=1+1"), "'=1+1");
+        assert_eq!(csv_field("+34 600"), "'+34 600");
+        assert_eq!(csv_field("@SUM(A1)"), "'@SUM(A1)");
+        assert_eq!(csv_field("-cmd"), "'-cmd");
+        assert_eq!(csv_field("\tx"), "\"'\tx\"");
+        assert_eq!(csv_field("-3.5"), "-3.5");
+        assert_eq!(csv_field("-"), "-");
+        assert_eq!(csv_field("setosa"), "setosa");
+    }
+
+    #[test]
+    fn automation_files_are_new_and_private() {
+        let dir = automation_dir().unwrap();
+        assert_eq!(dir, automation_dir().unwrap(), "one folder per run");
+        let name = dir.file_name().unwrap().to_string_lossy().into_owned();
+        assert!(name.starts_with("mltutor-automatizacion-"), "{name}");
+        assert_ne!(
+            name,
+            format!("mltutor-automatizacion-{}", std::process::id())
+        );
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&dir).unwrap().permissions().mode();
+            assert_eq!(mode & 0o777, 0o700);
+        }
+        let a = write_automated("prueba_unica.csv", b"1").unwrap();
+        let b = write_automated("prueba_unica.csv", b"2").unwrap();
+        assert_ne!(a, b);
+        assert!(b.ends_with("prueba_unica-2.csv"), "{b:?}");
+        assert_eq!(std::fs::read(&a).unwrap(), b"1");
     }
 
     #[test]
@@ -326,5 +511,8 @@ mod tests {
         assert!(batches.get(4).is_none());
         batches.store(4, None);
         assert!(batches.get(3).is_none());
+        batches.store(5, Some(b"y".to_vec()));
+        batches.clear();
+        assert!(batches.get(5).is_none(), "a new training releases it");
     }
 }

@@ -82,7 +82,7 @@ MLTUTOR_FACADE=fixture target/debug/mltutor --screenshot out.png --scenario arbo
 npm --prefix ui run tauri build -- --debug --no-bundle  # binario de depuración con el frontend embebido (target/debug/mltutor), rápido para iterar
 MLTUTOR_FACADE=fixture target/debug/mltutor  # solo en debug: datos de tests/parity en lugar de mltutor-core
 # En --smoke-test y --screenshot no se abre ningún diálogo: las exportaciones y el CSV de resultados van a
-# $TMPDIR/mltutor-automatizacion-<pid>/ y el lote de 🔮 lee el CSV de --scenario <nombre>:<ruta.csv>
+# $TMPDIR/mltutor-automatizacion-XXXXXX/ (nombre aleatorio, en el log) y el lote de 🔮 lee el CSV de --scenario <nombre>:<ruta.csv>
 # (o uno que escribe con las primeras filas del dataset)
 # Ojo: `cargo build --release` a secas no empaqueta el frontend (carga devUrl); usa `tauri build`.
 # Registro: ~/.mltutor/mltutor.log (MLTUTOR_LOG_DIR lo cambia, útil en CI)

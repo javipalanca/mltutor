@@ -97,6 +97,12 @@ pub enum ModelError {
     /// NaN or infinite values in the inputs.
     #[error("Los datos contienen valores no válidos (NaN o infinito)")]
     NonFinite,
+    /// [`NonFinite`](ModelError::NonFinite) located in one cell (0-based row and
+    /// column of the input, model column order): NaN, ±∞, or a finite value beyond
+    /// float32 (`|v| > f32::MAX`) for a network, which would become ∞. The batch
+    /// prediction of 🧠 uses it so the student can find the cell.
+    #[error("La fila {} tiene un valor no válido en la columna {} (vacío, infinito o demasiado grande para float32)", .row + 1, .column + 1)]
+    NonFiniteCell { row: usize, column: usize },
     /// The solver failed (it should not happen with finite data).
     #[error("Error numérico al entrenar el modelo: {message}")]
     Numerical { message: String },

@@ -27,8 +27,8 @@ use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
 pub use reader::{
-    read_csv, read_csv_cancellable, read_csv_file, read_csv_file_cancellable, CANCEL_CHECK_ROWS,
-    MAX_CSV_BYTES,
+    read_csv, read_csv_cancellable, read_csv_cancellable_with, read_csv_file,
+    read_csv_file_cancellable, ReadOptions, CANCEL_CHECK_ROWS, MAX_CSV_BYTES,
 };
 pub use text::TextColumn;
 
@@ -64,7 +64,13 @@ pub enum CsvNotice {
     /// These float columns contain ±infinity: kept in the data (as pandas does) but
     /// left out of statistics and charts (module docs).
     NonFinite { columns: Vec<String> },
+    /// Repeated headers renamed as pandas does (`a, a` → `a, a.1`): `(original,
+    /// new)` pairs in column order. Empty headers (`Unnamed: i`) are not listed.
+    RenamedHeaders { renamed: Vec<(String, String)> },
 }
+
+/// Pairs listed in the [`CsvNotice::RenamedHeaders`] message (the rest is "…").
+const RENAMED_SHOWN: usize = 10;
 
 impl CsvNotice {
     /// Text for a `Notice` in the UI.
@@ -88,6 +94,20 @@ impl CsvNotice {
                  tienen en cuenta en las estadísticas ni en los gráficos",
                 columns.join(", ")
             ),
+            CsvNotice::RenamedHeaders { renamed } => {
+                let mut pairs: Vec<String> = renamed
+                    .iter()
+                    .take(RENAMED_SHOWN)
+                    .map(|(old, new)| format!("{old} → {new}"))
+                    .collect();
+                if renamed.len() > RENAMED_SHOWN {
+                    pairs.push(format!("… ({} en total)", renamed.len()));
+                }
+                format!(
+                    "Hay columnas con el mismo nombre; se han renombrado como en pandas: {}",
+                    pairs.join(", ")
+                )
+            }
         }
     }
 }

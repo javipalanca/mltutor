@@ -385,6 +385,13 @@ fn fmt1(template: &str, name: &str, v: f64) -> String {
 /// `nota_validacion_pequena` (each row moves the accuracy by `100 / n` points).
 pub const SMALL_VALIDATION: usize = 30;
 
+/// `{margen}` of `nota_validacion_pequena`: `2·sqrt(p(1−p)/n)`, about two standard
+/// errors of an accuracy `p` measured on `n` rows (the text shows it with 2
+/// decimals). Iris, `p = 0.9`, `n = 24`: 0.12. NaN for `n = 0`.
+pub fn validation_margin(p: f64, n: usize) -> f64 {
+    2.0 * (p * (1.0 - p) / n as f64).sqrt()
+}
+
 /// `neural_network_diagnostics(history, config)`: the numbers and the view tree.
 /// `n_val` = validation rows (for `nota_validacion_pequena`; `None` = unknown).
 pub fn diagnostics_view(
@@ -460,6 +467,13 @@ pub fn diagnostics_view(
                         &[
                             ("n", FmtArg::Int(i64::try_from(n).unwrap_or(i64::MAX))),
                             ("pp", FmtArg::Float(100.0 / n as f64)),
+                            (
+                                "margen",
+                                FmtArg::Float(validation_margin(
+                                    d.final_val_accuracy.unwrap_or(0.0),
+                                    n,
+                                )),
+                            ),
                         ],
                     ),
                 ));
@@ -927,19 +941,43 @@ pub fn history_help_markdown() -> &'static str {
     markdown_body(NN_HISTORY_MD)
 }
 
+/// Learning rate from which a negative R² is blamed on a too **high** rate
+/// (`aviso_r2_negativo_lr_alto`, "bájalo") instead of a too low one
+/// (`aviso_r2_negativo`, "súbelo").
+pub const R2_NEGATIVE_HIGH_LR: f64 = 0.1;
+
 /// NEW (D84): `[evaluacion] aviso_r2_negativo` when the test R² of a regression
 /// network is negative (with the default values Diabetes ends at R² ≈ −3 while the
 /// Python diagnostics said "✅ Error de regresión aceptable").
-pub fn r2_negative_notice(r2: f64) -> Result<Option<String>, ContentError> {
+///
+/// The advice depends on the learning rate of ⚙️ (review of F5c/F5d): with
+/// `learning_rate ≥` [`R2_NEGATIVE_HIGH_LR`] the steps overshoot and the text is
+/// `aviso_r2_negativo_lr_alto` (lower it); below it, `aviso_r2_negativo` (the
+/// network learns too slowly: raise it or train longer).
+pub fn r2_negative_notice(r2: f64, learning_rate: f64) -> Result<Option<String>, ContentError> {
     if r2.is_nan() || r2 >= 0.0 {
         return Ok(None);
     }
     let m = Messages::neural_network()?;
-    Ok(Some(fmt1(
-        m.text("evaluacion", "aviso_r2_negativo")?,
-        "r2",
-        r2,
-    )))
+    let key = if learning_rate >= R2_NEGATIVE_HIGH_LR - 1e-9 {
+        "aviso_r2_negativo_lr_alto"
+    } else {
+        "aviso_r2_negativo"
+    };
+    Ok(Some(fmt1(m.text("evaluacion", key)?, "r2", r2)))
+}
+
+/// NEW (review of F5c/F5d): `[evaluacion] aviso_casi_divergencia` when the history
+/// grew by orders of magnitude without reaching NaN/∞ (see
+/// [`crate::nn_data::History::near_divergence`]); `None` otherwise.
+pub fn near_divergence_notice(near_divergence: bool) -> Result<Option<String>, ContentError> {
+    if !near_divergence {
+        return Ok(None);
+    }
+    let m = Messages::neural_network()?;
+    Ok(Some(
+        m.text("evaluacion", "aviso_casi_divergencia")?.to_owned(),
+    ))
 }
 
 #[cfg(test)]
@@ -957,8 +995,43 @@ mod tests {
 
     #[test]
     fn r2_notice_only_when_negative() {
-        assert_eq!(r2_negative_notice(0.3).ok().flatten(), None);
-        let text = r2_negative_notice(-3.4).ok().flatten().unwrap_or_default();
-        assert!(text.contains("-3.40"), "{text}");
+        assert_eq!(r2_negative_notice(0.3, 0.001).ok().flatten(), None);
+        assert_eq!(r2_negative_notice(f64::NAN, 0.5).ok().flatten(), None);
+        let m = Messages::neural_network().ok();
+        let text_of = |key: &str| {
+            m.as_ref()
+                .and_then(|m| m.text("evaluacion", key).ok())
+                .map(|t| fmt1(t, "r2", -3.4))
+        };
+        let low = r2_negative_notice(-3.4, 0.001).ok().flatten();
+        assert!(
+            low.as_deref().is_some_and(|t| t.contains("-3.40")),
+            "{low:?}"
+        );
+        assert_eq!(low, text_of("aviso_r2_negativo"));
+        // f32 0.1 widened to f64 is 0.10000000149…; 0.1 itself also counts as high.
+        for lr in [0.1, f64::from(0.1_f32), 0.5] {
+            assert_eq!(
+                r2_negative_notice(-3.4, lr).ok().flatten(),
+                text_of("aviso_r2_negativo_lr_alto"),
+                "{lr}"
+            );
+        }
+        assert_eq!(
+            r2_negative_notice(-3.4, 0.099).ok().flatten(),
+            text_of("aviso_r2_negativo")
+        );
+    }
+
+    #[test]
+    fn margin_and_near_divergence_notice() {
+        assert!((validation_margin(0.9, 24) - 0.1224744871391589).abs() < 1e-12);
+        assert_eq!(validation_margin(1.0, 10), 0.0);
+        assert_eq!(near_divergence_notice(false).ok().flatten(), None);
+        let text = near_divergence_notice(true)
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+        assert!(text.contains("órdenes de magnitud"), "{text}");
     }
 }

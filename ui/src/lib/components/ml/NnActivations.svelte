@@ -20,6 +20,7 @@
   import * as backend from "../../backend";
   import type { ActivationsView } from "../../bindings/ActivationsView";
   import type { Cell } from "../../bindings/Cell";
+  import type { NnActivation } from "../../bindings/NnActivation";
   import { md, nnList, nnRaw, nnText, optionalText } from "../../content";
   import { escapePlotly } from "../../escape";
   import { fmt, fmtText } from "../../fmt";
@@ -32,10 +33,12 @@
 
   interface Props {
     modelId: number;
+    /** The activation of the hidden layers: "dead" means something else without ReLU. */
+    hiddenActivation?: NnActivation;
     onstale: () => void;
   }
 
-  let { modelId, onstale }: Props = $props();
+  let { modelId, hiddenActivation = "relu", onstale }: Props = $props();
   const t = (key: string): string => nnText("activaciones", key);
   const loader = new ViewLoader<ActivationsView>();
   const key = $derived(`${modelId}|${nnViz.sampleSize}|${nnViz.deadThreshold}|${nnViz.constantStd}`);
@@ -156,6 +159,11 @@
       {#if verdict}
         <div data-pedagogical data-dead-pct={view.dead_pct}>
           <Notice severity={verdict.severity} markdown={verdict.text} />
+          {#if hiddenActivation !== "relu"}
+            <div data-nn-dead-not-relu>
+              <Notice severity="info" markdown={t("muertas_no_relu")} />
+            </div>
+          {/if}
         </div>
       {/if}
 

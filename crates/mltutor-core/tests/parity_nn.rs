@@ -430,6 +430,14 @@ fn corrected(mut expected: Value, task: TaskType, d: &Value, n_val: Option<usize
                 &[
                     ("n", mltutor_core::pyfmt::FmtArg::Int(n as i64)),
                     ("pp", mltutor_core::pyfmt::FmtArg::Float(100.0 / n as f64)),
+                    (
+                        "margen",
+                        mltutor_core::pyfmt::FmtArg::Float({
+                            // Written out here, independently of the core.
+                            let p = d["final_val_accuracy"].as_f64().unwrap();
+                            2.0 * (p * (1.0 - p) / n as f64).sqrt()
+                        }),
+                    ),
                 ],
             );
             let col = &mut expected[2]["children"][0]["children"];

@@ -10,7 +10,12 @@ use crate::metrics::{ClassificationEvaluation, RegressionEvaluation};
 use crate::pyfmt::{py_format, FmtArg};
 
 /// Regression: R² in %, MAE and RMSE with 2 decimals and the warning when
-/// `RMSE > 1.5·MAE`, plus `reg_r2_negativo` when `R² < 0` (new text). (The text says "regresión lineal" in every lesson, as in Python.)
+/// `RMSE > 1.5·MAE`, plus `reg_r2_negativo` when `R² < 0` (new text).
+///
+/// The text is generic ("Tu modelo explica…"), so it is right in every lesson
+/// that evaluates a regressor (📈 Regresión, 🌲 Árboles, 🔍 KNN, 🧠 Redes).
+/// Difference with Python (review of F5c/F5d, 2026-10-16): it said "Tu modelo de
+/// regresión lineal explica…" in all of them; everything else is unchanged.
 pub fn regression(eval: &RegressionEvaluation) -> Result<String, ContentError> {
     let m = Messages::components()?;
     let args = [

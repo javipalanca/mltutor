@@ -726,16 +726,36 @@ export function boundaryFigure(grid: DecisionGrid, theme: ChartTheme = LIGHT_THE
 }
 
 /**
- * `ownScales` (🧠, D78): the surface takes the range of the predictions and the points their
- * own, each with its colour bar ("Valor predicho" / "Valor real"). Python's contourf also
- * scaled the surface to the predictions only: a network that predicts ≈ 0.8 for targets of
- * 25–346 would otherwise be a flat colour.
+ * 🧠 (D78, review of F5c): below this fraction of the real range, the predicted range gets its
+ * own colour scale. With a shared scale a network that predicts ≈ 0.8 for targets of 25–346
+ * (Diabetes with the defaults) is one flat colour; but separate scales make a surface that
+ * predicts well look as if it matched the points when the colours mean different values. 20 %
+ * keeps the shared (honest) scale for any network whose predictions span a visible part of
+ * the colour bar.
+ */
+export const OWN_SCALE_FRACTION = 0.2;
+
+/** Whether the surface needs its own scale (`ownScales` mode): see [`OWN_SCALE_FRACTION`]. */
+export function needsOwnScales(predMin: number, predMax: number, realMin: number, realMax: number): boolean {
+  const real = realMax - realMin;
+  const pred = predMax - predMin;
+  if (!(real > 0) || !Number.isFinite(pred)) {
+    return false;
+  }
+  return pred < OWN_SCALE_FRACTION * real;
+}
+
+/**
+ * `ownScales` (🧠, D78): a colour scale shared by the surface and the points, unless the
+ * predictions cover less than [`OWN_SCALE_FRACTION`] of the real range; then the surface takes
+ * the range of the predictions and the points their own, each with its colour bar ("Valor
+ * predicho" / "Valor real"). Python's contourf always scaled the surface to the predictions.
  */
 export function surfaceFigure(
   grid: DecisionGrid,
   theme: ChartTheme = LIGHT_THEME,
   webgl = true,
-  ownScales: { surface: string; points: string } | null = null,
+  requestedScales: { surface: string; points: string } | null = null,
 ): Figure {
   const [fx, fy] = grid.feature_names;
   const layout = baseLayout(theme, label(compText("frontera", "title_superficie"), { f1: fx, f2: fy }));
@@ -744,6 +764,8 @@ export function surfaceFigure(
   layout.hovermode = "closest";
   const values = grid.values.kind === "values" ? grid.values : { z: [] as number[], min: 0, max: 1 };
   const [tmin, tmax] = minMax(grid.point_target);
+  // Separate bars only when a shared one would flatten the surface (see OWN_SCALE_FRACTION).
+  const ownScales = requestedScales && needsOwnScales(values.min, values.max, tmin, tmax) ? requestedScales : null;
   const cmin = ownScales ? values.min : Math.min(values.min, tmin);
   const cmax = ownScales ? (values.max > values.min ? values.max : values.min + 1e-9) : Math.max(values.max, tmax);
   const pmin = ownScales ? tmin : cmin;

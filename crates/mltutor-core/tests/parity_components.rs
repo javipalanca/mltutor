@@ -195,8 +195,16 @@ fn regression_evaluation_histogram_kde_and_interpretation() {
         assert!(err.max <= 1e-8, "{name}");
         assert!(kerr.max <= 1e-9, "{name}");
 
+        // Approved change (review of F5c/F5d, 2026-10-16): "Tu modelo explica…"
+        // instead of Python's "Tu modelo de regresión lineal explica…"; the rest of
+        // the text is Python's.
         let md = interpretation::regression(&ev).unwrap();
-        assert!(notice_texts(view).contains(&md), "{name}: {md}");
+        let python: Vec<String> = notice_texts(view)
+            .iter()
+            .map(|t| t.replace("Tu modelo de regresión lineal explica", "Tu modelo explica"))
+            .collect();
+        assert!(md.contains("- Tu modelo explica **"), "{name}: {md}");
+        assert!(python.contains(&md), "{name}: {md}");
     }
 }
 

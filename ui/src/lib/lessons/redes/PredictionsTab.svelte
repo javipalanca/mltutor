@@ -2,7 +2,7 @@
   /**
    * 🔮 Predicciones of 🧠 Redes Neuronales (§2.6 and C29): "🔮 Predicción individual" (C9, as
    * Python) and, NEW (D81), "📊 Predicción por lotes" and "🎲 Exploración interactiva". A
-   * diverged network (K1) cannot predict: `[comun] red_no_valida` instead.
+   * network with non-finite weights (K1) cannot predict: `[comun] red_no_valida` instead.
    */
   import ButtonPanel from "../../../components/ButtonPanel.svelte";
   import Notice from "../../../components/Notice.svelte";
@@ -17,7 +17,7 @@
   import NnBatchPredict from "./NnBatchPredict.svelte";
   import NnExplore from "./NnExplore.svelte";
   import NnPredictSingle from "./NnPredictSingle.svelte";
-  import { invalidNetworkText } from "./nnTexts";
+  import { invalidNetworkText, networkBlocked } from "./nnTexts";
   import { nnPredictions, type PredictionSubview } from "./predictions.svelte";
   import { LESSON } from "./state.svelte";
 
@@ -56,7 +56,7 @@
     <NnBanner {info} />
     {#if !hist}
       <Spinner label="Cargando la red…" />
-    {:else if hist.diverged_epoch !== null}
+    {:else if networkBlocked(hist)}
       <div data-nn-diverged={hist.diverged_epoch} data-pedagogical>
         <Notice severity="error" markdown={invalidNetworkText()} />
       </div>

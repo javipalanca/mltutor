@@ -67,11 +67,12 @@ metricas_expander = "📊 Explicación de métricas de regresión"   # metricas-
 [interpretacion]
 titulo = "### 🔍 Interpretación de Resultados"
 # Regresión (st.info, líneas unidas con "\n"):
-reg = ["**Resumen del Modelo:**", "- Tu modelo de regresión lineal explica **{r2_pct:.1f}%** de la variabilidad en los datos", "- En promedio, las predicciones se desvían **{mae:.2f} unidades** del valor real (MAE)", "- La raíz del error cuadrático medio es **{rmse:.2f} unidades** (RMSE)"]
+# CORREGIDO (revisión ML de F5c/F5d, 2026-10-16): vale para todas las lecciones (Regresión, Árboles, KNN, Redes).
+# Python: "- Tu modelo de regresión lineal explica …".
+reg = ["**Resumen del Modelo:**", "- Tu modelo explica **{r2_pct:.1f}%** de la variabilidad en los datos", "- En promedio, las predicciones se desvían **{mae:.2f} unidades** del valor real (MAE)", "- La raíz del error cuadrático medio es **{rmse:.2f} unidades** (RMSE)"]
 reg_rmse_mayor = "\n- ⚠️ El RMSE es significativamente mayor que el MAE, lo que indica la presencia de algunos errores grandes"   # si rmse > 1.5·mae
 # NUEVO: si r2 < 0 se añade esta línea (después de reg_rmse_mayor, si aparece). Python decía
-# "explica **-12.3%** de la variabilidad" sin más. Nota para F3/F4: "regresión lineal" de `reg` es
-# literal también en Árboles y KNN, donde no es correcto.
+# "explica **-12.3%** de la variabilidad" sin más.
 reg_r2_negativo = "\n- ⚠️ El R² es negativo: con los datos de prueba, el modelo predice peor que si diera siempre la media del objetivo"
 # Clasificación (st.info): cada línea termina en "\n"
 cls = ["**Resumen del Modelo:**", "- Tu modelo clasifica correctamente **{acc_pct:.1f}%** de los casos", "- De las predicciones positivas, **{prec_pct:.1f}%** son correctas (Precisión)", "- Detecta **{rec_pct:.1f}%** de todos los casos positivos reales (Recall)"]

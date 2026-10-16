@@ -57,7 +57,16 @@
   const figure = $derived(
     view
       ? exploreFigure(
-          { kind: view.kind, xs: view.xs, ys: view.ys, classes: view.classes, confidence: view.confidence, baseValue: view.base_value },
+          {
+            kind: view.kind,
+            xs: view.xs,
+            ys: view.ys,
+            classes: view.classes,
+            confidence: view.confidence,
+            baseValue: view.base_value,
+            outputIsProbability: view.output_is_probability,
+            baseClass: view.base_class,
+          },
           featureName,
           classNames,
           theme.chart,
@@ -74,11 +83,13 @@
     if (p.kind === "value") {
       return fmt(t("base_regresion"), { valor: p.value });
     }
+    // D87: with tanh the "Probabilidad"/"Confianza" of the text is the neuron's output.
+    const relabel = (text: string, word: string): string => (v.output_is_probability ? text : text.replace(word, t("salida_neurona")));
     if (v.kind === "binary") {
-      return fmt(t("base_binaria"), { clase: p.name, p: p.proba?.[1]?.probability ?? Number.NaN });
+      return relabel(fmt(t("base_binaria"), { clase: p.name, p: p.proba?.[1]?.probability ?? Number.NaN }), t("serie_probabilidad"));
     }
     const confidence = Math.max(...(p.proba ?? []).map((c) => c.probability));
-    return fmt(t("base_multiclase"), { clase: p.name, confianza: confidence });
+    return relabel(fmt(t("base_multiclase"), { clase: p.name, confianza: confidence }), t("serie_confianza"));
   });
 
   const metrics = $derived.by(() => {
@@ -92,8 +103,10 @@
         { label: t("impacto_relativo"), value: `${fixed(v.relative_impact ?? 0, 1)}%`, help: t("impacto_relativo_help") },
       ];
     }
+    // D87: with tanh the range is of the neuron's output, not of a probability.
+    const rangeLabel = v.output_is_probability ? t("rango_probabilidades") : `${t("rango_predicciones")} (${t("salida_neurona")})`;
     return [
-      { label: t("rango_probabilidades"), value: fixed(v.range, 3), help: t("rango_probabilidades_help") },
+      { label: rangeLabel, value: fixed(v.range, 3), help: v.output_is_probability ? t("rango_probabilidades_help") : v.kind === "binary" ? t("nota_tanh_binaria") : nnText("predicciones", "nota_tanh_multiclase") },
       { label: t("volatilidad"), value: fixed(v.volatility, 3), help: t("volatilidad_help") },
     ];
   });
@@ -149,7 +162,9 @@
     <div data-nn-explore-base>
       <Notice severity="info" markdown={baseText} />
     </div>
-    {#if !view.output_is_probability && view.kind !== "regression"}
+    {#if !view.output_is_probability && view.kind === "binary"}
+      <p class="caption" data-nn-not-probability>{t("nota_tanh_binaria")}</p>
+    {:else if !view.output_is_probability && view.kind === "multiclass"}
       <p class="caption" data-nn-not-probability>{nnText("predicciones", "nota_tanh_multiclase")}</p>
     {/if}
   {/if}
@@ -171,6 +186,9 @@
     </div>
     <Markdown source={t("analisis")} />
     <MetricGrid items={metrics} />
+    {#if view.kind === "regression"}
+      <p class="caption" data-nn-relative-impact-note>{t("impacto_relativo_nota")}</p>
+    {/if}
     {#if verdict}
       <div data-nn-explore-verdict={view.influence} data-pedagogical>
         <Notice severity={verdict.severity} markdown={verdict.markdown} />

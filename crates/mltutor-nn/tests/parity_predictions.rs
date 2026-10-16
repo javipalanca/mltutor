@@ -287,6 +287,7 @@ fn batch_matches_python() {
         }
         let view = net.predict_batch(x.view(), &TrainControl::none()).unwrap();
         assert_eq!(view.rows, n);
+        assert!(view.finite.iter().all(|&f| f), "{name}: finite");
         let col = |name: &str| table.column(name).unwrap().data.to_f64().unwrap();
         let raw = flat(&b["raw_output"]);
         let k = raw.len() / n;
@@ -303,7 +304,11 @@ fn batch_matches_python() {
                 let (pc, pp, pf) = (col("Predicción"), col("Probabilidad"), col("Confianza"));
                 for i in 0..n {
                     if (pp[i] - 0.5).abs() > 1e-5 {
-                        assert_eq!(predicted[i] as f64, pc[i], "{name}: row {i}");
+                        assert_eq!(
+                            predicted[i].map(|c| c as f64),
+                            Some(pc[i]),
+                            "{name}: row {i}"
+                        );
                     }
                     cmp(probability[i], pp[i], "p");
                     cmp(confidence[i], pf[i], "confidence");
@@ -320,7 +325,11 @@ fn batch_matches_python() {
                     let mut s = row.to_vec();
                     s.sort_by(|a, b| b.total_cmp(a));
                     if s[0] - s[1] > 1e-5 {
-                        assert_eq!(predicted[i] as f64, pc[i], "{name}: row {i}");
+                        assert_eq!(
+                            predicted[i].map(|c| c as f64),
+                            Some(pc[i]),
+                            "{name}: row {i}"
+                        );
                     }
                     cmp(confidence[i], pf[i], "confidence");
                     for (a, b) in probabilities[i].iter().zip(row) {

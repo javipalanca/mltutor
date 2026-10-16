@@ -25,7 +25,7 @@
   import { models } from "../../ml/modelSession.svelte";
   import { ViewLoader } from "../../ml/viewLoader.svelte";
   import NnBanner from "./NnBanner.svelte";
-  import { divergenceText, tanhOutputText } from "./nnTexts";
+  import { divergenceText, recoveredDivergenceText, tanhOutputText } from "./nnTexts";
   import { LESSON } from "./state.svelte";
 
   const t = (key: string): string => nnText("evaluacion", key);
@@ -83,13 +83,24 @@
       <Spinner label="Evaluando la red…" />
     {:else}
       <Markdown source={t("resultados_titulo")} />
-      {#if evalView.diverged}
+      {#if evalView.diverged && !evalView.diverged.network_valid}
         <div data-nn-diverged={evalView.diverged.epoch} data-pedagogical>
           <Notice severity="error" markdown={divergenceText(evalView.diverged.epoch)} />
         </div>
       {:else}
+        {#if evalView.diverged}
+          <!-- K1: EarlyStopping restored finite weights; everything below is computed. -->
+          <div data-nn-diverged-recovered={evalView.diverged.epoch} data-pedagogical>
+            <Notice severity="warning" markdown={recoveredDivergenceText(evalView.diverged.epoch, evalView.diverged.best_epoch)} />
+          </div>
+        {/if}
         <div class="results" class:single={regression}>
           <MetricGrid items={metrics} />
+        </div>
+      {/if}
+      {#if evalView.near_divergence}
+        <div data-nn-near-divergence data-pedagogical>
+          <Notice severity="warning" markdown={evalView.near_divergence} />
         </div>
       {/if}
       {#if !evalView.output_is_probability && !regression}
