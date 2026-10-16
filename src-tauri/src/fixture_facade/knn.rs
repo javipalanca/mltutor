@@ -75,9 +75,9 @@ pub fn train(
 ) -> Result<ModelHandle, CommandError> {
     progress("Entrenando modelo...", Some(10.0));
     let (k, weights, metric) =
-        crate::knn::params(spec.config).ok_or_else(|| unavailable("no es un KNN"))?;
-    let name =
-        case_name(id, spec.config, spec.test_size).ok_or_else(|| unavailable("no es un KNN"))?;
+        crate::knn::params(spec.config.clone()).ok_or_else(|| unavailable("no es un KNN"))?;
+    let name = case_name(id, spec.config.clone(), spec.test_size)
+        .ok_or_else(|| unavailable("no es un KNN"))?;
     let read = |relative: &str| -> Result<Value, CommandError> {
         let path = root.join(relative);
         let text = std::fs::read_to_string(&path)
@@ -89,7 +89,7 @@ pub fn train(
     let mut expected = fixture["expected"].clone();
     let n_train = indices(&expected["train_indices"]).len();
     // D59 (Python trained and failed later): the fixture of the error has no model.
-    crate::knn::check_k(spec.config, n_train)?;
+    crate::knn::check_k(spec.config.clone(), n_train)?;
     if expected["trained"] != Value::Bool(true) {
         return Err(unavailable(format!("{name}.json no entrena")));
     }
@@ -108,7 +108,7 @@ pub fn train(
         _ => SearchEngine::KdTree,
     };
     let base = FixtureModel::for_tree(
-        spec.config,
+        spec.config.clone(),
         dataset_task,
         frame,
         expected,

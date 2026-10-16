@@ -186,9 +186,15 @@ print(f"Datos: {X.shape[0]} muestras y {X.shape[1]} características")
 # ---------------------------------------------------------------------------
 # 2. Escalar y dividir (igual que MLTutor)
 # ---------------------------------------------------------------------------
-# Las redes aprenden mejor con características de media 0 y desviación 1. MLTutor ajusta el
-# escalador con TODAS las filas antes de dividir; lo correcto fuera de la app es ajustarlo solo
-# con las de entrenamiento (scaler.fit(X_train)) para no filtrar información de la prueba.
+# Las redes aprenden mejor con características de media 0 y desviación 1. Para coincidir con la
+# versión original de la app, MLTutor ajusta el escalador con TODAS las filas antes de dividir. Es
+# una fuga de datos: la media y la desviación de las filas de prueba entran en el preprocesado.
+# Fuera de la app, divide primero y ajusta el escalador solo con el entrenamiento:
+#     X_train, X_test, y_train, y_test = train_test_split(
+#         X, y, test_size=0.2, random_state=42{% if task == "classification" %}, stratify=y{% endif %})
+#     scaler = StandardScaler().fit(X_train)
+#     X_train, X_test = scaler.transform(X_train), scaler.transform(X_test)
+# (con scikit-learn, un Pipeline lo hace solo). El objetivo no se escala.
 scaler = StandardScaler()
 X_esc = scaler.fit_transform(X)
 X_train, X_test, y_train, y_test = train_test_split(
@@ -237,8 +243,8 @@ modelo.compile(
 )
 callbacks = []
 {%- if early_stopping %}
-# Para cuando la pérdida de validación lleva {{ patience }} épocas sin mejorar y recupera los
-# pesos de la mejor época
+# Para cuando la pérdida de validación lleva {{ patience }} épocas sin mejorar. Al terminar (pare o
+# no) recupera los pesos de la época con menor pérdida de validación, que puede no ser la última
 callbacks.append(keras.callbacks.EarlyStopping(
     monitor="val_loss", patience={{ patience }}, restore_best_weights=True))
 {%- endif %}
@@ -290,19 +296,20 @@ muestra = np.array({{ sample | pyrepr }})  # valores del formulario de MLTutor
 {%- else %}
 muestra = scaler.inverse_transform(X_test[:1])[0]  # la primera muestra de prueba, sin escalar
 {%- endif %}
-salida = modelo.predict(scaler.transform(muestra.reshape(1, -1)), verbose=0)[0]
+# DataFrame con los nombres de las columnas: el escalador se ajustó con ellos
+salida_muestra = modelo.predict(scaler.transform(pd.DataFrame([muestra], columns=X.columns)), verbose=0)[0]
 {%- if task == "classification" %}
 {%- if architecture[-1] == 1 %}
-prediccion = int(salida[0] > 0.5)
-print(f"\nPredicción: {clases[prediccion]} (salida de la neurona: {salida[0]:.4f})")
+prediccion = int(salida_muestra[0] > 0.5)
+print(f"\nPredicción: {clases[prediccion]} (salida de la neurona: {salida_muestra[0]:.4f})")
 {%- else %}
-prediccion = int(np.argmax(salida))
+prediccion = int(np.argmax(salida_muestra))
 print(f"\nPredicción: {clases[prediccion]}")
-for nombre, valor in zip(clases, salida):
+for nombre, valor in zip(clases, salida_muestra):
     print(f"  {nombre}: {valor:.4f}")
 {%- endif %}
 {%- else %}
-prediccion = float(salida[0])
+prediccion = float(salida_muestra[0])
 print(f"\nPredicción: {prediccion:.4f}")
 {%- endif %}
 

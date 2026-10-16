@@ -91,6 +91,24 @@
 //! | `generate_code` | [`codegen::CodeTemplate::KnnTraining`] ([`codegen::KnnTrainingContext`]); the boundary code with `datos = "todos"`: [`codegen::DecisionBoundaryContext::all_rows`] (D63; `None` renders F2/F3's text); `KnnPackageScript`/`KnnPackageReadme` (used by `mltutor-export`) |
 //! | `export_model` | `mltutor-export`: ONNX (`knn.onnx`, D57) and the Python package (`modelo_knn.zip`) |
 //!
+//! # Public API of Phase 5 — 🧠 Redes Neuronales (fase5-redes.md §5 and §8) — stable
+//!
+//! The engine is `mltutor-nn` (own float32 MLP, D68); the core has the lesson types,
+//! the data preparation (C22), the diagnostics (C23) and the view statistics (C25/C26).
+//!
+//! | Use | Core function |
+//! |---|---|
+//! | types | [`nn_data::NnArchitecture`], [`nn_data::NnTraining`] (`seed`, D70), [`nn_data::Activation`], [`nn_data::OptimizerKind`], [`nn_data::LossKind`], [`nn_data::MetricKind`], [`nn_data::History`]`{ metric, epochs: Vec<EpochLog { epoch /* 0-based: the UI shows epoch + 1 */, loss, metric, val_loss, val_metric, learning_rate }>, best_epoch, stopped_epoch }` (`lr_drops()`, `series()`); errors [`nn_data::NnError`] (`UntrainableOutput { key }` D71, `TooFewPerClass`, `SplitTooSmall`, `ValidationTooSmall`, `Cancelled`…) |
+//! | C22 | [`nn_data::stratified_split`]`(codes, class_names, 0.2, 42)`, [`nn_data::lesson_split`], [`nn_data::Scaler`]`::fit/transform/transform_f32` (all rows, D72), [`nn_data::keras_validation_split`], [`nn_data::resolve_training`]`(task, output, output_size)`, [`nn_data::output_size`] |
+//! | `nn_architecture` | [`nn_data::total_parameters`], [`nn_data::layer_rows`] (D76), [`nn_data::complexity`], [`nn_data::suggested_neurons`] + [`nn_data::default_neurons`], [`nn_data::default_epochs`], [`nn_data::split_sizes`] (D73), [`nn_data::output_check`] (`[arquitectura]` key + severity + `untrainable_key`), [`nn_data::Activation::output_options`] / `recommended_output` (D85) |
+//! | `nn_diagnostics` (C23) | [`nn_diagnostics::diagnostics_view`]`(&history.series(), task, n_val) -> DiagnosticsView { diagnostics, trends, recommendations, blocks: Vec<view::ViewNode> }` (texts filled in from `content/redes/mensajes.toml`) |
+//! | `nn_history` cards | [`nn_diagnostics::history_cards`]`(&series) -> HistoryCards { …, row: ViewNode }`; help text [`nn_diagnostics::history_help_markdown`] |
+//! | `evaluate_model` D84 | [`nn_diagnostics::r2_negative_notice`]`(r2) -> Option<String>` |
+//! | `nn_weights` (C25) | [`nn_stats::weight_stats`]`(&[DenseView]) -> WeightStats { layers, global_*, verdict, insights }` |
+//! | `nn_activations` (C26) | [`nn_stats::activation_stats`]`(acts, units, dead_threshold, constant_std)`, [`nn_stats::dead_pct`], [`nn_stats::network_map`] |
+//! | `decision_grid` (D78) | [`grid::mean_grid`]`(&dyn Predictor, x_test, y_test, scaler_mean, scaler_scale, fx, fy, &TrainControl) -> MeanGrid { grid: DecisionGrid, fixed }` (original units, ≤ 200 × 200) |
+//! | `generate_code(NnTraining)` (D74) | [`codegen::NnTrainingContext::new`]`(ScriptDataset, task, n_classes, &arch, &training)` + [`codegen::CodeTemplate::NnTraining`]; package templates `NnPackageScript`, `NnPackageReadme`, `NnNumpyPredictor` (used by `mltutor-export`) |
+//!
 //! Python-style formatting of the TOML messages: [`pyfmt::py_format`]; embedded
 //! TOML: [`content::Messages`].
 //!
@@ -117,6 +135,9 @@ pub mod knn;
 pub mod linear;
 pub mod metrics;
 pub mod model;
+pub mod nn_data;
+pub mod nn_diagnostics;
+pub mod nn_stats;
 pub mod probabilities;
 pub mod pyfmt;
 pub mod residuals;
@@ -124,6 +145,7 @@ pub mod sampling;
 pub mod split;
 pub mod stats;
 pub mod tree;
+pub mod view;
 
 pub use dataset::{
     ColumnKind, CsvDialect, CsvEncoding, Dataset, DatasetEntry, DatasetId, DatasetSummary,

@@ -880,8 +880,14 @@ def case_exact(eg, name: str, spec: dict, writer) -> None:
     writer.write_json(eg.PARITY_DIR / MODULE / "exact" / f"{name}.json", doc, dump=gt.dumps_compact)
 
 
-def case_dropout_masks(eg, writer) -> None:
-    """Dropout with explicit masks: Keras layers + optimizer, masks from RandomState(42)."""
+def case_dropout_masks(eg, writer, fixed_w0: bool = False) -> None:
+    """Dropout with explicit masks: Keras layers + optimizer, masks from RandomState(42).
+
+    ``fixed_w0=False`` is the original case, whose ``initial_weights`` are written after the
+    reference optimizer updated ``w0`` in place (``_pairs`` does not copy): they are the
+    weights after the 5 steps, not the initial ones. ``fixed_w0=True`` (case
+    ``iris_dropout_masks_w0``, added in F5a) copies them first, so Rust can replay the steps.
+    """
     import golden_trees as gt
     import nn_reference as nref
     tf, keras = _tf()
@@ -903,7 +909,7 @@ def case_dropout_masks(eg, writer) -> None:
     loss_fn = keras.losses.CategoricalCrossentropy()
     rng = np.random.RandomState(42)
     log = []
-    params = _pairs(w0)
+    params = [(W.copy(), b.copy()) for W, b in _pairs(w0)] if fixed_w0 else _pairs(w0)
     ref_opt = nref.Optimizer("adam", np.float32(lr))
     for s in range(steps):
         xb, yb = xb_all[s * bs:(s + 1) * bs], yb_all[s * bs:(s + 1) * bs]
@@ -947,7 +953,8 @@ def case_dropout_masks(eg, writer) -> None:
                             "kept_fraction": float((out != 0).mean()),
                             "inference_is_identity": bool(np.all(np.asarray(
                                 keras.layers.Dropout(rate)(probe, training=False)) == 1.0))}}}
-    writer.write_json(eg.PARITY_DIR / MODULE / "exact" / "iris_dropout_masks.json", doc, dump=gt.dumps_compact)
+    out_name = "iris_dropout_masks_w0.json" if fixed_w0 else "iris_dropout_masks.json"
+    writer.write_json(eg.PARITY_DIR / MODULE / "exact" / out_name, doc, dump=gt.dumps_compact)
 
 
 def _stat_metrics(model, X_test, y_test, task: str) -> dict:
@@ -1336,6 +1343,7 @@ def register(cases: dict, eg) -> None:
     for name, spec in EXACT_CASES.items():
         cases[f"{MODULE}/exact/{name}"] = (lambda n, s: (lambda w: case_exact(eg, n, s, w)))(name, spec)
     cases[f"{MODULE}/exact/iris_dropout_masks"] = lambda w: case_dropout_masks(eg, w)
+    cases[f"{MODULE}/exact/iris_dropout_masks_w0"] = lambda w: case_dropout_masks(eg, w, fixed_w0=True)
     for name, spec in STAT_CASES.items():
         cases[f"{MODULE}/stat/{name}"] = (lambda n, s: (lambda w: case_stat(eg, n, s, w)))(name, spec)
     cases[f"{MODULE}/diagnostics"] = lambda w: case_diagnostics(eg, w)

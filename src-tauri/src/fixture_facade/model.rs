@@ -29,7 +29,7 @@ use crate::ipc::{
 
 pub use crate::models::not_converged_message;
 
-fn fixture_name(id: DatasetId, config: ModelConfig) -> String {
+fn fixture_name(id: DatasetId, config: &ModelConfig) -> String {
     match (id, config) {
         (DatasetId::Iris, ModelConfig::Linear) => "iris_linear_mismatch".to_owned(),
         (_, ModelConfig::Linear) => format!("{}_linear", id.slug()),
@@ -37,6 +37,7 @@ fn fixture_name(id: DatasetId, config: ModelConfig) -> String {
         // Trees and KNN are replayed by `super::tree` and `super::knn` (never reach here).
         (_, ModelConfig::Tree { .. }) => format!("{}_tree", id.slug()),
         (_, ModelConfig::Knn { .. }) => format!("{}_knn", id.slug()),
+        (_, ModelConfig::NeuralNet { .. }) => format!("{}_nn", id.slug()),
     }
 }
 
@@ -106,7 +107,7 @@ pub fn train(
         return super::knn::train(root, id, frame, dataset_task, spec, progress, cancel);
     }
     progress("Entrenando modelo...", Some(10.0));
-    let name = fixture_name(id, spec.config);
+    let name = fixture_name(id, &spec.config);
     let read = |relative: &str| -> Result<Value, CommandError> {
         let path = root.join(relative);
         let text = std::fs::read_to_string(&path)
@@ -147,7 +148,7 @@ pub fn train(
         }
     }
     Ok(std::sync::Arc::new(FixtureModel {
-        config: spec.config,
+        config: spec.config.clone(),
         task,
         dataset_task,
         frame: frame.clone(),
@@ -181,8 +182,8 @@ impl FixtureModel {
             .as_array()
             .map(|rows| rows.iter().map(floats).collect());
         Self {
-            config,
             task: config.task_on(dataset_task),
+            config,
             dataset_task,
             frame: frame.clone(),
             train: indices(&expected["train_indices"]),
@@ -580,6 +581,7 @@ impl ModelView for FixtureModel {
             notices: self.notices.clone(),
             tree: None,
             knn: None,
+            nn: None,
         }
     }
 
@@ -1141,7 +1143,7 @@ mod view_tests {
             (DatasetId::Titanic, LOGISTIC),
             (DatasetId::Diabetes, ModelConfig::Linear),
         ] {
-            let model = trained(id, config);
+            let model = trained(id, config.clone());
             let summary = model.summary();
             assert!(model.evaluate().is_ok(), "{id:?}");
             let classifier = summary.model_task == TaskType::Classification;

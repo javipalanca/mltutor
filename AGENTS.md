@@ -30,7 +30,7 @@ velocidad, tamaño y estabilidad.
 | Aplicación | **Tauri 2** | Binario pequeño y rápido; interfaz web local que permite reutilizar Plotly, Markdown y el estilo actual |
 | Interfaz | **Svelte 5 + TypeScript + Vite**, Plotly.js y KaTeX empaquetados en local | Componentes reactivos ligeros; gráficos interactivos y fórmulas sin CDN |
 | ML clásico | **linfa 0.8** (`linfa-linear`, `linfa-logistic`) sobre `ndarray 0.16`; CART y KNN propios | API tipo scikit-learn; linfa-trees y KdTree descartados (ver MEMORY.md) |
-| Redes neuronales | **burn 0.22** con backend `flex` + autodiff (CPU, Rust puro) | Entrenamiento nativo, portátiles de laboratorio sin GPU |
+| Redes neuronales | **MLP propio** en `mltutor-nn` (f32 con productos acumulados en f64, retropropagación manual, optimizadores y callbacks con las fórmulas de Keras; D68) | Paridad exacta con Keras, determinista, sin estado global; 4 MB menos que burn |
 | Lo que falte | Implementación propia en `mltutor-core` | Árboles de regresión, permutation importance, fronteras de decisión, curvas ROC, etc. |
 
 Principio: **se calcula en Rust y se enseña scikit-learn/PyTorch/Keras.** El código
@@ -43,7 +43,7 @@ fuera de la app. Ese código debe ser correcto y reproducir lo que la app calcul
 Cargo.toml                 workspace
 crates/mltutor-core/       algoritmos, métricas, preprocesado, datasets embebidos.
                            Sin Tauri ni UI; 100 % testeable con `cargo test`
-crates/mltutor-nn/         redes neuronales con burn (arquitectura, entrenamiento, historial)
+crates/mltutor-nn/         MLP propio (arquitectura, entrenamiento, historial), sin burn (D68)
 crates/mltutor-export/     ONNX nativo y "paquetes Python" (JSON + script sklearn/Keras)
 src-tauri/                 app Tauri: comandos IPC, estado, tareas en segundo plano,
                            diálogos de archivo, exportaciones
@@ -83,6 +83,9 @@ npm --prefix ui run tauri build -- --debug --no-bundle  # binario de depuración
 MLTUTOR_FACADE=fixture target/debug/mltutor  # solo en debug: datos de tests/parity en lugar de mltutor-core
 # Ojo: `cargo build --release` a secas no empaqueta el frontend (carga devUrl); usa `tauri build`.
 # Registro: ~/.mltutor/mltutor.log (MLTUTOR_LOG_DIR lo cambia, útil en CI)
+# Capturas de una lección: --scenario <nombre> --full-page (redes_*, knn_*… en ui/src/lib/lessons/*/scenarios.ts)
+# Desarrollo con fixtures: MLTUTOR_FACADE=fixture (solo debug); MLTUTOR_FIXTURE_EPOCH_MS=40 ralentiza la red
+# reproducida para ver la gráfica en vivo y probar «Cancelar»
 
 # Referencia Python (para comparar y generar fixtures)
 uv sync --locked --extra dev

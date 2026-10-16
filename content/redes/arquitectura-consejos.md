@@ -1,4 +1,4 @@
-<!-- mltutor/apps/neural_network_app.py — expander "💡 Tips para optimizar tu configuración" (cerrado) en 🏗️ Arquitectura. Variables: {batch_recomendado}, {n_muestras}. -->
+<!-- mltutor/apps/neural_network_app.py — expander "💡 Tips para optimizar tu configuración" (cerrado) en 🏗️ Arquitectura. Variables: {batch_recomendado}, {n_muestras}. CORREGIDO en Rust (revisión de contenido de F5, 2026-10-16): Python: "- Dataset balanceado: 0.2-0.3". Que las clases estén equilibradas no tiene relación con el dropout; el rango 0.2-0.3 es un punto de partida habitual. -->
 **Para tu dataset específico ({n_muestras} muestras):**
 
 🎯 **Batch Size recomendado:**
@@ -10,7 +10,7 @@
 🛡️ **Dropout recomendado:**
 - Pocos datos: 0.3-0.5 (más regularización)
 - Muchos datos: 0.1-0.2 (menos regularización)
-- Dataset balanceado: 0.2-0.3
+- Punto de partida habitual: 0.2-0.3
 
 🚀 **Optimizador:**
 - **Adam**: Mejor opción general, se adapta automáticamente

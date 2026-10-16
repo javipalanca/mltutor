@@ -83,6 +83,18 @@ pub enum CodeTemplate {
     KnnPackageScript,
     /// 🔍 `paquete_leeme_knn.txt.j2`: `LEEME.txt` of the KNN's package.
     KnnPackageReadme,
+    /// 🧠 `red_entrenamiento.py.j2` (D74): [`NnTrainingContext`] (Keras training script,
+    /// also shown in 🏗️ without a model).
+    NnTraining,
+    /// 🧠 `paquete_modelo_red.py.j2`: script of the Keras package (D75),
+    /// [`NnPackageScriptContext`].
+    NnPackageScript,
+    /// 🧠 `paquete_leeme_red.txt.j2`: `LEEME.txt` of the Keras package,
+    /// [`NnPackageReadmeContext`].
+    NnPackageReadme,
+    /// 🧠 `red_predictor_numpy.py.j2`: NumPy predictor with the real weights,
+    /// [`NnPackageScriptContext`].
+    NnNumpyPredictor,
 }
 
 impl CodeTemplate {
@@ -110,6 +122,10 @@ impl CodeTemplate {
             CodeTemplate::KnnTraining => "knn_entrenamiento.py.j2",
             CodeTemplate::KnnPackageScript => "paquete_modelo_knn.py.j2",
             CodeTemplate::KnnPackageReadme => "paquete_leeme_knn.txt.j2",
+            CodeTemplate::NnTraining => "red_entrenamiento.py.j2",
+            CodeTemplate::NnPackageScript => "paquete_modelo_red.py.j2",
+            CodeTemplate::NnPackageReadme => "paquete_leeme_red.txt.j2",
+            CodeTemplate::NnNumpyPredictor => "red_predictor_numpy.py.j2",
         }
     }
 }
@@ -231,6 +247,157 @@ pub struct KnnTrainingContext {
     pub class_names: Option<Vec<String>>,
     /// Form values (codes, column order); `None` = first test row.
     pub sample: Option<Vec<f64>>,
+}
+
+/// An f32 control value as the student reads it (`0.2`, not `0.20000000298…`):
+/// the shortest decimal of the f32, read as f64 (what Python had as a float).
+pub fn f32_as_decimal(v: f32) -> f64 {
+    v.to_string().parse().unwrap_or(f64::from(v))
+}
+
+/// Context of `red_entrenamiento.py.j2` (🧠, D74). Every key is always sent (null
+/// when it does not apply): the template was verified with minijinja in strict mode.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NnTrainingContext {
+    /// Built-in slug or `"csv"`.
+    pub dataset: String,
+    pub dataset_label: String,
+    pub csv_file: Option<String>,
+    pub csv_target: Option<String>,
+    pub csv_sep: Option<String>,
+    pub csv_decimal: Option<String>,
+    pub csv_encoding: Option<String>,
+    /// `"classification"` or `"regression"`.
+    pub task: String,
+    /// `[input, hidden…, output]`.
+    pub architecture: Vec<usize>,
+    pub activation: String,
+    pub output_activation: String,
+    /// Keras name ([`crate::nn_data::LossKind::as_str`]).
+    pub loss: String,
+    pub one_hot: bool,
+    pub dropout_rate: f64,
+    pub optimizer: String,
+    pub learning_rate: f64,
+    pub batch_size: u32,
+    pub epochs: u32,
+    pub validation_split: f64,
+    pub early_stopping: bool,
+    pub patience: Option<u32>,
+    pub reduce_lr: bool,
+    pub lr_factor: Option<f64>,
+    pub reduce_lr_patience: Option<u32>,
+    pub feature_names: Vec<String>,
+    pub class_names: Option<Vec<String>>,
+    /// Form values (column order); `None` = first test row.
+    pub sample: Option<Vec<f64>>,
+}
+
+/// The dataset part of the 🧠 contexts (how the script loads the data).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ScriptDataset {
+    pub dataset: String,
+    pub dataset_label: String,
+    pub csv_file: Option<String>,
+    pub csv_target: Option<String>,
+    pub csv_sep: Option<String>,
+    pub csv_decimal: Option<String>,
+    pub csv_encoding: Option<String>,
+    pub feature_names: Vec<String>,
+    pub class_names: Option<Vec<String>>,
+}
+
+impl NnTrainingContext {
+    /// The context of the current 🏗️/⚙️ configuration (also without a model, D74).
+    /// `class_names` is only used in classification.
+    pub fn new(
+        data: ScriptDataset,
+        task: crate::dataset::TaskType,
+        n_classes: usize,
+        arch: &crate::nn_data::NnArchitecture,
+        training: &crate::nn_data::NnTraining,
+    ) -> Result<Self, crate::nn_data::NnError> {
+        use crate::nn_data::{output_size, resolve_training};
+        let k = output_size(task, n_classes);
+        let resolved = resolve_training(task, arch.output_activation, k)?;
+        let mut architecture = vec![data.feature_names.len()];
+        architecture.extend(arch.hidden.iter().map(|&h| usize::from(h)));
+        architecture.push(k);
+        let classification = task == crate::dataset::TaskType::Classification;
+        Ok(Self {
+            dataset: data.dataset,
+            dataset_label: data.dataset_label,
+            csv_file: data.csv_file,
+            csv_target: data.csv_target,
+            csv_sep: data.csv_sep,
+            csv_decimal: data.csv_decimal,
+            csv_encoding: data.csv_encoding,
+            task: if classification {
+                "classification"
+            } else {
+                "regression"
+            }
+            .to_owned(),
+            architecture,
+            activation: arch.activation.as_str().to_owned(),
+            output_activation: arch.output_activation.as_str().to_owned(),
+            loss: resolved.loss.as_str().to_owned(),
+            one_hot: resolved.one_hot,
+            dropout_rate: f32_as_decimal(arch.dropout),
+            optimizer: arch.optimizer.as_str().to_owned(),
+            learning_rate: f32_as_decimal(training.learning_rate),
+            batch_size: u32::from(arch.batch_size),
+            epochs: u32::from(training.epochs),
+            validation_split: training.validation_split(),
+            early_stopping: training.patience.is_some(),
+            patience: training.patience.map(u32::from),
+            reduce_lr: training.lr_factor.is_some(),
+            lr_factor: training.lr_factor.map(f32_as_decimal),
+            reduce_lr_patience: training
+                .lr_factor
+                .map(|_| u32::try_from(training.reduce_lr_patience()).unwrap_or(u32::MAX)),
+            feature_names: data.feature_names,
+            class_names: if classification {
+                data.class_names
+            } else {
+                None
+            },
+            sample: None,
+        })
+    }
+}
+
+/// Context of `paquete_modelo_red.py.j2` and `red_predictor_numpy.py.j2`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NnPackageScriptContext {
+    pub dataset: String,
+    /// `"classification"` or `"regression"`.
+    pub task: String,
+    pub json_name: String,
+}
+
+/// One class of the 🧠 `LEEME.txt`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NnReadmeClass {
+    pub value: usize,
+    pub name: String,
+}
+
+/// Context of `paquete_leeme_red.txt.j2`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NnPackageReadmeContext {
+    pub dataset: String,
+    pub task: String,
+    pub architecture: Vec<usize>,
+    pub activation: String,
+    pub output_activation: String,
+    pub dropout_rate: f64,
+    pub n_params: usize,
+    pub feature_names: Vec<String>,
+    pub classes: Option<Vec<NnReadmeClass>>,
+    /// Rows of the training split (fit + validation).
+    pub n_train: usize,
+    pub n_test: usize,
 }
 
 /// Context of `usar_modelo_arbol.py.j2` ("Código para Usar el Modelo").
@@ -482,5 +649,23 @@ mod tests {
             render_named("nope.py.j2", &serde_json::json!({})),
             Err(CodegenError::TemplateNotFound { .. })
         ));
+    }
+
+    /// Python's `repr(0.0)` is `0.0`: whole floats stay floats (minijinja's Python
+    /// binding passes them as ints; serde_json keeps them as f64).
+    #[test]
+    fn pyrepr_keeps_whole_floats() {
+        let env = environment();
+        let out = env
+            .render_str(
+                "{{ a | pyrepr }} {{ b | pyrepr }} {{ c | pyrepr }} {{ d | pyrepr }}",
+                Value::from(Serde(
+                    serde_json::json!({"a": 0.0, "b": 1.0, "c": [0.0, 2], "d": -0.0}),
+                )),
+            )
+            .unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(out, "0.0 1.0 [0.0, 2] -0.0");
+        assert_eq!(f32_as_decimal(0.2), 0.2);
+        assert_eq!(f32_as_decimal(0.001), 0.001);
     }
 }

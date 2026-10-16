@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permissions of the main window: only MLTutor's own commands. The open/save dialogs and the file access happen in Rust (pick_and_load_csv, save_file), so the frontend gets no dialog or filesystem permission. The only core permission is listening to MLTutor's own events (task-progress).",
+  "description": "Permissions of the main window: only MLTutor's own commands. The open/save dialogs and the file access happen in Rust (pick_and_load_csv, save_file), so the frontend gets no dialog or filesystem permission. The only core permission is listening to MLTutor's own events (task-progress, nn-epoch).",
   "windows": [
     "main"
   ],
@@ -47,6 +47,9 @@
     "allow-feature-importance",
     "allow-class-distances",
     "allow-knn-playground",
+    "allow-nn-architecture",
+    "allow-nn-history",
+    "allow-nn-training-code",
     "core:event:allow-listen",
     "core:event:allow-unlisten"
   ]

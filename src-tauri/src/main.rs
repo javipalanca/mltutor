@@ -15,10 +15,13 @@ mod knn;
 mod logging;
 mod models;
 mod navigation;
+mod nn;
+mod nn_model;
 mod real_exports;
 mod real_facade;
 mod real_knn;
 mod real_models;
+mod real_nn;
 mod real_trees;
 mod screenshot;
 mod session;
@@ -132,6 +135,9 @@ fn run(mode: Mode, started: Instant) -> i32 {
             models::feature_importance,
             models::class_distances,
             models::knn_playground,
+            models::nn_architecture,
+            models::nn_history,
+            models::nn_training_code,
         ])
         .setup(move |app| {
             if automated {

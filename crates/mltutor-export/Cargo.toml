@@ -10,6 +10,7 @@ publish.workspace = true
 
 [dependencies]
 mltutor-core.workspace = true
+mltutor-nn.workspace = true
 ndarray = "0.16"
 thiserror = "2"
 serde = { version = "1", features = ["derive"] }

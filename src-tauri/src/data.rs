@@ -328,6 +328,20 @@ impl DatasetView for CachedViews {
     ) -> Result<crate::core_facade::ModelHandle, CommandError> {
         self.inner.train(spec, progress, cancel)
     }
+
+    fn train_observed(
+        &self,
+        spec: &crate::core_facade::TrainSpec,
+        progress: &crate::core_facade::Progress<'_>,
+        observer: &crate::core_facade::TrainObserver<'_>,
+        cancel: &AtomicBool,
+    ) -> Result<crate::core_facade::ModelHandle, CommandError> {
+        self.inner.train_observed(spec, progress, observer, cancel)
+    }
+
+    fn script_base(&self, label: &str) -> crate::core_facade::ScriptBase {
+        self.inner.script_base(label)
+    }
 }
 
 fn stale_draft() -> CommandError {
@@ -989,6 +1003,18 @@ mod tests {
             cancel: &AtomicBool,
         ) -> Result<crate::core_facade::ModelHandle, CommandError> {
             self.inner.train(spec, progress, cancel)
+        }
+        fn train_observed(
+            &self,
+            spec: &crate::core_facade::TrainSpec,
+            progress: &crate::core_facade::Progress<'_>,
+            observer: &crate::core_facade::TrainObserver<'_>,
+            cancel: &AtomicBool,
+        ) -> Result<crate::core_facade::ModelHandle, CommandError> {
+            self.inner.train_observed(spec, progress, observer, cancel)
+        }
+        fn script_base(&self, label: &str) -> crate::core_facade::ScriptBase {
+            self.inner.script_base(label)
         }
     }
 

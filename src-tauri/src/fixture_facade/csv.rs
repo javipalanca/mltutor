@@ -556,4 +556,26 @@ impl DatasetView for ComputedDataset {
             "FixtureFacade: los CSV propios solo se entrenan con mltutor-core",
         ))
     }
+    fn train_observed(
+        &self,
+        spec: &crate::core_facade::TrainSpec,
+        progress: &crate::core_facade::Progress<'_>,
+        _observer: &crate::core_facade::TrainObserver<'_>,
+        cancel: &AtomicBool,
+    ) -> Result<crate::core_facade::ModelHandle, CommandError> {
+        self.train(spec, progress, cancel)
+    }
+    fn script_base(&self, label: &str) -> crate::core_facade::ScriptBase {
+        crate::core_facade::ScriptBase {
+            dataset: "csv".into(),
+            dataset_label: label.to_owned(),
+            csv_file: Some(label.trim_start_matches("📄 ").to_owned()),
+            csv_target: Some(self.summary.target_column.clone()),
+            csv_sep: Some(",".into()),
+            csv_decimal: Some(".".into()),
+            csv_encoding: Some("utf-8".into()),
+            feature_names: self.summary.feature_display.clone(),
+            class_names: self.summary.class_names.clone(),
+        }
+    }
 }

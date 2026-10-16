@@ -15,10 +15,11 @@ use std::sync::Arc;
 use crate::ipc::{
     ClassDistancesView, CodeTemplate, CoefficientsView, CommandError, CorrelationMatrix,
     CsvPreview, CsvTargetStats, DatasetEntry, DatasetId, DatasetSummary, DecisionGrid,
-    DescribeTable, DiagKind, Evaluation, ExportFormat, FeatureImportanceView, ImportanceMethod,
-    KnnSummary, ModelConfig, PairplotData, PlaygroundRequest, PlaygroundView, PredictionForm,
-    PredictionResult, ProbabilityView, ResidualsView, RocData, RulesKind, TablePreview,
-    TargetDistribution, TargetInfo, TaskChoice, TaskType, TrainNotice, TreeDiagram, TreeSummary,
+    DescribeTable, DiagKind, EpochLog, Evaluation, ExportFormat, FeatureImportanceView,
+    HistoryView, ImportanceMethod, KnnSummary, ModelConfig, NnSummary, PairplotData,
+    PlaygroundRequest, PlaygroundView, PredictionForm, PredictionResult, ProbabilityView,
+    ResidualsView, RocData, RulesKind, TablePreview, TargetDistribution, TargetInfo, TaskChoice,
+    TaskType, TrainNotice, TrainPhase, TreeDiagram, TreeSummary,
 };
 
 /// Maximum number of pairplot features (slider limit of §2.6).
@@ -43,6 +44,44 @@ pub trait DatasetView: Send + Sync {
         progress: &Progress<'_>,
         cancel: &AtomicBool,
     ) -> Result<ModelHandle, CommandError>;
+    /// `train` for iterative models: neural networks report their phases and every
+    /// finished epoch to `observer` (fase5-redes.md §5.4). The other models ignore it
+    /// (no default: wrappers such as `CachedViews` must forward it).
+    fn train_observed(
+        &self,
+        spec: &TrainSpec,
+        progress: &Progress<'_>,
+        observer: &TrainObserver<'_>,
+        cancel: &AtomicBool,
+    ) -> Result<ModelHandle, CommandError>;
+    /// What every training script needs to load this dataset (`red_entrenamiento.py.j2`
+    /// can be generated without a model, D74). `label` = the selector label.
+    fn script_base(&self, label: &str) -> ScriptBase;
+}
+
+/// Phases and epochs of an iterative training.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum TrainEvent<'a> {
+    Phase(TrainPhase),
+    Epoch(&'a EpochLog),
+}
+
+/// Receives the [`TrainEvent`]s of a training (called from the worker thread).
+pub type TrainObserver<'a> = dyn Fn(TrainEvent<'_>) + Sync + 'a;
+
+/// Variables shared by the training scripts (`regresion_entrenamiento.py.j2` and the
+/// following ones): how to load the dataset, its names and classes.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct ScriptBase {
+    pub dataset: String,
+    pub dataset_label: String,
+    pub csv_file: Option<String>,
+    pub csv_target: Option<String>,
+    pub csv_sep: Option<String>,
+    pub csv_decimal: Option<String>,
+    pub csv_encoding: Option<String>,
+    pub feature_names: Vec<String>,
+    pub class_names: Option<Vec<String>>,
 }
 
 pub type DatasetHandle = Arc<dyn DatasetView>;
@@ -77,6 +116,8 @@ pub struct ModelSummary {
     pub tree: Option<TreeSummary>,
     /// KNN: K, weights, metric and engine.
     pub knn: Option<KnnSummary>,
+    /// Neural networks (fase5-redes.md §5.3).
+    pub nn: Option<NnSummary>,
 }
 
 /// A trained model with its split, ready for the views of tabs 2–6 (fase2 §3).
@@ -150,6 +191,10 @@ pub trait ModelView: Send + Sync {
         _cancel: &AtomicBool,
     ) -> Result<PlaygroundView, CommandError> {
         Err(CommandError::not_knn())
+    }
+    /// C27: the logs of every epoch, the restored epoch and the reductions of the LR.
+    fn nn_history(&self) -> Result<HistoryView, CommandError> {
+        Err(CommandError::not_nn())
     }
 }
 

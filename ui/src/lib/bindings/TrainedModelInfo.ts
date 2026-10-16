@@ -3,6 +3,7 @@ import type { DatasetRef } from "./DatasetRef";
 import type { KnnSummary } from "./KnnSummary";
 import type { LessonId } from "./LessonId";
 import type { ModelConfig } from "./ModelConfig";
+import type { NnSummary } from "./NnSummary";
 import type { TaskType } from "./TaskType";
 import type { TrainNotice } from "./TrainNotice";
 import type { TreeSummary } from "./TreeSummary";
@@ -45,4 +46,8 @@ tree: TreeSummary | null,
 /**
  * KNN: K, weights, metric and the search engine.
  */
-knn: KnnSummary | null, };
+knn: KnnSummary | null, 
+/**
+ * Neural networks: layers, loss, epochs, sizes of the split.
+ */
+nn: NnSummary | null, };

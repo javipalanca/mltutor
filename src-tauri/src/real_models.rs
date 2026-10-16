@@ -49,13 +49,13 @@ fn content_error(error: impl std::fmt::Display) -> CommandError {
     CommandError::internal(format!("contenido: {error}"))
 }
 
-fn core_config(config: ModelConfig) -> Option<core::linear::ModelConfig> {
+fn core_config(config: &ModelConfig) -> Option<core::linear::ModelConfig> {
     match config {
         ModelConfig::Linear => Some(core::linear::ModelConfig::Linear),
-        ModelConfig::Logistic { max_iter } => {
+        &ModelConfig::Logistic { max_iter } => {
             Some(core::linear::ModelConfig::Logistic { max_iter })
         }
-        ModelConfig::Tree { .. } | ModelConfig::Knn { .. } => None,
+        ModelConfig::Tree { .. } | ModelConfig::Knn { .. } | ModelConfig::NeuralNet { .. } => None,
     }
 }
 
@@ -116,7 +116,7 @@ pub(crate) fn fit(
     }
     let split = core::split::train_test_split(dataset.n_rows(), spec.test_size, SEED)
         .map_err(crate::real_facade::dataset_error)?;
-    crate::models::check_mae_limit(spec.config, split.train.len())?;
+    crate::models::check_mae_limit(&spec.config, split.train.len())?;
     let x_train = dataset.features.select(Axis(0), &split.train);
     let y_train = dataset.target.select(&split.train);
     let y_test = dataset.target.select(&split.test);
@@ -130,18 +130,25 @@ pub(crate) fn fit(
     let control = TrainControl::none()
         .with_cancel(cancel)
         .with_progress(&report);
-    let model = match (core_config(spec.config), spec.config) {
+    let model = match (core_config(&spec.config), &spec.config) {
         (Some(linear), _) => core::linear::fit(linear, x_train.view(), &y_train, &control),
         (None, ModelConfig::Knn { .. }) => {
             // D59 before searching anything (Python trained and every view failed).
-            crate::knn::check_k(spec.config, split.train.len())?;
-            crate::real_knn::fit(spec.config, x_train.view(), &y_train, &control)
+            crate::knn::check_k(spec.config.clone(), split.train.len())?;
+            crate::real_knn::fit(spec.config.clone(), x_train.view(), &y_train, &control)
         }
-        (None, _) => crate::real_trees::fit(spec.config, x_train.view(), &y_train, &control),
+        (None, ModelConfig::NeuralNet { .. }) => {
+            return Err(CommandError::internal(
+                "las redes se entrenan con train_observed",
+            ))
+        }
+        (None, _) => {
+            crate::real_trees::fit(spec.config.clone(), x_train.view(), &y_train, &control)
+        }
     }
     .map_err(model_error)?;
     let mut notices = Vec::new();
-    if let (ModelConfig::Logistic { max_iter }, Some(fit)) = (spec.config, model.fit_report()) {
+    if let (&ModelConfig::Logistic { max_iter }, Some(fit)) = (&spec.config, model.fit_report()) {
         if !fit.converged {
             notices.push(TrainNotice::NotConverged {
                 max_iter,
@@ -174,7 +181,7 @@ pub(crate) fn fit(
 }
 
 /// Display names of the feature columns with a non-finite value (NaN = missing cell).
-fn missing_columns(dataset: &core::Dataset) -> Vec<String> {
+pub(crate) fn missing_columns(dataset: &core::Dataset) -> Vec<String> {
     dataset
         .features
         .axis_iter(Axis(1))
@@ -192,6 +199,28 @@ fn missing_columns(dataset: &core::Dataset) -> Vec<String> {
 }
 
 /// `encoding=` of `pd.read_csv` for the encoding the app detected.
+/// [`crate::core_facade::ScriptBase`] of a core dataset (same rules as
+/// [`CoreModel::training_context`]).
+pub(crate) fn script_base(
+    dataset: &core::Dataset,
+    id: Option<core::DatasetId>,
+    label: &str,
+) -> crate::core_facade::ScriptBase {
+    let csv = id.is_none();
+    let dialect = dataset.csv_dialect.as_ref().filter(|_| csv);
+    crate::core_facade::ScriptBase {
+        dataset: id.map_or_else(|| "csv".to_owned(), |id| id.slug().to_owned()),
+        dataset_label: label.to_owned(),
+        csv_file: csv.then(|| label.trim_start_matches("📄 ").to_owned()),
+        csv_target: csv.then(|| dataset.target_column.clone()),
+        csv_sep: dialect.map(|d| d.separator.to_string()),
+        csv_decimal: dialect.map(|d| d.decimal.to_string()),
+        csv_encoding: dialect.map(|d| python_encoding(d.encoding).to_owned()),
+        feature_names: dataset.feature_display.clone(),
+        class_names: dataset.class_names().map(<[String]>::to_vec),
+    }
+}
+
 fn python_encoding(encoding: core::dataset::CsvEncoding) -> &'static str {
     match encoding {
         core::dataset::CsvEncoding::Utf8 => "utf-8",
@@ -354,9 +383,13 @@ impl CoreModel {
                 ModelConfig::Logistic { .. } => "logistic".to_owned(),
                 ModelConfig::Tree { .. } => "tree".to_owned(),
                 ModelConfig::Knn { .. } => "knn".to_owned(),
+                ModelConfig::NeuralNet { .. } => "nn".to_owned(),
             },
             max_iter: match self.spec.config {
-                ModelConfig::Linear | ModelConfig::Tree { .. } | ModelConfig::Knn { .. } => None,
+                ModelConfig::Linear
+                | ModelConfig::Tree { .. }
+                | ModelConfig::Knn { .. }
+                | ModelConfig::NeuralNet { .. } => None,
                 ModelConfig::Logistic { max_iter } => Some(max_iter),
             },
             test_size: self.spec.test_size,
@@ -383,6 +416,7 @@ impl ModelView for CoreModel {
             notices: self.notices.clone(),
             tree: self.tree().map(crate::real_trees::summary),
             knn: self.knn().map(crate::real_knn::summary),
+            nn: None,
         }
     }
 
@@ -581,7 +615,7 @@ impl ModelView for CoreModel {
         cancel: &AtomicBool,
     ) -> Result<ipc::DecisionGrid, CommandError> {
         // The boundary refits the tree on the two features with the same criterion.
-        crate::models::check_mae_limit(self.spec.config, self.split.train.len())?;
+        crate::models::check_mae_limit(&self.spec.config, self.split.train.len())?;
         progress("Generando frontera de decisión...", None);
         let control = TrainControl::none().with_cancel(cancel);
         // D63: KNN refits the 2D model on every row of the dataset, with the step of
@@ -1014,8 +1048,8 @@ mod tests {
         let fixture = FixtureFacade::from_checkout();
         let go = AtomicBool::new(false);
         for (id, config) in CASES {
-            let a = trained(&real, id, config);
-            let b = trained(&fixture, id, config);
+            let a = trained(&real, id, config.clone());
+            let b = trained(&fixture, id, config.clone());
             let (sa, sb) = (a.summary(), b.summary());
             assert_eq!(
                 (sa.n_train, sa.n_test, &sa.class_names),
@@ -1406,7 +1440,7 @@ mod tests {
         let error = fit(
             &big,
             None,
-            &fit_spec(mae, 0.1),
+            &fit_spec(mae.clone(), 0.1),
             &|_, _| {},
             &AtomicBool::new(false),
         )
@@ -1423,7 +1457,7 @@ mod tests {
         let mut small = fit(
             &diabetes,
             None,
-            &fit_spec(mae, 0.3),
+            &fit_spec(mae.clone(), 0.3),
             &|_, _| {},
             &AtomicBool::new(false),
         )

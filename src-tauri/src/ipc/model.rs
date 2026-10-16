@@ -124,8 +124,8 @@ pub enum SearchEngine {
 /// Largest K of the "Vecinos (K)" input and of the canvas (D55).
 pub const KNN_MAX_K: u8 = 20;
 
-/// Hyperparameters of a model. F5 adds its own variant.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
+/// Hyperparameters of a model.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[ts(export)]
 pub enum ModelConfig {
@@ -152,31 +152,40 @@ pub enum ModelConfig {
         weights: KnnWeights,
         metric: KnnMetric,
     },
+    /// 🧠 The multilayer perceptron of fase5-redes.md (Keras `Sequential` of `Dense`).
+    NeuralNet {
+        arch: super::nn::NnArchitecture,
+        training: super::nn::NnTraining,
+    },
 }
 
 impl ModelConfig {
     /// The task the model solves (the evaluation follows it, not the dataset's). KNN
     /// follows the dataset: `None` (the caller knows the dataset).
-    pub fn fixed_task(self) -> Option<TaskType> {
+    pub fn fixed_task(&self) -> Option<TaskType> {
         match self {
             Self::Linear => Some(TaskType::Regression),
             Self::Logistic { .. } => Some(TaskType::Classification),
             Self::Tree { task, .. } => Some(task.task()),
-            Self::Knn { .. } => None,
+            Self::Knn { .. } | Self::NeuralNet { .. } => None,
         }
     }
 
     /// The task of the model trained on a dataset of task `dataset_task`.
-    pub fn task_on(self, dataset_task: TaskType) -> TaskType {
+    pub fn task_on(&self, dataset_task: TaskType) -> TaskType {
         self.fixed_task().unwrap_or(dataset_task)
     }
 
-    pub fn is_tree(self) -> bool {
+    pub fn is_tree(&self) -> bool {
         matches!(self, Self::Tree { .. })
     }
 
-    pub fn is_knn(self) -> bool {
+    pub fn is_knn(&self) -> bool {
         matches!(self, Self::Knn { .. })
+    }
+
+    pub fn is_nn(&self) -> bool {
+        matches!(self, Self::NeuralNet { .. })
     }
 }
 
@@ -258,6 +267,8 @@ pub struct TrainedModelInfo {
     pub tree: Option<TreeSummary>,
     /// KNN: K, weights, metric and the search engine.
     pub knn: Option<KnnSummary>,
+    /// Neural networks: layers, loss, epochs, sizes of the split.
+    pub nn: Option<super::nn::NnSummary>,
 }
 
 /// Progress of a long task (event `task-progress`).

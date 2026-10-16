@@ -803,6 +803,58 @@ sobre por qué la red entrena distinto que en la versión anterior (semilla fija
 - `{:,}` de Python = separador de miles con coma ("1,411"), también en la UI en español (paridad de textos).
 - `{x:+.1f}` con signo; "inf%" cuando la estabilidad es infinita.
 
+### 8.4 Implementación de F5a (2026-10-16, `rust-ml-engineer`)
+
+**D68 resuelto: MLP propio, sin burn.** `mltutor-nn` no depende de burn: capas densas, activaciones,
+pérdidas desde los logits, retropropagación manual, Adam/SGD/RMSprop de Keras, Glorot, máscaras, permutaciones,
+EarlyStopping y ReduceLROnPlateau (unas 900 líneas con documentación). Motivos medidos:
+- La especificación (`nn_reference.py`) ya es una retropropagación manual; con burn había que reescribir igualmente
+  optimizadores, inicialización, RNG, pérdidas y callbacks, y quedaba un `Mutex` global por el RNG del backend.
+- Iris, 100 épocas: **5 ms** (burn en el spike de F0: unos 90 ms). California, 100 épocas sin parada temprana:
+  **0,66 s** (Python: unos 30 s). Los 55 entrenamientos del nivel (b): 2 s en total.
+- −4 MB de binario y sin estado global: el mismo `seed` da el mismo historial en cualquier hilo.
+- Los productos acumulan en **f64** y redondean una vez a f32 (orden fijo): el error es medio ulp, así que quedamos lo
+  más cerca posible de Keras sea cual sea el orden de sus sumas. Con acumulación f32 Diabetes superaba la tolerancia de
+  los gradientes (9e-5 > 5e-5); con f64, 3,05e-5, igual que la referencia NumPy.
+- RNG (D70): un solo `RandomState(seed)` de NumPy (MT19937, `mltutor_core::sampling`) en este orden: Glorot capa a capa
+  (kernel por filas, `uniform(-l, l)`), y en cada época la permutación de las filas y, por batch y capa oculta, las
+  máscaras `random_sample() >= rate`. Es reproducible también en NumPy.
+
+**API para F5b–F5d** (documentada en los `lib.rs`): `mltutor_nn::train_network(x, &target, &NnArchitecture,
+&NnTraining, shuffle, init, &FitControl { on_epoch, cancel }) -> TrainedNetwork`; `NeuralNetwork: Predictor` (escala
+dentro; `predict_proba` = salida, `[1 − p, p]` con una neurona); vistas en `mltutor_core::{nn_data, nn_diagnostics,
+nn_stats, grid::mean_grid, view::ViewNode}`; exportación en `mltutor_export::{onnx::mlp_model,
+package::keras::keras_package}` y `codegen::NnTrainingContext`. Desviaciones del contrato §5.3:
+- `NnTraining` lleva `seed: u32` (serde por defecto 42).
+- `EpochLog.epoch` empieza en 0, como Keras; los textos de progreso muestran `epoch + 1`.
+- `DiagnosticsView.blocks` es un árbol `ViewNode` con los textos ya resueltos y la misma forma que `expected.views`
+  de los fixtures (`text`, `notice`, `metric`, `row`/`column`, `expander`), en vez de claves + argumentos.
+- Errores en `mltutor_core::nn_data::NnError` (no en `ModelError`, para no romper los `match` de `src-tauri`), con
+  `UntrainableOutput { output, n_classes, key, reason }`, `TooFewPerClass`, `SplitTooSmall` y `ValidationTooSmall`.
+- La red no implementa `refit` (D78): la superficie usa `grid::mean_grid`.
+- Los metadatos JSON (📋, D75) y C29 (exploración y lotes) quedan para F5d.
+
+**Desviaciones de C23 aprobadas (coordinador, 2026-10-16)** y diferencias conocidas:
+- Con `loss_stable` y calidad `poor`, Python decía "Entrenamiento inestable (CV 0,3 %)" y recomendaba bajar el LR. Rust
+  usa `estable_rendimiento_bajo`, `patron_rendimiento_bajo(_rec)` y `alerta_rendimiento_bajo(_accion)`; la puntuación
+  no cambia (`csv_string_target_default`, `iris_relu_3layers_lr03`).
+- `nota_validacion_pequena` (info) sigue a "❌ Sobreajuste en accuracy" si hay menos de `SMALL_VALIDATION = 30` filas de
+  validación (el comentario del TOML dice 100; se siguió la indicación del coordinador).
+- Los textos marcados CORREGIDO/NUEVO en `mensajes.toml` y los `.md` sustituyen a los de Python; el test reemplaza en
+  el fixture el literal de Python por el texto actual y exige igualdad en todo lo demás.
+- `np.polyfit` devuelve ruido de LAPACK (±1e-17) en un tercio exactamente plano y desempata al azar dos pendientes
+  iguales; Rust usa la fórmula cerrada (0 exacto). En 4 historiales (`cls_flat_20`, `cls_rising_late_30`, `reg_bad_30`,
+  `diabetes_softmax_output`) la fila de tendencias y la del análisis comparativo no se comparan; el resto, sí.
+- Pendientes: 1e-12 relativo a la escala de la pérdida (no a la pendiente).
+
+**Fixture corregido:** `nn/exact/iris_dropout_masks.json` guarda como `initial_weights` los pesos **después** de los
+5 pasos (`_pairs` no copia y el optimizador de referencia actualiza `w0` en sitio). Se añadió el caso
+`iris_dropout_masks_w0` (mismo código con copia) y el test usa ese; el original no cambia.
+
+**Tolerancias aplicadas en el nivel (a):** historial 1e-4 relativo en las épocas en que la referencia está a ≤ 1e-5 de
+Keras y 1e-3 en las demás épocas acordadas (California); pasos 1–3 a `max(1e-6, 4 × diferencia de la referencia)` (Adam
+con LR 0,1–0,3 mueve cada peso ≈ ±lr y la referencia ya difiere 4e-5).
+
 ---
 
 ## 9. Subfases, reparto de tareas y checklist

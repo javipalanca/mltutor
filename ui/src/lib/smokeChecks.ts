@@ -14,6 +14,8 @@ import { IRIS_POINTS, knnScenario, type KnnScenario } from "./lessons/knn/scenar
 import { knn } from "./lessons/knn/state.svelte";
 import { models } from "./ml/modelSession.svelte";
 import { treesScenario, type TreesScenario } from "./lessons/trees/scenarios";
+import { nnScenario, type NnScenario } from "./lessons/redes/scenarios";
+import { nn } from "./lessons/redes/state.svelte";
 
 const LESSON = "regresion";
 const IRIS = { kind: "builtin", id: "iris" } as const;
@@ -225,6 +227,104 @@ const TREE_VIZ: readonly [string, string][] = [
   ["Texto", "[data-tree-rules]"],
 ];
 
+/** Opens a screen of 🧠 Redes Neuronales and waits for `selector`. */
+async function nnView(options: NnScenario, selector: string, what: string): Promise<void> {
+  void backend.logToBackend("info", `smoke test: redes, ${what}`);
+  await nnScenario(options);
+  await waitFor(selector, 30000, what);
+  await waitForIdle(() => busy.active, 60000);
+  // Red notices of the lesson itself (complexity, output warnings) are pedagogical.
+  const error = [...document.querySelectorAll('[data-content] .notice.error, [data-plot-rendered="error"]')].find(
+    (e) => !e.closest("[data-pedagogical]"),
+  );
+  if (error) {
+    throw new Error(`${what}: ${error.textContent?.trim() ?? "error"}`);
+  }
+}
+
+/**
+ * F5b: 🏗️ with its diagram, then a short training whose epochs must arrive live by
+ * `nn-epoch` (not only in the final history) and whose chart is drawn.
+ */
+async function nnChecks(dataset: NonNullable<NnScenario["dataset"]>, epochs: number): Promise<void> {
+  await nnView({ dataset, tab: 1 }, "[data-network-diagram] circle", "el diagrama de la arquitectura");
+  const started = performance.now();
+  await nnView({ dataset, tab: 2, train: true, epochs }, "[data-nn-trained] .notice.success", "el entrenamiento");
+  const elapsed = performance.now() - started;
+  await waitFor(`[data-history-chart][data-epochs="${nn.live.logs.length}"] [data-plot-rendered="true"]`, 30000, "la gráfica del historial");
+  if (nn.live.events < 2) {
+    throw new Error(`la red no ha enviado el progreso en vivo (${nn.live.events} eventos nn-epoch)`);
+  }
+  const info = models.lesson("redes").info;
+  if (!info?.nn || info.nn.epochs_trained !== nn.live.logs.length || nn.live.logs.length === 0) {
+    throw new Error("el historial de la red no coincide con las épocas entrenadas");
+  }
+  void backend.logToBackend(
+    "info",
+    `smoke test: red de ${dataset ?? "iris"} con ${info.nn.epochs_trained} épocas en ${elapsed.toFixed(0)} ms (backend ${info.nn.duration_ms} ms), ${nn.live.events} eventos nn-epoch`,
+  );
+}
+
+/** D83: "Cancelar" stops a long training in the next batch and keeps the previous network. */
+async function nnCancel(): Promise<void> {
+  const previous = models.lesson("redes").info?.model_id ?? null;
+  const pressed = performance.now();
+  await nnView(
+    { dataset: "california_housing", tab: 2, train: true, epochs: 500, cancelAt: 2 },
+    "[data-nn-cancelled]",
+    "la cancelación del entrenamiento",
+  );
+  const stopped = nn.live.cancelledAt ?? 0;
+  const lat = [...nn.live.latencies].sort((a, b) => a - b);
+  void backend.logToBackend(
+    "info",
+    `smoke test: latencia nn-epoch backend → interfaz en California: mediana ${lat[Math.floor(lat.length / 2)] ?? 0} ms, máximo ${lat.at(-1) ?? 0} ms (${lat.length} eventos)`,
+  );
+  if (stopped >= 500) {
+    throw new Error("el entrenamiento no se ha cancelado");
+  }
+  if ((models.lesson("redes").info?.model_id ?? null) !== previous) {
+    throw new Error("al cancelar se ha sustituido la red anterior");
+  }
+  void backend.logToBackend("info", `smoke test: entrenamiento cancelado en la época ${stopped} (${(performance.now() - pressed).toFixed(0)} ms)`);
+}
+
+/** C24 with 5 × 256 neurons: summarised layers, drawn quickly, tooltip on hover. */
+async function nnBigDiagram(): Promise<void> {
+  const started = performance.now();
+  await nnView(
+    { dataset: "digits", tab: 1, layers: 5, neurons: [256, 256, 256, 256, 256] },
+    '[data-network-diagram][data-layers="64,256,256,256,256,256,10"] circle',
+    "el diagrama de 5 × 256 neuronas",
+  );
+  const circles = document.querySelectorAll("[data-network-diagram] circle").length;
+  if (circles > 7 * 25) {
+    throw new Error(`el diagrama no resume las capas grandes (${circles} círculos)`);
+  }
+  const hit = document.querySelector("[data-network-diagram] [data-layer=\"2\"] .hit");
+  hit?.dispatchEvent(new PointerEvent("pointerenter", { bubbles: true }));
+  const tip = await waitFor("[data-network-tooltip]", 5000, "el tooltip de la capa");
+  if (!tip.textContent?.includes("65,792")) {
+    throw new Error(`tooltip inesperado: ${tip.textContent ?? ""}`);
+  }
+  hit?.dispatchEvent(new PointerEvent("pointerleave", { bubbles: true }));
+  // Re-render cost: change a layer and wait for the new diagram.
+  const changes: number[] = [];
+  for (const n of [255, 256, 200, 256]) {
+    const t0 = performance.now();
+    nn.neurons = [n, 256, 256, 256, 256];
+    const wanted = `[data-network-diagram][data-layers="64,${n},256,256,256,256,10"]`;
+    while (!document.querySelector(wanted) && performance.now() - t0 < 10000) {
+      await new Promise((done) => setTimeout(done, 1));
+    }
+    changes.push(performance.now() - t0);
+  }
+  void backend.logToBackend(
+    "info",
+    `smoke test: diagrama 5 × 256: ${circles} círculos, primera vista ${(performance.now() - started).toFixed(0)} ms, cambio de neuronas a diagrama redibujado (con el debounce de 50 ms y la llamada) ${changes.map((c) => c.toFixed(0)).join("/")} ms`,
+  );
+}
+
 const CHECKS: Readonly<Record<string, () => Promise<void>>> = {
   datos_vistas: datosVistas,
   datos_correlacion: correlacion,
@@ -274,6 +374,10 @@ const CHECKS: Readonly<Record<string, () => Promise<void>>> = {
     ]),
   knn_regresion_diabetes_k5: () => knnChecks({ dataset: "diabetes" }, KNN_REGRESSION),
   knn_california_k5: () => knnChecks({ dataset: "california_housing" }, KNN_REGRESSION),
+  redes_iris: () => nnChecks("iris", 10),
+  redes_diabetes: () => nnChecks("diabetes", 10),
+  redes_cancelacion: nnCancel,
+  redes_diagrama_5x256: nnBigDiagram,
 };
 
 export async function runSmokeCheck(name: string): Promise<void> {

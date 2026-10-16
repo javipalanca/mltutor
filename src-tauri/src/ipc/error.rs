@@ -111,6 +111,22 @@ pub enum CommandError {
     NotKnn {
         message: String,
     },
+    /// D71: the output activation cannot be trained for this task (multiclass with
+    /// sigmoid or linear, binary with softmax or linear). `key` = `no_entrenable_*`.
+    UntrainableOutput {
+        key: String,
+        n_classes: Option<u32>,
+        message: String,
+    },
+    /// The stratified split of the network needs at least 2 samples of every class.
+    TooFewPerClass {
+        class_name: String,
+        message: String,
+    },
+    /// The view needs a neural network (history of the training).
+    NotNn {
+        message: String,
+    },
     /// Training failed (singular system, optimizer error…).
     Training {
         message: String,
@@ -274,6 +290,12 @@ impl CommandError {
         }
     }
 
+    pub fn not_nn() -> Self {
+        Self::NotNn {
+            message: "Esta vista necesita una red neuronal.".into(),
+        }
+    }
+
     pub fn training(error: impl std::fmt::Display) -> Self {
         Self::Training {
             message: format!("Error al entrenar el modelo: {error}"),
@@ -318,6 +340,9 @@ impl CommandError {
             | Self::TooManyClasses { message, .. }
             | Self::MissingValues { message, .. }
             | Self::TooFewSamples { message, .. }
+            | Self::UntrainableOutput { message, .. }
+            | Self::TooFewPerClass { message, .. }
+            | Self::NotNn { message }
             | Self::NotKnn { message }
             | Self::Training { message }
             | Self::Export { message }

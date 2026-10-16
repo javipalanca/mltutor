@@ -10,6 +10,8 @@
   import RegressionLesson from "../lib/lessons/regression/RegressionLesson.svelte";
   import KnnLesson from "../lib/lessons/knn/KnnLesson.svelte";
   import TreesLesson from "../lib/lessons/trees/TreesLesson.svelte";
+  import NnLesson from "../lib/lessons/redes/NnLesson.svelte";
+  import { models } from "../lib/ml/modelSession.svelte";
   import DatasetTab from "./DatasetTab.svelte";
 
   interface Props {
@@ -22,7 +24,7 @@
   const content = $derived(lessonContent(id));
   const active = $derived(session.activeTab[id]);
   const block = $derived(dataBlock(id, active));
-  const navbar = $derived(navbarMessages(id, active));
+  const navbar = $derived(navbarMessages(id, active, id === "redes" && models.lesson("redes").info !== null));
   const tab = $derived(content.tabs[active] ?? "");
 
   function go(index: number): void {
@@ -51,6 +53,8 @@
       <TreesLesson {active} />
     {:else if active > 0 && id === "knn"}
       <KnnLesson {active} />
+    {:else if active > 0 && id === "redes"}
+      <NnLesson {active} />
     {:else if active > 0}
       <h2>{tab}</h2>
       <Notice

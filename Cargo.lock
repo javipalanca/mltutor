@@ -2077,6 +2077,7 @@ dependencies = [
  "log",
  "mltutor-core",
  "mltutor-export",
+ "mltutor-nn",
  "ndarray",
  "objc2",
  "objc2-app-kit",
@@ -2131,6 +2132,7 @@ dependencies = [
  "approx",
  "base64 0.22.1",
  "mltutor-core",
+ "mltutor-nn",
  "ndarray",
  "prost",
  "serde",
@@ -2143,6 +2145,14 @@ dependencies = [
 [[package]]
 name = "mltutor-nn"
 version = "0.4.0-rc.1"
+dependencies = [
+ "approx",
+ "base64 0.22.1",
+ "mltutor-core",
+ "ndarray",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "muda"

@@ -291,6 +291,137 @@ pub fn decision_grid(
     })
 }
 
+/// Largest number of points per axis of the network surface (D78).
+pub const MEAN_GRID_MAX_AXIS: usize = 200;
+
+/// 🧠 surface (D78, `show_decision_surface_tab`): the **whole** model on a grid of
+/// features `fx`/`fy`, the other features fixed at their mean over `x_ref` (Python:
+/// the mean of X_test). The grid is Python's, built in the scaled space of the
+/// network (`(x − mean)/scale`): range of `x_ref` ± 0.5, step 0.02; an axis with
+/// more than [`MEAN_GRID_MAX_AXIS`] points becomes `linspace(lo, hi, 200)` (Python
+/// predicted 55 596 cells on Iris and millions on California). Axes, fixed values
+/// and points are returned in **original units**; `point_*` are `x_ref`/`y_ref`.
+#[allow(clippy::too_many_arguments)]
+pub fn mean_grid(
+    model: &dyn Predictor,
+    x_ref: ArrayView2<'_, f64>,
+    y_ref: &Target,
+    scaler_mean: &[f64],
+    scaler_scale: &[f64],
+    fx: usize,
+    fy: usize,
+    control: &TrainControl<'_>,
+) -> Result<MeanGrid, ModelError> {
+    let p = x_ref.ncols();
+    if p < 2 {
+        return Err(ModelError::InvalidSelection {
+            reason: "se necesitan 2 características".to_owned(),
+        });
+    }
+    if fx == fy {
+        return Err(ModelError::InvalidSelection {
+            reason: "elige dos características distintas".to_owned(),
+        });
+    }
+    if fx >= p || fy >= p || scaler_mean.len() != p || scaler_scale.len() != p {
+        return Err(ModelError::InvalidSelection {
+            reason: format!("el modelo tiene {p} características"),
+        });
+    }
+    if x_ref.nrows() == 0 {
+        return Err(ModelError::Empty);
+    }
+    let mut notices = Vec::new();
+    let mut axis = |f: usize| -> Vec<f64> {
+        let (m, s) = (scaler_mean[f], scaler_scale[f]);
+        let scaled = x_ref.column(f).mapv(|v| (v - m) / s);
+        let (lo, hi) = min_max(scaled.iter().copied()).unwrap_or((0.0, 0.0));
+        let (lo, hi) = (lo - 0.5, hi + 0.5);
+        let n = np_arange_len(lo, hi, DEFAULT_STEP);
+        let values = if n > MEAN_GRID_MAX_AXIS {
+            notices.push(n);
+            linspace(lo, hi, MEAN_GRID_MAX_AXIS)
+        } else {
+            np_arange(lo, hi, DEFAULT_STEP)
+        };
+        values.into_iter().map(|v| v * s + m).collect()
+    };
+    let x = axis(fx);
+    let y = axis(fy);
+    let notices = if notices.is_empty() {
+        vec![GridNotice::Created {
+            rows: y.len(),
+            cols: x.len(),
+        }]
+    } else {
+        vec![GridNotice::Resized {
+            rows: y.len(),
+            cols: x.len(),
+        }]
+    };
+    if x.len() < 2 || y.len() < 2 {
+        return Err(ModelError::GridTooSmall {
+            rows: y.len(),
+            cols: x.len(),
+        });
+    }
+    let fixed: Vec<f64> = (0..p)
+        .map(|j| crate::stats::sum::pairwise_sum(&x_ref.column(j).to_vec()) / x_ref.nrows() as f64)
+        .collect();
+    let classification = model.task() == TaskType::Classification;
+    let nx = x.len();
+    let mut classes = Vec::new();
+    let mut values = Vec::new();
+    for &yv in &y {
+        control.check()?;
+        let mut block = Array2::<f64>::zeros((nx, p));
+        for (c, &xv) in x.iter().enumerate() {
+            for (j, &f) in fixed.iter().enumerate() {
+                block[[c, j]] = f;
+            }
+            block[[c, fx]] = xv;
+            block[[c, fy]] = yv;
+        }
+        match model.predict(block.view())? {
+            Prediction::Classes(c) => {
+                classes.extend(c.iter().map(|&v| u16::try_from(v).unwrap_or(u16::MAX)));
+            }
+            Prediction::Values(v) => values.extend(v),
+        }
+    }
+    let values = if classification {
+        GridValues::Classes { z: classes }
+    } else {
+        let (min, max) = min_max(values.iter().copied()).unwrap_or((f64::NAN, f64::NAN));
+        GridValues::Values {
+            z: values,
+            min,
+            max,
+        }
+    };
+    Ok(MeanGrid {
+        grid: DecisionGrid {
+            axes: GridAxes { x, y, notices },
+            values,
+            features: [fx, fy],
+            points: x_ref.select(Axis(1), &[fx, fy]),
+            point_target: y_ref.numeric(),
+            point_codes: y_ref.class_codes(),
+            model_2d: None,
+            show_2d_warning: p > 2,
+        },
+        fixed,
+    })
+}
+
+/// [`mean_grid`]: the grid and the value of every feature outside the pair.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MeanGrid {
+    pub grid: DecisionGrid,
+    /// Mean of each feature over `x_ref` (original units).
+    pub fixed: Vec<f64>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -353,6 +484,43 @@ mod tests {
         assert_eq!(codes[20..], [1; 20]);
         assert_eq!(grid.point_target[0], 3.0);
         assert_eq!(grid.point_target[39], 6.0);
+    }
+
+    #[test]
+    fn mean_grid_rejects_bad_pairs() {
+        let x = ndarray::array![[0.0, 1.0], [1.0, 0.0], [2.0, 2.0], [3.0, 1.0]];
+        let y = Target::Values {
+            values: vec![1.0, 2.0, 3.0, 4.0],
+        };
+        let ctl = TrainControl::none();
+        let model = crate::linear::fit(crate::linear::ModelConfig::Linear, x.view(), &y, &ctl)
+            .unwrap_or_else(|e| panic!("{e}"));
+        let g = mean_grid(
+            model.as_ref(),
+            x.view(),
+            &y,
+            &[1.5, 1.0],
+            &[1.0, 0.7],
+            0,
+            1,
+            &ctl,
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        // range 3 (scaled) + 1 → 200 points capped; y: (2/0.7 + 1)/0.02 → 193.
+        assert_eq!(g.grid.axes.x.len(), 200);
+        assert!((g.grid.axes.x[0] - (0.0 - 0.5)).abs() < 1e-12);
+        assert_eq!(g.grid.axes.y.len(), 193);
+        assert!(mean_grid(
+            model.as_ref(),
+            x.view(),
+            &y,
+            &[1.5, 1.0],
+            &[1.0, 0.7],
+            1,
+            1,
+            &ctl
+        )
+        .is_err());
     }
 
     #[test]

@@ -315,7 +315,7 @@ pub fn all_rows(model: &CoreModel) -> (ndarray::Array2<f64>, core::Target) {
 /// 💾 "📄 Código de Entrenamiento" (`knn_entrenamiento.py.j2`).
 pub fn code(model: &CoreModel) -> Result<String, CommandError> {
     let (k, weights, metric) =
-        crate::knn::params(model.spec.config).ok_or_else(CommandError::not_knn)?;
+        crate::knn::params(model.spec.config.clone()).ok_or_else(CommandError::not_knn)?;
     let base = model.training_context();
     KnnTrainingContext {
         dataset: base.dataset,
@@ -431,8 +431,8 @@ mod tests {
         let go = AtomicBool::new(false);
         for (id, k, w, m, name) in CASES {
             let config = knn(k, w, m);
-            let real = trained(&RealFacade, id, config);
-            let fake = trained(&FixtureFacade::from_checkout(), id, config);
+            let real = trained(&RealFacade, id, config.clone());
+            let fake = trained(&FixtureFacade::from_checkout(), id, config.clone());
             let e = &fixture(name)["expected"];
             let summary = real.summary();
             let engine = match e["neighbours_test"]["fit_method"].as_str() {
@@ -518,8 +518,8 @@ mod tests {
             ),
         ] {
             let config = knn(5, KnnWeights::Uniform, KnnMetric::Minkowski);
-            let real = trained(&RealFacade, id, config);
-            let fake = trained(&FixtureFacade::from_checkout(), id, config);
+            let real = trained(&RealFacade, id, config.clone());
+            let fake = trained(&FixtureFacade::from_checkout(), id, config.clone());
             let d = real.class_distances(&go).unwrap();
             let s = d.separation.unwrap();
             assert!((s - separation).abs() < 5e-3, "{id:?}: {s}");

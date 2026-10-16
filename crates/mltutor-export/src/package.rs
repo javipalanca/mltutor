@@ -17,6 +17,8 @@ use serde_json::{json, Value};
 use crate::ExportError;
 
 /// File names inside the ZIP.
+pub mod keras;
+
 pub const MODEL_JSON: &str = "modelo.json";
 pub const SCRIPT: &str = "reconstruir_modelo.py";
 pub const README: &str = "LEEME.txt";

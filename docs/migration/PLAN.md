@@ -207,6 +207,12 @@ Cada subfase se cierra con el CI y la revisión.
       y paquete Keras (D1), más el código Keras generado.
 - [ ] Inventario §6 completo.
 
+#### Pendientes de F5b para F5d
+
+- [ ] `red_entrenamiento.py.j2` fija `set_random_seed(42)` aunque se cambie la semilla en la app (D70): hay
+      que añadir la variable `seed` a la plantilla y al contexto.
+- [ ] Unificar el `NnTrainingContext` duplicado (`src-tauri/src/nn.rs` y `mltutor_core::codegen`).
+
 ### Fase 6 — Exportación y código: cierre  *(riesgo: medio · tamaño: M)*
 
 - [ ] Validación cruzada de exportaciones en CI: un job de Python carga cada ONNX con

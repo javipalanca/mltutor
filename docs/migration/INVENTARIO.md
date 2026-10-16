@@ -126,11 +126,11 @@ Pestañas: 📊 Datos · 🏋️ Entrenamiento · 📈 Evaluación · 📉 Visua
 Pestañas: 📊 Datos · 🏗️ Arquitectura · ⚙️ Entrenamiento · 📈 Evaluación · 🎯 Visualización ·
 🔮 Predicciones · 💾 Exportar
 
-- [ ] Arquitectura: nº de capas ocultas, neuronas por capa, activación oculta
+- [x] Arquitectura: nº de capas ocultas, neuronas por capa, activación oculta
       (relu/tanh/sigmoid), activación de salida (sigmoid/softmax/linear/tanh, según la
       tarea), dropout y diagrama nativo con tooltip y nº de parámetros por capa (D80). Incluye
       el código Keras con descarga (script corregido, D74). 🐍 `create_neural_network_visualization`
-- [ ] Entrenamiento: tamaño de batch, optimizador (adam/sgd/rmsprop), learning rate,
+- [x] Entrenamiento: tamaño de batch, optimizador (adam/sgd/rmsprop), learning rate,
       épocas y % de validación. Opciones avanzadas: parada temprana (paciencia) y
       reducción automática del LR (factor). Progreso por pasos (1/4…4/4) y cancelación.
       Muestra la distribución train/val/test. Split estratificado con test 0,2 fijo y

@@ -45,5 +45,9 @@ opt-level = 3
 [profile.dev.package.mltutor-export]
 opt-level = 3
 
+# The network trains thousands of small float32 products: unoptimised it is ~30x slower.
+[profile.dev.package.mltutor-nn]
+opt-level = 3
+
 [profile.dev.package."*"]
 opt-level = 2

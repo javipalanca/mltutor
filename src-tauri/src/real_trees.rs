@@ -272,7 +272,7 @@ pub fn code(model: &CoreModel, template: CodeTemplate) -> Result<String, Command
                     dataset: &context.dataset,
                     dataset_label: &context.dataset_label,
                     csv,
-                    config: model.spec.config,
+                    config: model.spec.config.clone(),
                     test_size: model.spec.test_size,
                     feature_names: features,
                     class_names: names.as_deref(),
@@ -356,9 +356,9 @@ mod tests {
 
     fn compare(cases: &[(DatasetId, ModelConfig)]) {
         let go = AtomicBool::new(false);
-        for &(id, config) in cases {
-            let a = trained(&RealFacade, id, config);
-            let b = trained(&FixtureFacade::from_checkout(), id, config);
+        for (id, config) in cases.iter().cloned() {
+            let a = trained(&RealFacade, id, config.clone());
+            let b = trained(&FixtureFacade::from_checkout(), id, config.clone());
             let what = format!("{id:?} {config:?}");
             assert_eq!(a.summary().tree, b.summary().tree, "{what}");
             assert_eq!(

@@ -29,8 +29,10 @@ use prost::Message;
 use crate::ExportError;
 
 mod knn;
+mod mlp;
 
 pub use knn::{evaluate_knn, knn_classifier, knn_regressor};
+pub use mlp::mlp_model;
 
 /// `TensorProto.DataType.FLOAT`.
 pub const ELEM_FLOAT: i32 = 1;

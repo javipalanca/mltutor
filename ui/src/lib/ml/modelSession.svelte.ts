@@ -117,10 +117,19 @@ class ModelSession {
   }
 
   /** "🚀 Entrenar Modelo": a newer training cancels the one in flight. */
-  async train(id: LessonId, dataset: DatasetRef, config: ModelConfig, testSize: number): Promise<void> {
+  async train(
+    id: LessonId,
+    dataset: DatasetRef,
+    config: ModelConfig,
+    testSize: number,
+    onStart?: (taskId: number) => void,
+  ): Promise<void> {
     const state = this.lesson(id);
     this.#training.get(id)?.cancel();
     const request = backend.trainModel({ lesson: backend.BACKEND_LESSON[id], dataset, config, test_size: testSize });
+    if (request.taskId !== undefined) {
+      onStart?.(request.taskId);
+    }
     this.#training.set(id, request);
     state.training = true;
     state.trainError = null;

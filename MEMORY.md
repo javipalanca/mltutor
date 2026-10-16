@@ -297,6 +297,37 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
     `tools/knn_reference.py` lo reproduce bit a bit y es la especificación (D52, D66).
   - La wheel arm64 suma la distancia euclídea en bloques de 8 sin FMA, y el resto (`n % 8`) con FMA
     (D53, `mul_add`).
+- **`nn-epoch` (2026-10-16, F5b):** cada evento lleva todas las épocas desde el anterior (como mucho 20
+  eventos por segundo; la última siempre se envía). Al terminar, la UI pide `nn_history`, que es la
+  fuente fiable, porque el último lote puede llegar después de la respuesta de `train_model`.
+  `DatasetView::train_observed` y `script_base` NO tienen implementación por defecto: con una por defecto,
+  los envoltorios (`CachedViews`) se tragaban los eventos.
+  - `ModelConfig` ya no es `Copy`.
+  - El smoke test falla con cualquier `.notice.error`, salvo dentro de `[data-pedagogical]`.
+  - `bind:clientWidth` en un SVG con `height: auto` produce "ResizeObserver loop…" en WebKit.
+  - El diagrama resume las capas de más de 24 neuronas (12 + ⋮ + 12).
+  - Medidas: `.app` de 16,2 MiB; smoke test de 17 s con 17 comprobaciones.
+- **D68 resuelto (2026-10-16): MLP propio en f32, SIN burn.** Las entradas de burn de más arriba quedan
+  obsoletas.
+  - Los productos se acumulan en f64 en orden fijo y se redondean una vez a f32. Acumulando en f32, el
+    gradiente de Diabetes se salía de la tolerancia.
+  - Iris, 100 épocas: 5 ms (burn daba unos 90 ms); California, 100 épocas: 0,66 s (Python unos 30 s).
+  - Sin Mutex global y 4 MB menos.
+  - RNG (D70): `RandomState(seed)` de NumPy (MT19937), en el orden Glorot capa a capa → por época, la
+    permutación → por batch, las máscaras.
+  - Los floats f32 de la UI (`lr_factor`, `dropout`, `learning_rate`) se pasan a f64 por su
+    representación decimal (`f32_as_decimal`), como en Python.
+  - `EpochLog.epoch` empieza en 0 (la UI muestra `epoch + 1`). Los errores van en `nn_data::NnError`.
+  - Paridad (a): gradientes ≤ 3e-5, 17/18 historiales en todas las épocas, pesos finales ≤ 3,3e-5.
+  - Paridad (b): las 11 medias dentro de la banda.
+  - ONNX MLP: ≤ 1,1e-6 frente a Keras, sin etiquetas distintas.
+- **Errores de los fixtures de redes:**
+  - `iris_dropout_masks.json` guarda los pesos POSTERIORES a los 5 pasos (golden_nn muta `w0` en sitio);
+    hay que usar `iris_dropout_masks_w0.json`.
+  - `np.polyfit` en tercios planos o empatados da signos de ruido de LAPACK; esas filas del diagnóstico
+    no son normativas.
+  - En California, la referencia NumPy ya difiere de Keras en más de 1e-5 desde la época 0, así que se
+    compara a 1e-3.
 - **Paridad de redes en dos niveles (D69, 2026-10-15):** con los pesos iniciales de Keras,
   `shuffle=False` y dropout 0, `tools/nn_reference.py` (NumPy f32) reproduce el `fit` de Keras 3.12 en
   17 de 18 casos durante todas las épocas (pesos finales ≤ 5e-6 casi siempre). Las trayectorias caóticas
@@ -328,6 +359,20 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
     "👍 Bueno");
   - `viz/nn_extra.py` está muerto entero.
   - En `golden_render`, Moons hay que sembrarlo (`moons_X`/`moons_y` en el `state`).
+- **Contenido de redes (2026-10-16):**
+  - El diagnóstico de Python dice "inestable (CV 0,3 %)" con la pérdida estable y un rendimiento bajo,
+    porque `is_stable` incluye la calidad. Rust usa las claves `*_rendimiento_bajo` en ese caso
+    (aprobado).
+  - Las tendencias usan la pérdida de ENTRENAMIENTO y los umbrales de pendiente son absolutos (con el MSE
+    de Diabetes sale "Excelente"). "Convergió" solo mide que la pérdida bajó. Los textos están corregidos.
+  - Keras 3.12 en CPU con `set_random_seed` es determinista entre ejecuciones (reproduce `nn/stat` bit a
+    bit).
+  - Con los valores por defecto (D88): Iris 0,63–0,77, y con LR 0,01, 0,93–0,97; Diabetes con R² de −3,8 a
+    −2,8, y con LR 0,01, de 0,19 a 0,43.
+  - minijinja de Python 2.16 pasa a los filtros los flotantes enteros como `int` (`0.0` → `0`); el
+    `py_repr` de Rust no lo sufre.
+  - `StandardScaler` ajustado con un DataFrame avisa si luego se transforma un array, así que en las
+    plantillas hay que pasar DataFrames.
 - **Separación J2 (2026-10-15):** separación = min M[i,j]/max(W_i,W_j). Con el split de la app, euclídea
   y K=5: Iris 1,58, Dígitos 1,11 (moderada, aunque acierta el 99,3 %), Cáncer 1,26, Vino 1,04 y CSV
   string_target 0,88. Es una medida global y no predice el acierto del KNN.

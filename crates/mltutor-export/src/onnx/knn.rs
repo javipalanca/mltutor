@@ -39,7 +39,13 @@ use super::{
 };
 use crate::ExportError;
 
-fn node(op: &str, name: &str, inputs: &[&str], outputs: &[&str], attrs: Vec<Attribute>) -> Node {
+pub(super) fn node(
+    op: &str,
+    name: &str,
+    inputs: &[&str],
+    outputs: &[&str],
+    attrs: Vec<Attribute>,
+) -> Node {
     Node {
         input: inputs.iter().map(|s| (*s).to_owned()).collect(),
         output: outputs.iter().map(|s| (*s).to_owned()).collect(),
@@ -50,7 +56,7 @@ fn node(op: &str, name: &str, inputs: &[&str], outputs: &[&str], attrs: Vec<Attr
     }
 }
 
-fn int_attr(name: &str, v: i64) -> Attribute {
+pub(super) fn int_attr(name: &str, v: i64) -> Attribute {
     Attribute {
         name: name.to_owned(),
         i: v,
@@ -95,7 +101,7 @@ fn f64_tensor(name: &str, dims: &[i64], values: &[f64]) -> Tensor {
     }
 }
 
-fn i64_tensor(name: &str, dims: &[i64], values: &[i64]) -> Tensor {
+pub(super) fn i64_tensor(name: &str, dims: &[i64], values: &[i64]) -> Tensor {
     Tensor {
         dims: dims.to_vec(),
         data_type: ELEM_INT64,
@@ -105,12 +111,12 @@ fn i64_tensor(name: &str, dims: &[i64], values: &[i64]) -> Tensor {
 }
 
 /// A dimension: fixed or unknown (`None` in `onnx.helper`).
-enum Dim {
+pub(super) enum Dim {
     Fixed(i64),
     Unknown,
 }
 
-fn value_info(name: &str, elem_type: i32, dims: &[Dim]) -> ValueInfo {
+pub(super) fn value_info(name: &str, elem_type: i32, dims: &[Dim]) -> ValueInfo {
     ValueInfo {
         name: name.to_owned(),
         r#type: Some(TypeProto {
@@ -132,7 +138,7 @@ fn value_info(name: &str, elem_type: i32, dims: &[Dim]) -> ValueInfo {
     }
 }
 
-fn to_i64(v: usize) -> Result<i64, ExportError> {
+pub(super) fn to_i64(v: usize) -> Result<i64, ExportError> {
     i64::try_from(v).map_err(|_| ExportError::InvalidModel {
         reason: "modelo demasiado grande".to_owned(),
     })

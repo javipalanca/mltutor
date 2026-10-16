@@ -11,6 +11,7 @@ import componentesMensajes from "@content/componentes/mensajes.toml";
 import regresionMensajes from "@content/regresion/mensajes.toml";
 import arbolesMensajes from "@content/arboles/mensajes.toml";
 import knnMensajes from "@content/knn/mensajes.toml";
+import redesMensajes from "@content/redes/mensajes.toml";
 
 const markdown = import.meta.glob<string>("../../../content/**/*.md", {
   query: "?raw",
@@ -132,6 +133,12 @@ export const arbRaw = rawValue(arbolesMensajes);
 
 /** Any value of `knn/mensajes.toml` (panels, option pairs); `undefined` if absent. */
 export const knnRaw = rawValue(knnMensajes);
+
+/** `content/redes/mensajes.toml` (🧠 Redes Neuronales). */
+export const nnText = messages(redesMensajes, "redes/mensajes.toml");
+export const nnList = messageList(redesMensajes, "redes/mensajes.toml");
+/** Any value of `redes/mensajes.toml`; `undefined` if absent (optional texts). */
+export const nnRaw = rawValue(redesMensajes);
 
 /** Optional text (new texts of the content author may not exist yet): `fallback` if absent. */
 export function optionalText(raw: (section: string, key: string) => unknown, section: string, key: string, fallback: string): string {

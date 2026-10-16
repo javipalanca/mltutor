@@ -239,7 +239,7 @@ pub fn train(
     cancel: &AtomicBool,
 ) -> Result<ModelHandle, CommandError> {
     progress("Entrenando modelo...", Some(10.0));
-    let name = case_name(id, spec.config).ok_or_else(|| unavailable("no es un árbol"))?;
+    let name = case_name(id, spec.config.clone()).ok_or_else(|| unavailable("no es un árbol"))?;
     let read = |relative: &str| -> Result<Value, CommandError> {
         let path = root.join(relative);
         let text = std::fs::read_to_string(&path)
@@ -273,7 +273,7 @@ pub fn train(
         expected["evaluation"] = Value::Object(serde_json::Map::new());
     }
     let base = FixtureModel::for_tree(
-        spec.config,
+        spec.config.clone(),
         dataset_task,
         frame,
         expected,
@@ -286,7 +286,7 @@ pub fn train(
         id,
         label: spec.dataset_label.clone(),
         test_size: spec.test_size,
-        config: spec.config,
+        config: spec.config.clone(),
         tree,
         classes,
     }))
@@ -555,7 +555,7 @@ impl ModelView for TreeFixtureModel {
                         dataset: self.id.slug(),
                         dataset_label: &self.label,
                         csv: None,
-                        config: self.config,
+                        config: self.config.clone(),
                         test_size: self.test_size,
                         feature_names: &frame.feature_display,
                         class_names: self.base.class_names_ref(),

@@ -10,6 +10,7 @@ pub mod csv;
 pub mod frame;
 mod knn;
 pub mod model;
+mod nn;
 pub mod stats;
 mod tree;
 
@@ -23,7 +24,7 @@ use serde_json::Value;
 use self::frame::{Frame, Target};
 use crate::core_facade::{
     check_cancelled, CoreFacade, CsvDraftHandle, DatasetHandle, DatasetView, ModelHandle, Progress,
-    TrainSpec,
+    ScriptBase, TrainObserver, TrainSpec,
 };
 use crate::ipc::{
     finite, to_u32, Cell, CommandError, CorrelationMatrix, DatasetEntry, DatasetId, DatasetRef,
@@ -451,6 +452,44 @@ impl DatasetView for FixtureDataset {
             progress,
             cancel,
         )
+    }
+
+    fn train_observed(
+        &self,
+        spec: &TrainSpec,
+        progress: &Progress<'_>,
+        observer: &TrainObserver<'_>,
+        cancel: &AtomicBool,
+    ) -> Result<ModelHandle, CommandError> {
+        if spec.config.is_nn() {
+            let counts = (self.summary.task == TaskType::Classification)
+                .then(|| crate::nn_model::class_counts(self))
+                .flatten();
+            return nn::train(
+                &self.root,
+                self.id,
+                &self.summary,
+                counts,
+                spec,
+                observer,
+                cancel,
+            );
+        }
+        self.train(spec, progress, cancel)
+    }
+
+    fn script_base(&self, label: &str) -> ScriptBase {
+        ScriptBase {
+            dataset: self.id.slug().to_owned(),
+            dataset_label: label.to_owned(),
+            csv_file: None,
+            csv_target: None,
+            csv_sep: None,
+            csv_decimal: None,
+            csv_encoding: None,
+            feature_names: self.summary.feature_display.clone(),
+            class_names: self.summary.class_names.clone(),
+        }
     }
 }
 

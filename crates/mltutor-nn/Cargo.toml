@@ -1,6 +1,6 @@
 [package]
 name = "mltutor-nn"
-description = "Neural networks for MLTutor built on burn (architecture, training, history)."
+description = "Neural networks for MLTutor: a float32 MLP with Keras 3.12 semantics (training, history, views)."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,6 +9,16 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
+# D68 (fase5-redes.md §8): own MLP with manual backprop, no burn. Shares ndarray 0.16,
+# RandomState (MT19937) and the lesson types with the core.
+mltutor-core.workspace = true
+ndarray = "0.16"
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+approx = "0.5"
+base64 = "0.22"
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
 
 [lints]
 workspace = true

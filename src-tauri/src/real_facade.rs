@@ -303,6 +303,23 @@ impl DatasetView for CoreDataset {
     ) -> Result<crate::core_facade::ModelHandle, CommandError> {
         crate::real_models::train(&self.data, self.id, spec, progress, cancel)
     }
+
+    fn train_observed(
+        &self,
+        spec: &crate::core_facade::TrainSpec,
+        progress: &crate::core_facade::Progress<'_>,
+        observer: &crate::core_facade::TrainObserver<'_>,
+        cancel: &AtomicBool,
+    ) -> Result<crate::core_facade::ModelHandle, CommandError> {
+        if spec.config.is_nn() {
+            return crate::real_nn::train(self, &self.data, spec, observer, cancel);
+        }
+        self.train(spec, progress, cancel)
+    }
+
+    fn script_base(&self, label: &str) -> crate::core_facade::ScriptBase {
+        crate::real_models::script_base(&self.data, self.id, label)
+    }
 }
 
 struct CoreCsvDraft {

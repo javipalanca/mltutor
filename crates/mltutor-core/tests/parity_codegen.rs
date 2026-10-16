@@ -146,3 +146,75 @@ fn knn_boundary_all_rows_matches_jinja2() {
     }
     assert_eq!(n, 4);
 }
+
+/// 🧠 D74: `red_entrenamiento.py.j2` with the typed context built from the lesson's
+/// configuration equals the script `export_golden.py` executed (`code/nn_training.json`).
+#[test]
+fn nn_training_script_matches_exactly() {
+    use mltutor_core::codegen::{NnTrainingContext, ScriptDataset};
+    use mltutor_core::dataset::TaskType;
+    use mltutor_core::nn_data::{Activation, NnArchitecture, NnTraining, OptimizerKind};
+    let fx = fixture("code/nn_training.json");
+    let mut n = 0;
+    for (case, v) in fx["expected"].as_object().unwrap() {
+        let c = &v["context"];
+        let stat = fixture(&format!("nn/stat/{case}.json"));
+        let input = &stat["input"];
+        let cfg = &input["nn_config"];
+        let sizes: Vec<u16> = cfg["architecture"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|x| x.as_u64().unwrap() as u16)
+            .collect();
+        let arch = NnArchitecture {
+            hidden: sizes[1..sizes.len() - 1].to_vec(),
+            activation: Activation::parse(cfg["activation"].as_str().unwrap()).unwrap(),
+            output_activation: Activation::parse(cfg["output_activation"].as_str().unwrap())
+                .unwrap(),
+            dropout: cfg["dropout_rate"].as_f64().unwrap() as f32,
+            batch_size: cfg["batch_size"].as_u64().unwrap() as u16,
+            optimizer: OptimizerKind::parse(cfg["optimizer"].as_str().unwrap()).unwrap(),
+        };
+        let training = NnTraining {
+            learning_rate: input["lr"].as_f64().unwrap() as f32,
+            epochs: input["epochs"].as_u64().unwrap() as u16,
+            validation_pct: (input["validation_split"].as_f64().unwrap() * 100.0).round() as u8,
+            patience: input["early_stopping"]
+                .as_bool()
+                .unwrap()
+                .then(|| input["patience"].as_u64().unwrap() as u8),
+            lr_factor: input["reduce_lr"]
+                .as_bool()
+                .unwrap()
+                .then(|| input["lr_factor"].as_f64().unwrap() as f32),
+            seed: 42,
+        };
+        let s = |k: &str| c[k].as_str().map(str::to_owned);
+        let data = ScriptDataset {
+            dataset: s("dataset").unwrap(),
+            dataset_label: s("dataset_label").unwrap(),
+            csv_file: s("csv_file"),
+            csv_target: s("csv_target"),
+            csv_sep: s("csv_sep"),
+            csv_decimal: s("csv_decimal"),
+            csv_encoding: s("csv_encoding"),
+            feature_names: common::strings(&c["feature_names"]),
+            class_names: c["class_names"]
+                .is_array()
+                .then(|| common::strings(&c["class_names"])),
+        };
+        let task = if c["task"] == "classification" {
+            TaskType::Classification
+        } else {
+            TaskType::Regression
+        };
+        let n_classes = c["class_names"].as_array().map_or(0, Vec::len);
+        let ctx = NnTrainingContext::new(data, task, n_classes, &arch, &training).unwrap();
+        assert_eq!(&serde_json::to_value(&ctx).unwrap(), c, "{case}: context");
+        let rendered = codegen::render(CodeTemplate::NnTraining, &ctx).unwrap();
+        assert_eq!(rendered, v["script"].as_str().unwrap(), "{case}: script");
+        n += 1;
+    }
+    assert_eq!(n, 6);
+}

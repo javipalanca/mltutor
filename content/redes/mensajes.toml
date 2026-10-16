@@ -42,7 +42,9 @@ tamano_expander = "💡 ¿Cómo decidir el tamaño de la red?"      # arquitectu
 capas_titulo = "#### ⚙️ Configuración de Capas"
 capas_label = "Número de capas ocultas"                        # slider 1..5, 2, SIN key
 capas_help = "💡 Más capas = mayor capacidad de aprender patrones complejos, pero también mayor riesgo de sobreajuste"
-capas_1 = "🟦 **1 capa**: Ideal para problemas linealmente separables"        # st.caption
+# CORREGIDO (rigor). Python: "🟦 **1 capa**: Ideal para problemas linealmente separables". Un problema
+# linealmente separable no necesita capas ocultas; una capa oculta ya aprende fronteras curvas (🌙 Moons).
+capas_1 = "🟦 **1 capa**: Suficiente para muchos problemas sencillos; ya aprende fronteras curvas"        # st.caption
 capas_2 = "🟨 **2 capas**: Recomendado para la mayoría de problemas"
 capas_3_mas = "🟥 **3+ capas**: Solo para problemas muy complejos con muchos datos"
 # slider 1..256 por capa, key layer_{i} (i desde 0); valor = min(sugerencia, 64) con
@@ -52,7 +54,9 @@ neuronas_help = "💡 Sugerencia para capa {n}: {sugerencia} neuronas"
 activacion_titulo = "#### 🧮 Función de Activación (Capas Ocultas)"
 activacion_label = "Función de activación"                     # selectbox relu|tanh|sigmoid, índice 0, SIN key
 activacion_help = "💡 ReLU es la más popular y efectiva para la mayoría de problemas"
-activacion_relu = "✅ **ReLU**: Rápida, evita el problema del gradiente que desaparece. Recomendada."   # st.success
+# CORREGIDO (rigor). Python: "✅ **ReLU**: Rápida, evita el problema del gradiente que desaparece. Recomendada."
+# Lo reduce (derivada 1 si z > 0), pero no lo evita: con z ≤ 0 la derivada es 0 (neuronas muertas, 📉).
+activacion_relu = "✅ **ReLU**: Rápida y reduce el problema del gradiente que desaparece (aunque algunas neuronas pueden quedar muertas). Recomendada."   # st.success
 activacion_tanh = "ℹ️ **Tanh**: Salida entre -1 y 1. Buena para datos normalizados."               # st.info
 activacion_sigmoid = "⚠️ **Sigmoid**: Puede causar gradientes que desaparecen. Úsala solo si es necesario."   # st.warning
 salida_titulo = "#### 🎯 Función de Activación de Salida"
@@ -72,13 +76,20 @@ multiclase_tanh = "⚠️ Tanh no es estándar para clasificación multiclase. S
 regresion_linear = "✅ Linear es ideal para regresión"                                   # success
 regresion_sigmoid = "⚠️ Sigmoid limita la salida a [0,1]. Solo útil si tus valores objetivo están en este rango."   # warning
 regresion_tanh = "⚠️ Tanh limita la salida a [-1,1]. Solo útil si tus valores objetivo están en este rango."         # warning
-regresion_softmax = "⚠️ Softmax no es apropiada para regresión. Las salidas suman 1. Usa Linear."                    # error
+# CORREGIDO (rigor). Python: "⚠️ Softmax no es apropiada para regresión. Las salidas suman 1. Usa Linear."
+# Con una sola neurona de salida la softmax vale siempre 1 (nn/exact/diabetes_softmax_output: pesos sin cambiar).
+regresion_softmax = "⚠️ Softmax no es apropiada para regresión: con una sola neurona de salida vale siempre 1 y la red no aprende. Usa Linear."   # error
 # NUEVO (D71): st.error bajo el selector en las combinaciones que Python deja elegir pero no puede entrenar
 # (fallaban al pulsar "🧠 Entrenar Red Neuronal" con un error de TensorFlow en inglés, y después
 # 📈 Evaluación y 🎯 Visualización se rompían). El botón de entrenar queda deshabilitado.
-no_entrenable_multiclase_sigmoid = "🚫 Con {clases} clases y salida sigmoid, MLTutor no puede entrenar la red: la pérdida binary_crossentropy necesita una etiqueta 0/1 por neurona y aquí cada muestra tiene un solo número de clase. Usa softmax (o tanh)."
-no_entrenable_linear = "🚫 Con salida linear la red da números sin límite, no probabilidades, y la pérdida de clasificación no se puede calcular. Usa {recomendada}."
-no_entrenable_binaria_softmax = "🚫 Softmax con una sola neurona siempre vale 1: la red no puede distinguir las dos clases. Usa sigmoid."
+# {clases} = nº de clases; {recomendada} = "sigmoid" (binaria) o "softmax" (multiclase). Explicación larga:
+# activaciones-perdidas.md (expander salidas_expander, debajo del selector).
+no_entrenable_multiclase_sigmoid = "🚫 MLTutor no puede entrenar esta combinación. Con salida sigmoid, cada una de las {clases} neuronas da una probabilidad independiente (sí/no para su clase) y la pérdida necesitaría una etiqueta 0/1 por neurona; aquí cada muestra tiene un único número de clase. Usa softmax, que reparte la probabilidad entre las {clases} clases."
+no_entrenable_linear = "🚫 MLTutor no puede entrenar esta combinación. Con salida linear la red da números sin límite (negativos o mayores que 1), no probabilidades, y la entropía cruzada que usa la app para clasificar necesita probabilidades. Usa {recomendada}."
+no_entrenable_binaria_softmax = "🚫 MLTutor no puede entrenar esta combinación. La softmax divide la exponencial de cada neurona entre la suma de todas: con una sola neurona vale siempre 1, sea cual sea la entrada, y la red no puede distinguir las dos clases. Usa sigmoid."
+no_entrenable_boton = "Elige otra función de activación de salida para poder entrenar."   # help del botón deshabilitado
+# NUEVO (D71): expander cerrado debajo del selector de salida (activaciones-perdidas.md)
+salidas_expander = "💡 ¿Qué activación de salida y qué pérdida elijo?"
 diagrama_titulo = "#### 🎨 Visualización de la Arquitectura"
 # Diagrama (create_neural_network_visualization, HTML canvas; D80: componente SVG nativo)
 diagrama_caja_titulo = "🧠 Arquitectura de Red Neuronal"
@@ -145,6 +156,9 @@ btn_descargar_codigo = "💾 Descargar Código Python"             # red_neurona
 codigo_nota = "El script reproduce esta arquitectura y la configuración de ⚙️ Entrenamiento que tengas elegida (learning rate, épocas, validación y callbacks). Keras parte de otros pesos iniciales, así que sus cifras serán parecidas a las de MLTutor, no idénticas."
 
 [entrenamiento]
+# NUEVO (2026-10-16): una clase con una sola muestra hace fallar el split estratificado (test 0,2, stratify=y).
+# En Python, train_test_split lanzaba un ValueError en inglés.
+error_pocas_muestras_clase = "🚫 La clase «{clase}» solo tiene una muestra. La red divide los datos de forma estratificada (cada clase debe aparecer tanto en entrenamiento como en prueba), así que necesita al menos 2 muestras de cada clase. Elimina esa clase del CSV o consigue más ejemplos de ella."
 header = "⚙️ Entrenamiento de la Red Neuronal"
 # Sin nn_config (no se ha visitado 🏗️ Arquitectura). D90: en Rust la configuración por defecto
 # siempre existe y este aviso desaparece (se conserva por si se decide lo contrario).
@@ -174,6 +188,13 @@ validacion_help = "💡 20% es estándar. Más datos = mejor validación, menos 
 # que no son los tamaños reales (Iris, 20 %: "Train=96, Val=30, Test=24"; en realidad 96/24/30).
 # Rust: test = ceil(0.2·n); entrenamiento = n − test; validación = entrenamiento − floor(entrenamiento·(1 − v/100)).
 distribucion = "📊 **Distribución**: Train={train}, Val={val}, Test={test}"
+# NUEVO (D73): help de la caption anterior
+distribucion_help = "Prueba: el 20 % de las filas, apartado antes de entrenar (estratificado en clasificación). Validación: las últimas filas del entrenamiento, sin barajar (validation_split de Keras); sirve para el early stopping y la reducción del learning rate. Train: las filas con las que se ajustan los pesos, barajadas en cada época."
+# NUEVO (D88): caption debajo de la distribución. {pasos} = ceil(train / batch), {total} = pasos · épocas
+pasos_por_epoca = "🔁 {pasos} actualizaciones de los pesos por época ({train} muestras en lotes de {batch}): {total} como máximo en {epocas} épocas."
+# NUEVO (D72): caption debajo de la distribución + expander cerrado (escalado.md)
+escalado_nota = "⚖️ MLTutor estandariza las características con la media y la desviación de **todas** las filas, incluidas las de prueba, para coincidir con la versión original de la app. Es una pequeña fuga de datos: fuera de la app, ajusta el escalador solo con el entrenamiento."
+escalado_expander = "⚠️ Sobre el escalado de los datos"
 avanzada_expander = "⚙️ Configuración Avanzada - Técnicas para Mejorar el Entrenamiento"   # cerrado
 avanzada_titulo = "#### 🛡️ Técnicas de Regularización y Optimización"
 es_titulo = "##### 🛑 Early Stopping"
@@ -182,7 +203,8 @@ es_help = "💡 Recomendado: Evita sobreajuste parando cuando la validación no 
 es_activado = "✅ **Early Stopping activado**: La red parará automáticamente cuando deje de mejorar"   # success
 paciencia_label = "Paciencia (épocas)"                         # slider 5..50, 10 (solo con early stopping)
 paciencia_help = "Épocas a esperar sin mejora antes de parar. Más paciencia = más oportunidades de mejorar"
-paciencia_baja = "🔴 **Impatiente**: Para rápido, puede interrumpir mejoras tardías"   # <= 5 (sic: "Impatiente")
+# CORREGIDO (errata). Python: "🔴 **Impatiente**: Para rápido, puede interrumpir mejoras tardías"
+paciencia_baja = "🔴 **Impaciente**: Para rápido, puede interrumpir mejoras tardías"   # <= 5
 paciencia_media = "🟢 **Balanceado**: Buen equilibrio"                                # <= 15
 paciencia_alta = "🟡 **Paciente**: Da muchas oportunidades, pero puede sobreajustar"
 es_desactivado = "⚠️ **Sin Early Stopping**: La red entrenará todas las épocas. Riesgo de sobreajuste."   # warning
@@ -196,9 +218,16 @@ factor_agresivo = "🔴 **Reducción agresiva**: Cambios dramáticos"     # <= 0
 factor_moderado = "🟢 **Reducción moderada**: Recomendado"            # <= 0.7
 factor_suave = "🟡 **Reducción suave**: Cambios graduales"
 rlr_desactivado = "ℹ️ **Learning rate fijo**: Se mantendrá constante durante todo el entrenamiento"   # info
+# NUEVO (D70): control al final del expander avanzado (number input 1..9999, 42) + expander cerrado (semilla.md)
+semilla_titulo = "##### 🎲 Semilla"
+semilla_label = "Semilla"
+semilla_help = "Fija el azar del entrenamiento: pesos iniciales, dropout y orden de los lotes. Con la misma semilla obtienes la misma red; cámbiala para ver cuánto varía el resultado."
+semilla_expander = "🎲 ¿Por qué hay una semilla?"
 tecnicas_titulo = "#### 📚 ¿Por qué usar estas técnicas?"     # (tras "---"; texto: entrenamiento-tecnicas.md)
 iniciar_titulo = "### 🚀 Iniciar Entrenamiento"
 iniciar_texto = "**¿Todo listo?** Tu red está configurada y lista para aprender de los datos."
+# NUEVO (D88): expander cerrado debajo del botón (valores-defecto.md); también en 📈 bajo aviso_r2_negativo
+defecto_expander = "💡 ¿Por qué la red acierta poco con los valores por defecto?"
 btn_entrenar = "🧠 Entrenar Red Neuronal"                      # primary, ancho completo, SIN key
 spinner = "🧠 Entrenando la red neuronal... Esto puede tomar unos minutos."
 # Progreso por pasos (st.info dentro de un st.empty). En Qt solo se ve el resultado final; en Rust
@@ -210,6 +239,18 @@ paso_4 = "🚀 **Paso 4/4**: Entrenando red neuronal ({epocas} épocas máximo).
 # Python: "🔄 **Paso 5/4**: Preparando modelo para visualizaciones..." (inalcanzable a la vista: lo tapa el éxito)
 paso_5 = "🔄 **Paso 5/4**: Preparando modelo para visualizaciones..."
 progreso_epoca = "Época {epoca}/{epocas} · pérdida: {perdida:.4f}"   # barra de estado de Qt (report_progress)
+# NUEVO (D82): progreso real por época, sin pausas. {epoca} empieza en 1. Debajo, la gráfica del historial
+# en vivo (C27). Los dos avisos siguientes se añaden bajo la barra cuando ocurren (con la época 1-based).
+progreso_epoca_val = "Época {epoca}/{epocas} · pérdida: {perdida:.4f} · validación: {val_perdida:.4f}"
+progreso_grafica = "La gráfica se actualiza al terminar cada época: azul, entrenamiento; rojo, validación."
+progreso_lr = "📉 Época {epoca}: la pérdida de validación lleva {paciencia} épocas sin mejorar y el learning rate baja a {lr}."
+progreso_parada = "🛑 Parada temprana en la época {epoca}: la pérdida de validación no mejora desde la época {mejor}."
+# NUEVO (D82, C21.7): debajo de "completado" si el early stopping está activo. Keras restaura los mejores
+# pesos AL TERMINAR aunque no haya parado antes; sin early stopping se queda la última época.
+completado_mejor_epoca = "Se entrenaron {epocas} épocas y la red usa los pesos de la época {mejor}, la de menor pérdida de validación ({val_perdida:.4f})."
+# NUEVO (D83): cancelación cooperativa (se comprueba en cada lote)
+btn_cancelar = "⏹️ Cancelar entrenamiento"
+cancelando = "⏳ Cancelando… se detiene al terminar el lote actual."
 completado = "✅ **¡Entrenamiento completado!** Red neuronal lista para usar"   # success (en el contenedor del progreso)
 exito = "🎉 ¡Red neuronal entrenada exitosamente!"                              # success
 error_contenedor = "❌ **Error durante el entrenamiento**"
@@ -225,39 +266,52 @@ aviso_linear = "⚠️ Función linear detectada en clasificación. Rendimiento 
 aviso_tanh = "⚠️ Función tanh detectada en clasificación. Comportamiento no estándar."         # warning
 aviso_sigmoid_regresion = "ℹ️ Sigmoid limitará las salidas a [0,1]. Asegúrate de que tus datos objetivo estén normalizados."   # info
 aviso_tanh_regresion = "ℹ️ Tanh limitará las salidas a [-1,1]. Asegúrate de que tus datos objetivo estén normalizados."         # info
-aviso_softmax_regresion = "⚠️ Softmax en regresión: las salidas sumarán 1. Esto raramente es lo deseado."                     # error
+# CORREGIDO (rigor). Python: "⚠️ Softmax en regresión: las salidas sumarán 1. Esto raramente es lo deseado."
+# Con una neurona la salida vale siempre 1 y el gradiente es 0: la red no aprende nunca.
+aviso_softmax_regresion = "⚠️ Softmax en regresión: con una sola neurona la salida vale siempre 1 y la red no puede aprender (su gradiente es 0)."   # error
+# NOTA (D72): MLTutor no escala el objetivo, así que en los datasets de la app (🩺 Diabetes, de 25 a 346) los
+# dos avisos anteriores se cumplen siempre: la salida sigmoid/tanh no llega nunca al objetivo.
 # NUEVO (D83): al pulsar Cancelar (Python: "Operación cancelada" en la barra de estado y el modelo anterior intacto)
 cancelado = "⏹️ Entrenamiento cancelado en la época {epoca} de {epocas}. Se conserva el modelo anterior."
+cancelado_sin_modelo = "⏹️ Entrenamiento cancelado en la época {epoca} de {epocas}. Todavía no hay ninguna red entrenada."
 # NUEVO (D90/D91): aviso si el dataset o la configuración cambiaron después de entrenar (como F2–F4)
-aviso_config_cambiada = "⚠️ La configuración ha cambiado desde el último entrenamiento: las pestañas siguientes muestran la red entrenada con {dataset}. Vuelve a entrenar para aplicar los cambios."
+# En las pestañas 3–6, como en F2–F4: modelo_entrenado_con y aviso_dataset_cambiado de
+# content/regresion/mensajes.toml [comun], `config_modelo` debajo y este aviso (st.warning) si la configuración
+# de 🏗️ o ⚙️ ya no coincide con la de la red. {tarea} = "clasificación" | "regresión"; {arquitectura} = [4, 10, 10, 3].
+config_modelo = "🧠 Red de {tarea}: {arquitectura} · ocultas {activacion} · salida {salida} · {optimizador} (lr {lr}) · {epocas} épocas · semilla {semilla}"
+aviso_config_cambiada = "⚠️ Has cambiado la configuración en 🏗️ Arquitectura o ⚙️ Entrenamiento, pero estas pestañas siguen mostrando la red entrenada con la anterior. Pulsa «🧠 Entrenar Red Neuronal» para aplicarla."
 
 [evaluacion]
 header = "📈 Evaluación del Modelo"
 resultados_titulo = "#### 📊 Resultados del Entrenamiento"
 # CORREGIDO (D86): es la exactitud (accuracy), no la precisión. Python: "🎯 Precisión en Test"
 metrica_accuracy = "🎯 Exactitud (accuracy) en Test"           # valor {:.3f}
-metrica_accuracy_help = "Porcentaje de predicciones correctas en datos nunca vistos"
+# CORREGIDO (precisión). Python: "Porcentaje de predicciones correctas en datos nunca vistos" (el valor es una proporción)
+metrica_accuracy_help = "Proporción de predicciones correctas (de 0 a 1) en los datos de prueba, que la red no ha visto al entrenar"
 metrica_perdida = "📉 Pérdida en Test"                          # valor {:.3f}
 metrica_perdida_help = "Qué tan 'equivocada' está la red en promedio"
 metrica_error_regresion = "📉 Error en Test"                    # regresión: la pérdida (MSE), {:.3f}
+metrica_error_regresion_help = "Error cuadrático medio (MSE) en prueba, en las unidades del objetivo al cuadrado"   # NUEVO
 progreso_titulo = "### 📈 Progreso del Entrenamiento"
 # Gráfica (plot_training_history), Plotly 1×2, altura 400, eje x "Época", Entrenamiento azul, Validación rojo
 grafica_perdida = "Pérdida durante el Entrenamiento"
-grafica_precision = "Precisión durante el Entrenamiento"
+# CORREGIDO (D86). Python: "Precisión durante el Entrenamiento" y eje "Precisión": es la exactitud (accuracy)
+grafica_precision = "Exactitud durante el Entrenamiento"
 grafica_perdida_regresion = "Pérdida (MSE) durante el Entrenamiento"
 grafica_mae = "Error Absoluto Medio"
 serie_entrenamiento = "Entrenamiento"
 serie_validacion = "Validación"
 eje_epoca = "Época"
 eje_perdida = "Pérdida"
-eje_precision = "Precisión"
+eje_precision = "Exactitud"                                   # CORREGIDO (D86). Python: "Precisión"
 eje_mse = "MSE"
 eje_mae = "MAE"
 grafica_error = "Error graficando historial: {error}"
 # Después: show_detailed_evaluation (C1/C2 + C3, F2) y el diagnóstico ([diagnostico])
 # NUEVO (D84, solo regresión): st.warning cuando el R² de prueba es negativo (con los valores por defecto
 # Diabetes queda en R² ≈ −3 y el diagnóstico de Python dice "✅ Error de regresión aceptable").
-aviso_r2_negativo = "⚠️ El R² en prueba es {r2:.2f}: la red predice peor que la media del objetivo. El diagnóstico compara el error con el de las primeras épocas, no con un buen modelo. Prueba un learning rate mayor (0.01 o 0.1) o más épocas."
+aviso_r2_negativo = "⚠️ El R² en prueba es {r2:.2f}: la red predice peor que si respondiera siempre la media del objetivo. El diagnóstico de abajo solo compara el error con el de las primeras épocas, así que puede decir «aceptable» aunque el modelo sea malo. Prueba un learning rate mayor (0.01 o 0.1) o más épocas."
+# Debajo del aviso: el expander [entrenamiento] defecto_expander (valores-defecto.md)
 
 [diagnostico]
 titulo = "### 🔍 Diagnóstico del Entrenamiento"
@@ -268,27 +322,45 @@ recomendaciones_titulo = "### 💡 Recomendaciones"
 acciones_expander = "🔧 Acciones Sugeridas"                  # cerrado; cada acción como "• {accion}"
 # show_general_health: columna 1
 checklist = "**📋 Checklist de Salud:**"
-convergio = "✅ Modelo convergió con buen rendimiento"                 # success
-convergio_bajo = "⚠️ Pérdida convergió pero rendimiento bajo"          # warning
-no_convergio = "❌ Modelo no convergió suficientemente"                # error
+# CORREGIDO (rigor, D84). "loss_converged" solo exige que la pérdida media del último cuarto sea un 1 % menor
+# que la del primero: una pérdida que aún baja con fuerza "convergía" (🩺 Diabetes por defecto, que pierde unas
+# 180 unidades de MSE por época al final, salía "✅ Modelo convergió con buen rendimiento"). Python:
+# "✅ Modelo convergió con buen rendimiento", "⚠️ Pérdida convergió pero rendimiento bajo",
+# "❌ Modelo no convergió suficientemente". La lógica es la de Python (paridad).
+convergio = "✅ La pérdida ha bajado y el rendimiento es bueno"         # success
+convergio_bajo = "⚠️ La pérdida ha bajado, pero el rendimiento es bajo" # warning
+no_convergio = "❌ La pérdida apenas ha bajado (menos de un 1 %)"       # error
 sin_sobreajuste = "✅ Sin signos de sobreajuste"                       # success
 sobreajuste_perdida = "❌ Sobreajuste en pérdida (gap: {gap:.1f}%)"     # error; {gap} = overfitting_gap·100
 sobreajuste_accuracy = "❌ Sobreajuste en accuracy (train: {train:.3f}, val: {val:.3f})"   # error
 estable = "✅ Entrenamiento estable"                                   # success
 inestable = "⚠️ Entrenamiento inestable (CV: {cv:.1f}%)"              # warning; {cv} = stability·100 ("inf" con < 5 épocas)
+# NUEVO (D84, propuesta para C23): is_stable = loss_stable ∧ calidad ≠ poor, así que con la pérdida estable y
+# un rendimiento bajo Python decía "inestable" con un CV diminuto (nn/exact/csv_string_target_default: CV 0,3 %;
+# iris_relu_3layers_lr03: CV 0,2 %). Úsese en lugar de `inestable` cuando loss_stable sea true y la calidad poor
+# (la puntuación no cambia). Lo mismo con alerta_rendimiento_bajo y patron_rendimiento_bajo.
+estable_rendimiento_bajo = "⚠️ Pérdida estable (CV: {cv:.1f}%), pero el rendimiento es bajo"
 val_excelente = "🌟 Excelente accuracy de validación"
 val_bueno = "✅ Buen accuracy de validación"
 solo_train = "⚠️ Solo buen accuracy en entrenamiento"
 accuracy_bajo = "❌ Accuracy bajo (modelo no está aprendiendo bien)"
-regresion_aceptable = "✅ Error de regresión aceptable"
-regresion_alto = "❌ Error de regresión alto"
+# CORREGIDO (D84). good_mae = MAE de validación final < media del MAE de ENTRENAMIENTO de las 5 primeras épocas:
+# no dice si el error es aceptable (🩺 Diabetes por defecto, R² ≈ −3, y diabetes_softmax_output, que no aprende
+# nada, salían "aceptable"). Python: "✅ Error de regresión aceptable" / "❌ Error de regresión alto".
+regresion_aceptable = "✅ El error de validación es menor que al principio del entrenamiento"
+regresion_alto = "❌ El error de validación no mejora el del principio del entrenamiento"
+# NUEVO (propuesta para C23): debajo de sobreajuste_accuracy cuando la validación tiene menos de 100 filas.
+# {n} = filas de validación; {pp} = 100 / n (Iris: 24 filas, 4,2 puntos por muestra).
+nota_validacion_pequena = "ℹ️ La validación solo tiene {n} muestras: cada una mueve la exactitud {pp:.1f} puntos, y con dropout la exactitud de entrenamiento se mide con neuronas apagadas. Diferencias de 0,1–0,15 pueden ser azar."
 # columna 2
 puntuacion = "**🎯 Puntuación de Salud:**"
 salud_excelente = "🌟 Excelente: {pct:.0f}%"      # success; calidad excellent y >= 75
 salud_bueno = "👍 Bueno: {pct:.0f}%"               # info; calidad good y >= 60
 salud_moderado = "⚠️ Moderado: {pct:.0f}%"        # warning; calidad moderate
 salud_critico = "🚨 Crítico: {pct:.0f}%"           # error
-estado_excelente = "🌟 Modelo listo para producción"           # st.info
+# CORREGIDO (rigor). Python: "🌟 Modelo listo para producción". La calidad "excellent" solo mira la exactitud
+# de validación (> 0,85) en unas decenas de filas: no basta para usar el modelo en serio.
+estado_excelente = "🌟 Muy buen rendimiento en validación: confírmalo con los datos de prueba"           # st.info
 estado_bueno = "👍 Modelo con buen rendimiento"
 estado_moderado = "⚠️ Modelo necesita validación adicional"
 estado_critico = "🚨 Modelo no está funcionando correctamente"
@@ -310,9 +382,13 @@ ascendente = "Ascendente"
 inicio_calidad = ["🚀 Excelente", "✅ Bueno", "⚠️ Lento", "🚨 Problema"]         # < -0.1 | < -0.01 | < 0 | resto
 inicio_ayuda = ["Aprendizaje inicial muy efectivo", "Aprendizaje inicial satisfactorio", "Aprendizaje inicial lento - considera aumentar learning rate", "Pérdida aumentando - revisar learning rate y datos"]
 medio_calidad = ["📈 Progresando", "📊 Lento", "🎯 Plateau", "⚠️ Subiendo"]       # < -0.01 | < 0 | |t| < 0.001 | resto
-medio_ayuda = ["Aprendizaje continuo saludable", "Aprendizaje desacelerando - normal en fases medias", "Posible convergencia temprana", "Pérdida aumentando - posible sobreajuste"]
-final_calidad = ["🎯 Convergido", "📈 Mejorando", "📊 Lento", "🚨 Sobreajuste"]   # |t| < 0.001 | < -0.01 | < 0 | resto
-final_ayuda = ["Excelente - modelo estabilizado", "Aún aprendiendo - considera más épocas", "Mejora marginal - cerca de convergencia", "Pérdida aumentando - detener entrenamiento"]
+# CORREGIDO (rigor): las pendientes son de la pérdida de ENTRENAMIENTO, que el sobreajuste no hace subir (sube la de
+# validación). Python: medio_ayuda[3] "Pérdida aumentando - posible sobreajuste", final_calidad[3] "🚨 Sobreajuste",
+# final_ayuda[3] "Pérdida aumentando - detener entrenamiento", patron_sobreajuste "🚨 Patrón de sobreajuste detectado".
+# Ojo también: los umbrales son absolutos y suponen una pérdida del orden de 1 (diagnostico-contexto.md).
+medio_ayuda = ["Aprendizaje continuo saludable", "Aprendizaje desacelerando - normal en fases medias", "Posible convergencia temprana", "Pérdida de entrenamiento aumentando - revisa el learning rate"]
+final_calidad = ["🎯 Convergido", "📈 Mejorando", "📊 Lento", "🚨 Subiendo"]   # |t| < 0.001 | < -0.01 | < 0 | resto
+final_ayuda = ["Excelente - modelo estabilizado", "Aún aprendiendo - considera más épocas", "Mejora marginal - cerca de convergencia", "Pérdida de entrenamiento aumentando - learning rate alto o entrenamiento inestable"]
 comparativo_titulo = "### 🔄 Análisis Comparativo"
 velocidad = "**📊 Velocidad de Aprendizaje:**"
 fase_activa = "🏃‍♂️ **Fase más activa:** {fase}"     # info; {fase} = "Inicial" | "Media" | "Final" (max |pendiente|, primera si empatan)
@@ -324,7 +400,7 @@ consistencia = "**🎯 Consistencia:**"
 consistencia_alta = "🎯 Alta consistencia - Aprendizaje estable"   # success: std(pendientes) < 0.01
 consistencia_media = "📊 Consistencia moderada - Normal"           # info: < 0.1
 consistencia_baja = "⚠️ Baja consistencia - Aprendizaje irregular" # warning
-patron_sobreajuste = "🚨 Patrón de sobreajuste detectado"          # error: i < 0, m < 0, f >= 0
+patron_sobreajuste = "🚨 La pérdida de entrenamiento vuelve a subir al final"          # error: i < 0, m < 0, f >= 0 (CORREGIDO, ver arriba)
 mejora_sostenida = "✅ Mejora sostenida en todas las fases"        # success: las tres < 0
 corto = "📊 Historial muy corto para análisis detallado"          # info (< 10 épocas) + diagnostico-historial-corto.md
 patrones_titulo = "### 🔄 Patrones de Comportamiento Detectados"
@@ -344,21 +420,30 @@ sobreajuste_progresivo = "📊 **Sobreajuste progresivo:** Gap train/val del {ga
 sobreajuste_progresivo_rec = "🛑 Implementar regularización o early stopping"
 inestable_patron = "📈 **Entrenamiento inestable:** Variabilidad del {cv:.1f}%"
 inestable_patron_rec = "🔧 Reducir learning rate o aumentar batch size"
+# NUEVO (propuesta para C23, ver estable_rendimiento_bajo): en lugar de los dos anteriores si loss_stable y calidad poor
+patron_rendimiento_bajo = "🧱 **Estancado con rendimiento bajo:** la pérdida ya no cambia (variabilidad del {cv:.1f}%), pero la red acierta poco"
+patron_rendimiento_bajo_rec = "📈 Subir el learning rate o entrenar más épocas; si hay muchas neuronas muertas (📉), bajarlo"
 sin_patrones = "🎉 No se detectaron patrones problemáticos - ¡Entrenamiento saludable!"   # (inalcanzable: siempre hay un patrón de convergencia)
 contexto_expander = "🎓 Contexto Educativo: ¿Cómo interpretar estos números?"   # diagnostico-contexto.md (cerrado)
 # show_training_alerts: "🚨 **{mensaje}**\n💡 {accion}" (error), "⚠️ …" (warning), "ℹ️ …" (info)
 sin_alertas = "🎉 ¡No se detectaron problemas significativos!"
-alerta_no_convergio = "Modelo no convergió suficientemente"
+# CORREGIDO (rigor). Python: "Modelo no convergió suficientemente" (sale también cuando la pérdida sí baja pero
+# el rendimiento es bajo: converged = loss_converged ∧ calidad buena)
+alerta_no_convergio = "El modelo no ha aprendido lo suficiente"
 alerta_no_convergio_accion = "Aumentar número de épocas o ajustar learning rate"
 alerta_sobreajuste = "Sobreajuste detectado (gap: {gap:.1f}%)"
 alerta_sobreajuste_accion = "Reducir complejidad del modelo, añadir regularización o más datos"
 alerta_inestable = "Entrenamiento inestable (variabilidad: {cv:.1f}%)"
 alerta_inestable_accion = "Reducir learning rate o aumentar batch size"
+# NUEVO (propuesta para C23, ver estable_rendimiento_bajo): sustituye a la alerta anterior si loss_stable y calidad poor
+alerta_rendimiento_bajo = "Entrenamiento estancado (variabilidad: {cv:.1f}%) con rendimiento bajo"
+alerta_rendimiento_bajo_accion = "Subir el learning rate, entrenar más épocas o revisar la arquitectura"
 alerta_plateau = "Plateau detectado en las últimas épocas"                       # (inalcanzable)
 alerta_plateau_accion = "El modelo puede haber alcanzado su límite de aprendizaje"
 # generate_training_recommendations: el texto va precedido de "🌟 " / "✅ " / "⚠️ " / "🚨 " según el nivel
 rec_excelente = "¡Entrenamiento excelente! Modelo con alto rendimiento y buenas curvas."
-rec_excelente_acciones = ["✅ El modelo está listo para producción", "📊 Considera hacer validación cruzada para confirmar robustez", "🚀 Puedes proceder a hacer predicciones con confianza"]
+# CORREGIDO (rigor). Python: ["✅ El modelo está listo para producción", "📊 …", "🚀 Puedes proceder a hacer predicciones con confianza"]
+rec_excelente_acciones = ["✅ Confirma el resultado con los datos de prueba (arriba, en esta pestaña)", "📊 Considera hacer validación cruzada para confirmar robustez", "🚀 Prueba la red con muestras concretas en 🔮 Predicciones"]
 rec_bueno = "Entrenamiento bueno con rendimiento satisfactorio."
 rec_bueno_sobreajuste = ["🔧 Añadir más regularización (dropout, L1/L2)", "📈 Aumentar datos de entrenamiento si es posible"]
 rec_bueno_estabilidad = ["📉 Reducir learning rate para mayor estabilidad", "📦 Aumentar batch size"]
@@ -512,8 +597,15 @@ error_info = "Verifica que el modelo esté entrenado y que existan capas ocultas
 header = "🔮 Predicciones"
 # create_prediction_interface (C9, F2) con los datos SIN escalar de todo el dataset; la entrada (float32)
 # se escala con el StandardScaler de la app antes de la red.
-# Binaria: tarjeta "Clase: {nombre}" + "Probabilidad clase positiva: {p:.4f}" (umbral >= 0.5; en Evaluación es > 0.5: D87)
+# Binaria: tarjeta "Clase: {nombre}" + "Probabilidad clase positiva: {p:.4f}". Python usaba >= 0.5 aquí y > 0.5 en
+# Evaluación; D87: > 0.5 en todas partes (como BinaryAccuracy de Keras).
 probabilidad_positiva = "Probabilidad clase positiva: {p:.4f}"
+# NUEVO (D87): caption bajo la tarjeta binaria. {positiva} = nombre de la clase 1
+umbral_nota = "La red elige «{positiva}» si su salida es mayor que 0,5 (igual que en 📈 Evaluación)."
+# NUEVO: con salida tanh la salida no es una probabilidad (puede ser negativa). En lugar de probabilidad_positiva:
+salida_tanh_binaria = "Salida de la neurona (tanh, no es una probabilidad): {p:.4f}"
+# NUEVO: caption bajo la tabla multiclase si la salida es tanh (la columna se titula igual por paridad)
+nota_tanh_multiclase = "Con salida tanh los valores de la tabla son las salidas de cada neurona (entre −1 y 1): no son probabilidades ni suman 1."
 # Multiclase: tarjeta "Clase: {nombre}" + tabla Clase / Probabilidad ({:.4f})
 error_prediccion = "Error durante la predicción: {error}"
 # NUEVO (D81, subvista "🎲 Exploración"): texto en exploracion-*.md y [exploracion]
@@ -524,7 +616,13 @@ subvistas = [["🔮 Predicción individual", "Individual", "pred_single"], ["�
 [lotes]
 titulo = "📊 Predicción por Lotes"
 texto = "Sube un archivo CSV con nuevos datos para hacer predicciones en lote:"
-uploader = "Selecciona archivo CSV"                           # D81: diálogo nativo "📂 Elegir CSV…"
+uploader = "Selecciona archivo CSV"                           # D81: diálogo nativo, botón btn_elegir
+btn_elegir = "📂 Elegir CSV…"                                 # NUEVO (D81)
+# NUEVO (D81): caption debajo de `columnas`
+nota_unidades = "Escribe los valores sin escalar, en sus unidades originales (MLTutor los escala igual que al entrenar). Las columnas de texto deben venir ya codificadas como números, como en la tabla de 📊 Datos."
+# NUEVO (D81): help de las columnas Probabilidad (binaria) y Confianza (multiclase)
+probabilidad_help = "Salida de la neurona: la probabilidad de la clase positiva. La predicción es la positiva si es mayor que 0,5."
+confianza_help = "La probabilidad de la clase predicha (la mayor salida de la softmax). Alta no significa correcta: una red mal entrenada puede equivocarse con confianza."
 cargado = "✅ Archivo cargado: {filas} filas, {columnas} columnas"
 faltan = "❌ Faltan características: {columnas}"
 sobran = "⚠️ Características adicionales (serán ignoradas): {columnas}"
@@ -583,6 +681,8 @@ consejos_expander = "💡 Consejos para Interpretar los Resultados"     # explor
 # Python no tenía análisis para multiclase (solo la gráfica). NUEVO (D81): el mismo análisis con la
 # probabilidad de la clase base.
 multiclase_nota = "En multiclase se analiza la probabilidad de la clase de la muestra base ({clase})."
+# NUEVO (D81): caption bajo las métricas del análisis. Los umbrales (0,3 / 0,1; 20 % / 5 %) son de Python.
+nota_una_muestra = "El análisis describe esta muestra: con otros valores en las demás características el efecto puede ser muy distinto. Los extremos del eje pueden formar combinaciones que no existen en los datos."
 error = "Error en las predicciones: {error}"
 
 [exportar]
@@ -644,5 +744,6 @@ onnx_salidas_regresion = "Salida: `variable` (el valor predicho)."
 python_texto = "La red entrenada escrita en NumPy: lee modelo.json (va en el paquete Keras), escala la entrada y aplica cada capa. Útil para ver qué calcula la red; no necesita TensorFlow."
 codigo_entrenamiento = "**🐍 Script para entrenar la misma red con Keras:**"   # red_entrenamiento.py.j2 (D74)
 metadatos_fecha_nota = "La fecha es la del entrenamiento."
+ayuda_expander = "ℹ️ ¿Qué formato elijo?"                    # NUEVO: cerrado, debajo de los cuatro botones; exportar.md
 # Metadatos: el JSON de Python con dos correcciones (D75): data_info.num_classes = número de clases (Python
 # ponía output_size: 1 en binaria) y export_info.framework = "MLTutor (Rust) · compatible con Keras".

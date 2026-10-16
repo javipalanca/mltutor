@@ -13,6 +13,7 @@ import { loadScenarioCsv, setTarget } from "./csvFlow";
 import { REGRESSION_SCENARIOS } from "./lessons/regression/scenarios";
 import { KNN_SCENARIOS } from "./lessons/knn/scenarios";
 import { TREES_SCENARIOS } from "./lessons/trees/scenarios";
+import { NN_SCENARIOS } from "./lessons/redes/scenarios";
 import { router } from "./router.svelte";
 import { chooseDataset } from "./selection";
 import { session, type Analysis } from "./session.svelte";
@@ -87,6 +88,7 @@ const SCENARIOS: Readonly<Record<string, (arg: string | undefined) => Promise<vo
   ...REGRESSION_SCENARIOS,
   ...TREES_SCENARIOS,
   ...KNN_SCENARIOS,
+  ...NN_SCENARIOS,
 };
 
 async function loadCsv(path: string | undefined): Promise<void> {

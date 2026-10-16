@@ -5,8 +5,10 @@
 
 pub mod error;
 pub mod model;
+pub mod nn;
 pub mod types;
 
 pub use error::CommandError;
 pub use model::*;
+pub use nn::*;
 pub use types::*;

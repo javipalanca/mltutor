@@ -16,14 +16,15 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 
-use crate::core_facade::{check_cancelled, ModelHandle, TrainSpec};
+use crate::core_facade::{check_cancelled, ModelHandle, TrainEvent, TrainObserver, TrainSpec};
 use crate::data::{blocking, DataState};
 use crate::ipc::{
-    ClassDistancesView, CodeExtra, CodeTemplate, CoefficientsView, CommandError, DatasetRef,
-    DecisionGrid, Evaluation, ExportFormat, FeatureImportanceView, GridRequest, ImportanceMethod,
-    LessonId, ModelConfig, PlaygroundRequest, PlaygroundView, PredictRequest, PredictionForm,
+    ArchitectureRequest, ArchitectureView, ClassDistancesView, CodeExtra, CodeTemplate,
+    CoefficientsView, CommandError, DatasetRef, DecisionGrid, EpochLog, Evaluation, ExportFormat,
+    FeatureImportanceView, GridRequest, HistoryView, ImportanceMethod, LessonId, ModelConfig,
+    NnCodeRequest, NnEpochEvent, PlaygroundRequest, PlaygroundView, PredictRequest, PredictionForm,
     PredictionResult, ProbabilityView, ResidualsView, RocData, RulesRequest, TaskProgress,
-    TaskType, TrainNotice, TrainRequest, TrainedModelInfo, TreeDiagram,
+    TaskType, TrainNotice, TrainPhase, TrainRequest, TrainedModelInfo, TreeDiagram,
 };
 use crate::tasks::CancelToken;
 
@@ -89,7 +90,7 @@ pub const MAE_MAX_TRAIN: usize = 20_000;
 
 /// `[entrenamiento] mae_limite`: rejects `absolute_error` with more than
 /// [`MAE_MAX_TRAIN`] training rows (training and the 2D refit of the boundary).
-pub fn check_mae_limit(config: ModelConfig, n_train: usize) -> Result<(), CommandError> {
+pub fn check_mae_limit(config: &ModelConfig, n_train: usize) -> Result<(), CommandError> {
     let mae = matches!(
         config,
         ModelConfig::Tree {
@@ -183,7 +184,7 @@ impl TrainedModel {
             lesson: self.lesson,
             dataset: self.dataset,
             dataset_label: self.dataset_label.clone(),
-            config: self.config,
+            config: self.config.clone(),
             test_size: self.test_size,
             model_task: summary.model_task,
             dataset_task: summary.dataset_task,
@@ -197,12 +198,13 @@ impl TrainedModel {
                 .map(|c| c.into_iter().map(crate::ipc::to_u32).collect()),
             notices: with_mismatch(
                 summary.notices,
-                self.config,
+                &self.config,
                 summary.model_task,
                 summary.dataset_task,
             ),
             tree: summary.tree,
             knn: summary.knn,
+            nn: summary.nn,
         }
     }
 }
@@ -211,7 +213,7 @@ impl TrainedModel {
 /// model is trained anyway: Lineal on Iris, D25).
 fn with_mismatch(
     mut notices: Vec<TrainNotice>,
-    config: ModelConfig,
+    config: &ModelConfig,
     model_task: TaskType,
     dataset_task: TaskType,
 ) -> Vec<TrainNotice> {
@@ -348,6 +350,7 @@ impl ModelState {
     }
 
     /// Validates and trains `req` (blocking: call it from a worker).
+    #[cfg(test)]
     pub fn train(
         &self,
         data: &DataState,
@@ -355,11 +358,23 @@ impl ModelState {
         token: &CancelToken,
         progress: &(dyn Fn(&str, Option<f32>) + Sync),
     ) -> Result<TrainedModelInfo, CommandError> {
+        self.train_observed(data, req, token, progress, &|_| {})
+    }
+
+    /// [`Self::train`] reporting the phases and epochs of a neural network to `observer`.
+    pub fn train_observed(
+        &self,
+        data: &DataState,
+        req: &TrainRequest,
+        token: &CancelToken,
+        progress: &(dyn Fn(&str, Option<f32>) + Sync),
+        observer: &TrainObserver<'_>,
+    ) -> Result<TrainedModelInfo, CommandError> {
         validate_train(req)?;
         if !self.lock().begin(req.lesson, req.seq, token.clone()) {
             return Err(CommandError::cancelled());
         }
-        let result = self.train_registered(data, req, token, progress);
+        let result = self.train_registered(data, req, token, progress, observer);
         match result {
             Ok(info) => Ok(info),
             Err(error) => {
@@ -375,6 +390,7 @@ impl ModelState {
         req: &TrainRequest,
         cancel: &AtomicBool,
         progress: &(dyn Fn(&str, Option<f32>) + Sync),
+        observer: &TrainObserver<'_>,
     ) -> Result<TrainedModelInfo, CommandError> {
         let (dataset, label) = data.resolve(req.dataset)?;
         let dataset_task = dataset.summary().task;
@@ -392,19 +408,19 @@ impl ModelState {
         }
         check_cancelled(cancel)?;
         let spec = TrainSpec {
-            config: req.config,
+            config: req.config.clone(),
             test_size: req.test_size,
             dataset_label: label.clone(),
         };
         let started = std::time::Instant::now();
-        let model = dataset.train(&spec, progress, cancel)?;
+        let model = dataset.train_observed(&spec, progress, observer, cancel)?;
         check_cancelled(cancel)?;
         let stored = self.lock().finish(req.lesson, req.seq, |id| TrainedModel {
             id,
             lesson: req.lesson,
             dataset: req.dataset,
             dataset_label: label,
-            config: req.config,
+            config: req.config.clone(),
             test_size: req.test_size,
             model,
         });
@@ -434,16 +450,17 @@ fn validate_train(req: &TrainRequest) -> Result<(), CommandError> {
             "El tamaño del conjunto de prueba debe estar entre 0,1 y 0,5.",
         ));
     }
-    match req.config {
-        ModelConfig::Logistic { max_iter }
+    match &req.config {
+        &ModelConfig::Logistic { max_iter }
             if !(MIN_MAX_ITER..=MAX_MAX_ITER).contains(&max_iter) =>
         {
             return Err(CommandError::invalid_selection(
                 "El máximo de iteraciones debe estar entre 100 y 2000.",
             ));
         }
-        ModelConfig::Knn { n_neighbors, .. } => crate::knn::validate_k(n_neighbors)?,
-        ModelConfig::Tree {
+        &ModelConfig::Knn { n_neighbors, .. } => crate::knn::validate_k(n_neighbors)?,
+        ModelConfig::NeuralNet { arch, training } => crate::nn::validate(arch, training)?,
+        &ModelConfig::Tree {
             task,
             criterion,
             max_depth,
@@ -510,7 +527,7 @@ pub fn validate_values(values: &[f64], n_features: usize) -> Result<(), CommandE
 
 /// Default file name and save-dialog filter of each export (§5.4). Trees read them from
 /// `[exportar]` of `content/arboles/mensajes.toml`.
-fn export_target(config: ModelConfig, format: ExportFormat) -> (String, String, &'static str) {
+fn export_target(config: &ModelConfig, format: ExportFormat) -> (String, String, &'static str) {
     const ONNX: &str = "Modelo ONNX (*.onnx)";
     const ZIP: &str = "Paquete Python (*.zip)";
     let tree = |name: &str, default_name: &str, filter: &str, default_filter: &str| {
@@ -546,6 +563,20 @@ fn export_target(config: ModelConfig, format: ExportFormat) -> (String, String, 
         ),
         (ExportFormat::PythonPackage, ModelConfig::Tree { .. }) => (
             tree("archivo_paquete", "modelo_arbol.zip", "filtro_zip", ZIP),
+            "zip",
+        ),
+        (ExportFormat::Onnx, ModelConfig::NeuralNet { .. }) => (
+            (
+                crate::nn::nn_text("exportar_rust", "archivo_onnx", "red_neuronal.onnx"),
+                ONNX.into(),
+            ),
+            "onnx",
+        ),
+        (ExportFormat::PythonPackage, ModelConfig::NeuralNet { .. }) => (
+            (
+                crate::nn::nn_text("exportar_rust", "archivo_paquete", "modelo_red.zip"),
+                ZIP.into(),
+            ),
             "zip",
         ),
         (ExportFormat::PythonPackage, _) => (("modelo_regresion.zip".into(), ZIP.into()), "zip"),
@@ -637,13 +668,154 @@ pub async fn train_model(
             }
         };
         progress("Entrenando modelo...", Some(0.0));
-        let result = models.train(&data, &req, &guard.token(), &progress);
+        let epochs = match &req.config {
+            ModelConfig::NeuralNet { training, .. } => training.epochs,
+            _ => 0,
+        };
+        let live = LiveEpochs::new(&app, task_id, epochs);
+        let observer = |event: TrainEvent<'_>| live.observe(event, &progress);
+        let result = models.train_observed(&data, &req, &guard.token(), &progress, &observer);
+        live.flush(&progress);
         if result.is_ok() {
             progress("Modelo entrenado", Some(100.0));
         }
         result
     })
     .await
+}
+
+/// Emits `nn-epoch` (phases and grouped epochs, D82) and the "Época n/N · pérdida" of the
+/// status bar while a network trains.
+struct LiveEpochs<'a> {
+    app: &'a AppHandle,
+    task_id: u32,
+    epochs: u16,
+    batcher: crate::nn::EpochBatcher,
+    state: Mutex<(TrainPhase, u16, Option<f64>)>,
+}
+
+impl<'a> LiveEpochs<'a> {
+    fn new(app: &'a AppHandle, task_id: u32, epochs: u16) -> Self {
+        Self {
+            app,
+            task_id,
+            epochs,
+            batcher: crate::nn::EpochBatcher::default(),
+            state: Mutex::new((TrainPhase::Preparing, 0, None)),
+        }
+    }
+
+    fn state(&self) -> MutexGuard<'_, (TrainPhase, u16, Option<f64>)> {
+        self.state.lock().unwrap_or_else(|p| p.into_inner())
+    }
+
+    fn emit(&self, logs: Vec<EpochLog>) {
+        let (phase, epoch, loss) = *self.state();
+        let payload = NnEpochEvent {
+            task_id: self.task_id,
+            phase,
+            epoch,
+            epochs: self.epochs,
+            logs,
+            sent_at_ms: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0.0, |d| d.as_secs_f64() * 1000.0),
+        };
+        let _ = loss;
+        if let Err(error) = self.app.emit(crate::nn::EPOCH_EVENT, payload) {
+            log::debug!("no se pudo emitir la época: {error}");
+        }
+    }
+
+    fn status(&self, progress: &(dyn Fn(&str, Option<f32>) + Sync)) {
+        let (_, epoch, loss) = *self.state();
+        if epoch == 0 {
+            return;
+        }
+        let message = crate::nn::epoch_status(epoch, self.epochs, loss);
+        let percent = f32::from(epoch) / f32::from(self.epochs.max(1)) * 100.0;
+        progress(&message, Some(percent.min(99.0)));
+    }
+
+    fn observe(&self, event: TrainEvent<'_>, progress: &(dyn Fn(&str, Option<f32>) + Sync)) {
+        match event {
+            TrainEvent::Phase(phase) => {
+                self.state().0 = phase;
+                self.emit(Vec::new());
+                progress(&crate::nn::phase_status(phase, self.epochs), None);
+            }
+            TrainEvent::Epoch(log) => {
+                {
+                    let mut state = self.state();
+                    state.1 = log.epoch;
+                    state.2 = log.loss;
+                }
+                let last = log.epoch >= self.epochs;
+                if let Some(batch) = self
+                    .batcher
+                    .push(log.clone(), last, std::time::Instant::now())
+                {
+                    self.emit(batch);
+                    self.status(progress);
+                }
+            }
+        }
+    }
+
+    /// The epochs not sent yet (early stopping, cancellation or an error).
+    fn flush(&self, progress: &(dyn Fn(&str, Option<f32>) + Sync)) {
+        let rest = self.batcher.flush();
+        if !rest.is_empty() {
+            self.emit(rest);
+            self.status(progress);
+        }
+    }
+}
+
+/// 🏗️ Arquitectura of the selected dataset with the current controls (< 5 ms).
+#[tauri::command]
+pub async fn nn_architecture(
+    data: State<'_, DataState>,
+    req: ArchitectureRequest,
+) -> Result<ArchitectureView, CommandError> {
+    let data = data.inner().clone();
+    blocking(move || {
+        let summary = data.summary(req.dataset)?;
+        Ok(crate::nn::architecture_view(
+            req.dataset,
+            &summary,
+            &req.arch,
+            req.validation_pct,
+        ))
+    })
+    .await
+}
+
+/// C27: the history of the trained network (the live chart after a reload).
+#[tauri::command]
+pub async fn nn_history(
+    models: State<'_, ModelState>,
+    model_id: u32,
+) -> Result<HistoryView, CommandError> {
+    with_model("nn_history", &models, model_id, |m| m.model.nn_history()).await
+}
+
+/// D74: `red_entrenamiento.py.j2` with the controls of 🏗️ and ⚙️ (no model needed).
+#[tauri::command]
+pub async fn nn_training_code(
+    data: State<'_, DataState>,
+    req: NnCodeRequest,
+) -> Result<String, CommandError> {
+    let data = data.inner().clone();
+    blocking(move || nn_code(&data, &req)).await
+}
+
+pub fn nn_code(data: &DataState, req: &NnCodeRequest) -> Result<String, CommandError> {
+    crate::nn::validate(&req.arch, &req.training)?;
+    let (dataset, label) = data.resolve(req.dataset)?;
+    let summary = data.summary(req.dataset)?;
+    let base = dataset.script_base(&label);
+    crate::nn::NnTrainingContext::new(base, &summary, &req.arch, &req.training)?.render()
 }
 
 #[tauri::command]
@@ -910,7 +1082,7 @@ pub async fn export_model(
     blocking(move || {
         let model = models.model(model_id)?;
         let bytes = model.model.export(format)?;
-        let (name, filter, extension) = export_target(model.config, format);
+        let (name, filter, extension) = export_target(&model.config, format);
         drop(model);
         let Some(path) = ask_save_path(&app, &name, &filter, extension)? else {
             return Ok(None);
@@ -1354,19 +1526,19 @@ mod tests {
             Err(CommandError::InvalidConfig { .. })
         ));
         assert_eq!(
-            export_target(TREE, ExportFormat::TreeRules).0,
+            export_target(&TREE, ExportFormat::TreeRules).0,
             "decision_tree_rules.txt"
         );
         assert_eq!(
-            export_target(TREE, ExportFormat::Onnx).0,
+            export_target(&TREE, ExportFormat::Onnx).0,
             "arbol_decision.onnx"
         );
         assert_eq!(
-            export_target(TREE, ExportFormat::PythonPackage).0,
+            export_target(&TREE, ExportFormat::PythonPackage).0,
             "modelo_arbol.zip"
         );
         assert_eq!(
-            export_target(TREE, ExportFormat::TreePython).0,
+            export_target(&TREE, ExportFormat::TreePython).0,
             "arbol_decision.py"
         );
     }
@@ -1481,8 +1653,8 @@ mod tests {
             min_samples_split: 2,
         };
         let mae = tree(crate::ipc::TreeCriterion::AbsoluteError);
-        assert!(check_mae_limit(mae, MAE_MAX_TRAIN).is_ok());
-        let Err(CommandError::InvalidConfig { message }) = check_mae_limit(mae, 20_001) else {
+        assert!(check_mae_limit(&mae, MAE_MAX_TRAIN).is_ok());
+        let Err(CommandError::InvalidConfig { message }) = check_mae_limit(&mae, 20_001) else {
             panic!("absolute_error with 20 001 rows must be rejected");
         };
         assert!(message.contains("20001"), "{message}");
@@ -1493,7 +1665,7 @@ mod tests {
             tree(crate::ipc::TreeCriterion::FriedmanMse),
             ModelConfig::Linear,
         ] {
-            assert!(check_mae_limit(config, 1_000_000).is_ok());
+            assert!(check_mae_limit(&config, 1_000_000).is_ok());
         }
     }
 
@@ -1511,12 +1683,12 @@ mod tests {
     #[test]
     fn export_names_follow_the_contract() {
         assert_eq!(
-            export_target(ModelConfig::Linear, ExportFormat::Onnx).0,
+            export_target(&ModelConfig::Linear, ExportFormat::Onnx).0,
             "regresion_lineal.onnx"
         );
         assert_eq!(
             export_target(
-                ModelConfig::Logistic { max_iter: 100 },
+                &ModelConfig::Logistic { max_iter: 100 },
                 ExportFormat::PythonPackage
             ),
             (
@@ -1524,6 +1696,232 @@ mod tests {
                 "Paquete Python (*.zip)".to_owned(),
                 "zip"
             )
+        );
+    }
+
+    fn nn_config(output: crate::ipc::NnActivation, epochs: u16) -> ModelConfig {
+        ModelConfig::NeuralNet {
+            arch: crate::ipc::NnArchitecture {
+                hidden: vec![10, 10],
+                activation: crate::ipc::NnActivation::Relu,
+                output_activation: output,
+                dropout: 0.2,
+                batch_size: 64,
+                optimizer: crate::ipc::NnOptimizer::Adam,
+            },
+            training: crate::ipc::NnTraining {
+                learning_rate: 0.001,
+                epochs,
+                validation_pct: 20,
+                patience: Some(10),
+                lr_factor: Some(0.5),
+                seed: 42,
+            },
+        }
+    }
+
+    fn nn_request(dataset: DatasetRef, config: ModelConfig, seq: u64) -> TrainRequest {
+        TrainRequest {
+            lesson: LessonId::Nn,
+            test_size: 0.2,
+            ..request(dataset, config, seq)
+        }
+    }
+
+    /// F5b: phases and every epoch reach the observer, the summary has the real split
+    /// (D73), and a cancelled training keeps the previous network (D83).
+    #[test]
+    fn networks_report_epochs_and_cancelling_keeps_the_previous_model() {
+        use crate::core_facade::TrainEvent;
+        use crate::ipc::{NnActivation, TrainPhase};
+        let (data, models) = setup();
+        let events = Mutex::new(Vec::new());
+        let observer = |event: TrainEvent<'_>| {
+            events.lock().unwrap().push(match event {
+                TrainEvent::Phase(p) => format!("{p:?}"),
+                TrainEvent::Epoch(log) => format!("e{}", log.epoch),
+            });
+        };
+        let config = nn_config(NnActivation::Softmax, 20);
+        let first = models
+            .train_observed(
+                &data,
+                &nn_request(iris(), config.clone(), 1),
+                &CancelToken::default(),
+                &quiet,
+                &observer,
+            )
+            .unwrap();
+        let seen = events.lock().unwrap().clone();
+        assert_eq!(
+            &seen[..4],
+            ["Preparing", "Building", "Compiling", "Training"]
+        );
+        assert_eq!(seen.len(), 4 + 20);
+        assert_eq!(seen.last().map(String::as_str), Some("e20"));
+        let nn = first.nn.clone().unwrap();
+        assert_eq!((nn.n_fit, nn.n_val, nn.n_test), (96, 24, 30));
+        assert_eq!(nn.layers, vec![4, 10, 10, 3]);
+        assert_eq!(nn.loss, "categorical_crossentropy");
+        assert_eq!((first.n_train, first.n_test), (120, 30));
+        let history = models
+            .model(first.model_id)
+            .unwrap()
+            .model
+            .nn_history()
+            .unwrap();
+        assert_eq!(history.epochs.len(), 20);
+        assert!(history
+            .epochs
+            .iter()
+            .all(|e| e.loss.is_some() && e.val_metric.is_some()));
+
+        // Cancel after the third epoch of a second training.
+        let token = CancelToken::default();
+        let cancelling = |event: TrainEvent<'_>| {
+            if let TrainEvent::Epoch(log) = event {
+                if log.epoch == 3 {
+                    token.store(true, std::sync::atomic::Ordering::SeqCst);
+                }
+            }
+        };
+        let cancelled = models.train_observed(
+            &data,
+            &nn_request(iris(), config, 2),
+            &token,
+            &quiet,
+            &cancelling,
+        );
+        assert_eq!(cancelled, Err(CommandError::cancelled()));
+        assert_eq!(
+            models.lesson_model(LessonId::Nn).map(|m| m.model_id),
+            Some(first.model_id)
+        );
+        let _ = TrainPhase::Training;
+    }
+
+    /// D71: the four untrainable outputs fail before training, in Spanish, and keep the
+    /// previous model; the ranges of the controls are validated.
+    #[test]
+    fn untrainable_networks_are_rejected_before_training() {
+        use crate::ipc::NnActivation;
+        let (data, models) = setup();
+        let cancer = DatasetRef::Builtin {
+            id: DatasetId::BreastCancer,
+        };
+        let good = models
+            .train(
+                &data,
+                &nn_request(cancer, nn_config(NnActivation::Sigmoid, 10), 1),
+                &CancelToken::default(),
+                &quiet,
+            )
+            .unwrap();
+        assert_eq!(
+            good.nn.as_ref().map(|n| n.loss.as_str()),
+            Some("binary_crossentropy")
+        );
+        for (seq, (dataset, output)) in (5..).zip([
+            (iris(), NnActivation::Sigmoid),
+            (iris(), NnActivation::Linear),
+            (cancer, NnActivation::Softmax),
+            (cancer, NnActivation::Linear),
+        ]) {
+            let error = models
+                .train(
+                    &data,
+                    &nn_request(dataset, nn_config(output, 10), seq),
+                    &CancelToken::default(),
+                    &quiet,
+                )
+                .unwrap_err();
+            assert!(
+                matches!(error, CommandError::UntrainableOutput { .. }),
+                "{error:?}"
+            );
+            assert!(error.message().starts_with("🚫"));
+        }
+        // Regression with softmax trains (paridad: the output is always 1).
+        let diabetes = DatasetRef::Builtin {
+            id: DatasetId::Diabetes,
+        };
+        assert!(models
+            .train(
+                &data,
+                &nn_request(diabetes, nn_config(NnActivation::Softmax, 10), 9),
+                &CancelToken::default(),
+                &quiet
+            )
+            .is_ok());
+        let mut bad = nn_request(iris(), nn_config(NnActivation::Softmax, 5), 10);
+        assert!(matches!(
+            validate_train(&bad),
+            Err(CommandError::InvalidConfig { .. })
+        ));
+        bad.config = nn_config(NnActivation::Softmax, 10);
+        assert!(validate_train(&bad).is_ok());
+    }
+
+    /// The stratified split needs 2 samples per class (CSV `one_class_per_row`).
+    #[test]
+    fn a_class_with_one_sample_is_an_error_in_spanish() {
+        let summary = crate::ipc::DatasetSummary {
+            dataset: DatasetRef::default(),
+            label: "📄 one_class_per_row.csv".into(),
+            task: TaskType::Classification,
+            n_rows: 6,
+            n_features: 2,
+            target_column: "target".into(),
+            feature_columns: vec!["a".into(), "b".into()],
+            feature_display: vec!["a".into(), "b".into()],
+            label_columns: vec![],
+            class_names: Some(vec!["x".into(), "y".into(), "z".into()]),
+            description: String::new(),
+        };
+        let spec = TrainSpec {
+            config: nn_config(crate::ipc::NnActivation::Softmax, 10),
+            test_size: 0.2,
+            dataset_label: summary.label.clone(),
+        };
+        let counts = vec![
+            ("x".to_owned(), 4),
+            ("y".to_owned(), 1),
+            ("z".to_owned(), 1),
+        ];
+        let Err(CommandError::TooFewPerClass {
+            class_name,
+            message,
+        }) = crate::nn_model::prepare(&summary, &spec, Some(&counts))
+        else {
+            panic!("a class with one sample must fail");
+        };
+        assert_eq!(class_name, "y");
+        assert!(
+            message.contains("«y»") && !message.contains('{'),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn the_training_script_needs_no_model() {
+        let (data, _) = setup();
+        let ModelConfig::NeuralNet { arch, training } =
+            nn_config(crate::ipc::NnActivation::Softmax, 50)
+        else {
+            unreachable!()
+        };
+        let code = nn_code(
+            &data,
+            &crate::ipc::NnCodeRequest {
+                dataset: iris(),
+                arch,
+                training,
+            },
+        )
+        .unwrap();
+        assert!(
+            code.contains("load_iris") && code.contains("50 épocas"),
+            "{code}"
         );
     }
 }

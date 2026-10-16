@@ -29,6 +29,11 @@ import type { ProbabilityView } from "./bindings/ProbabilityView";
 import type { ResidualsView } from "./bindings/ResidualsView";
 import type { RocData } from "./bindings/RocData";
 import type { TaskProgress } from "./bindings/TaskProgress";
+import type { ArchitectureRequest } from "./bindings/ArchitectureRequest";
+import type { ArchitectureView } from "./bindings/ArchitectureView";
+import type { HistoryView } from "./bindings/HistoryView";
+import type { NnCodeRequest } from "./bindings/NnCodeRequest";
+import type { NnEpochEvent } from "./bindings/NnEpochEvent";
 import type { TrainedModelInfo } from "./bindings/TrainedModelInfo";
 import type { TrainRequest } from "./bindings/TrainRequest";
 import type { LessonId as RouteLesson } from "./content";
@@ -94,6 +99,8 @@ async function call<T>(command: string, args?: Record<string, unknown>): Promise
 /** A request that can be cancelled while it runs (status bar button or a newer request). */
 export interface Cancellable<T> {
   promise: Promise<T>;
+  /** Id of the task in the backend (events such as `nn-epoch` carry it). */
+  taskId?: number;
   /** Asks the backend to stop; the promise then rejects with a `cancelled` error. */
   cancel(): void;
 }
@@ -273,7 +280,7 @@ export function trainModel(req: Omit<TrainRequest, "task_id" | "seq">, seq: numb
   const promise = invoke<TrainedModelInfo>("train_model", { req: { ...req, seq, task_id: taskId } }).finally(() =>
     busy.end(taskId),
   );
-  return { promise, cancel: () => void cancelTask(taskId) };
+  return { promise, taskId, cancel: () => void cancelTask(taskId) };
 }
 
 export function lessonModel(lesson: BackendLessonId): Promise<TrainedModelInfo | null> {
@@ -362,6 +369,31 @@ export function knnPlayground(req: Omit<PlaygroundRequest, "task_id">): Cancella
   const taskId = nextTaskId;
   const promise = invoke<PlaygroundView>("knn_playground", { req: { ...req, task_id: taskId } });
   return { promise, cancel: () => void cancelTask(taskId) };
+}
+
+// --- Neural networks (fase5-redes.md §5.4) ---
+
+/** 🏗️ Arquitectura of the dataset with the current controls (cheap: called on every change). */
+export function nnArchitecture(req: ArchitectureRequest): Promise<ArchitectureView> {
+  return invoke<ArchitectureView>("nn_architecture", { req });
+}
+
+/** C27: the history of a trained network. */
+export function nnHistory(modelId: number): Promise<HistoryView> {
+  return call("nn_history", { modelId });
+}
+
+/** D74: the Keras script with the controls of 🏗️ and ⚙️ (no model needed). */
+export function nnTrainingCode(req: NnCodeRequest): Promise<string> {
+  return call("nn_training_code", { req });
+}
+
+/** Subscribes to `nn-epoch` (phases and epochs of a training); returns the unsubscribe function. */
+export async function onNnEpoch(handler: (event: NnEpochEvent) => void): Promise<() => void> {
+  if (!isTauri()) {
+    return () => undefined;
+  }
+  return listen<NnEpochEvent>("nn-epoch", (event) => handler(event.payload));
 }
 
 /** Subscribes to `task-progress`; returns the unsubscribe function. */

@@ -15,6 +15,8 @@
 //! | ONNX of a KNN (F4, D57) | [`onnx_model`] with a [`mltutor_core::knn::Knn`] → the training rows as an initializer, `Scan` + `TopK` per query row, scikit-learn's distance-0 rule (`Equal` + `Cast` + `Where`), votes or weighted mean; input `float_input` float32 cast to float64; outputs `label` + `probabilities` or `variable`; [`onnx_file_name`] = `knn.onnx`; by parts [`onnx::knn_classifier`]`(&Knn, class_labels: &[i64])`, [`onnx::knn_regressor`]`(&Knn)`; reference evaluation [`onnx::evaluate`] (dispatches to [`onnx::evaluate_knn`]) |
 //! | Python package of a KNN (F4, D57) | the same [`package::python_package`]: `modelo.json` with `params` (`get_params()`), `X_train`/`y_train` in fit order and a `check` of the first 5 test rows (neighbours, distances, predictions, probabilities), `reconstruir_modelo.py` (`paquete_modelo_knn.py.j2`, refits and writes `modelo_knn.pkl`) and `LEEME.txt` (`paquete_leeme_knn.txt.j2`); [`package::zip_name`] = `modelo_knn.zip` |
 //! | Tree rules (.txt) and code (.py) | core: [`mltutor_core::tree::export_text()`] (`decision_tree_rules.txt`) and [`mltutor_core::codegen::render`]`(CodeTemplate::TreePython, &tree_python_corrected_context(..))` (`arbol_decision.py`) |
+//! | ONNX of the 🧠 network (F5, D75) | [`onnx_model`] with a [`mltutor_nn::NeuralNetwork`] → [`onnx::mlp_model`]: `Sub`/`Div` (scaler) + `Gemm` + activation per layer; `label` (`ArgMax`, or `Greater`→`Cast`→`Squeeze` with one neuron) + `probabilities`, or `variable`; [`onnx_file_name`] = `red_neuronal.onnx` |
+//! | 📦 Paquete Keras (F5, D75) | [`package::keras::keras_package`]`(&KerasPackageInput { network, arch, dataset_label, feature_names, class_names, final_learning_rate, x_check /* first 5 test rows, original units */, n_train, n_test }) -> Result<KerasPackage { model_json, script, numpy_script, readme }, ExportError>`, then `to_zip()` ([`package::keras::KERAS_ZIP_NAME`] = `modelo_red.zip`); the NumPy predictor alone = `numpy_script` ([`package::keras::NUMPY_FILE_NAME`]); `modelo.json` alone: [`package::keras::keras_model_json`] |
 //! | Python package (.zip) | [`package::python_package`]`(&PackageInput) -> Result<PythonPackage, ExportError>`, then [`package::PythonPackage::to_zip`]`() -> Result<Vec<u8>, ExportError>`; [`package::ZIP_NAME`] = `modelo_regresion.zip`; [`package::model_json`] alone; [`package::python_zip`]`(&[(&str, &[u8])])` |
 
 pub mod onnx;
@@ -25,6 +27,7 @@ use mltutor_core::knn::Knn;
 use mltutor_core::linear::{LinearRegression, LogisticRegression};
 use mltutor_core::model::{ModelError, Predictor};
 use mltutor_core::tree::DecisionTree;
+use mltutor_nn::NeuralNetwork;
 use serde::Serialize;
 
 pub use package::{PackageInput, PythonPackage};
@@ -65,6 +68,9 @@ pub fn onnx_model(
     model: &dyn Predictor,
     class_values: Option<&[f64]>,
 ) -> Result<onnx::Model, ExportError> {
+    if let Some(net) = model.as_any().downcast_ref::<NeuralNetwork>() {
+        return onnx::mlp_model(net);
+    }
     if let Some(tree) = model.as_any().downcast_ref::<DecisionTree>() {
         return match tree.classes() {
             Some(codes) => {
@@ -125,7 +131,9 @@ pub fn onnx_class_labels(codes: &[usize], class_values: Option<&[f64]>) -> Vec<i
 
 /// File name suggested by the "Guardar" dialog.
 pub fn onnx_file_name(model: &dyn Predictor) -> &'static str {
-    if model.as_any().is::<DecisionTree>() {
+    if model.as_any().is::<NeuralNetwork>() {
+        package::keras::ONNX_FILE_NAME
+    } else if model.as_any().is::<DecisionTree>() {
         "arbol_decision.onnx"
     } else if model.as_any().is::<Knn>() {
         "knn.onnx"
