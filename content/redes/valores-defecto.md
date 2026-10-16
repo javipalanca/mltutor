@@ -7,7 +7,7 @@ En cada época, la red recorre las filas de entrenamiento en **lotes** (*batches
 vez por lote. En 🌸 Iris quedan 96 filas para ajustar los pesos (150 − 30 de prueba − 24 de validación); con
 lotes de 64, son **2 actualizaciones por época** y **100 en total** en 50 épocas. Adam mueve cada peso, en cada
 actualización, aproximadamente lo que marca el learning rate: 0,001. Después de 100 pasos, cada peso se ha
-movido como mucho una décima, cuando los pesos iniciales son del orden de ±0,6. La red casi no ha salido de su
+movido del orden de una décima, cuando los pesos iniciales son del orden de ±0,6. La red casi no ha salido de su
 punto de partida: la pérdida sigue bajando al final, y la exactitud en prueba se queda entre el 63 % y el 77 %
 según la semilla.
 

@@ -9,4 +9,8 @@ export type ArchitectureRequest = { dataset: DatasetRef, arch: NnArchitecture,
 /**
  * "% Datos de Validación" of ⚙️ (for the real distribution of D73).
  */
-validation_pct: number, };
+validation_pct: number, 
+/**
+ * "Épocas" of ⚙️: with it the view carries the cost estimate (K6).
+ */
+epochs?: number, };

@@ -74,9 +74,17 @@ scaler.n_samples_seen_ = datos["scaler"]["n_samples"]
 X = np.array(datos["check"]["X"], dtype=float)
 esperada = np.array(datos["check"]["output"], dtype=float)
 obtenida = modelo.predict(scaler.transform(X), verbose=0)
-error = float(np.max(np.abs(obtenida - esperada)))
-assert error < 1e-4, f"La red reconstruida no coincide con MLTutor (error máximo {error:.2e})"
-print(f"✅ La red reconstruida da las mismas salidas que MLTutor (error máximo {error:.1e})")
+# Keras calcula en float32 (unos 7 dígitos significativos): con salidas grandes (precios de cientos de
+# miles) la diferencia absoluta puede pasar de 0,01 aunque la red sea la misma. Por eso la tolerancia
+# es relativa al tamaño de la salida (y absoluta, 1e-4, para las salidas cercanas a 0).
+diferencia = np.abs(obtenida - esperada)
+error = float(np.max(diferencia))
+error_relativo = float(np.max(diferencia / np.maximum(1.0, np.abs(esperada))))
+if not np.allclose(obtenida, esperada, rtol=1e-5, atol=1e-4):
+    raise SystemExit(f"❌ La red reconstruida no coincide con MLTutor (error máximo {error:.2e}, "
+                     f"relativo {error_relativo:.2e}). Comprueba que modelo.json no se ha modificado.")
+print(f"✅ La red reconstruida da las mismas salidas que MLTutor (error máximo {error:.1e}, "
+      f"relativo {error_relativo:.1e})")
 
 # 6. Guardar en cada formato (si alguno falla en tu versión de TensorFlow, los demás siguen)
 def guardar(nombre, funcion):

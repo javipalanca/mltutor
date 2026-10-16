@@ -2,13 +2,16 @@
 //! and the trained network as a [`Predictor`].
 
 use mltutor_core::dataset::{Target, TaskType};
+use mltutor_core::grid::MeanGrid;
 use mltutor_core::model::{ModelError, Prediction, Predictor, TrainControl};
 use mltutor_core::nn_data::{
-    self, History, NnArchitecture, NnError, NnTraining, ResolvedTraining, Scaler, SplitSizes,
+    self, Activation, History, NnArchitecture, NnError, NnTraining, ResolvedTraining, Scaler,
+    SplitSizes,
 };
+use mltutor_core::nn_stats::{self, ActivationParams, ActivationsView, WeightsView};
 use mltutor_core::sampling::RandomState;
 use mltutor_core::split::TrainTestSplit;
-use ndarray::{Array2, ArrayView2, Axis};
+use ndarray::{s, Array2, ArrayView2};
 use serde::{Deserialize, Serialize};
 
 use crate::loss::argmax;
@@ -17,19 +20,149 @@ use crate::train::{evaluate, fit, glorot_init, FitControl, FitData, FitSpec};
 
 /// A trained network with its preprocessing: it takes rows in **original units**
 /// (the [`Scaler`] is applied inside) and returns dataset class codes or values.
+///
+/// Built with [`NeuralNetwork::new`] (or deserialised, which runs the same checks):
+/// the shapes of the network, the scaler and the classes agree, so prediction cannot
+/// panic. A network whose weights or scaler are not finite (a training that
+/// diverged, K1) is kept for the views, but [`NeuralNetwork::is_valid`] is `false`
+/// and every prediction returns [`ModelError::Numerical`].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(try_from = "NetworkRepr", into = "NetworkRepr")]
 pub struct NeuralNetwork {
-    pub mlp: Mlp,
-    pub scaler: Scaler,
-    pub task: TaskType,
-    /// Dataset codes of the classes the label encoder saw (sorted, `classes_`); the
-    /// i-th output neuron (or `[0, 1]` of a single sigmoid/tanh neuron) is
-    /// `classes[i]`. Empty in regression.
-    pub classes: Vec<usize>,
-    pub resolved: ResolvedTraining,
+    mlp: Mlp,
+    scaler: Scaler,
+    task: TaskType,
+    classes: Vec<usize>,
+    resolved: ResolvedTraining,
+    /// Every weight, bias, mean and scale is finite (computed in `new`).
+    valid: bool,
+}
+
+/// The serialised form of [`NeuralNetwork`] (without the derived `valid`).
+#[derive(Clone, Serialize, Deserialize)]
+struct NetworkRepr {
+    mlp: Mlp,
+    scaler: Scaler,
+    task: TaskType,
+    classes: Vec<usize>,
+    resolved: ResolvedTraining,
+}
+
+impl TryFrom<NetworkRepr> for NeuralNetwork {
+    type Error = ModelError;
+
+    fn try_from(r: NetworkRepr) -> Result<Self, ModelError> {
+        NeuralNetwork::new(r.mlp, r.scaler, r.task, r.classes, r.resolved)
+    }
+}
+
+impl From<NeuralNetwork> for NetworkRepr {
+    fn from(n: NeuralNetwork) -> Self {
+        NetworkRepr {
+            mlp: n.mlp,
+            scaler: n.scaler,
+            task: n.task,
+            classes: n.classes,
+            resolved: n.resolved,
+        }
+    }
+}
+
+/// Message of [`ModelError::Numerical`] for a network that is not valid.
+const DIVERGED: &str = "la red ha divergido y sus pesos contienen NaN o infinito; vuelve a entrenarla con un learning rate menor";
+
+/// Hidden activations of some rows (C26, K3).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Activations {
+    /// `min(sample_size, rows)`.
+    pub rows_used: usize,
+    /// One row-major `rows_used × units` matrix per hidden layer.
+    pub layers: Vec<Vec<f32>>,
 }
 
 impl NeuralNetwork {
+    /// A network with its scaler and classes. `classes` are the dataset codes of the
+    /// classes the label encoder saw (sorted): the i-th output neuron (or `[0, 1]` of
+    /// a single sigmoid/tanh neuron) is `classes[i]`; empty in regression.
+    ///
+    /// Errors: malformed `mlp`, a scaler of another width, or classes that do not
+    /// match the outputs.
+    pub fn new(
+        mlp: Mlp,
+        scaler: Scaler,
+        task: TaskType,
+        classes: Vec<usize>,
+        resolved: ResolvedTraining,
+    ) -> Result<Self, ModelError> {
+        mlp.validate()?;
+        let p = mlp.n_inputs();
+        if scaler.mean.len() != p || scaler.scale.len() != p {
+            return Err(ModelError::FeatureMismatch {
+                expected: p,
+                found: scaler.mean.len(),
+            });
+        }
+        let k = mlp.n_outputs();
+        let classes_ok = match task {
+            TaskType::Classification => {
+                let expected = if k == 1 { 2 } else { k };
+                classes.len() == expected && classes.windows(2).all(|w| w[0] < w[1])
+            }
+            TaskType::Regression => classes.is_empty(),
+        };
+        if !classes_ok {
+            return Err(ModelError::InvalidConfig {
+                reason: format!("{} clases para {k} neuronas de salida", classes.len()),
+            });
+        }
+        let valid = mlp.is_finite() && scaler.is_finite();
+        Ok(Self {
+            mlp,
+            scaler,
+            task,
+            classes,
+            resolved,
+            valid,
+        })
+    }
+
+    /// The network (weights for the views and the exports).
+    pub fn mlp(&self) -> &Mlp {
+        &self.mlp
+    }
+
+    /// The StandardScaler applied inside.
+    pub fn scaler(&self) -> &Scaler {
+        &self.scaler
+    }
+
+    /// Dataset codes of the output classes (see [`NeuralNetwork::new`]); empty in
+    /// regression. The same as [`Predictor::classes`], without the `Option`.
+    pub fn class_codes(&self) -> &[usize] {
+        &self.classes
+    }
+
+    /// Loss, metric and target encoding it was trained with.
+    pub fn resolved(&self) -> ResolvedTraining {
+        self.resolved
+    }
+
+    /// `false` when some weight, bias or scaler value is NaN or infinite (a diverged
+    /// training): predictions fail with [`ModelError::Numerical`].
+    pub fn is_valid(&self) -> bool {
+        self.valid
+    }
+
+    /// Whether [`Predictor::predict_proba`] really is a probability: softmax rows
+    /// sum to 1 and a sigmoid lies in (0, 1), but a **tanh** output (which the app
+    /// lets the student choose, with MSE) lies in (−1, 1), so `[1 − p, p]` can be
+    /// negative or above 1. Views that read probabilities (ROC/PR, confidence,
+    /// probability tables of F2) must be hidden or carry a warning when this is
+    /// `false` (fase5-redes.md D87).
+    pub fn output_is_probability(&self) -> bool {
+        matches!(self.mlp.output, Activation::Softmax | Activation::Sigmoid)
+    }
+
     /// Scales `x` (original units) to float32 rows.
     pub fn scale(&self, x: ArrayView2<'_, f64>) -> Vec<f32> {
         self.scaler.transform_f32(x)
@@ -39,7 +172,7 @@ impl NeuralNetwork {
     pub fn raw_output(&self, x: ArrayView2<'_, f64>) -> Result<Array2<f64>, ModelError> {
         self.check(x)?;
         let n = x.nrows();
-        let out = self.mlp.forward(&self.scale(x), n);
+        let out = self.mlp.forward(&self.scale(x), n)?;
         let k = self.mlp.n_outputs();
         Array2::from_shape_vec((n, k), out.into_iter().map(f64::from).collect()).map_err(|e| {
             ModelError::Numerical {
@@ -48,10 +181,60 @@ impl NeuralNetwork {
         })
     }
 
-    /// Hidden activations (C26) of rows already **scaled** (e.g. the first rows of
-    /// X_test, as the app does).
-    pub fn hidden_activations(&self, x_scaled: &[f32], n: usize) -> Vec<Vec<f32>> {
-        self.mlp.hidden_activations(x_scaled, n)
+    /// Hidden activations (C26, K3) of the **first** `min(sample_size, rows)` rows of
+    /// `x` (original units; the app passes X_test): scaled inside, after the
+    /// activation and before dropout.
+    pub fn hidden_activations(
+        &self,
+        x: ArrayView2<'_, f64>,
+        sample_size: usize,
+    ) -> Result<Activations, ModelError> {
+        let rows = sample_size.min(x.nrows());
+        let x = x.slice(s![..rows, ..]);
+        self.check(x)?;
+        let layers = self.mlp.hidden_activations(&self.scale(x), rows)?;
+        Ok(Activations {
+            rows_used: rows,
+            layers,
+        })
+    }
+
+    /// 📉 Análisis de Activaciones of the first `params.sample_size` rows of `x`
+    /// (original units): statistics, binned histograms and the neuron map (K2, K3).
+    pub fn activations_view(
+        &self,
+        x: ArrayView2<'_, f64>,
+        params: &ActivationParams,
+    ) -> Result<ActivationsView, ModelError> {
+        let acts = self.hidden_activations(x, params.sample_size)?;
+        Ok(nn_stats::activations_view(
+            &self.mlp.views(),
+            &acts.layers,
+            acts.rows_used,
+            params,
+        ))
+    }
+
+    /// 🧠 Análisis de Pesos: statistics and binned histograms (K2; the sliders' bins,
+    /// [`nn_stats::DEFAULT_WEIGHT_BINS`] and [`nn_stats::DEFAULT_BIAS_BINS`] by
+    /// default). Also for an invalid network (NaN values are left out of the bins).
+    pub fn weights_view(&self, weight_bins: usize, bias_bins: usize) -> WeightsView {
+        nn_stats::weights_view(&self.mlp.views(), weight_bins, bias_bins)
+    }
+
+    /// 🎯 Superficie (D78): the whole network on a grid of features `fx`/`fy`, the
+    /// rest at their mean over `x_ref` (X_test), in the scaled space of the network
+    /// ([`mltutor_core::grid::mean_grid`] with this network's scaler). Classification
+    /// and regression.
+    pub fn mean_grid(
+        &self,
+        x_ref: ArrayView2<'_, f64>,
+        y_ref: &Target,
+        fx: usize,
+        fy: usize,
+        control: &TrainControl<'_>,
+    ) -> Result<MeanGrid, ModelError> {
+        mltutor_core::grid::mean_grid(self, x_ref, y_ref, &self.scaler, fx, fy, control)
     }
 
     fn check(&self, x: ArrayView2<'_, f64>) -> Result<(), ModelError> {
@@ -59,6 +242,11 @@ impl NeuralNetwork {
             return Err(ModelError::FeatureMismatch {
                 expected: self.mlp.n_inputs(),
                 found: x.ncols(),
+            });
+        }
+        if !self.valid {
+            return Err(ModelError::Numerical {
+                message: DIVERGED.to_owned(),
             });
         }
         if x.iter().any(|v| !v.is_finite()) {
@@ -94,8 +282,8 @@ impl Predictor for NeuralNetwork {
     fn predict(&self, x: ArrayView2<'_, f64>) -> Result<Prediction, ModelError> {
         self.check(x)?;
         let n = x.nrows();
-        let k = self.mlp.n_outputs().max(1);
-        let out = self.mlp.forward(&self.scale(x), n);
+        let k = self.mlp.n_outputs();
+        let out = self.mlp.forward(&self.scale(x), n)?;
         Ok(match self.task {
             TaskType::Classification => Prediction::Classes(
                 out.chunks(k)
@@ -110,8 +298,9 @@ impl Predictor for NeuralNetwork {
     }
 
     /// The network output as "probabilities" (contract: `proba` = output): with one
-    /// neuron `[1 − p, p]`; with several, the outputs as they are (softmax rows sum
-    /// to 1; a tanh output does not).
+    /// neuron `[1 − p, p]`; with several, the outputs as they are. Softmax rows sum
+    /// to 1 and a sigmoid is in (0, 1), but a **tanh** output is in (−1, 1): it is
+    /// not a probability ([`NeuralNetwork::output_is_probability`]).
     fn predict_proba(&self, x: ArrayView2<'_, f64>) -> Option<Result<Array2<f64>, ModelError>> {
         if self.task != TaskType::Classification {
             return None;
@@ -167,10 +356,51 @@ pub struct TrainedNetwork {
 }
 
 impl TrainedNetwork {
-    /// The scaled test rows in float32 (what the views of the app use).
+    /// The scaled test rows of the dataset `x` in float32 (without copying them).
     pub fn x_test_scaled(&self, x: ArrayView2<'_, f64>) -> Vec<f32> {
-        self.network
-            .scale(x.select(Axis(0), &self.split.test).view())
+        self.network.scaler.transform_rows_f32(x, &self.split.test)
+    }
+
+    /// The test rows of the dataset `x` (original units, split order).
+    pub fn x_test(&self, x: ArrayView2<'_, f64>) -> Array2<f64> {
+        x.select(ndarray::Axis(0), &self.split.test)
+    }
+
+    /// 📉 Activaciones of the first `params.sample_size` test rows of the dataset `x`
+    /// (only those rows are copied).
+    pub fn test_activations(
+        &self,
+        x: ArrayView2<'_, f64>,
+        params: &ActivationParams,
+    ) -> Result<ActivationsView, ModelError> {
+        let rows = &self.split.test[..params.sample_size.min(self.split.test.len())];
+        if rows.iter().any(|&r| r >= x.nrows()) {
+            return Err(ModelError::InvalidSelection {
+                reason: "el dataset no es el del entrenamiento".to_owned(),
+            });
+        }
+        let first = x.select(ndarray::Axis(0), rows);
+        self.network.activations_view(first.view(), params)
+    }
+}
+
+/// Options of [`train_network`] that the app leaves at their defaults (K5).
+#[derive(Debug, Clone, PartialEq)]
+pub struct TrainOptions {
+    /// Shuffle the training rows every epoch (Keras `shuffle=True`; the app always
+    /// does). The level (a) parity tests turn it off.
+    pub shuffle: bool,
+    /// Initial weights instead of the Glorot ones (level (a) parity starts from
+    /// Keras' weights); they must have the architecture's shape.
+    pub init: Option<Mlp>,
+}
+
+impl Default for TrainOptions {
+    fn default() -> Self {
+        Self {
+            shuffle: true,
+            init: None,
+        }
     }
 }
 
@@ -212,19 +442,21 @@ fn encode(
 /// (stratified, 0.2, 42), label encoding / one-hot, Glorot initialisation and `fit`
 /// with the seed of `training` (D70), then `evaluate` on the test rows.
 ///
-/// `init` replaces the Glorot weights (level (a) parity tests start from Keras'
-/// weights). Errors: [`NnError::UntrainableOutput`] (D71),
-/// [`NnError::TooFewPerClass`], [`NnError::Cancelled`] (checked before every batch),
-/// shape and NaN errors.
+/// `options` ([`TrainOptions`], `Default` for the app) can replace the Glorot weights
+/// and turn shuffling off (parity tests). Errors: [`NnError::UntrainableOutput`]
+/// (D71), [`NnError::TooFewPerClass`], [`NnError::Cancelled`] (checked before every
+/// training and validation batch and in the final `evaluate`), shape and NaN errors.
+/// A diverged training is **not** an error (K1): see `history.diverged_epoch` and
+/// [`NeuralNetwork::is_valid`].
 pub fn train_network(
     x: ArrayView2<'_, f64>,
     y: &Target,
     arch: &NnArchitecture,
     training: &NnTraining,
-    shuffle: bool,
-    init: Option<Mlp>,
+    options: TrainOptions,
     control: &FitControl<'_>,
 ) -> Result<TrainedNetwork, NnError> {
+    let TrainOptions { shuffle, init } = options;
     let n = x.nrows();
     if n == 0 {
         return Err(ModelError::Empty.into());
@@ -272,11 +504,10 @@ pub fn train_network(
     };
     classes.sort_unstable();
     classes.dedup();
-    let x_train = x.select(Axis(0), &split.train);
-    let x_fit = scaler.transform_f32(x_train.view());
+    // Scaled by row index: no copy of the train/test rows in f64 (review F5a, 11).
+    let x_fit = scaler.transform_rows_f32(x, &split.train);
     let y_fit = encode(y, &split.train, task, resolved, k, &classes)?;
-    let x_test = x.select(Axis(0), &split.test);
-    let x_te = scaler.transform_f32(x_test.view());
+    let x_te = scaler.transform_rows_f32(x, &split.test);
     let y_te = encode(y, &split.test, task, resolved, k, &classes)?;
 
     let mut layers = vec![x.ncols()];
@@ -334,16 +565,14 @@ pub fn train_network(
         resolved.loss,
         resolved.metric,
         32,
-    );
+        control,
+    )?;
     let sizes = nn_data::split_sizes(n, training.validation_pct);
+    // In classification `classes` has the codes of y_train: 2 for one output
+    // neuron, k otherwise (the stratified split puts every class in train).
+    let network = NeuralNetwork::new(result.mlp, scaler, task, classes, resolved)?;
     Ok(TrainedNetwork {
-        network: NeuralNetwork {
-            mlp: result.mlp,
-            scaler,
-            task,
-            classes,
-            resolved,
-        },
+        network,
         history: result.history,
         split,
         sizes,

@@ -135,15 +135,15 @@ Pestañas: 📊 Datos · 🏗️ Arquitectura · ⚙️ Entrenamiento · 📈 Ev
       reducción automática del LR (factor). Progreso por pasos (1/4…4/4) y cancelación.
       Muestra la distribución train/val/test. Split estratificado con test 0,2 fijo y
       escalado (D72); semilla (D70); salidas no entrenables bloqueadas (D71).
-- [ ] Evaluación: métricas principales, informe de clasificación, matriz de confusión y
+- [x] Evaluación: métricas principales, informe de clasificación, matriz de confusión y
       diagnóstico del entrenamiento (estado general, tendencias por fase, patrones, alertas
       y recomendaciones; D84). 🐍 `model_evaluation.py::neural_network_diagnostics` y siguientes
-- [ ] Visualización:
-  - [ ] 📊 Historial: pérdida y métricas por época, train frente a validación.
-  - [ ] 🧠 Pesos: histogramas de pesos y sesgos (bins, escala log) y resumen por capa.
-  - [ ] 🎯 Superficie de decisión: 2 características, el resto fijas en su media, en
+- [x] Visualización:
+  - [x] 📊 Historial: pérdida y métricas por época, train frente a validación.
+  - [x] 🧠 Pesos: histogramas de pesos y sesgos (bins, escala log) y resumen por capa.
+  - [x] 🎯 Superficie de decisión: 2 características, el resto fijas en su media, en
         clasificación y en regresión.
-  - [ ] 📉 Activaciones: nº de muestras, umbral de neurona muerta, desviación típica
+  - [x] 📉 Activaciones: nº de muestras, umbral de neurona muerta, desviación típica
         constante, mapa de la red con opciones de dibujo (dispersión, % de conexiones,
         radio adaptativo, agrupación de capas, espaciado, subcolumnas), histogramas y
         medias por capa, y mapa de neuronas muertas 💀 y constantes 😴.

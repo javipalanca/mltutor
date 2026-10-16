@@ -137,6 +137,10 @@ fn run(mode: Mode, started: Instant) -> i32 {
             models::knn_playground,
             models::nn_architecture,
             models::nn_history,
+            models::nn_evaluation,
+            models::nn_diagnostics,
+            models::nn_weights,
+            models::nn_activations,
             models::nn_training_code,
         ])
         .setup(move |app| {

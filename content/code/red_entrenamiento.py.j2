@@ -176,6 +176,12 @@ if y.dtype == object:  # clases de texto -> 0, 1, 2... (en orden alfabético)
     y = pd.Series(LabelEncoder().fit_transform(y.astype(str)), name=objetivo)
 {%- endif %}
 {%- endif %}
+{%- if dataset == "csv" and task == "classification" %}
+# Keras necesita las clases numeradas 0, 1, 2... (to_categorical y la pérdida binaria fallan con 1, 2, 3).
+# LabelEncoder las numera como MLTutor: de menor a mayor (1, 2, 3 -> 0, 1, 2). `clases` traduce el
+# número que predice la red al nombre de la clase
+y = pd.Series(LabelEncoder().fit_transform(y), name=objetivo)
+{%- endif %}
 
 nombres = {{ feature_names | pyrepr }}  # nombres que muestra MLTutor
 {%- if task == "classification" %}

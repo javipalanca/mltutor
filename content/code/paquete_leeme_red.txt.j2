@@ -6,7 +6,8 @@
       architecture   list[int]; activation, output_activation str; dropout_rate float
       n_params       int        pesos + sesgos
       feature_names  list[str]  en el orden de la entrada de la red
-      classes        list[{value, name}]|null   índice de la neurona de salida (o 0/1 en binaria) y nombre
+      classes        list[{value, name}]|null   código de la clase en MLTutor (la salida `label` del ONNX y el
+                                                 índice de la neurona de salida, o 0/1 en binaria) y nombre
       n_train, n_test int
 -#}
 RED NEURONAL EXPORTADA DESDE MLTUTOR
@@ -53,8 +54,26 @@ Clases (salida de la red)
 -------------------------
 {% for clase in classes %}  {{ clase.value }} = {{ clase.name }}
 {% endfor %}
+{%- if classes | length == 2 %}
+La red tiene una sola neurona de salida, p: predice la clase 1 si p > 0,5.
+{%- else %}
+La red tiene una neurona por clase: predice la de la salida más alta.
 {%- endif %}
+{% endif %}
 Las columnas de texto del dataset original se convirtieron en números por orden
 alfabético (LabelEncoder). Codifica igual los datos nuevos.
+
+Si exportas también el ONNX (botón "💾 ONNX" de MLTutor)
+-------------------------------------------------------
+- Recibe los datos SIN escalar (el escalador va dentro) en la entrada "float_input".
+{%- if classes %}
+- "label" es el código de la clase de la lista de arriba.
+- "probabilities" tiene una columna por clase{% if classes | length == 2 %}: [1 - p, p]{% endif %}.
+{%- else %}
+- "variable" es la predicción.
+{%- endif %}
+- Calcula en float32 (unos 7 dígitos), también el escalado. Las columnas con valores
+  grandes y muy desplazados del 0 (años, timestamps) pierden precisión al restar la
+  media, así que sus salidas pueden diferir algo de las de MLTutor, que usa float64.
 
 Atención: abrir un archivo .pkl puede ejecutar código. Carga solo los que hayas generado tú.

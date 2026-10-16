@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-nn-weights"
+description = "Enables the nn_weights command without any pre-configured scope."
+commands.allow = ["nn_weights"]
+
+[[permission]]
+identifier = "deny-nn-weights"
+description = "Denies the nn_weights command without any pre-configured scope."
+commands.deny = ["nn_weights"]

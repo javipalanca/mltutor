@@ -13,13 +13,14 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use crate::ipc::{
-    ClassDistancesView, CodeTemplate, CoefficientsView, CommandError, CorrelationMatrix,
-    CsvPreview, CsvTargetStats, DatasetEntry, DatasetId, DatasetSummary, DecisionGrid,
-    DescribeTable, DiagKind, EpochLog, Evaluation, ExportFormat, FeatureImportanceView,
-    HistoryView, ImportanceMethod, KnnSummary, ModelConfig, NnSummary, PairplotData,
-    PlaygroundRequest, PlaygroundView, PredictionForm, PredictionResult, ProbabilityView,
-    ResidualsView, RocData, RulesKind, TablePreview, TargetDistribution, TargetInfo, TaskChoice,
-    TaskType, TrainNotice, TrainPhase, TreeDiagram, TreeSummary,
+    ActivationsRequest, ActivationsView, ClassDistancesView, CodeTemplate, CoefficientsView,
+    CommandError, CorrelationMatrix, CsvPreview, CsvTargetStats, DatasetEntry, DatasetId,
+    DatasetSummary, DecisionGrid, DescribeTable, DiagKind, DiagnosticsView, EpochLog, Evaluation,
+    ExportFormat, FeatureImportanceView, HistoryView, ImportanceMethod, KnnSummary, ModelConfig,
+    NnEvaluationView, NnSummary, PairplotData, PlaygroundRequest, PlaygroundView, PredictionForm,
+    PredictionResult, ProbabilityView, ResidualsView, RocData, RulesKind, TablePreview,
+    TargetDistribution, TargetInfo, TaskChoice, TaskType, TrainNotice, TrainPhase, TreeDiagram,
+    TreeSummary, WeightsView,
 };
 
 /// Maximum number of pairplot features (slider limit of §2.6).
@@ -194,6 +195,31 @@ pub trait ModelView: Send + Sync {
     }
     /// C27: the logs of every epoch, the restored epoch and the reductions of the LR.
     fn nn_history(&self) -> Result<HistoryView, CommandError> {
+        Err(CommandError::not_nn())
+    }
+    /// 📈 of a network: test loss and metric, C1/C2, D84 and the divergence (K1).
+    fn nn_evaluation(&self) -> Result<NnEvaluationView, CommandError> {
+        Err(CommandError::not_nn())
+    }
+    /// C23: the diagnostics tree of the history.
+    fn nn_diagnostics(&self) -> Result<DiagnosticsView, CommandError> {
+        Err(CommandError::not_nn())
+    }
+    /// C25: statistics and histograms (already binned) of every dense layer.
+    fn nn_weights(
+        &self,
+        _bins_weights: usize,
+        _bins_biases: usize,
+    ) -> Result<WeightsView, CommandError> {
+        Err(CommandError::not_nn())
+    }
+    /// C26: activations of the first test rows, dead and constant neurons and the map.
+    /// Ranges already validated; checks `cancel` between layers.
+    fn nn_activations(
+        &self,
+        _req: &ActivationsRequest,
+        _cancel: &AtomicBool,
+    ) -> Result<ActivationsView, CommandError> {
         Err(CommandError::not_nn())
     }
 }

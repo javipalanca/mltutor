@@ -2,7 +2,7 @@
   "meta": {
     "format_version": 1,
     "generator": "tools/export_golden.py",
-    "generated": "2026-10-15",
+    "generated": "2026-10-16",
     "versions": {
       "python": "3.11.14",
       "numpy": "1.26.4",
@@ -1527,13 +1527,13 @@
           "op": "Tanh",
           "name": "act_2",
           "inputs": ["z2"],
-          "outputs": ["probabilities"],
+          "outputs": ["positive_probability"],
           "attributes": {}
         },
         {
           "op": "Greater",
           "name": "greater",
-          "inputs": ["probabilities", "threshold"],
+          "inputs": ["positive_probability", "threshold"],
           "outputs": ["is_positive"],
           "attributes": {}
         },
@@ -1550,15 +1550,40 @@
           "op": "Squeeze",
           "name": "squeeze",
           "inputs": ["label_2d", "squeeze_axes"],
-          "outputs": ["label"],
+          "outputs": ["label_index"],
           "attributes": {}
+        },
+        {
+          "op": "Gather",
+          "name": "gather_label",
+          "inputs": ["class_labels", "label_index"],
+          "outputs": ["label"],
+          "attributes": {
+            "axis": 0
+          }
+        },
+        {
+          "op": "Sub",
+          "name": "proba_negative",
+          "inputs": ["one", "positive_probability"],
+          "outputs": ["negative_probability"],
+          "attributes": {}
+        },
+        {
+          "op": "Concat",
+          "name": "proba_concat",
+          "inputs": ["negative_probability", "positive_probability"],
+          "outputs": ["probabilities"],
+          "attributes": {
+            "axis": 1
+          }
         }
       ],
       "inputs": ["float_input"],
       "outputs": ["label", "probabilities"],
       "ir_version": 8,
       "opset": 15,
-      "bytes": 6624,
+      "bytes": 6936,
       "rows_checked": 114,
       "max_abs_error_vs_keras": 2.2351741790771484e-07,
       "evaluator": "onnx.reference.ReferenceEvaluator (onnx 1.17.0)",

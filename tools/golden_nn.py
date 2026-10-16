@@ -1359,14 +1359,19 @@ def register(cases: dict, eg) -> None:
 ONNX_ACT = {"relu": "Relu", "tanh": "Tanh", "sigmoid": "Sigmoid", "softmax": "Softmax", "linear": "Identity"}
 
 
-def onnx_proposal_model(ws, hidden: str, output: str, mean, scale, task: str):
+def onnx_proposal_model(ws, hidden: str, output: str, mean, scale, task: str, classes=None):
     """float_input (raw features) -> (x − mean)/scale -> Gemm + activation per layer.
 
-    Classification: ``probabilities`` (the network output) and ``label`` (ArgMax, or output > 0.5
-    with one neuron). Regression: ``variable``. ir_version 8, opset 15 (MEMORY.md)."""
+    Classification: ``label`` = the dataset code of the class (``Gather(class_labels)`` over the
+    ArgMax, or over output > 0.5 with one neuron) and ``probabilities``: the network output, or
+    with one neuron ``Concat(1 − p, p)`` [N, 2] like the KNN and tree ONNX (review F5a,
+    2026-10-16). ``classes`` = the codes of the output classes (``np.arange`` by default).
+    Regression: ``variable``. ir_version 8, opset 15 (MEMORY.md)."""
     from onnx import TensorProto, helper, numpy_helper
 
     f = ws[0].shape[0]
+    k = ws[-1].shape[0]
+    binary = task == "Clasificación" and k == 1
     inits = [numpy_helper.from_array(np.asarray(mean, np.float32), "scaler_mean"),
              numpy_helper.from_array(np.asarray(scale, np.float32), "scaler_scale")]
     nodes = [helper.make_node("Sub", ["float_input", "scaler_mean"], ["centred"], name="scaler_sub"),
@@ -1378,23 +1383,40 @@ def onnx_proposal_model(ws, hidden: str, output: str, mean, scale, task: str):
         inits += [numpy_helper.from_array(W, f"W{i}"), numpy_helper.from_array(b, f"B{i}")]
         nodes.append(helper.make_node("Gemm", [prev, f"W{i}", f"B{i}"], [f"z{i}"], name=f"gemm_{i}"))
         act = output if i == n_layers - 1 else hidden
-        out_name = (("probabilities" if task == "Clasificación" else "variable")
-                    if i == n_layers - 1 else f"a{i}")
+        if i < n_layers - 1:
+            out_name = f"a{i}"
+        elif task != "Clasificación":
+            out_name = "variable"
+        else:
+            out_name = "positive_probability" if binary else "probabilities"
         kw = {"axis": 1} if act == "softmax" else {}
         nodes.append(helper.make_node(ONNX_ACT[act], [f"z{i}"], [out_name], name=f"act_{i}", **kw))
         prev = out_name
-    k = ws[-1].shape[0]
-    outputs = [helper.make_tensor_value_info(prev, TensorProto.FLOAT, [None, k])]
     if task == "Clasificación":
-        if k > 1:
-            nodes.append(helper.make_node("ArgMax", [prev], ["label"], name="argmax", axis=1, keepdims=0))
+        n_classes = 2 if binary else k
+        codes = np.arange(n_classes) if classes is None else np.asarray(classes)
+        inits.append(numpy_helper.from_array(codes.astype(np.int64), "class_labels"))
+        if not binary:
+            nodes.append(helper.make_node("ArgMax", [prev], ["label_index"], name="argmax", axis=1,
+                                          keepdims=0))
         else:
             inits.append(numpy_helper.from_array(np.array(0.5, np.float32), "threshold"))
             inits.append(numpy_helper.from_array(np.array([1], np.int64), "squeeze_axes"))
+            inits.append(numpy_helper.from_array(np.array(1.0, np.float32), "one"))
             nodes += [helper.make_node("Greater", [prev, "threshold"], ["is_positive"], name="greater"),
                       helper.make_node("Cast", ["is_positive"], ["label_2d"], name="cast", to=TensorProto.INT64),
-                      helper.make_node("Squeeze", ["label_2d", "squeeze_axes"], ["label"], name="squeeze")]
-        outputs.insert(0, helper.make_tensor_value_info("label", TensorProto.INT64, [None]))
+                      helper.make_node("Squeeze", ["label_2d", "squeeze_axes"], ["label_index"],
+                                       name="squeeze")]
+        nodes.append(helper.make_node("Gather", ["class_labels", "label_index"], ["label"],
+                                      name="gather_label", axis=0))
+        if binary:
+            nodes += [helper.make_node("Sub", ["one", prev], ["negative_probability"], name="proba_negative"),
+                      helper.make_node("Concat", ["negative_probability", prev], ["probabilities"],
+                                       name="proba_concat", axis=1)]
+        outputs = [helper.make_tensor_value_info("label", TensorProto.INT64, [None]),
+                   helper.make_tensor_value_info("probabilities", TensorProto.FLOAT, [None, n_classes])]
+    else:
+        outputs = [helper.make_tensor_value_info(prev, TensorProto.FLOAT, [None, k])]
     graph = helper.make_graph(nodes, "mltutor_mlp",
                               [helper.make_tensor_value_info("float_input", TensorProto.FLOAT, [None, f])],
                               outputs, inits)
@@ -1414,8 +1436,14 @@ def onnx_proposal(model, scaler, task: str, X_raw: np.ndarray, cfg: dict) -> dic
     x32 = np.asarray(X_raw, np.float32)
     got = ReferenceEvaluator(m).run(None, {"float_input": x32})
     want = model.predict(scaler.transform(x32), verbose=0)
-    out_idx = 1 if task == "Clasificación" else 0
-    err = float(np.max(np.abs(got[out_idx] - want)))
+    if task == "Clasificación":
+        proba = got[1]
+        if want.shape[1] == 1:  # [1 − p, p]
+            err = float(max(np.max(np.abs(proba[:, 1:] - want)), np.max(np.abs(proba[:, :1] - (1 - want)))))
+        else:
+            err = float(np.max(np.abs(proba - want)))
+    else:
+        err = float(np.max(np.abs(got[0] - want)))
     res = {"nodes": [{"op": n.op_type, "name": n.name, "inputs": list(n.input), "outputs": list(n.output),
                       "attributes": {a.name: onnx.helper.get_attribute_value(a) for a in n.attribute}}
                      for n in m.graph.node],
@@ -1496,7 +1524,32 @@ def export_package(eg, model, scaler, cfg, st, X_check, n_samples, run: bool) ->
 # ---------------------------------------------------------------------------
 TRAINING_TEMPLATE = "red_entrenamiento.py.j2"
 TRAINING_CASES = ["iris_default", "breast_cancer_default", "diabetes_adam_lr01", "moons_default",
-                  "csv_string_target_default", "csv_numeric_regression_default"]
+                  "csv_string_target_default", "csv_numeric_regression_default",
+                  "csv_iris_classes_1_2_3", "csv_cancer_classes_1_2"]
+# CSV cases with integer classes that do not start at 0 (F5c, 2026-10-16): the built-in dataset with
+# `target + 1` in a column "clase". The data, split and network are the built-in case's, so its nn/stat
+# band applies. The app names the classes "Clase 1", "Clase 2"…; the script recodes them with LabelEncoder.
+TRAINING_CSV_CASES = {
+    "csv_iris_classes_1_2_3": ("iris_default", "iris_clases_1_2_3.csv"),
+    "csv_cancer_classes_1_2": ("breast_cancer_default", "cancer_clases_1_2.csv"),
+}
+
+
+def _training_fixture(eg, name: str) -> dict:
+    """The nn/stat fixture of a training case, or the one built for TRAINING_CSV_CASES (input with the
+    CSV bytes in ``csv_bytes``, which is not written)."""
+    if name not in TRAINING_CSV_CASES:
+        return json.loads((eg.PARITY_DIR / MODULE / "stat" / f"{name}.json").read_text("utf-8"))
+    base, file_name = TRAINING_CSV_CASES[name]
+    fixture = json.loads((eg.PARITY_DIR / MODULE / "stat" / f"{base}.json").read_text("utf-8"))
+    X, y = _load(eg, fixture["input"]["app_label"])[:2]
+    df = X.reset_index(drop=True).copy()
+    df["clase"] = np.asarray(y).astype(int) + 1
+    inp = {k: v for k, v in fixture["input"].items() if k not in ("dataset", "seeds")}
+    inp.update(csv_fixture=f"generated/{file_name}", target="clase", task="auto",
+               app_label=f"📄 {file_name}",
+               csv_bytes=df.to_csv(index=False, lineterminator="\n").encode("utf-8"))
+    return {"input": inp, "expected": {"acceptance": fixture["expected"]["acceptance"]}}
 _TRAINING_PROBE = """\
 import json, runpy, sys
 import numpy as np
@@ -1540,7 +1593,7 @@ def training_context(eg, fixture: dict) -> tuple[dict, dict[str, bytes]]:
     task = "classification" if cfg["task_type"] == "Clasificación" else "regression"
     if "csv_fixture" in inp:
         name = Path(inp["csv_fixture"]).stem
-        files[f"{name}.csv"] = eg._csv_cases()[name]
+        files[f"{name}.csv"] = inp["csv_bytes"] if "csv_bytes" in inp else eg._csv_cases()[name]
         ctx.update(dataset="csv", csv_file=f"{name}.csv", csv_target=inp["target"], csv_sep=",",
                    csv_decimal=".", csv_encoding="utf-8")
     else:
@@ -1574,7 +1627,7 @@ def case_code_nn_training(eg, writer) -> None:
     _training_shared_blocks(eg)
     out = {}
     for name in TRAINING_CASES:
-        fixture = json.loads((eg.PARITY_DIR / MODULE / "stat" / f"{name}.json").read_text("utf-8"))
+        fixture = _training_fixture(eg, name)
         ctx, files = training_context(eg, fixture)
         with tempfile.TemporaryDirectory() as tmp:
             # CSV datasets: the app reads the stored copy; names/classes come from that load.
@@ -1621,6 +1674,10 @@ def case_code_nn_training(eg, writer) -> None:
         strat = y if ctx["task"] == "classification" else None
         _a, X_test, _b, y_test = train_test_split(Xs, y.reset_index(drop=True), test_size=0.2,
                                                   random_state=42, stratify=strat)
+        if ctx["task"] == "classification":  # the app's LabelEncoder (identity for 0..k-1)
+            from sklearn.preprocessing import LabelEncoder
+
+            y_test = LabelEncoder().fit(y).transform(np.asarray(y_test))
         acc = fixture["expected"]["acceptance"]
         metric = "accuracy" if ctx["task"] == "classification" else "r2"
         lo, hi = acc[metric]["lo"], acc[metric]["hi"]
@@ -1634,7 +1691,8 @@ def case_code_nn_training(eg, writer) -> None:
                   f"{metric}_in_band_2x": bool(lo - margin / 2 <= got[metric] <= hi + margin / 2)}
         if not (checks["x_test_equal_app"] and checks["y_test_equal_app"] and checks["params_equal_app"]):
             raise RuntimeError(f"{name}: the script does not reproduce the app: {checks}")
-        out[name] = {"context": ctx, "script": script, "got": {k: v for k, v in got.items() if k not in ("y_test", "x_test")},
+        out[name] = {"input": {k: v for k, v in fixture["input"].items() if k != "csv_bytes"},
+                     "context": ctx, "script": script, "got": {k: v for k, v in got.items() if k not in ("y_test", "x_test")},
                      "checks": checks, "band": acc[metric]}
     doc = {"meta": _meta(eg, {"script_text": "exact", "x_test_y_test_params": "exact",
                               "metrics": "inside the nn/stat acceptance band (other RNG)"},

@@ -306,7 +306,12 @@ fn corrected(mut expected: Value, task: TaskType, d: &Value, n_val: Option<usize
         ),
         (
             "✅ Modelo convergió con buen rendimiento".into(),
-            t("convergio"),
+            // Approved deviation (2026-10-16): regression has its own texts for "good".
+            t(if task == TaskType::Regression {
+                "convergio_regresion"
+            } else {
+                "convergio"
+            }),
         ),
         (
             "⚠️ Pérdida convergió pero rendimiento bajo".into(),
@@ -353,6 +358,21 @@ fn corrected(mut expected: Value, task: TaskType, d: &Value, n_val: Option<usize
     if task == TaskType::Regression {
         let old = "⚠️ CRÍTICO: El modelo tiene muy bajo rendimiento (accuracy ≤ 70%). Las curvas pueden verse bien pero el modelo no está aprendiendo correctamente.";
         subs.push((old.into(), t("rec_critico_regresion")));
+        let prefix = t("salud_bueno_regresion");
+        let prefix = prefix.split("{pct").next().unwrap().to_owned();
+        subs.push(("👍 Bueno: ".into(), prefix));
+        subs.push((
+            "👍 Modelo con buen rendimiento".into(),
+            t("estado_bueno_regresion"),
+        ));
+        subs.push((
+            "Entrenamiento bueno con rendimiento satisfactorio.".into(),
+            t("rec_bueno_regresion"),
+        ));
+        subs.push((
+            "• 👍 Continuar con este enfoque".into(),
+            format!("• {}", li("rec_bueno_otro_regresion", 0)),
+        ));
     }
     // Flat loss with a poor model (approved F5a deviation).
     if d["loss_stable"] == true && d["overall_quality"] == "poor" {

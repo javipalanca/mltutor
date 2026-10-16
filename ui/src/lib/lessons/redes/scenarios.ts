@@ -16,6 +16,7 @@ import { datasetKey, session } from "../../session.svelte";
 import { expandAll } from "../regression/scenarios";
 import { architecture } from "./architecture.svelte";
 import { LESSON, nn } from "./state.svelte";
+import { nnViz } from "./visualization.svelte";
 import { training } from "./training.svelte";
 
 export interface NnScenario {
@@ -40,6 +41,14 @@ export interface NnScenario {
   code?: boolean;
   open?: string[];
   expandAll?: boolean;
+  /** 🎯 subview (`Historial`, `Pesos`, `Superficie`, `Activaciones`). */
+  viz?: string;
+  /** Features of the surface. */
+  pair?: [number, number];
+  /** Tick every "Mostrar histograma/medias" of 📉 (the `_expandido` captures). */
+  layerCharts?: boolean;
+  /** Waits for this element after training (a view of 📈/🎯 is ready). */
+  ready?: string;
 }
 
 /** Waits for the view of 🏗️ of the selected dataset with the current controls. */
@@ -69,6 +78,7 @@ export async function nnScenario(options: NnScenario): Promise<void> {
   const dataset = { kind: "builtin", id: options.dataset ?? "iris" } as const;
   await chooseDataset(dataset);
   nn.reset();
+  nnViz.reset();
   const key = datasetKey(dataset);
   if (options.layers !== undefined) {
     nn.layers = options.layers;
@@ -96,10 +106,18 @@ export async function nnScenario(options: NnScenario): Promise<void> {
   for (const id of options.open ?? []) {
     session.setExpander(id, true);
   }
+  const state = models.lesson(LESSON);
+  state.viz = options.viz ?? null;
+  if (options.pair) {
+    state.pair = options.pair;
+  }
+  if (options.layerCharts) {
+    nnViz.layerHist = { 0: true, 1: true, 2: true, 3: true, 4: true };
+    nnViz.layerMeans = { 0: true, 1: true, 2: true, 3: true, 4: true };
+  }
   session.activeTab[LESSON] = options.tab;
   router.go(LESSON);
   await nextPaint();
-  const state = models.lesson(LESSON);
   if (options.train && architecture.view) {
     void logToBackend("debug", `escenario: entrenando la red en ${dataset.id}`);
     const run = training.train(dataset, architecture.view);
@@ -115,6 +133,13 @@ export async function nnScenario(options: NnScenario): Promise<void> {
     if (state.trainError && options.tab !== 2) {
       throw new Error(state.trainError);
     }
+    if (options.pair) {
+      // Training a new model resets the pair if the features changed (`#setModel`).
+      state.pair = options.pair;
+    }
+  }
+  if (options.ready) {
+    await waitFor(options.ready, 60000, "la vista de la red");
   }
   if (options.code) {
     const button = await waitFor("[data-nn-code-button]", 30000, "el botón del código");
@@ -139,6 +164,24 @@ async function inheritedOutput(): Promise<void> {
   await waitForIdle(() => busy.active, 60000);
 }
 const IRIS = { dataset: "iris" } as const;
+const DIAG = "[data-nn-diagnostics]";
+const CARDS = "[data-nn-history-cards] [data-view-row]";
+const WEIGHTS = '[data-weights-layer="output_layer"] [data-plot-rendered="true"]';
+const GRID = '[data-grid-view] [data-plot-rendered="true"]';
+const MAP = "[data-network-map]";
+/** K1: Diabetes (targets ≈ 150) with tanh hidden layers and SGD at LR 0.3 explodes. */
+const DIVERGES: NnScenario = {
+  dataset: "diabetes",
+  tab: 3,
+  train: true,
+  activation: "tanh",
+  optimizer: "sgd",
+  learningRate: 0.3,
+  dropout: 0,
+  epochs: 30,
+  earlyStopping: false,
+  reduceLr: false,
+};
 const ADVANCED = ["nn-avanzada"];
 
 /** Names = Qt captures without the number (`02_arquitectura_iris` → `redes_arquitectura_iris`). */
@@ -165,4 +208,25 @@ export const NN_SCENARIOS: Readonly<Record<string, () => Promise<void>>> = {
   redes_entrenado_diabetes: S({ dataset: "diabetes", tab: 2, train: true }),
   redes_error_salida_sigmoid_iris: S({ ...IRIS, tab: 2, output: "sigmoid" }),
   redes_evaluacion_sin_entrenar: S({ ...IRIS, tab: 3 }),
+  // F5c: 📈 Evaluación and 🎯 Visualización (Qt captures 14–22, 32–33, 37–39b, 41).
+  redes_evaluacion_iris: S({ ...IRIS, tab: 3, train: true, ready: DIAG }),
+  redes_evaluacion_iris_expandido: S({ ...IRIS, tab: 3, train: true, ready: DIAG, expandAll: true }),
+  redes_historial_iris: S({ ...IRIS, tab: 4, train: true, viz: "Historial", ready: CARDS }),
+  redes_pesos_iris: S({ ...IRIS, tab: 4, train: true, viz: "Pesos", ready: WEIGHTS }),
+  redes_pesos_iris_expandido: S({ ...IRIS, tab: 4, train: true, viz: "Pesos", ready: WEIGHTS, expandAll: true }),
+  redes_superficie_iris: S({ ...IRIS, tab: 4, train: true, viz: "Superficie", ready: GRID }),
+  redes_superficie_petalos_iris: S({ ...IRIS, tab: 4, train: true, viz: "Superficie", pair: [2, 3], ready: GRID }),
+  redes_activaciones_iris: S({ ...IRIS, tab: 4, train: true, viz: "Activaciones", ready: MAP }),
+  redes_activaciones_iris_expandido: S({ ...IRIS, tab: 4, train: true, viz: "Activaciones", ready: MAP, expandAll: true, layerCharts: true }),
+  redes_evaluacion_cancer: S({ dataset: "breast_cancer", tab: 3, train: true, ready: DIAG }),
+  redes_superficie_cancer: S({ dataset: "breast_cancer", tab: 4, train: true, viz: "Superficie", ready: GRID }),
+  redes_evaluacion_diabetes: S({ dataset: "diabetes", tab: 3, train: true, ready: DIAG }),
+  redes_historial_diabetes: S({ dataset: "diabetes", tab: 4, train: true, viz: "Historial", ready: CARDS }),
+  redes_superficie_diabetes: S({ dataset: "diabetes", tab: 4, train: true, viz: "Superficie", ready: GRID }),
+  redes_activaciones_diabetes: S({ dataset: "diabetes", tab: 4, train: true, viz: "Activaciones", ready: MAP }),
+  redes_superficie_moons: S({ dataset: "moons", tab: 4, train: true, viz: "Superficie", ready: GRID }),
+  // NEW: K1 (Diabetes with tanh and SGD at LR 0.3 diverges in epoch 7) and the biggest network.
+  redes_evaluacion_divergencia: S({ ...DIVERGES, tab: 3, ready: "[data-nn-diverged]" }),
+  redes_activaciones_5x256: S({ dataset: "digits", tab: 4, train: true, layers: 5, neurons: [256, 256, 256, 256, 256], epochs: 10, viz: "Activaciones", ready: MAP }),
+  redes_pesos_5x256: S({ dataset: "digits", tab: 4, train: true, layers: 5, neurons: [256, 256, 256, 256, 256], epochs: 10, viz: "Pesos", ready: WEIGHTS }),
 };

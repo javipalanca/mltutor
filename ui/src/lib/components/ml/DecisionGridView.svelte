@@ -28,9 +28,18 @@
     mode: "boundary" | "surface";
     idPrefix: string;
     onstale: () => void;
+    /**
+     * 🧠 (D78): the network is not refitted on two features; this caption replaces the
+     * warning about the 2D model and the boundary code is not offered.
+     */
+    note?: string | null;
+    /** 🧠: "✅ Superficie generada exitosamente" under the chart, as Python. */
+    success?: string | null;
+    /** 🧠: surface and points with their own colour scales (titles of the two bars). */
+    ownScales?: { surface: string; points: string } | null;
   }
 
-  let { modelId, features, pair, onpair, mode, idPrefix, onstale }: Props = $props();
+  let { modelId, features, pair, onpair, mode, idPrefix, onstale, note = null, success = null, ownScales = null }: Props = $props();
 
   const t = compText;
   const grid = new ViewLoader<DecisionGrid>();
@@ -50,7 +59,7 @@
   // While another pair loads, the previous chart stays (dimmed) instead of a spinner.
   const data = $derived(grid.for(key) ?? (grid.loading ? grid.data : null));
   const figure = $derived(
-    data ? (mode === "boundary" ? boundaryFigure(data, theme.chart, hasWebGL()) : surfaceFigure(data, theme.chart, hasWebGL())) : null,
+    data ? (mode === "boundary" ? boundaryFigure(data, theme.chart, hasWebGL()) : surfaceFigure(data, theme.chart, hasWebGL(), ownScales)) : null,
   );
 
   function noticeText(notice: GridNotice): string {
@@ -93,10 +102,15 @@
         label={mode === "boundary" ? "Frontera de decisión" : "Superficie de predicción"}
       />
     </div>
-    {#if data.show_2d_warning}
+    {#if success && !grid.loading}
+      <Notice severity="success" markdown={success} />
+    {/if}
+    {#if note}
+      <p class="note" data-grid-note>{note}</p>
+    {:else if data.show_2d_warning}
       <Notice severity="warning" markdown={t("frontera", "aviso_2d")} />
     {/if}
-    {#if mode === "boundary"}
+    {#if mode === "boundary" && !note}
       <ModelCode
         {modelId}
         template="decision_boundary"
@@ -121,5 +135,12 @@
 
   .chart.updating {
     opacity: 0.55;
+  }
+
+  .note {
+    max-width: 960px;
+    margin: 4px auto 10px;
+    color: var(--color-text-muted);
+    font-size: 13px;
   }
 </style>

@@ -93,6 +93,29 @@ pub struct ArchitectureRequest {
     pub arch: NnArchitecture,
     /// "% Datos de Validación" of ⚙️ (for the real distribution of D73).
     pub validation_pct: u8,
+    /// "Épocas" of ⚙️: with it the view carries the cost estimate (K6).
+    #[serde(default)]
+    #[ts(optional)]
+    pub epochs: Option<u16>,
+}
+
+/// K6: how long the training may take (`mltutor_core::nn_data::training_cost`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum CostLevel {
+    Low,
+    High,
+    VeryHigh,
+}
+
+/// K6: the estimate under "🧠 Entrenar Red Neuronal".
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, TS)]
+#[ts(export)]
+pub struct TrainingCost {
+    pub level: CostLevel,
+    /// Seconds on the reference machine (indicative).
+    pub estimated_seconds: f64,
 }
 
 /// "⚖️ Complejidad": ratio parameters/rows < 0.1, < 1 or more.
@@ -210,6 +233,8 @@ pub struct ArchitectureView {
     pub suggested_epochs: u16,
     /// D73 with the `validation_pct` of the request.
     pub split: SplitSizes,
+    /// K6, when the request carries the epochs.
+    pub cost: Option<TrainingCost>,
 }
 
 /// Steps 1–4 of the training progress (D82).
@@ -289,7 +314,7 @@ pub struct NnSummary {
     pub duration_ms: u32,
 }
 
-/// The history of a trained network (`nn_history`; 📈 and 📊 Historial reuse it in F5c).
+/// The history of a trained network (`nn_history`; ⚙️, 📈 and 📊 Historial).
 #[derive(Debug, Clone, PartialEq, Serialize, TS)]
 #[ts(export)]
 pub struct HistoryView {
@@ -298,6 +323,243 @@ pub struct HistoryView {
     pub best_epoch: Option<u16>,
     /// Epochs (1-based) after which ReduceLROnPlateau lowered the learning rate.
     pub lr_drops: Vec<u16>,
+    /// K1: first epoch (1-based) whose loss is NaN or infinite (the weights are useless).
+    pub diverged_epoch: Option<u16>,
+    /// The 4 cards of 📊 Historial (`st.metric` row); `None` if the history is empty or
+    /// the training diverged.
+    pub cards: Option<NnViewNode>,
+}
+
+/// Severity of a notice of a view tree.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum NnSeverity {
+    Success,
+    Info,
+    Warning,
+    Error,
+}
+
+/// A view built in the core with its texts already resolved (C23, the history cards):
+/// the shape `tools/golden_render.py` records from the Python lessons. The UI renders it
+/// as it comes.
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+#[ts(export)]
+pub enum NnViewNode {
+    Page {
+        children: Vec<NnViewNode>,
+    },
+    /// Markdown (`html` = `unsafe_allow_html`; the UI never renders raw HTML).
+    Text {
+        text: String,
+        html: bool,
+    },
+    Heading {
+        text: String,
+        level: u8,
+    },
+    Notice {
+        text: String,
+        severity: NnSeverity,
+    },
+    Metric {
+        label: String,
+        value: String,
+        delta: Option<String>,
+        /// `"normal"` / `"inverse"` when Python passes `delta_color`.
+        delta_color: Option<String>,
+        help: Option<String>,
+    },
+    /// `st.columns(weights)`; the children are `column`s.
+    Row {
+        weights: Vec<u32>,
+        children: Vec<NnViewNode>,
+    },
+    Column {
+        children: Vec<NnViewNode>,
+    },
+    Expander {
+        label: String,
+        expanded: bool,
+        children: Vec<NnViewNode>,
+    },
+}
+
+/// K1: the training diverged (NaN or infinite loss): the views that need the weights
+/// are blocked and show this instead.
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[ts(export)]
+pub struct Divergence {
+    /// 1-based.
+    pub epoch: u16,
+}
+
+/// 📈 Evaluación of a network (`nn_evaluation`): "📊 Resultados del Entrenamiento" (loss
+/// and metric of `model.evaluate` on the test set) plus C1/C2.
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[ts(export)]
+pub struct NnEvaluationView {
+    pub metric: NnMetric,
+    /// `None` = NaN or infinite.
+    pub test_loss: Option<f64>,
+    pub test_metric: Option<f64>,
+    /// C1/C2 on the test set; `None` when the training diverged.
+    pub evaluation: Option<super::model::Evaluation>,
+    /// D84: `[evaluacion] aviso_r2_negativo` already formatted (regression, R² < 0).
+    pub r2_negative: Option<String>,
+    pub diverged: Option<Divergence>,
+    /// D87: `false` with a tanh output, whose "probabilities" are neuron outputs in
+    /// [−1, 1] (the class is still `> 0.5` or the argmax).
+    pub output_is_probability: bool,
+    pub output_activation: NnActivation,
+}
+
+/// C23: "🔍 Diagnóstico del Entrenamiento" (`nn_diagnostics`).
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[ts(export)]
+pub struct DiagnosticsView {
+    /// The children of the page, in order (empty if the training diverged).
+    pub blocks: Vec<NnViewNode>,
+    pub diverged: Option<Divergence>,
+}
+
+/// `nn_weights`: the bins of the two histograms of each layer (⚙️ Opciones).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, TS)]
+#[ts(export)]
+pub struct WeightsRequest {
+    pub model_id: u32,
+    /// "Bins pesos", 10..=120.
+    pub bins_weights: u16,
+    /// "Bins sesgos", 5..=60.
+    pub bins_biases: u16,
+}
+
+/// One dense layer of 🧠 Análisis de Pesos (C25).
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[ts(export)]
+pub struct LayerWeightsView {
+    /// D77: "Oculta 1" … "Salida".
+    pub name: String,
+    /// Keras name (`dense_1`, `output_layer`).
+    pub keras_name: String,
+    pub inputs: u32,
+    pub units: u32,
+    pub mean_w: f64,
+    pub std_w: f64,
+    /// `% |w|<1e-3` rounded to 1 decimal (the table).
+    pub near_zero_pct: f64,
+    /// Unrounded (the caption).
+    pub near_zero_pct_raw: f64,
+    pub mean_b: f64,
+    pub std_b: f64,
+    pub n_params: u32,
+    pub min_w: f64,
+    pub max_w: f64,
+    pub min_b: f64,
+    pub max_b: f64,
+    /// K2: the histograms are binned in Rust (the raw weights never cross the IPC).
+    pub weights_hist: super::model::Histogram,
+    pub biases_hist: super::model::Histogram,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum WeightsVerdict {
+    TooSmall,
+    TooLarge,
+    Healthy,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum WeightsInsight {
+    ManyNearZero,
+    LowVariance,
+    HighVariance,
+    Balanced,
+}
+
+/// 🧠 Análisis de Pesos (`nn_weights`).
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[ts(export)]
+pub struct WeightsView {
+    pub layers: Vec<LayerWeightsView>,
+    pub global_mean: f64,
+    pub global_std: f64,
+    pub global_near_zero_pct: f64,
+    pub verdict: WeightsVerdict,
+    pub insights: Vec<WeightsInsight>,
+}
+
+/// `nn_activations`: ⚙️ Parámetros de Análisis.
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize, TS)]
+#[ts(export)]
+pub struct ActivationsRequest {
+    pub model_id: u32,
+    pub task_id: u32,
+    /// "Muestras", 10..=200: the first rows of the test set.
+    pub sample_size: u16,
+    /// "Umbral muerta (<=)", 0..=1.
+    pub dead_threshold: f64,
+    /// "Std constante <", 1e-6..=1.
+    pub constant_std: f64,
+}
+
+/// One hidden layer of 📉 Activaciones (C26).
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[ts(export)]
+pub struct LayerActivationsView {
+    /// D77: "Oculta i".
+    pub name: String,
+    /// `dense_i`.
+    pub keras_name: String,
+    pub units: u32,
+    pub dead: Vec<u32>,
+    pub constant: Vec<u32>,
+    pub saturation_pct: f64,
+    pub mean_act: f64,
+    pub std_act: f64,
+    /// Per neuron ("Mostrar medias por neurona").
+    pub neuron_means: Vec<f64>,
+    /// 50 bins of every activation of the layer ("Mostrar histograma").
+    pub hist: super::model::Histogram,
+}
+
+/// Tooltips of the neurons of one dense layer of the map (structure of arrays: with
+/// 5 × 256 neurons the answer stays small). f32 is the precision of the network.
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[ts(export)]
+pub struct MapLayer {
+    pub bias: Vec<f32>,
+    pub mean_w: Vec<f32>,
+    pub std_w: Vec<f32>,
+    pub max_abs_w: Vec<f32>,
+}
+
+/// "🗺️ Mapa de Neuronas Muertas (💀) y Constantes (😴)"; the state of each hidden
+/// neuron comes from `LayerActivationsView.dead/constant`.
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[ts(export)]
+pub struct NetworkMapView {
+    /// `[input, hidden…, output]`.
+    pub layers: Vec<u32>,
+    /// One per dense layer (hidden… and output).
+    pub neurons: Vec<MapLayer>,
+}
+
+/// 📉 Análisis de Activaciones (`nn_activations`).
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[ts(export)]
+pub struct ActivationsView {
+    /// K3: rows really used (`min(sample_size, n_test)`).
+    pub rows_used: u32,
+    pub layers: Vec<LayerActivationsView>,
+    pub dead_pct: f64,
+    pub map: NetworkMapView,
 }
 
 /// `nn_training_code`: the Keras script of D74 with the current controls (no model needed).

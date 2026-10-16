@@ -473,6 +473,7 @@ impl ModelView for TreeFixtureModel {
                 .map(<[String]>::to_vec)
                 .filter(|_| self.classifier()),
             show_2d_warning: frame.feature_columns.len() > 2,
+            fixed: None,
         })
     }
 

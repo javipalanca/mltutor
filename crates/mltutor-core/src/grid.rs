@@ -301,17 +301,17 @@ pub const MEAN_GRID_MAX_AXIS: usize = 200;
 /// more than [`MEAN_GRID_MAX_AXIS`] points becomes `linspace(lo, hi, 200)` (Python
 /// predicted 55 596 cells on Iris and millions on California). Axes, fixed values
 /// and points are returned in **original units**; `point_*` are `x_ref`/`y_ref`.
-#[allow(clippy::too_many_arguments)]
+/// `scaler` is the network's ([`crate::nn_data::Scaler`]).
 pub fn mean_grid(
     model: &dyn Predictor,
     x_ref: ArrayView2<'_, f64>,
     y_ref: &Target,
-    scaler_mean: &[f64],
-    scaler_scale: &[f64],
+    scaler: &crate::nn_data::Scaler,
     fx: usize,
     fy: usize,
     control: &TrainControl<'_>,
 ) -> Result<MeanGrid, ModelError> {
+    let (scaler_mean, scaler_scale) = (&scaler.mean, &scaler.scale);
     let p = x_ref.ncols();
     if p < 2 {
         return Err(ModelError::InvalidSelection {
@@ -495,32 +495,18 @@ mod tests {
         let ctl = TrainControl::none();
         let model = crate::linear::fit(crate::linear::ModelConfig::Linear, x.view(), &y, &ctl)
             .unwrap_or_else(|e| panic!("{e}"));
-        let g = mean_grid(
-            model.as_ref(),
-            x.view(),
-            &y,
-            &[1.5, 1.0],
-            &[1.0, 0.7],
-            0,
-            1,
-            &ctl,
-        )
-        .unwrap_or_else(|e| panic!("{e}"));
+        let scaler = crate::nn_data::Scaler {
+            mean: vec![1.5, 1.0],
+            scale: vec![1.0, 0.7],
+            n_samples: 4,
+        };
+        let g = mean_grid(model.as_ref(), x.view(), &y, &scaler, 0, 1, &ctl)
+            .unwrap_or_else(|e| panic!("{e}"));
         // range 3 (scaled) + 1 → 200 points capped; y: (2/0.7 + 1)/0.02 → 193.
         assert_eq!(g.grid.axes.x.len(), 200);
         assert!((g.grid.axes.x[0] - (0.0 - 0.5)).abs() < 1e-12);
         assert_eq!(g.grid.axes.y.len(), 193);
-        assert!(mean_grid(
-            model.as_ref(),
-            x.view(),
-            &y,
-            &[1.5, 1.0],
-            &[1.0, 0.7],
-            1,
-            1,
-            &ctl
-        )
-        .is_err());
+        assert!(mean_grid(model.as_ref(), x.view(), &y, &scaler, 1, 1, &ctl).is_err());
     }
 
     #[test]

@@ -174,7 +174,7 @@ describe("C8 figures", () => {
     point_codes: classNames ? [0, 1] : null,
     feature_names: ["a", "b"],
     class_names: classNames,
-    show_2d_warning: true,
+    show_2d_warning: true, fixed: null,
   });
 
   it("D23: the same colour per class in the background, the points and the legend", () => {

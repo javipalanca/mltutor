@@ -327,10 +327,18 @@ pub fn recommendations(
             lines("rec_bueno_sobreajuste")?
         } else if issues.contains(&"estabilidad") {
             lines("rec_bueno_estabilidad")?
+        } else if task == TaskType::Regression {
+            lines("rec_bueno_otro_regresion")?
         } else {
             lines("rec_bueno_otro")?
         };
-        (Severity::Info, m.text(S, "rec_bueno")?.to_owned(), actions)
+        // Approved deviation (2026-10-16): in regression "good" only means that the
+        // validation MAE went down, so the regression texts say that.
+        let key = match task {
+            TaskType::Regression => "rec_bueno_regresion",
+            TaskType::Classification => "rec_bueno",
+        };
+        (Severity::Info, m.text(S, key)?.to_owned(), actions)
     } else if quality == Quality::Moderate || issues.len() == 2 {
         (
             Severity::Warning,
@@ -402,7 +410,13 @@ pub fn diagnostics_view(
     let mut score = 0u32;
     let mut col1 = vec![ViewNode::text(t("checklist")?)];
     if d.converged {
-        col1.push(ViewNode::notice(Severity::Success, t("convergio")?));
+        // Regression: "good" performance only means a lower validation MAE than at the
+        // start (approved deviation, 2026-10-16).
+        let key = match task {
+            TaskType::Regression => "convergio_regresion",
+            TaskType::Classification => "convergio",
+        };
+        col1.push(ViewNode::notice(Severity::Success, t(key)?));
         score += 1;
     } else if d.loss_converged {
         col1.push(ViewNode::notice(Severity::Warning, t("convergio_bajo")?));
@@ -498,7 +512,14 @@ pub fn diagnostics_view(
         Quality::Excellent if pct >= 75.0 => {
             (Severity::Success, "salud_excelente", "estado_excelente")
         }
-        Quality::Good if pct >= 60.0 => (Severity::Info, "salud_bueno", "estado_bueno"),
+        Quality::Good if pct >= 60.0 => match task {
+            TaskType::Regression => (
+                Severity::Info,
+                "salud_bueno_regresion",
+                "estado_bueno_regresion",
+            ),
+            TaskType::Classification => (Severity::Info, "salud_bueno", "estado_bueno"),
+        },
         Quality::Moderate => (Severity::Warning, "salud_moderado", "estado_moderado"),
         _ => (Severity::Error, "salud_critico", "estado_critico"),
     };

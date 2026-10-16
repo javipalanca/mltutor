@@ -21,4 +21,9 @@ point_codes: Array<number> | null, feature_names: [string, string], class_names:
 /**
  * More than 2 features: the 2D model is a simplification.
  */
-show_2d_warning: boolean, };
+show_2d_warning: boolean, 
+/**
+ * 🧠 surface (D78): every feature at its mean over the test set (original units);
+ * the pair varies. `None` for the models refitted on two features.
+ */
+fixed: Array<number> | null, };

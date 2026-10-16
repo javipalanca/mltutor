@@ -289,6 +289,56 @@ async function nnCancel(): Promise<void> {
   void backend.logToBackend("info", `smoke test: entrenamiento cancelado en la época ${stopped} (${(performance.now() - pressed).toFixed(0)} ms)`);
 }
 
+/** F5c: 📈 Evaluación and the four subviews of 🎯 Visualización of a trained network. */
+async function nnViews(dataset: NonNullable<NnScenario["dataset"]>): Promise<void> {
+  const base = { dataset, train: true, epochs: 10 } as const;
+  await nnView({ ...base, tab: 3 }, "[data-nn-diagnostics]", `la evaluación de la red de ${dataset}`);
+  const kind = models.lesson("redes").info?.model_task === "regression" ? "regression" : "classification";
+  await waitFor(`[data-evaluation="${kind}"]`, 30000, "las métricas de prueba");
+  await waitFor('[data-history-chart] [data-plot-rendered="true"]', 30000, "la gráfica del historial en 📈");
+  const views: readonly [string, string][] = [
+    ["Historial", "[data-nn-history-cards] [data-view-row]"],
+    ["Pesos", '[data-weights-layer="output_layer"] [data-plot-rendered="true"]'],
+    ["Superficie", '[data-grid-view] [data-plot-rendered="true"]'],
+    ["Activaciones", "[data-network-map] canvas"],
+  ];
+  for (const [viz, selector] of views) {
+    // Same network: only the subview changes (no retraining).
+    await nnView({ dataset, tab: 4, viz }, selector, `🎯 ${viz} de la red de ${dataset}`);
+  }
+}
+
+/** §3: the largest network (5 × 256): latency of `nn_weights` and `nn_activations` from the UI. */
+async function nnBigViews(): Promise<void> {
+  await nnView(
+    { dataset: "digits", tab: 4, train: true, epochs: 10, layers: 5, neurons: [256, 256, 256, 256, 256], viz: "Activaciones" },
+    '[data-network-map][data-layers="64,256,256,256,256,256,10"] canvas',
+    "el mapa de activaciones de 5 × 256 neuronas",
+  );
+  const info = models.lesson("redes").info;
+  if (!info) {
+    throw new Error("no hay red de 5 × 256");
+  }
+  const time = async (run: () => Promise<unknown>): Promise<[number, number]> => {
+    const started = performance.now();
+    const value = await run();
+    return [performance.now() - started, JSON.stringify(value).length];
+  };
+  const [tw, bw] = await time(() => backend.nnWeights({ model_id: info.model_id, bins_weights: 120, bins_biases: 60 }));
+  const [ta, ba] = await time(
+    () => backend.nnActivations({ model_id: info.model_id, sample_size: 200, dead_threshold: 0, constant_std: 1e-3 }).promise,
+  );
+  void backend.logToBackend(
+    "info",
+    `smoke test: red 5 × 256: nn_weights ${tw.toFixed(1)} ms (${bw} B), nn_activations ${ta.toFixed(1)} ms (${ba} B), ida y vuelta por IPC`,
+  );
+  await nnView(
+    { dataset: "digits", tab: 4, viz: "Pesos", layers: 5, neurons: [256, 256, 256, 256, 256] },
+    '[data-weights-layer="output_layer"] [data-plot-rendered="true"]',
+    "los pesos de 5 × 256 neuronas",
+  );
+}
+
 /** C24 with 5 × 256 neurons: summarised layers, drawn quickly, tooltip on hover. */
 async function nnBigDiagram(): Promise<void> {
   const started = performance.now();
@@ -378,6 +428,9 @@ const CHECKS: Readonly<Record<string, () => Promise<void>>> = {
   redes_diabetes: () => nnChecks("diabetes", 10),
   redes_cancelacion: nnCancel,
   redes_diagrama_5x256: nnBigDiagram,
+  redes_vistas_iris: () => nnViews("iris"),
+  redes_vistas_diabetes: () => nnViews("diabetes"),
+  redes_vistas_5x256: nnBigViews,
 };
 
 export async function runSmokeCheck(name: string): Promise<void> {

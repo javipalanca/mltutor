@@ -166,6 +166,7 @@ pub fn train(
         Outcome {
             epochs,
             best_epoch,
+            diverged_epoch: None,
             started,
         },
         None,

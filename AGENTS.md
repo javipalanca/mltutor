@@ -86,6 +86,8 @@ MLTUTOR_FACADE=fixture target/debug/mltutor  # solo en debug: datos de tests/par
 # Capturas de una lección: --scenario <nombre> --full-page (redes_*, knn_*… en ui/src/lib/lessons/*/scenarios.ts)
 # Desarrollo con fixtures: MLTUTOR_FACADE=fixture (solo debug); MLTUTOR_FIXTURE_EPOCH_MS=40 ralentiza la red
 # reproducida para ver la gráfica en vivo y probar «Cancelar»
+# F5c: redes_evaluacion_iris, redes_pesos_iris, redes_activaciones_5x256, redes_evaluacion_divergencia…
+#   (📈/🎯 necesitan el motor real: con MLTUTOR_FACADE=fixture solo se reproducen el historial y el diagnóstico)
 
 # Referencia Python (para comparar y generar fixtures)
 uv sync --locked --extra dev

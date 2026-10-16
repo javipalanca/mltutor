@@ -158,8 +158,15 @@ fn nn_training_script_matches_exactly() {
     let mut n = 0;
     for (case, v) in fx["expected"].as_object().unwrap() {
         let c = &v["context"];
-        let stat = fixture(&format!("nn/stat/{case}.json"));
-        let input = &stat["input"];
+        // The fixture keeps each case's input (the CSV cases with classes 1/2/3 and
+        // 1/2 have no nn/stat file of their own).
+        let stat;
+        let input = if v["input"].is_object() {
+            &v["input"]
+        } else {
+            stat = fixture(&format!("nn/stat/{case}.json"));
+            &stat["input"]
+        };
         let cfg = &input["nn_config"];
         let sizes: Vec<u16> = cfg["architecture"]
             .as_array()
@@ -216,5 +223,5 @@ fn nn_training_script_matches_exactly() {
         assert_eq!(rendered, v["script"].as_str().unwrap(), "{case}: script");
         n += 1;
     }
-    assert_eq!(n, 6);
+    assert_eq!(n, 8);
 }

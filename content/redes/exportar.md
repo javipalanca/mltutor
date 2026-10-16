@@ -1,4 +1,4 @@
-<!-- NUEVO (D75, Fase 5; como content/regresion/exportar.md, content/arboles/exportar.md y content/knn/exportar.md): no existe en la versión Python, que tenía "🤖 Modelo TensorFlow" (SavedModel/HDF5/TFLite), "📊 Modelo Completo" (pickle), "📝 Código Python" (una plantilla que devolvía ceros) y "📋 Metadatos". Pestaña 💾 Exportar, expander cerrado debajo de los cuatro botones. Título: mensajes.toml [exportar_rust] ayuda_expander. ONNX: grafo de fase5-redes.md §3 C28 (entrada float_input float32 [N, F] SIN escalar → Sub/Div con el escalador → Gemm + activación por capa; salidas label + probabilities o variable). El fragmento se ha ejecutado con onnxruntime sobre ese grafo construido con los pesos finales de tests/parity/nn/exact/iris_default.json (tools/golden_nn.py::onnx_proposal_model): da [0] y [[0.7971 0.1325 0.0704]], igual que la red en NumPy. Paquete: content/code/paquete_modelo_red.py.j2, red_predictor_numpy.py.j2 y paquete_leeme_red.txt.j2 (verificados en expected.export_package). -->
+<!-- NUEVO (D75, Fase 5; como content/regresion/exportar.md, content/arboles/exportar.md y content/knn/exportar.md): no existe en la versión Python, que tenía "🤖 Modelo TensorFlow" (SavedModel/HDF5/TFLite), "📊 Modelo Completo" (pickle), "📝 Código Python" (una plantilla que devolvía ceros) y "📋 Metadatos". Pestaña 💾 Exportar, expander cerrado debajo de los cuatro botones. Título: mensajes.toml [exportar_rust] ayuda_expander. ONNX: grafo de fase5-redes.md §3 C28 (entrada float_input float32 [N, F] SIN escalar → Sub/Div con el escalador → Gemm + activación por capa; salidas label + probabilities o variable; revisión ML de F5a, 2026-10-16: label = código de la clase en el dataset mediante Gather sobre el argmax o sobre p > 0,5, y en binaria probabilities [N, 2] = [1 − p, p]). El fragmento se ha ejecutado con onnxruntime sobre ese grafo construido con los pesos finales de tests/parity/nn/exact/iris_default.json (tools/golden_nn.py::onnx_proposal_model): da [0] y [[0.7971 0.1325 0.0704]], igual que la red en NumPy. Paquete: content/code/paquete_modelo_red.py.j2, red_predictor_numpy.py.j2 y paquete_leeme_red.txt.j2 (verificados en expected.export_package). -->
 **📦 Paquete Keras (.zip)** — para seguir trabajando con la red en TensorFlow/Keras. Contiene `modelo.json` (la
 arquitectura, los pesos de cada capa, la media y la desviación del escalador y unas filas de comprobación) y
 `reconstruir_modelo.py`, que construye **la misma red** en Keras con esos pesos, comprueba que da las mismas
@@ -9,7 +9,16 @@ reentrenar, usa el script de entrenamiento de 📝 Código Python.
 **💾 ONNX** — la red lista para usar en un formato abierto, sin Python ni TensorFlow (onnxruntime existe para
 Python, C#, Java y JavaScript, y `onnx2tf` lo convierte a TensorFlow Lite). **El escalado va dentro**: el
 archivo recibe los valores en sus unidades originales, lo resta y divide por la media y la desviación de la
-app, y aplica cada capa (una multiplicación de matrices, `Gemm`, y su activación). En Python:
+app, y aplica cada capa (una multiplicación de matrices, `Gemm`, y su activación). Las redes de clasificación
+devuelven dos salidas:
+
+- `label`: la clase predicha, con el **mismo código que usa MLTutor** para esa clase (el número de la lista de
+  clases del `LEEME.txt` y de 📋 Metadatos). En multiclase es la neurona con la salida más alta; en binaria,
+  la clase 1 si la salida de la neurona supera 0,5.
+- `probabilities`: una columna por clase. En multiclase, la salida de cada neurona; en binaria, donde la red
+  tiene una sola neurona con salida `p`, las dos columnas `[1 − p, p]`.
+
+En Python:
 
 ```python
 import numpy as np
@@ -52,6 +61,10 @@ del entrenamiento. Sirve para documentar qué modelo es cuál; no permite predec
   características, multiplica cada valor por los pesos equivocados sin dar ningún error.
 - **Olvidar el preprocesado.** Las columnas de texto (sexo, puerto de embarque…) se pasaron a números en orden
   alfabético; los datos nuevos deben codificarse igual.
+- **Esperar exactamente las cifras de la app con valores muy grandes.** El ONNX calcula en `float32` (unos 7
+  dígitos), también el escalado. Con columnas de valores grandes y muy desplazados del 0 (años, *timestamps*,
+  códigos postales), restar la media pierde precisión y las salidas pueden diferir algo de las de MLTutor, que
+  escala en `float64`.
 - **Leer la salida tanh como una probabilidad.** Si elegiste tanh en la salida, `probabilities` es la salida
   de la red, que puede ser negativa.
 - **Usar tensorflow-metal en un Mac.** Con la GPU de Apple, `model.predict` puede dar salidas incorrectas tras

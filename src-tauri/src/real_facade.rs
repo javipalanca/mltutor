@@ -312,7 +312,7 @@ impl DatasetView for CoreDataset {
         cancel: &AtomicBool,
     ) -> Result<crate::core_facade::ModelHandle, CommandError> {
         if spec.config.is_nn() {
-            return crate::real_nn::train(self, &self.data, spec, observer, cancel);
+            return crate::real_nn::train(self, &self.data, self.id, spec, observer, cancel);
         }
         self.train(spec, progress, cancel)
     }

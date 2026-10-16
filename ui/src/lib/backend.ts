@@ -32,7 +32,13 @@ import type { TaskProgress } from "./bindings/TaskProgress";
 import type { ArchitectureRequest } from "./bindings/ArchitectureRequest";
 import type { ArchitectureView } from "./bindings/ArchitectureView";
 import type { HistoryView } from "./bindings/HistoryView";
+import type { ActivationsRequest } from "./bindings/ActivationsRequest";
+import type { ActivationsView } from "./bindings/ActivationsView";
+import type { DiagnosticsView } from "./bindings/DiagnosticsView";
 import type { NnCodeRequest } from "./bindings/NnCodeRequest";
+import type { NnEvaluationView } from "./bindings/NnEvaluationView";
+import type { WeightsRequest } from "./bindings/WeightsRequest";
+import type { WeightsView } from "./bindings/WeightsView";
 import type { NnEpochEvent } from "./bindings/NnEpochEvent";
 import type { TrainedModelInfo } from "./bindings/TrainedModelInfo";
 import type { TrainRequest } from "./bindings/TrainRequest";
@@ -381,6 +387,30 @@ export function nnArchitecture(req: ArchitectureRequest): Promise<ArchitectureVi
 /** C27: the history of a trained network. */
 export function nnHistory(modelId: number): Promise<HistoryView> {
   return call("nn_history", { modelId });
+}
+
+/** 📈 Evaluación of a network: test loss and metric, C1/C2, D84 and the divergence (K1). */
+export function nnEvaluation(modelId: number): Promise<NnEvaluationView> {
+  return call("nn_evaluation", { modelId });
+}
+
+/** C23: "🔍 Diagnóstico del Entrenamiento" as a view tree. */
+export function nnDiagnostics(modelId: number): Promise<DiagnosticsView> {
+  return call("nn_diagnostics", { modelId });
+}
+
+/** C25: statistics and histograms (binned in Rust) of every dense layer. */
+export function nnWeights(req: WeightsRequest): Promise<WeightsView> {
+  return call("nn_weights", { req });
+}
+
+/** C26: activations, dead/constant neurons and the map (cancellable: a newer request cancels it). */
+export function nnActivations(req: Omit<ActivationsRequest, "task_id">): Cancellable<ActivationsView> {
+  nextTaskId = (nextTaskId + 1) % 0x7fffffff;
+  const taskId = nextTaskId;
+  busy.start(taskId);
+  const promise = invoke<ActivationsView>("nn_activations", { req: { ...req, task_id: taskId } }).finally(() => busy.end(taskId));
+  return { promise, cancel: () => void cancelTask(taskId) };
 }
 
 /** D74: the Keras script with the controls of 🏗️ and ⚙️ (no model needed). */

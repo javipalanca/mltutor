@@ -69,7 +69,7 @@ fn default_arch(view: &ArchitectureView, layers: usize) -> NnArchitecture {
 }
 
 fn view_of(summary: &DatasetSummary, arch: &NnArchitecture) -> ArchitectureView {
-    architecture_view(summary.dataset, summary, arch, 20)
+    architecture_view(summary.dataset, summary, arch, 20, None)
 }
 
 /// The default network of every built-in dataset: sizes, parameters, complexity,

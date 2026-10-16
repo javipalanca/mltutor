@@ -156,6 +156,9 @@ btn_descargar_codigo = "💾 Descargar Código Python"             # red_neurona
 codigo_nota = "El script reproduce esta arquitectura y la configuración de ⚙️ Entrenamiento que tengas elegida (learning rate, épocas, validación y callbacks). Keras parte de otros pesos iniciales, así que sus cifras serán parecidas a las de MLTutor, no idénticas."
 
 [entrenamiento]
+# NUEVO (2026-10-16, K6): estimación del coste (params × filas × épocas); avisos en ⚙️.
+coste_alto = "⏳ El entrenamiento puede tardar unos {segundos} s. Verás el progreso época a época y podrás cancelarlo cuando quieras."
+coste_muy_alto = "⏳ Esta red es grande para estos datos: el entrenamiento puede tardar varios minutos (unos {minutos} min en un equipo rápido). Puedes cancelarlo en cualquier momento; para probar, reduce las épocas, las neuronas o el número de capas."
 # NUEVO (2026-10-16): una clase con una sola muestra hace fallar el split estratificado (test 0,2, stratify=y).
 # En Python, train_test_split lanzaba un ValueError en inglés.
 error_pocas_muestras_clase = "🚫 La clase «{clase}» solo tiene una muestra. La red divide los datos de forma estratificada (cada clase debe aparecer tanto en entrenamiento como en prueba), así que necesita al menos 2 muestras de cada clase. Elimina esa clase del CSV o consigue más ejemplos de ella."
@@ -282,6 +285,10 @@ config_modelo = "🧠 Red de {tarea}: {arquitectura} · ocultas {activacion} · 
 aviso_config_cambiada = "⚠️ Has cambiado la configuración en 🏗️ Arquitectura o ⚙️ Entrenamiento, pero estas pestañas siguen mostrando la red entrenada con la anterior. Pulsa «🧠 Entrenar Red Neuronal» para aplicarla."
 
 [evaluacion]
+# NUEVO (2026-10-16, K1): la pérdida se hizo NaN/inf (Python seguía mostrando métricas sin sentido).
+aviso_divergencia = "🚨 El entrenamiento **divergió** en la época {epoca}: la pérdida se hizo infinita o NaN (no es un número), así que los pesos de la red no sirven y no se pueden calcular las métricas, la superficie, los pesos ni las activaciones. Suele deberse a un *learning rate* demasiado alto para el optimizador: prueba con 0.01 o 0.001 y vuelve a entrenar."
+# NUEVO (2026-10-16, D87): con salida tanh los valores no son probabilidades.
+aviso_salida_tanh = "⚠️ La salida de esta red es **tanh** (entre −1 y 1), así que sus valores **no son probabilidades**. La clase se decide igual (salida mayor que 0,5, o la neurona con el valor más alto), pero no interpretes esas salidas como la confianza de la red. Para obtener probabilidades usa **sigmoid** (binaria) o **softmax** (multiclase)."
 header = "📈 Evaluación del Modelo"
 resultados_titulo = "#### 📊 Resultados del Entrenamiento"
 # CORREGIDO (D86): es la exactitud (accuracy), no la precisión. Python: "🎯 Precisión en Test"
@@ -330,6 +337,10 @@ checklist = "**📋 Checklist de Salud:**"
 convergio = "✅ La pérdida ha bajado y el rendimiento es bueno"         # success
 convergio_bajo = "⚠️ La pérdida ha bajado, pero el rendimiento es bajo" # warning
 no_convergio = "❌ La pérdida apenas ha bajado (menos de un 1 %)"       # error
+# NUEVO (revisión ML de F5a, 2026-10-16): en regresión, "rendimiento bueno" solo significa que el MAE de
+# validación final es menor que el de las primeras épocas (good_mae), y aparece con R² ≈ −3 (🩺 Diabetes por
+# defecto, justo debajo de aviso_r2_negativo). Úsese en lugar de `convergio` cuando la tarea sea regresión.
+convergio_regresion = "✅ La pérdida y el error de validación han bajado respecto al principio"   # success
 sin_sobreajuste = "✅ Sin signos de sobreajuste"                       # success
 sobreajuste_perdida = "❌ Sobreajuste en pérdida (gap: {gap:.1f}%)"     # error; {gap} = overfitting_gap·100
 sobreajuste_accuracy = "❌ Sobreajuste en accuracy (train: {train:.3f}, val: {val:.3f})"   # error
@@ -349,19 +360,26 @@ accuracy_bajo = "❌ Accuracy bajo (modelo no está aprendiendo bien)"
 # nada, salían "aceptable"). Python: "✅ Error de regresión aceptable" / "❌ Error de regresión alto".
 regresion_aceptable = "✅ El error de validación es menor que al principio del entrenamiento"
 regresion_alto = "❌ El error de validación no mejora el del principio del entrenamiento"
-# NUEVO (propuesta para C23): debajo de sobreajuste_accuracy cuando la validación tiene menos de 100 filas.
-# {n} = filas de validación; {pp} = 100 / n (Iris: 24 filas, 4,2 puntos por muestra).
-nota_validacion_pequena = "ℹ️ La validación solo tiene {n} muestras: cada una mueve la exactitud {pp:.1f} puntos, y con dropout la exactitud de entrenamiento se mide con neuronas apagadas. Diferencias de 0,1–0,15 pueden ser azar."
+# NUEVO (propuesta para C23): debajo de sobreajuste_accuracy cuando la validación tiene menos de 30 filas
+# (SMALL_VALIDATION en nn_diagnostics.rs). {n} = filas de validación; {pp} = 100 / n (Iris: 24 filas, 4,2
+# puntos por muestra). Con n ≈ 24 y una exactitud cercana a 0,5, la desviación típica es ≈ 0,1, así que
+# diferencias de hasta unos 0,2 entre entrenamiento y validación caben en el azar del muestreo.
+nota_validacion_pequena = "ℹ️ La validación solo tiene {n} muestras: cada una mueve la exactitud {pp:.1f} puntos, y con dropout la exactitud de entrenamiento se mide con neuronas apagadas. Diferencias como esta (hasta unos 0,2 con {n} muestras) pueden ser azar."
 # columna 2
 puntuacion = "**🎯 Puntuación de Salud:**"
 salud_excelente = "🌟 Excelente: {pct:.0f}%"      # success; calidad excellent y >= 75
 salud_bueno = "👍 Bueno: {pct:.0f}%"               # info; calidad good y >= 60
+# NUEVO (revisión ML de F5a): en regresión la calidad "good" solo dice que el MAE de validación ha bajado
+# (ver convergio_regresion). Úsese en lugar de `salud_bueno` cuando la tarea sea regresión.
+salud_bueno_regresion = "👍 El error ha mejorado durante el entrenamiento: {pct:.0f}%"   # info
 salud_moderado = "⚠️ Moderado: {pct:.0f}%"        # warning; calidad moderate
 salud_critico = "🚨 Crítico: {pct:.0f}%"           # error
 # CORREGIDO (rigor). Python: "🌟 Modelo listo para producción". La calidad "excellent" solo mira la exactitud
 # de validación (> 0,85) en unas decenas de filas: no basta para usar el modelo en serio.
 estado_excelente = "🌟 Muy buen rendimiento en validación: confírmalo con los datos de prueba"           # st.info
 estado_bueno = "👍 Modelo con buen rendimiento"
+# NUEVO (revisión ML de F5a): en lugar de `estado_bueno` cuando la tarea sea regresión.
+estado_bueno_regresion = "👍 El error ha mejorado durante el entrenamiento (compruébalo con el R² de prueba)"
 estado_moderado = "⚠️ Modelo necesita validación adicional"
 estado_critico = "🚨 Modelo no está funcionando correctamente"
 metrica_val_accuracy = "🎯 Accuracy Validación"                  # {:.3f}
@@ -445,6 +463,10 @@ rec_excelente = "¡Entrenamiento excelente! Modelo con alto rendimiento y buenas
 # CORREGIDO (rigor). Python: ["✅ El modelo está listo para producción", "📊 …", "🚀 Puedes proceder a hacer predicciones con confianza"]
 rec_excelente_acciones = ["✅ Confirma el resultado con los datos de prueba (arriba, en esta pestaña)", "📊 Considera hacer validación cruzada para confirmar robustez", "🚀 Prueba la red con muestras concretas en 🔮 Predicciones"]
 rec_bueno = "Entrenamiento bueno con rendimiento satisfactorio."
+# NUEVO (revisión ML de F5a): en lugar de `rec_bueno` y `rec_bueno_otro` cuando la tarea sea regresión (la calidad
+# "good" de regresión no mide si el error es aceptable).
+rec_bueno_regresion = "El error de validación ha bajado durante el entrenamiento. Comprueba con el R² de prueba si el modelo es útil."
+rec_bueno_otro_regresion = ["📊 Mira el R² de prueba (arriba, en esta pestaña): si es bajo o negativo, sube el learning rate o entrena más épocas"]
 rec_bueno_sobreajuste = ["🔧 Añadir más regularización (dropout, L1/L2)", "📈 Aumentar datos de entrenamiento si es posible"]
 rec_bueno_estabilidad = ["📉 Reducir learning rate para mayor estabilidad", "📦 Aumentar batch size"]
 rec_bueno_otro = ["👍 Continuar con este enfoque"]
@@ -524,6 +546,8 @@ sin_capas = "⚠️ No se encontraron capas con pesos entrenables"      # (inalc
 error = "❌ Error analizando pesos: {error}"
 
 [superficie]
+# NUEVO (2026-10-16): título de la segunda barra de color (escalas separadas en regresión).
+colorbar_puntos = "Valor real"
 titulo = "🎯 Superficie de Decisión"
 primera = "Primera característica:"                          # selectbox índice 0; key viz_f1 (clasificación) / viz_f1_reg (regresión)
 segunda = "Segunda característica:"                          # índice min(1, n−1); key viz_f2 / viz_f2_reg
@@ -541,6 +565,8 @@ error_regresion_info = "Se intentó predecir con el modelo; si la arquitectura e
 nota_medias = "Las demás características se fijan en su media (de los datos de prueba). Los ejes están en las unidades originales; la red trabaja con los datos escalados."
 
 [activaciones]
+# NUEVO (2026-10-16, K3): el test tiene menos filas que las muestras pedidas.
+muestras_usadas = "ℹ️ Se usan las {n} muestras del conjunto de prueba, porque no tiene más filas que las que pediste."
 titulo = "📉 Análisis de Activaciones y Neuronas Muertas"
 que_veras_expander = "💡 ¿Qué verás aquí?"                     # activaciones-que-veras.md (cerrado)
 parametros_expander = "⚙️ Parámetros de Análisis"             # cerrado
@@ -739,7 +765,7 @@ onnx_titulo = "**Exportar a ONNX (sin Python):**"
 onnx_texto = "Un único archivo .onnx con el escalado y la red (capas Gemm y sus activaciones). Se usa con onnxruntime en Python, C#, JavaScript o Java, y se puede convertir a TensorFlow Lite con onnx2tf. Recibe los datos sin escalar, en el orden de las características."
 btn_onnx = "💾 Guardar ONNX…"                                   # red_neuronal.onnx
 onnx_ok = "✅ Modelo ONNX guardado en {ruta}"
-onnx_salidas_clasificacion = "Salidas: `label` (la clase) y `probabilities` (la salida de la red)."
+onnx_salidas_clasificacion = "Salidas: `label` (el código de la clase) y `probabilities` (una columna por clase; en binaria, `[1 − p, p]`)."
 onnx_salidas_regresion = "Salida: `variable` (el valor predicho)."
 python_texto = "La red entrenada escrita en NumPy: lee modelo.json (va en el paquete Keras), escala la entrada y aplica cada capa. Útil para ver qué calcula la red; no necesita TensorFlow."
 codigo_entrenamiento = "**🐍 Script para entrenar la misma red con Keras:**"   # red_entrenamiento.py.j2 (D74)

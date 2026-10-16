@@ -19,6 +19,7 @@
   import { datasetKey, session } from "../../session.svelte";
   import { architecture } from "./architecture.svelte";
   import { LEARNING_RATES, LESSON, nn } from "./state.svelte";
+  import { costText } from "./nnTexts";
   import { training } from "./training.svelte";
 
   const t = (key: string): string => nnText("entrenamiento", key);
@@ -28,7 +29,8 @@
   const key = $derived(datasetKey(session.selected));
 
   $effect(() => {
-    architecture.request(session.selected, nn.arch(architecture.view), nn.validationPct);
+    // K6: with the epochs, the view also estimates how long the training will take.
+    architecture.request(session.selected, nn.arch(architecture.view), nn.validationPct, false, nn.epochsOf(datasetKey(session.selected), architecture.view));
   });
 
   const epochs = $derived(nn.epochsOf(key, view));
@@ -264,6 +266,11 @@
         {:else}
           <Notice severity="warning" markdown={t("aviso_config_cambiada")} />
         {/if}
+      </div>
+    {/if}
+    {#if view.cost && view.cost.level !== "low" && !untrainable}
+      <div data-nn-cost={view.cost.level}>
+        <Notice severity={view.cost.level === "very_high" ? "warning" : "info"} markdown={costText(view.cost.level, view.cost.estimated_seconds)} />
       </div>
     {/if}
     {#if untrainable}

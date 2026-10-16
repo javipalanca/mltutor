@@ -17,7 +17,8 @@ pub use describe::{
     describe_column, mean, quantile_linear, std_ddof1, variance_ddof1, DESCRIBE_STATS,
 };
 pub use histogram::{
-    histogram, histogram_bin_edges_auto, histogram_counts, linspace, Histogram, HIST_AUTO_MAX_BINS,
+    histogram, histogram_bin_edges_auto, histogram_counts, histogram_plotly, linspace, Histogram,
+    HIST_AUTO_MAX_BINS,
 };
 pub use kde::{gaussian_kde_scott, gaussian_kde_scott_cut, Kde, KDE_CUT, KDE_GRIDSIZE};
 pub use sum::{pairwise_sum, pairwise_sum_by};

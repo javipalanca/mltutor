@@ -7,8 +7,10 @@
   import { lesson, tabName } from "../../lessons";
   import { models } from "../../ml/modelSession.svelte";
   import ArchitectureTab from "./ArchitectureTab.svelte";
+  import EvaluationTab from "./EvaluationTab.svelte";
   import { LESSON, nn } from "./state.svelte";
   import TrainingTab from "./TrainingTab.svelte";
+  import VisualizationTab from "./VisualizationTab.svelte";
 
   interface Props {
     active: number;
@@ -42,6 +44,10 @@
     <ArchitectureTab />
   {:else if active === 2}
     <TrainingTab />
+  {:else if active === 3}
+    <EvaluationTab />
+  {:else if active === 4}
+    <VisualizationTab />
   {:else if !lessonState.info}
     <h2>{tabs[active]}</h2>
     <Notice severity="warning" markdown={nnText("comun", "sin_entrenar")} />

@@ -25,8 +25,8 @@ class ArchitectureLoader {
   }
 
   /** Asks for the view of `dataset` with `arch` (debounced; repeated requests are skipped). */
-  request(dataset: DatasetRef, arch: NnArchitecture, validationPct: number, immediate = false): void {
-    const key = JSON.stringify([dataset, arch, validationPct]);
+  request(dataset: DatasetRef, arch: NnArchitecture, validationPct: number, immediate = false, epochs: number | null = null): void {
+    const key = JSON.stringify([dataset, arch, validationPct, epochs]);
     if (key === this.#lastKey) {
       return;
     }
@@ -38,7 +38,7 @@ class ArchitectureLoader {
     const run = (): void => {
       this.#timer = null;
       backend
-        .nnArchitecture({ dataset, arch, validation_pct: validationPct })
+        .nnArchitecture({ dataset, arch, validation_pct: validationPct, ...(epochs !== null ? { epochs } : {}) })
         .then((view) => {
           if (seq === this.#seq) {
             this.error = null;

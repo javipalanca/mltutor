@@ -8,6 +8,7 @@ import type { OutputCheck } from "./OutputCheck";
 import type { SizeTips } from "./SizeTips";
 import type { SplitSizes } from "./SplitSizes";
 import type { TaskType } from "./TaskType";
+import type { TrainingCost } from "./TrainingCost";
 
 /**
  * 🏗️ Arquitectura of the dataset with the current controls (`nn_architecture`).
@@ -48,4 +49,8 @@ suggested_epochs: number,
 /**
  * D73 with the `validation_pct` of the request.
  */
-split: SplitSizes, };
+split: SplitSizes, 
+/**
+ * K6, when the request carries the epochs.
+ */
+cost: TrainingCost | null, };

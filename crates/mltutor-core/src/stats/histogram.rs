@@ -144,8 +144,250 @@ pub fn histogram_bin_edges_auto(values: &[f64]) -> Vec<f64> {
     linspace(first, last, n_bins + 1)
 }
 
+/// Plotly's default for `go.Histogram(x=values, nbinsx=nbins)`: the bins the
+/// student saw in the Python app (🧠 Pesos, 📉 Activaciones), computed here so that
+/// the UI receives `{ edges, counts }` instead of every raw value (fase5-redes.md K2).
+///
+/// A port of plotly.js `Axes.autoBin` (with `nbins`, linear axis) and the binning of
+/// `histogram/calc.js`, checked against plotly.js 4.1 (the algorithm has not changed
+/// since 1.x):
+///
+/// 1. `size0 = (max − min) / nbins`, rounded **up** to a "nice" step `dtick` ∈ {2, 5,
+///    10}·10ᵏ (strictly greater, so there are usually *fewer* than `nbins` bins: 50
+///    asked → 20–50 drawn).
+/// 2. The first bin starts one step below the first multiple of `dtick` at or above
+///    `min − 10⁻⁴·span`, shifted half a step (or half a unit with integer data) when
+///    many values fall on bin edges (`autoShiftNumericBins`).
+/// 3. Edges by repeated `Lib.increment` (which cleans float noise to 12 significant
+///    digits); a value goes to bin `floor((v − start)/size + 1e-9)`.
+/// 4. Empty bins at both ends are dropped, as Plotly does when it draws the bars.
+///
+/// All values equal: one bin of width 1 (`[floor(v), floor(v) + 1)`, or centred on
+/// an integer `v`). NaN and ±∞ are ignored; no finite values → empty histogram.
+pub fn histogram_plotly(values: &[f64], nbins: usize) -> Histogram {
+    let data: Vec<f64> = values.iter().copied().filter(|v| v.is_finite()).collect();
+    let Some((min, max)) = data
+        .iter()
+        .fold(None, |acc: Option<(f64, f64)>, &v| match acc {
+            None => Some((v, v)),
+            Some((lo, hi)) => Some((lo.min(v), hi.max(v))),
+        })
+    else {
+        return Histogram {
+            edges: Vec::new(),
+            counts: Vec::new(),
+        };
+    };
+    let (start, end, size) = plotly_auto_bin(&data, min, max, nbins.max(1));
+    // Edges: f = start; while f < end − size/1e6 { T = increment(f, size) }.
+    let stop = end + (start - js_increment(start, size)) / 1e6;
+    let mut edges = Vec::new();
+    let mut f = start;
+    while f < stop && edges.len() < 1_000_000 {
+        let t = js_increment(f, size);
+        edges.push(f);
+        if t <= f {
+            break;
+        }
+        f = t;
+    }
+    let n_bins = edges.len();
+    edges.push(f);
+    let mut counts = vec![0_u32; n_bins];
+    for &v in &data {
+        let bin = ((v - start) / size + 1e-9).floor();
+        if bin >= 0.0 && bin < n_bins as f64 {
+            counts[bin as usize] += 1;
+        }
+    }
+    // Plotly draws from the first to the last non-empty bin.
+    let first = counts.iter().position(|&c| c > 0).unwrap_or(0);
+    let last = counts.iter().rposition(|&c| c > 0).unwrap_or(0);
+    Histogram {
+        edges: edges[first..=last + 1].to_vec(),
+        counts: counts[first..=last].to_vec(),
+    }
+}
+
+/// `Axes.autoBin(data, linearAxis, nbins)` → `(start, end, size)`; `min < max`.
+fn plotly_auto_bin(data: &[f64], min: f64, max: f64, nbins: usize) -> (f64, f64, f64) {
+    let size0 = (max - min) / nbins as f64;
+    // Axes.autoTicks: base = 10^floor(log10(rough)), dtick = base · roundUp(rough/base,
+    // [2, 5, 10]) (the first strictly greater). JS computes log10 as ln/LN10.
+    let base = 10_f64.powf((size0.ln() / std::f64::consts::LN_10).floor());
+    let ratio = size0 / base;
+    let nice = [2.0, 5.0, 10.0]
+        .into_iter()
+        .find(|&r| r > ratio)
+        .unwrap_or(10.0);
+    let mut dtick = base * nice;
+    if dtick == 0.0 || !dtick.is_finite() {
+        dtick = 1.0;
+    }
+    // Axes.tickFirst on the range [min, max] expanded by 1e-4 of the span (tick0 = 0),
+    // then one step back (tickIncrement 'reverse').
+    let r0 = min - (max - min) * 1e-4;
+    let first = (r0 / dtick).ceil() * dtick;
+    let start = auto_shift_numeric_bins(js_increment(first, -dtick), data, dtick, min, max);
+    let count = 1.0 + ((max - start) / dtick).floor();
+    (start, start + count * dtick, dtick)
+}
+
+/// plotly.js `autoShiftNumericBins`.
+fn auto_shift_numeric_bins(start: f64, data: &[f64], dtick: f64, min: f64, max: f64) -> f64 {
+    // JS `%` keeps the sign of the dividend, like Rust's.
+    let near_edge = |v: f64| (1.0 + (v - start) * 100.0 / dtick) % 100.0 < 2.0;
+    let (mut edge, mut mid, mut ints) = (0usize, 0usize, 0usize);
+    for &v in data {
+        if v % 1.0 == 0.0 {
+            ints += 1;
+        }
+        if near_edge(v) {
+            edge += 1;
+        }
+        if near_edge(v + dtick / 2.0) {
+            mid += 1;
+        }
+    }
+    let n = data.len();
+    let mut start = start;
+    if ints == n {
+        if dtick < 1.0 {
+            start = min - 0.5 * dtick;
+        } else {
+            start -= 0.5;
+            if start + dtick < min {
+                start += dtick;
+            }
+        }
+    } else if (mid as f64) < n as f64 * 0.1
+        && (edge as f64 > n as f64 * 0.3 || near_edge(min) || near_edge(max))
+    {
+        let shift = dtick / 2.0;
+        start += if start + shift < min { shift } else { -shift };
+    }
+    start
+}
+
+/// plotly.js `Lib.increment(x, delta)`: `x + delta` computed as `(x/δ + 1)·δ` for
+/// small steps and, when the result prints with more digits than both operands
+/// together, rounded to 12 significant digits (`toPrecision(12)`, unless that is in
+/// exponential notation with a positive exponent).
+fn js_increment(x: f64, delta: f64) -> f64 {
+    if delta == 0.0 {
+        return x;
+    }
+    let i = 1.0 / delta.abs();
+    let n = if i > 1.0 {
+        (i * x + i * delta) / i
+    } else {
+        x + delta
+    };
+    let len = js_number_string(n).len();
+    if len > 16 && len >= js_number_string(delta).len() + js_number_string(x).len() {
+        // toPrecision(12) is exponential when the exponent is < −6 or ≥ 12; only
+        // "e+" is rejected.
+        let exp = if n == 0.0 {
+            0
+        } else {
+            n.abs().log10().floor() as i32
+        };
+        if exp < 12 {
+            if let Ok(v) = format!("{n:.11e}").parse::<f64>() {
+                return v;
+            }
+        }
+    }
+    n
+}
+
+/// JavaScript's `String(number)` (shortest round-trip digits, exponential below
+/// 1e-6 and from 1e21).
+fn js_number_string(v: f64) -> String {
+    if v == 0.0 {
+        return "0".to_owned();
+    }
+    if !v.is_finite() {
+        return if v.is_nan() {
+            "NaN".to_owned()
+        } else if v > 0.0 {
+            "Infinity".to_owned()
+        } else {
+            "-Infinity".to_owned()
+        };
+    }
+    // `{:e}` gives the shortest round-trip digits: "1.2345e-7".
+    let sci = format!("{:e}", v.abs());
+    let (mantissa, exp) = sci.split_once('e').unwrap_or((&sci, "0"));
+    let exp: i32 = exp.parse().unwrap_or(0);
+    let digits: String = mantissa.chars().filter(|c| *c != '.').collect();
+    let k = digits.len() as i32;
+    let n = exp + 1;
+    let body = if k <= n && n <= 21 {
+        format!("{digits}{}", "0".repeat((n - k) as usize))
+    } else if 0 < n && n <= 21 {
+        format!("{}.{}", &digits[..n as usize], &digits[n as usize..])
+    } else if -6 < n && n <= 0 {
+        format!("0.{}{digits}", "0".repeat((-n) as usize))
+    } else {
+        let sign = if n - 1 < 0 { '-' } else { '+' };
+        let rest = if k > 1 {
+            format!(".{}", &digits[1..])
+        } else {
+            String::new()
+        };
+        format!("{}{rest}e{sign}{}", &digits[..1], (n - 1).abs())
+    };
+    if v < 0.0 {
+        format!("-{body}")
+    } else {
+        body
+    }
+}
+
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn js_strings_like_javascript() {
+        assert_eq!(js_number_string(0.1 + 0.2), "0.30000000000000004");
+        assert_eq!(js_number_string(1e-7), "1e-7");
+        assert_eq!(js_number_string(-1.5e-7), "-1.5e-7");
+        assert_eq!(js_number_string(123.0), "123");
+        assert_eq!(js_number_string(0.000_001), "0.000001");
+        assert_eq!(js_number_string(1e21), "1e+21");
+        assert_eq!(js_increment(0.1, 0.2), 0.3);
+    }
+
+    #[test]
+    fn plotly_bins_like_plotly() {
+        // 0..=99 with nbinsx=10: size0 9.9 → dtick 10; tickFirst(−0.0099) = 0, one
+        // step back = −10; integer data shift by −0.5, then +10 → start −0.5.
+        let v: Vec<f64> = (0..100).map(f64::from).collect();
+        let h = histogram_plotly(&v, 10);
+        assert_eq!(h.edges.first().copied(), Some(-0.5));
+        assert_eq!(h.counts, vec![10; 10]);
+        assert_eq!(h.edges.len(), 11);
+        // Floats in [−1, 1]: size0 0.04 (nbins 50) → dtick 0.05 (ratio 4 → 5): 40 bins.
+        let v: Vec<f64> = (0..=2000).map(|i| -1.0 + f64::from(i) * 0.001).collect();
+        let h = histogram_plotly(&v, 50);
+        assert_eq!(h.counts.iter().sum::<u32>(), 2001);
+        let w = h.edges[1] - h.edges[0];
+        assert!((w - 0.05).abs() < 1e-12, "{w}");
+        assert!(
+            h.counts.len() <= 50 && h.counts.len() >= 40,
+            "{}",
+            h.counts.len()
+        );
+        assert!(h.edges[0] <= -1.0 && *h.edges.last().unwrap_or(&0.0) > 1.0);
+        // Constant values: one bin of width 1 (plotly.js: [0, 1) and [2.5, 3.5)).
+        let h = histogram_plotly(&[0.25; 7], 50);
+        assert_eq!(h.edges, vec![0.0, 1.0]);
+        assert_eq!(histogram_plotly(&[3.0], 20).edges, vec![2.5, 3.5]);
+        assert_eq!(histogram_plotly(&[-7.5, -7.5], 20).edges, vec![-8.0, -7.0]);
+        assert_eq!(h.counts, vec![7]);
+        assert!(histogram_plotly(&[f64::NAN], 5).counts.is_empty());
+    }
     use super::*;
 
     #[test]

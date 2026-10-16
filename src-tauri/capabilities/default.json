@@ -49,6 +49,10 @@
     "allow-knn-playground",
     "allow-nn-architecture",
     "allow-nn-history",
+    "allow-nn-evaluation",
+    "allow-nn-diagnostics",
+    "allow-nn-weights",
+    "allow-nn-activations",
     "allow-nn-training-code",
     "core:event:allow-listen",
     "core:event:allow-unlisten"

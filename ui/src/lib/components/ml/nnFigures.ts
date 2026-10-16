@@ -107,3 +107,107 @@ export function historyFigure(
   };
   return { data, layout };
 }
+
+// --- C25 / C26: histograms of weights, biases and activations (binned in Rust, K2) ---
+
+const centersOf = (edges: readonly number[]): number[] => edges.slice(0, -1).map((e, i) => (e + (edges[i + 1] ?? e)) / 2);
+const widthsOf = (edges: readonly number[]): number[] => edges.slice(0, -1).map((e, i) => (edges[i + 1] ?? e) - e);
+
+export interface BinnedHistogramOptions {
+  title: string;
+  xLabel: string;
+  yLabel: string;
+  color: string;
+  /** Green dashed line with the annotation "Media" (🧠 Pesos), plus the grey line at 0. */
+  mean?: number | null;
+  meanLabel?: string;
+  /** "Escala log en frecuencia". */
+  log?: boolean;
+  height?: number;
+}
+
+/**
+ * `go.Histogram(x=values, nbinsx=…)` of 🧠 Pesos and 📉 Activaciones, drawn as bars from the
+ * bins Rust computed (the raw values do not cross the IPC). `bargap` 0.02 as in Python.
+ */
+export function binnedHistogramFigure(
+  hist: { edges: readonly number[]; counts: readonly number[] },
+  options: BinnedHistogramOptions,
+  theme: ChartTheme = LIGHT_THEME,
+): Figure {
+  const { title: _title, ...base } = baseLayout(theme, "");
+  const widths = widthsOf(hist.edges);
+  const data: Data[] = [
+    {
+      type: "bar",
+      x: centersOf(hist.edges),
+      y: [...hist.counts],
+      width: widths.map((w) => w * 0.98),
+      marker: { color: options.color, line: { color: "rgba(255,255,255,0.6)", width: 0.5 } },
+      customdata: hist.counts.map((_, i) => [hist.edges[i] ?? 0, hist.edges[i + 1] ?? 0]),
+      hovertemplate: "[%{customdata[0]:.4g}, %{customdata[1]:.4g}): %{y}<extra></extra>",
+      showlegend: false,
+    },
+  ];
+  const shapes: Partial<Shape>[] = [];
+  const annotations: Layout["annotations"] = [];
+  if (options.mean !== undefined && options.mean !== null && Number.isFinite(options.mean)) {
+    shapes.push({ type: "line", xref: "x", yref: "paper", x0: 0, x1: 0, y0: 0, y1: 1, line: { color: "#808080", width: 1 } } as Partial<Shape>);
+    shapes.push({
+      type: "line",
+      xref: "x",
+      yref: "paper",
+      x0: options.mean,
+      x1: options.mean,
+      y0: 0,
+      y1: 1,
+      line: { color: "green", width: 2, dash: "dash" },
+    } as Partial<Shape>);
+    annotations.push({
+      x: options.mean,
+      y: 1,
+      xref: "x",
+      yref: "paper",
+      text: options.meanLabel ?? "Media",
+      showarrow: false,
+      xanchor: "left",
+      yanchor: "top",
+      font: { size: 12, color: theme.text },
+    });
+  }
+  const layout: Partial<Layout> = {
+    ...base,
+    title: { text: options.title, font: { size: 16, color: theme.text }, x: 0.02, xanchor: "left" },
+    margin: { l: 60, r: 20, t: 50, b: 56 },
+    bargap: 0.02,
+    xaxis: axis(theme, options.xLabel),
+    yaxis: { ...axis(theme, options.yLabel), ...(options.log ? { type: "log" as const } : { rangemode: "tozero" as const }) },
+    shapes,
+    annotations,
+  };
+  return { data, layout };
+}
+
+/** "Medias de Activación (capa)": `go.Bar(y=neuron_means)`, x = neuron index. */
+export function neuronMeansFigure(means: readonly number[], title: string, xLabel: string, yLabel: string, theme: ChartTheme = LIGHT_THEME): Figure {
+  const { title: _title, ...base } = baseLayout(theme, "");
+  return {
+    data: [
+      {
+        type: "bar",
+        x: means.map((_, i) => i),
+        y: [...means],
+        marker: { color: "#1f77b4" },
+        hovertemplate: `${xLabel} %{x}<br>${yLabel}: %{y:.4f}<extra></extra>`,
+        showlegend: false,
+      },
+    ],
+    layout: {
+      ...base,
+      title: { text: title, font: { size: 16, color: theme.text }, x: 0.02, xanchor: "left" },
+      margin: { l: 60, r: 20, t: 50, b: 56 },
+      xaxis: axis(theme, xLabel),
+      yaxis: axis(theme, yLabel),
+    },
+  };
+}

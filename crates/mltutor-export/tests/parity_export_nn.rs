@@ -35,17 +35,18 @@ fn load(name: &str) -> Loaded {
     };
     let n_classes = ds.target.n_classes().unwrap_or(0);
     let k = output_size(task, n_classes);
-    let net = NeuralNetwork {
-        mlp: mlp_of(&e["final_weights"], arch.activation, arch.output_activation),
-        scaler: Scaler {
+    let net = NeuralNetwork::new(
+        mlp_of(&e["final_weights"], arch.activation, arch.output_activation),
+        Scaler {
             mean: nums(&e["scaler"]["mean"]),
             scale: nums(&e["scaler"]["scale"]),
             n_samples: ds.n_rows(),
         },
         task,
-        classes: (0..n_classes).collect(),
-        resolved: resolve_training(task, arch.output_activation, k).unwrap(),
-    };
+        (0..n_classes).collect(),
+        resolve_training(task, arch.output_activation, k).unwrap(),
+    )
+    .unwrap();
     let codes = ds.target.class_codes();
     let split =
         mltutor_core::nn_data::lesson_split(task, codes.as_deref(), &[], ds.n_rows()).unwrap();
@@ -65,6 +66,15 @@ fn run(model: &Model, x: &[f32], n: usize) -> (Option<Vec<i64>>, Vec<f32>, usize
     let mut t: HashMap<String, (Vec<f32>, usize)> = HashMap::new();
     let mut ints: HashMap<String, Vec<i64>> = HashMap::new();
     for init in &g.initializer {
+        if init.data_type == onnx::ELEM_INT64 {
+            ints.insert(
+                init.name.clone(),
+                init.raw_data
+                    .chunks_exact(8)
+                    .map(|c| i64::from_le_bytes(c.try_into().unwrap()))
+                    .collect(),
+            );
+        }
         if init.data_type == onnx::ELEM_FLOAT {
             let v: Vec<f32> = init
                 .raw_data
@@ -90,6 +100,33 @@ fn run(model: &Model, x: &[f32], n: usize) -> (Option<Vec<i64>>, Vec<f32>, usize
     for node in &g.node {
         let inp = |i: usize| t[&node.input[i]].clone();
         match node.op_type.as_str() {
+            "Sub" if t[&node.input[0]].0.len() == 1 => {
+                // Scalar − tensor (`one − p`).
+                let s0 = t[&node.input[0]].0[0];
+                let (b, cols) = inp(1);
+                t.insert(
+                    node.output[0].clone(),
+                    (b.iter().map(|v| s0 - v).collect(), cols),
+                );
+            }
+            "Concat" => {
+                let (a, ca) = inp(0);
+                let (b, cb) = inp(1);
+                let mut out = Vec::new();
+                for (ra, rb) in a.chunks(ca).zip(b.chunks(cb)) {
+                    out.extend_from_slice(ra);
+                    out.extend_from_slice(rb);
+                }
+                t.insert(node.output[0].clone(), (out, ca + cb));
+            }
+            "Gather" => {
+                let table = ints[&node.input[0]].clone();
+                let idx = ints[&node.input[1]].clone();
+                ints.insert(
+                    node.output[0].clone(),
+                    idx.iter().map(|&i| table[i as usize]).collect(),
+                );
+            }
             "Sub" | "Div" => {
                 let (a, cols) = inp(0);
                 let (b, _) = inp(1);
@@ -211,17 +248,25 @@ fn onnx_graph_and_outputs() {
         // Raw test rows (original units) → test.raw_output.
         let x_test = l.ds.features.select(Axis(0), &l.test);
         let x: Vec<f32> = x_test.iter().map(|&v| v as f32).collect();
-        let (labels, out, _) = run(
+        let (labels, out, cols) = run(
             &Model::from_bytes(&model.to_bytes()).unwrap(),
             &x,
             l.test.len(),
         );
         let raw = flat(&e["test"]["raw_output"]);
         let scale = raw.iter().fold(1.0_f64, |m, v| m.max(v.abs()));
-        for (a, b) in out.iter().zip(&raw) {
-            let d = (f64::from(*a) - b).abs();
+        let k = l.net.mlp().n_outputs();
+        let binary = labels.is_some() && k == 1;
+        // Binary: `probabilities` = [1 − p, p] (finding 9).
+        assert_eq!(cols, if binary { 2 } else { k }, "{name}");
+        for (i, b) in raw.iter().enumerate() {
+            let a = if binary { out[2 * i + 1] } else { out[i] };
+            let d = (f64::from(a) - b).abs();
             assert!(d <= 1e-5 * scale, "{name}: {a} vs {b}");
             worst = worst.max(d / scale);
+            if binary {
+                assert!((out[2 * i] + out[2 * i + 1] - 1.0).abs() < 1e-6, "{name}");
+            }
         }
         if let Some(labels) = labels {
             let yp: Vec<i64> = e["test"]["y_pred"]
@@ -337,4 +382,122 @@ fn strings_of(v: &Value) -> Vec<String> {
         .iter()
         .map(|s| s.as_str().unwrap().to_owned())
         .collect()
+}
+
+/// Review F5a (medium, finding 5): a network with NaN weights (a diverged training)
+/// or a NaN scaler is refused by both exports; `modelo.json` is compact and its
+/// weights read back as exactly the same float32.
+#[test]
+fn non_finite_networks_are_refused_and_model_json_is_compact() {
+    use mltutor_export::ExportError;
+    let l = load("iris_default");
+    let x_test = l.ds.features.select(Axis(0), &l.test);
+    let check = x_test.slice(ndarray::s![..5, ..]);
+    let names: Vec<String> = (0..4).map(|i| format!("f{i}")).collect();
+    let input = |net| KerasPackageInput {
+        network: net,
+        arch: &l.arch,
+        dataset_label: "🌸 Iris",
+        feature_names: &names,
+        class_names: None,
+        final_learning_rate: 0.001,
+        x_check: check,
+        n_train: 120,
+        n_test: 30,
+    };
+    // Exact float32 round trip of every weight through the text.
+    let pkg = keras_package(&input(&l.net)).unwrap();
+    let doc: Value = serde_json::from_str(&pkg.model_json).unwrap();
+    for (layer, ours) in doc["layers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .zip(&l.net.mlp().layers)
+    {
+        let kernel: Vec<f32> = flat(&layer["kernel"]).iter().map(|&v| v as f32).collect();
+        assert_eq!(kernel, ours.kernel);
+        let bias: Vec<f32> = nums(&layer["bias"]).iter().map(|&v| v as f32).collect();
+        assert_eq!(bias, ours.bias);
+    }
+    // One line per kernel row.
+    let rows: usize = l.net.mlp().layers.iter().map(|d| d.inputs).sum();
+    let kernel_lines = pkg
+        .model_json
+        .lines()
+        .filter(|ln| ln.trim_start().starts_with('[') && ln.contains(','))
+        .count();
+    assert!(kernel_lines >= rows, "{kernel_lines} lines for {rows} rows");
+    // NaN weights.
+    let mut mlp = l.net.mlp().clone();
+    mlp.layers[0].kernel[3] = f32::NAN;
+    let bad = NeuralNetwork::new(
+        mlp,
+        l.net.scaler().clone(),
+        TaskType::Classification,
+        l.net.class_codes().to_vec(),
+        l.net.resolved(),
+    )
+    .unwrap();
+    assert!(!bad.is_valid());
+    assert!(matches!(
+        keras_package(&input(&bad)),
+        Err(ExportError::InvalidModel { .. })
+    ));
+    assert!(matches!(
+        mltutor_export::onnx_model(&bad, None),
+        Err(ExportError::InvalidModel { .. })
+    ));
+    // NaN scaler.
+    let mut sc = l.net.scaler().clone();
+    sc.scale[1] = f64::NAN;
+    let bad = NeuralNetwork::new(
+        l.net.mlp().clone(),
+        sc,
+        TaskType::Classification,
+        l.net.class_codes().to_vec(),
+        l.net.resolved(),
+    )
+    .unwrap();
+    assert!(keras_package(&input(&bad)).is_err());
+    assert!(mltutor_export::onnx_model(&bad, None).is_err());
+}
+
+/// Review F5a (finding 5): a 5 × 256 network's `modelo.json` was ~10 MB pretty
+/// printed; compact it must stay well under 4 MB.
+#[test]
+fn large_network_model_json_size() {
+    use mltutor_nn::{glorot_init, Activation};
+    let l = load("california_housing_default_e20");
+    let mut rng = mltutor_core::sampling::RandomState::new(42);
+    let mlp = glorot_init(
+        &[8, 256, 256, 256, 256, 256, 1],
+        Activation::Relu,
+        Activation::Linear,
+        &mut rng,
+    );
+    let net = NeuralNetwork::new(
+        mlp,
+        l.net.scaler().clone(),
+        TaskType::Regression,
+        vec![],
+        l.net.resolved(),
+    )
+    .unwrap();
+    let x_test = l.ds.features.select(Axis(0), &l.test);
+    let names: Vec<String> = (0..8).map(|i| format!("f{i}")).collect();
+    let pkg = keras_package(&KerasPackageInput {
+        network: &net,
+        arch: &l.arch,
+        dataset_label: "🏠 California",
+        feature_names: &names,
+        class_names: None,
+        final_learning_rate: 0.001,
+        x_check: x_test.slice(ndarray::s![..5, ..]),
+        n_train: 16512,
+        n_test: 4128,
+    })
+    .unwrap();
+    let mb = pkg.model_json.len() as f64 / 1e6;
+    eprintln!("5 × 256 modelo.json: {mb:.2} MB");
+    assert!(mb < 4.0, "{mb} MB");
 }

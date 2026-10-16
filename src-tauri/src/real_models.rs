@@ -402,6 +402,84 @@ impl CoreModel {
     }
 }
 
+impl CoreModel {
+    /// A model trained elsewhere on `split` (🧠 networks: their own stratified split),
+    /// so that it shares the views of every other lesson (C1/C2, C9).
+    pub(crate) fn from_split(
+        dataset: Arc<core::Dataset>,
+        id: Option<core::DatasetId>,
+        spec: TrainSpec,
+        model: Box<dyn Predictor>,
+        split: core::split::TrainTestSplit,
+    ) -> Self {
+        let y_train = dataset.target.select(&split.train);
+        let y_test = dataset.target.select(&split.test);
+        CoreModel {
+            dataset,
+            id,
+            spec,
+            model,
+            split,
+            y_train,
+            y_test,
+            notices: Vec::new(),
+            outputs: OnceLock::new(),
+            form: OnceLock::new(),
+            playground: crate::real_knn::PlaygroundCache::default(),
+        }
+    }
+
+    /// The IPC grid of `grid` (features `x`, `y`; `fixed` = the values of the other
+    /// features of the 🧠 surface, D78).
+    pub(crate) fn grid_dto(
+        &self,
+        grid: core::grid::DecisionGrid,
+        x: usize,
+        y: usize,
+        fixed: Option<Vec<f64>>,
+    ) -> ipc::DecisionGrid {
+        let notice = |n: core::grid::GridNotice| match n {
+            core::grid::GridNotice::Created { rows, cols } => ipc::GridNotice::Created {
+                rows: to_u32(rows),
+                cols: to_u32(cols),
+            },
+            core::grid::GridNotice::TooLarge { points } => ipc::GridNotice::TooLarge {
+                points: points as u64,
+            },
+            core::grid::GridNotice::Resized { rows, cols } => ipc::GridNotice::Resized {
+                rows: to_u32(rows),
+                cols: to_u32(cols),
+            },
+        };
+        let classifier = self.model.task() == core::TaskType::Classification;
+        let (n, _) = grid.points.dim();
+        ipc::DecisionGrid {
+            values: match grid.values {
+                core::grid::GridValues::Classes { z } => ipc::GridValues::Classes { z },
+                core::grid::GridValues::Values { z, min, max } => {
+                    ipc::GridValues::Values { z, min, max }
+                }
+            },
+            notices: grid.axes.notices.into_iter().map(notice).collect(),
+            x: grid.axes.x,
+            y: grid.axes.y,
+            points: Matrix::from_f64(n, 2, grid.points.iter().copied().collect::<Vec<_>>()),
+            point_target: grid.point_target,
+            point_codes: grid
+                .point_codes
+                .filter(|_| classifier)
+                .map(|codes| codes.into_iter().map(to_u32).collect()),
+            feature_names: [
+                self.dataset.feature_display[x].clone(),
+                self.dataset.feature_display[y].clone(),
+            ],
+            class_names: self.class_names().filter(|_| classifier),
+            show_2d_warning: grid.show_2d_warning,
+            fixed,
+        }
+    }
+}
+
 impl ModelView for CoreModel {
     fn summary(&self) -> ModelSummary {
         ModelSummary {
@@ -641,44 +719,7 @@ impl ModelView for CoreModel {
             &control,
         )
         .map_err(model_error)?;
-        let notice = |n: core::grid::GridNotice| match n {
-            core::grid::GridNotice::Created { rows, cols } => ipc::GridNotice::Created {
-                rows: to_u32(rows),
-                cols: to_u32(cols),
-            },
-            core::grid::GridNotice::TooLarge { points } => ipc::GridNotice::TooLarge {
-                points: points as u64,
-            },
-            core::grid::GridNotice::Resized { rows, cols } => ipc::GridNotice::Resized {
-                rows: to_u32(rows),
-                cols: to_u32(cols),
-            },
-        };
-        let classifier = self.model.task() == core::TaskType::Classification;
-        let (n, _) = grid.points.dim();
-        Ok(ipc::DecisionGrid {
-            values: match grid.values {
-                core::grid::GridValues::Classes { z } => ipc::GridValues::Classes { z },
-                core::grid::GridValues::Values { z, min, max } => {
-                    ipc::GridValues::Values { z, min, max }
-                }
-            },
-            notices: grid.axes.notices.into_iter().map(notice).collect(),
-            x: grid.axes.x,
-            y: grid.axes.y,
-            points: Matrix::from_f64(n, 2, grid.points.iter().copied().collect::<Vec<_>>()),
-            point_target: grid.point_target,
-            point_codes: grid
-                .point_codes
-                .filter(|_| classifier)
-                .map(|codes| codes.into_iter().map(to_u32).collect()),
-            feature_names: [
-                self.dataset.feature_display[x].clone(),
-                self.dataset.feature_display[y].clone(),
-            ],
-            class_names: self.class_names().filter(|_| classifier),
-            show_2d_warning: grid.show_2d_warning,
-        })
+        Ok(self.grid_dto(grid, x, y, None))
     }
 
     fn coefficients(

@@ -1,16 +1,21 @@
-//! A trained network as seen by the commands (fase5-redes.md §5.2): its summary and its
-//! history. Both facades build it; the views of 📈 Evaluación and 🎯 Visualización (F5c)
-//! and the exports (F5d) will be added on top of the engine's own model.
+//! A trained network as seen by the commands (fase5-redes.md §5.2): its summary, its
+//! history and the views of 📈 Evaluación and 🎯 Visualización (F5c). Both facades build
+//! it; the views that need the weights go through [`NnEngine`] (the real engine in the
+//! app; the FixtureFacade only replays the history). The exports arrive in F5d.
 
 use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
+
+use mltutor_core as core;
 
 use crate::core_facade::{ModelSummary, ModelView, Progress, TrainSpec};
 use crate::ipc::{
-    CodeTemplate, CoefficientsView, CommandError, DatasetSummary, DecisionGrid, EpochLog,
-    Evaluation, ExportFormat, HistoryView, ModelConfig, NnArchitecture, NnSummary, NnTraining,
-    PredictionForm, PredictionResult, ProbabilityView, ResidualsView, RocData, SplitSizes,
-    TaskType,
+    ActivationsRequest, ActivationsView, CodeTemplate, CoefficientsView, CommandError,
+    DatasetSummary, DecisionGrid, DiagnosticsView, Divergence, EpochLog, Evaluation, ExportFormat,
+    HistoryView, ModelConfig, NnActivation, NnArchitecture, NnEvaluationView, NnMetric, NnSeverity,
+    NnSummary, NnTraining, NnViewNode, PredictionForm, PredictionResult, ProbabilityView,
+    ResidualsView, RocData, SplitSizes, TaskType, WeightsView,
 };
 use crate::nn::{self, NnTask, Resolved};
 
@@ -80,17 +85,158 @@ pub fn now_ms() -> u64 {
 pub struct Outcome {
     pub epochs: Vec<EpochLog>,
     pub best_epoch: Option<u16>,
+    /// K1 (1-based): the engine's own detection (a NaN batch loss can come before a NaN
+    /// epoch log); `None` = look at the epoch logs.
+    pub diverged_epoch: Option<u16>,
     pub started: Instant,
 }
 
-/// A trained network: what tabs 2 and 3 need in F5b.
+/// The views of 📈 and 🎯 that need the trained weights (F5c). The real engine
+/// (`real_nn::RealNn`) implements them; the FixtureFacade replays only the history.
+pub trait NnEngine: Send + Sync {
+    /// The model as a classic [`ModelView`] (C1/C2, C9, static code snippets).
+    fn delegate(&self) -> &dyn ModelView;
+    /// `model.evaluate(X_test, y_test)`: loss and metric.
+    fn test_scores(&self) -> (f64, f64);
+    /// D87: `false` with a tanh output (its outputs are not probabilities).
+    fn output_is_probability(&self) -> bool;
+    fn weights(&self, bins_weights: usize, bins_biases: usize)
+        -> Result<WeightsView, CommandError>;
+    fn activations(
+        &self,
+        req: &ActivationsRequest,
+        cancel: &AtomicBool,
+    ) -> Result<ActivationsView, CommandError>;
+    /// D78: the whole network on a grid of two features, the rest at their mean.
+    fn mean_grid(
+        &self,
+        x: usize,
+        y: usize,
+        cancel: &AtomicBool,
+    ) -> Result<DecisionGrid, CommandError>;
+}
+
+/// A trained network: summary, history (both facades) and, in the app, the engine
+/// with the weights.
 pub struct NnModel {
     summary: ModelSummary,
     history: HistoryView,
-    /// The engine's network (`mltutor_nn::TrainedNetwork` in the app), for the views of
-    /// F5c/F5d.
-    #[allow(dead_code)]
-    engine: Option<std::sync::Arc<dyn std::any::Any + Send + Sync>>,
+    series: core::nn_data::HistorySeries,
+    task: TaskType,
+    n_val: usize,
+    output_activation: NnActivation,
+    engine: Option<Arc<dyn NnEngine>>,
+}
+
+/// D77: "Oculta i" / "Salida" (the names of the architecture).
+pub fn layer_name(index: usize, n_dense: usize) -> String {
+    if index + 1 == n_dense {
+        nn::nn_text("arquitectura", "detalles_salida", "Salida")
+    } else {
+        nn::nn_text("arquitectura", "detalles_oculta", "Oculta {i}")
+            .replace("{i}", &(index + 1).to_string())
+    }
+}
+
+/// The Keras name of dense layer `index` (`dense_1`…, `output_layer`).
+pub fn keras_name(index: usize, n_dense: usize) -> String {
+    if index + 1 == n_dense {
+        "output_layer".to_owned()
+    } else {
+        format!("dense_{}", index + 1)
+    }
+}
+
+/// K1: first epoch (1-based) whose loss or validation loss is not finite.
+pub fn diverged_epoch(epochs: &[EpochLog]) -> Option<u16> {
+    epochs
+        .iter()
+        .find(|l| l.loss.is_none() || l.val_loss.is_none())
+        .map(|l| l.epoch)
+}
+
+/// The IPC epochs as the series the core diagnostics read (`None` → NaN).
+fn series(epochs: &[EpochLog], metric: NnMetric) -> core::nn_data::HistorySeries {
+    let col = |f: fn(&EpochLog) -> Option<f64>| -> Vec<f64> {
+        epochs.iter().map(|l| f(l).unwrap_or(f64::NAN)).collect()
+    };
+    core::nn_data::HistorySeries {
+        loss: col(|l| l.loss),
+        val_loss: Some(col(|l| l.val_loss)),
+        metric_key: match metric {
+            NnMetric::Accuracy => "accuracy",
+            NnMetric::Mae => "mae",
+        }
+        .to_owned(),
+        metric: Some(col(|l| l.metric)),
+        val_metric: Some(col(|l| l.val_metric)),
+    }
+}
+
+fn severity(s: core::nn_data::Severity) -> NnSeverity {
+    match s {
+        core::nn_data::Severity::Success => NnSeverity::Success,
+        core::nn_data::Severity::Info => NnSeverity::Info,
+        core::nn_data::Severity::Warning => NnSeverity::Warning,
+        core::nn_data::Severity::Error => NnSeverity::Error,
+    }
+}
+
+/// A core view tree → the IPC one (same shape).
+pub fn view_node(node: core::view::ViewNode) -> NnViewNode {
+    use core::view::ViewNode as V;
+    let all = |children: Vec<V>| children.into_iter().map(view_node).collect();
+    match node {
+        V::Page { children } => NnViewNode::Page {
+            children: all(children),
+        },
+        V::Text { text, html } => NnViewNode::Text { text, html },
+        V::Heading { text, level } => NnViewNode::Heading { text, level },
+        V::Notice { text, severity: s } => NnViewNode::Notice {
+            text,
+            severity: severity(s),
+        },
+        V::Metric {
+            label,
+            value,
+            delta,
+            delta_color,
+            help,
+        } => NnViewNode::Metric {
+            label,
+            value,
+            delta,
+            delta_color,
+            help,
+        },
+        V::Row { weights, children } => NnViewNode::Row {
+            weights,
+            children: all(children),
+        },
+        V::Column { children } => NnViewNode::Column {
+            children: all(children),
+        },
+        V::Expander {
+            label,
+            expanded,
+            children,
+        } => NnViewNode::Expander {
+            label,
+            expanded,
+            children: all(children),
+        },
+    }
+}
+
+fn core_task(task: TaskType) -> core::TaskType {
+    match task {
+        TaskType::Classification => core::TaskType::Classification,
+        TaskType::Regression => core::TaskType::Regression,
+    }
+}
+
+fn content_error(error: impl std::fmt::Display) -> CommandError {
+    CommandError::internal(format!("contenido: {error}"))
 }
 
 impl NnModel {
@@ -125,6 +271,22 @@ impl NnModel {
             }),
             TaskType::Regression => None,
         };
+        let metric = prepared.resolved.metric;
+        let series = series(&outcome.epochs, metric);
+        let diverged = outcome
+            .diverged_epoch
+            .or_else(|| diverged_epoch(&outcome.epochs));
+        let cards = if diverged.is_none() && !outcome.epochs.is_empty() {
+            match core::nn_diagnostics::history_cards(&series) {
+                Ok(cards) => Some(view_node(cards.row)),
+                Err(error) => {
+                    log::error!("contenido de las tarjetas del historial: {error}");
+                    None
+                }
+            }
+        } else {
+            None
+        };
         Self {
             summary: ModelSummary {
                 model_task: task,
@@ -141,22 +303,58 @@ impl NnModel {
                 nn: Some(nn_summary),
             },
             history: HistoryView {
-                metric: prepared.resolved.metric,
+                metric,
                 lr_drops: lr_drops(&outcome.epochs),
                 epochs: outcome.epochs,
                 best_epoch: outcome.best_epoch,
+                diverged_epoch: diverged,
+                cards,
             },
+            series,
+            task,
+            n_val: prepared.sizes.val as usize,
+            output_activation: prepared.arch.output_activation,
             engine: None,
         }
     }
 
-    pub fn with_engine(mut self, engine: std::sync::Arc<dyn std::any::Any + Send + Sync>) -> Self {
+    pub fn with_engine(mut self, engine: Arc<dyn NnEngine>) -> Self {
         self.engine = Some(engine);
         self
     }
+
+    fn engine(&self) -> Result<&dyn NnEngine, CommandError> {
+        self.engine.as_deref().ok_or_else(pending)
+    }
+
+    fn divergence(&self) -> Option<Divergence> {
+        self.history
+            .diverged_epoch
+            .map(|epoch| Divergence { epoch })
+    }
+
+    /// K1: the views that need meaningful weights are blocked after a divergence.
+    fn check_not_diverged(&self) -> Result<(), CommandError> {
+        match self.history.diverged_epoch {
+            Some(epoch) => Err(diverged_error(epoch)),
+            None => Ok(()),
+        }
+    }
 }
 
-/// The views of the network that arrive in F5c/F5d.
+/// K1: the message of the views that a diverged network cannot show.
+pub fn diverged_error(epoch: u16) -> CommandError {
+    CommandError::invalid_selection(
+        nn::nn_text(
+            "evaluacion",
+            "aviso_divergencia",
+            "🚨 El entrenamiento divergió en la época {epoca}: la pérdida se hizo infinita o NaN (no es un número), así que los pesos de la red no sirven y esta vista no se puede calcular. Suele deberse a un learning rate demasiado alto: prueba 0.01 o 0.001 y vuelve a entrenar.",
+        )
+        .replace("{epoca}", &epoch.to_string()),
+    )
+}
+
+/// The views of the network that arrive in F5d (or need the real engine).
 fn pending() -> CommandError {
     CommandError::invalid_selection(
         "Esta vista de la red neuronal todavía no está disponible en esta versión.",
@@ -168,7 +366,8 @@ impl ModelView for NnModel {
         self.summary.clone()
     }
     fn evaluate(&self) -> Result<Evaluation, CommandError> {
-        Err(pending())
+        self.check_not_diverged()?;
+        self.engine()?.delegate().evaluate()
     }
     fn roc_curves(&self) -> Result<RocData, CommandError> {
         Err(pending())
@@ -181,34 +380,110 @@ impl ModelView for NnModel {
     }
     fn decision_grid(
         &self,
-        _x: usize,
-        _y: usize,
+        x: usize,
+        y: usize,
         _progress: &Progress<'_>,
-        _cancel: &AtomicBool,
+        cancel: &AtomicBool,
     ) -> Result<DecisionGrid, CommandError> {
-        Err(pending())
+        self.check_not_diverged()?;
+        self.engine()?.mean_grid(x, y, cancel)
     }
     fn coefficients(&self, _class_index: Option<usize>) -> Result<CoefficientsView, CommandError> {
         Err(pending())
     }
     fn prediction_form(&self) -> Result<PredictionForm, CommandError> {
-        Err(pending())
+        self.engine()?.delegate().prediction_form()
     }
-    fn predict_one(&self, _values: &[f64]) -> Result<PredictionResult, CommandError> {
-        Err(pending())
+    fn predict_one(&self, values: &[f64]) -> Result<PredictionResult, CommandError> {
+        self.check_not_diverged()?;
+        self.engine()?.delegate().predict_one(values)
     }
     fn export(&self, _format: ExportFormat) -> Result<Vec<u8>, CommandError> {
         Err(pending())
     }
     fn code(
         &self,
-        _template: CodeTemplate,
-        _pair: Option<(usize, usize)>,
+        template: CodeTemplate,
+        pair: Option<(usize, usize)>,
     ) -> Result<String, CommandError> {
-        Err(pending())
+        // The snippets of C1/C2 (confusion matrix, precision by class, predictions,
+        // errors) are the same for every model; the rest belongs to F5d.
+        match template {
+            CodeTemplate::ConfusionMatrix
+            | CodeTemplate::PrecisionByClass
+            | CodeTemplate::PredVsReal
+            | CodeTemplate::ErrorDistribution => self.engine()?.delegate().code(template, pair),
+            _ => Err(pending()),
+        }
     }
     fn nn_history(&self) -> Result<HistoryView, CommandError> {
         Ok(self.history.clone())
+    }
+    fn nn_evaluation(&self) -> Result<NnEvaluationView, CommandError> {
+        let engine = self.engine()?;
+        let (loss, metric) = engine.test_scores();
+        let diverged = self.divergence();
+        let evaluation = if diverged.is_some() {
+            None
+        } else {
+            Some(engine.delegate().evaluate()?)
+        };
+        let r2_negative = match &evaluation {
+            Some(Evaluation::Regression(r)) => {
+                core::nn_diagnostics::r2_negative_notice(r.r2).map_err(content_error)?
+            }
+            _ => None,
+        };
+        Ok(NnEvaluationView {
+            metric: self.history.metric,
+            test_loss: nn::finite_log(loss),
+            test_metric: nn::finite_log(metric),
+            evaluation,
+            r2_negative,
+            diverged,
+            output_is_probability: engine.output_is_probability(),
+            output_activation: self.output_activation,
+        })
+    }
+    fn nn_diagnostics(&self) -> Result<DiagnosticsView, CommandError> {
+        if let Some(d) = self.divergence() {
+            return Ok(DiagnosticsView {
+                blocks: Vec::new(),
+                diverged: Some(d),
+            });
+        }
+        if self.series.loss.is_empty() {
+            return Ok(DiagnosticsView {
+                blocks: Vec::new(),
+                diverged: None,
+            });
+        }
+        let view = core::nn_diagnostics::diagnostics_view(
+            &self.series,
+            core_task(self.task),
+            Some(self.n_val),
+        )
+        .map_err(content_error)?;
+        Ok(DiagnosticsView {
+            blocks: view.blocks.into_iter().map(view_node).collect(),
+            diverged: None,
+        })
+    }
+    fn nn_weights(
+        &self,
+        bins_weights: usize,
+        bins_biases: usize,
+    ) -> Result<WeightsView, CommandError> {
+        self.check_not_diverged()?;
+        self.engine()?.weights(bins_weights, bins_biases)
+    }
+    fn nn_activations(
+        &self,
+        req: &ActivationsRequest,
+        cancel: &AtomicBool,
+    ) -> Result<ActivationsView, CommandError> {
+        self.check_not_diverged()?;
+        self.engine()?.activations(req, cancel)
     }
 }
 

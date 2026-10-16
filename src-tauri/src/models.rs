@@ -19,12 +19,14 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use crate::core_facade::{check_cancelled, ModelHandle, TrainEvent, TrainObserver, TrainSpec};
 use crate::data::{blocking, DataState};
 use crate::ipc::{
-    ArchitectureRequest, ArchitectureView, ClassDistancesView, CodeExtra, CodeTemplate,
-    CoefficientsView, CommandError, DatasetRef, DecisionGrid, EpochLog, Evaluation, ExportFormat,
-    FeatureImportanceView, GridRequest, HistoryView, ImportanceMethod, LessonId, ModelConfig,
-    NnCodeRequest, NnEpochEvent, PlaygroundRequest, PlaygroundView, PredictRequest, PredictionForm,
+    ActivationsRequest, ActivationsView, ArchitectureRequest, ArchitectureView, ClassDistancesView,
+    CodeExtra, CodeTemplate, CoefficientsView, CommandError, DatasetRef, DecisionGrid,
+    DiagnosticsView, EpochLog, Evaluation, ExportFormat, FeatureImportanceView, GridRequest,
+    HistoryView, ImportanceMethod, LessonId, ModelConfig, NnCodeRequest, NnEpochEvent,
+    NnEvaluationView, PlaygroundRequest, PlaygroundView, PredictRequest, PredictionForm,
     PredictionResult, ProbabilityView, ResidualsView, RocData, RulesRequest, TaskProgress,
-    TaskType, TrainNotice, TrainPhase, TrainRequest, TrainedModelInfo, TreeDiagram,
+    TaskType, TrainNotice, TrainPhase, TrainRequest, TrainedModelInfo, TreeDiagram, WeightsRequest,
+    WeightsView,
 };
 use crate::tasks::CancelToken;
 
@@ -786,6 +788,7 @@ pub async fn nn_architecture(
             &summary,
             &req.arch,
             req.validation_pct,
+            req.epochs,
         ))
     })
     .await
@@ -798,6 +801,90 @@ pub async fn nn_history(
     model_id: u32,
 ) -> Result<HistoryView, CommandError> {
     with_model("nn_history", &models, model_id, |m| m.model.nn_history()).await
+}
+
+/// 📈 Evaluación of a network: test loss and metric, C1/C2, D84 and K1.
+#[tauri::command]
+pub async fn nn_evaluation(
+    models: State<'_, ModelState>,
+    model_id: u32,
+) -> Result<NnEvaluationView, CommandError> {
+    with_model("nn_evaluation", &models, model_id, |m| {
+        m.model.nn_evaluation()
+    })
+    .await
+}
+
+/// C23: "🔍 Diagnóstico del Entrenamiento".
+#[tauri::command]
+pub async fn nn_diagnostics(
+    models: State<'_, ModelState>,
+    model_id: u32,
+) -> Result<DiagnosticsView, CommandError> {
+    with_model("nn_diagnostics", &models, model_id, |m| {
+        m.model.nn_diagnostics()
+    })
+    .await
+}
+
+/// Ranges of "⚙️ Opciones de visualización" of 🧠 Pesos.
+pub fn validate_weights_request(req: &WeightsRequest) -> Result<(), CommandError> {
+    if !(10..=120).contains(&req.bins_weights) || !(5..=60).contains(&req.bins_biases) {
+        return Err(CommandError::invalid_selection(
+            "Los bins deben estar entre 10 y 120 (pesos) y entre 5 y 60 (sesgos).",
+        ));
+    }
+    Ok(())
+}
+
+/// Ranges of "⚙️ Parámetros de Análisis" of 📉 Activaciones.
+pub fn validate_activations_request(req: &ActivationsRequest) -> Result<(), CommandError> {
+    if !(10..=200).contains(&req.sample_size) {
+        return Err(CommandError::invalid_selection(
+            "El número de muestras debe estar entre 10 y 200.",
+        ));
+    }
+    if !(req.dead_threshold.is_finite() && (0.0..=1.0).contains(&req.dead_threshold)) {
+        return Err(CommandError::invalid_selection(
+            "El umbral de neurona muerta debe estar entre 0 y 1.",
+        ));
+    }
+    if !(req.constant_std.is_finite() && (1e-6..=1.0).contains(&req.constant_std)) {
+        return Err(CommandError::invalid_selection(
+            "La desviación típica de neurona constante debe estar entre 0,000001 y 1.",
+        ));
+    }
+    Ok(())
+}
+
+/// C25: 🧠 Análisis de Pesos.
+#[tauri::command]
+pub async fn nn_weights(
+    models: State<'_, ModelState>,
+    req: WeightsRequest,
+) -> Result<WeightsView, CommandError> {
+    validate_weights_request(&req)?;
+    with_model("nn_weights", &models, req.model_id, move |m| {
+        m.model
+            .nn_weights(usize::from(req.bins_weights), usize::from(req.bins_biases))
+    })
+    .await
+}
+
+/// C26: 📉 Análisis de Activaciones (cancellable: the UI cancels the previous request
+/// when a control changes).
+#[tauri::command]
+pub async fn nn_activations(
+    data: State<'_, DataState>,
+    models: State<'_, ModelState>,
+    req: ActivationsRequest,
+) -> Result<ActivationsView, CommandError> {
+    validate_activations_request(&req)?;
+    let guard = data.tasks.start(req.task_id);
+    with_model("nn_activations", &models, req.model_id, move |m| {
+        m.model.nn_activations(&req, &guard.token())
+    })
+    .await
 }
 
 /// D74: `red_entrenamiento.py.j2` with the controls of 🏗️ and ⚙️ (no model needed).

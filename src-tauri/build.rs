@@ -45,6 +45,10 @@ fn main() {
         "knn_playground",
         "nn_architecture",
         "nn_history",
+        "nn_evaluation",
+        "nn_diagnostics",
+        "nn_weights",
+        "nn_activations",
         "nn_training_code",
     ]);
     if let Err(error) =

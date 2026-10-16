@@ -297,6 +297,47 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
     `tools/knn_reference.py` lo reproduce bit a bit y es la especificación (D52, D66).
   - La wheel arm64 suma la distancia euclídea en bloques de 8 sin FMA, y el resto (`n % 8`) con FMA
     (D53, `mul_add`).
+- **Revisión Rust F5a, correcciones (2026-10-16):**
+  - `f32::max(NaN, 0.0)` devuelve 0, así que una ReLU hecha con max OCULTA la divergencia; se usa
+    `if v < 0 { 0 }`.
+  - Divergir no es un error: se sigue entrenando como Keras, se marca `History.diverged_epoch` y
+    `NeuralNetwork::is_valid()` pasa a false. Las vistas devuelven `Numerical` y las exportaciones
+    `InvalidModel`. Los f64 del historial se serializan como "nan"/"inf" (`serde_nonfinite`).
+  - Keras 3.12: ReduceLROnPlateau y EarlyStopping empiezan con `best = None` (la primera época siempre
+    es la mejor, también con NaN); `best = inf` era de Keras 2. Hay test en `engine.rs`.
+  - Productos en paralelo por filas de salida (rayon, umbral 2^19), bit a bit iguales con cualquier
+    número de hilos. 5×256 en California pasa de 3,18 a 0,92 s por época. Con un umbral de 2^15,
+    [64,64] iba el doble de lento.
+  - `histogram_plotly` reproduce `go.Histogram(nbinsx)` de plotly.js: ancho redondeado a {2,5,10}·10^k,
+    desplazamiento de medio bin y recorte de los extremos vacíos. Validado con plotly.js en jsdom.
+  - `Scaler`: aplica la regla `_is_constant_feature` de sklearn. `modelo.json` usa el decimal f32 más
+    corto (de 10 a 3,2 MB con 5×256).
+  - ONNX MLP: `label` = código del dataset (`Gather`), y en binaria `probabilities` = `Concat(1−p, p)`.
+  - `training_cost` (K6): 2e9 de work por segundo; < 10 s → Low, 10–60 s → High, más → VeryHigh.
+  - zsh no parte `$args`: los `--only` de export_golden.py se escriben explícitamente.
+- **F5c (2026-10-16):**
+  - El hash del mapa de neuronas del canvas de Python, `((h^(h>>13))*1274126177)^…` sobre dobles de JS,
+    nunca pasa de 0,5: con "% conexiones" ≥ 50 dibujaba todo y la dispersión era asimétrica. Rust usa
+    `Math.imul`.
+  - El mapa de 5×256 tiene 281 000 conexiones: va en un canvas HiDPI (`NetworkMap.svelte`), no en SVG.
+  - `nn_evaluation` es un comando aparte (`evaluate_model` sigue igual), y las vistas que necesitan los
+    pesos pasan por el trait `NnEngine`.
+  - La superficie de regresión usa escalas de color separadas (Diabetes por defecto predice ~0,8 con
+    objetivos de 25–346).
+  - Divergencia reproducible: Diabetes, tanh, SGD, LR 0,3, sin callbacks, en la época 7.
+  - Los bins de `nbinsx` de Plotly pueden ser menos de los pedidos (39 en lugar de 50 en Iris).
+  - Medidas con 5×256: `nn_weights` 36 ms (9 KB), `nn_activations` 39 ms (89 KB). Smoke test de 52 s
+    con 20 comprobaciones; `.app` de 16,5 MiB.
+- **Plantillas de redes (2026-10-16, revisión ML F5a):**
+  - `reconstruir_modelo.py` usa `np.allclose(rtol=1e-5, atol=1e-4)`: con salidas de ~3e5, el error
+    absoluto de Keras f32 frente a la app ronda 3e-2, aunque el relativo sea de ~1e-7.
+  - `red_entrenamiento.py.j2` recodifica SIEMPRE con LabelEncoder un objetivo CSV de clasificación.
+    Sin eso, con clases 1/2/3 falla `to_categorical`, y con un binario 1/2 se entrena sin error pero
+    con BCE negativa y un 37 % de acierto.
+  - El diagnóstico de regresión usa los textos `*_regresion` (`convergio`, `salud_bueno`,
+    `estado_bueno`, `rec_bueno`, `rec_bueno_otro`), porque "bueno" solo significa que bajó el MAE.
+  - Los `nn/exact/*.json` guardan como texto exacto el script y el LEEME del paquete: si cambias esas
+    plantillas, regenera `nn/exact`.
 - **`nn-epoch` (2026-10-16, F5b):** cada evento lleva todas las épocas desde el anterior (como mucho 20
   eventos por segundo; la última siempre se envía). Al terminar, la UI pide `nn_history`, que es la
   fuente fiable, porque el último lote puede llegar después de la respuesta de `train_model`.

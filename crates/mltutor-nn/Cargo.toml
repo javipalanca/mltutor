@@ -14,6 +14,9 @@ publish.workspace = true
 mltutor-core.workspace = true
 ndarray = "0.16"
 serde = { version = "1", features = ["derive"] }
+# Deterministic parallel matrix products (every output keeps its summation order, so
+# the result does not depend on the number of threads; review F5a, finding 2).
+rayon = "1.10"
 
 [dev-dependencies]
 approx = "0.5"

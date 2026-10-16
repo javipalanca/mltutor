@@ -2,7 +2,7 @@
   "meta": {
     "format_version": 1,
     "generator": "tools/export_golden.py",
-    "generated": "2026-10-15",
+    "generated": "2026-10-16",
     "versions": {
       "python": "3.11.14",
       "numpy": "1.26.4",
@@ -880,10 +880,19 @@
           "op": "ArgMax",
           "name": "argmax",
           "inputs": ["probabilities"],
-          "outputs": ["label"],
+          "outputs": ["label_index"],
           "attributes": {
             "axis": 1,
             "keepdims": 0
+          }
+        },
+        {
+          "op": "Gather",
+          "name": "gather_label",
+          "inputs": ["class_labels", "label_index"],
+          "outputs": ["label"],
+          "attributes": {
+            "axis": 0
           }
         }
       ],
@@ -891,7 +900,7 @@
       "outputs": ["label", "probabilities"],
       "ir_version": 8,
       "opset": 15,
-      "bytes": 1403,
+      "bytes": 1526,
       "rows_checked": 30,
       "max_abs_error_vs_keras": 2.980232238769531e-07,
       "evaluator": "onnx.reference.ReferenceEvaluator (onnx 1.17.0)",

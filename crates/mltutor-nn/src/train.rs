@@ -13,9 +13,16 @@
 //! permutation of the training rows and, per batch and hidden layer, the dropout
 //! masks (`random_sample() >= rate`). The same seed gives the same history on any
 //! machine and with any number of threads.
+//!
+//! Divergence (K1): when the loss of a batch or the validation loss is NaN or
+//! infinite, [`History::diverged_epoch`] records the first such epoch and training
+//! **goes on**, as Keras without `TerminateOnNaN` (the level (a) parity needs the
+//! same epochs). EarlyStopping may then restore finite weights; if not, the network
+//! is marked invalid ([`crate::NeuralNetwork::is_valid`]).
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use mltutor_core::model::TrainControl;
 use mltutor_core::nn_data::{
     keras_validation_split, Activation, EpochLog, History, LossKind, MetricKind, NnError,
     OptimizerKind,
@@ -82,16 +89,56 @@ pub struct FitSpec {
 }
 
 /// Progress and cancellation (C21.9). `on_epoch` runs on the training thread after
-/// the callbacks of every epoch; `cancel` is checked before every batch.
-#[derive(Default)]
+/// the callbacks of every epoch; `cancel` is checked before every batch, every
+/// validation batch and every batch of the final `evaluate`.
+///
+/// K4: it converts to and from the core's [`TrainControl`] (the cancellation flag;
+/// the epoch callback has no core equivalent), so the app has one cancellation type.
+#[derive(Default, Clone, Copy)]
 pub struct FitControl<'a> {
     pub on_epoch: Option<&'a (dyn Fn(&EpochLog) + Sync)>,
     pub cancel: Option<&'a AtomicBool>,
 }
 
+impl std::fmt::Debug for FitControl<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FitControl")
+            .field("on_epoch", &self.on_epoch.is_some())
+            .field("cancel", &self.cancel)
+            .finish()
+    }
+}
+
 impl FitControl<'_> {
-    fn cancelled(&self) -> bool {
+    /// Whether cancellation was requested.
+    pub fn is_cancelled(&self) -> bool {
         self.cancel.is_some_and(|c| c.load(Ordering::Relaxed))
+    }
+
+    fn check(&self) -> Result<(), NnError> {
+        if self.is_cancelled() {
+            Err(NnError::Cancelled)
+        } else {
+            Ok(())
+        }
+    }
+}
+
+impl<'a> From<&TrainControl<'a>> for FitControl<'a> {
+    fn from(c: &TrainControl<'a>) -> Self {
+        FitControl {
+            on_epoch: None,
+            cancel: c.cancel_flag(),
+        }
+    }
+}
+
+impl<'a> From<&FitControl<'a>> for TrainControl<'a> {
+    fn from(c: &FitControl<'a>) -> Self {
+        match c.cancel {
+            Some(flag) => TrainControl::none().with_cancel(flag),
+            None => TrainControl::none(),
+        }
     }
 }
 
@@ -123,7 +170,9 @@ fn rows(data: &[f32], width: usize, idx: &[usize]) -> Vec<f32> {
 }
 
 /// `model.evaluate` / validation: batch-size-weighted means of the loss and the
-/// metric (`nn_reference.evaluate`). Keras' `evaluate` uses batches of 32.
+/// metric (`nn_reference.evaluate`). Keras' `evaluate` uses batches of 32. NaN
+/// without rows. Cancellation is checked before every batch.
+#[allow(clippy::too_many_arguments)]
 pub fn evaluate(
     mlp: &Mlp,
     x: &[f32],
@@ -132,28 +181,36 @@ pub fn evaluate(
     loss: LossKind,
     metric: MetricKind,
     batch_size: usize,
-) -> (f64, f64) {
+    control: &FitControl<'_>,
+) -> Result<(f64, f64), NnError> {
     let (p, k) = (mlp.n_inputs(), mlp.n_outputs());
+    mlp.validate()?;
+    if x.len() != n * p || y.len() != n * k {
+        return Err(NnError::InvalidConfig {
+            reason: "las dimensiones de los datos no coinciden con la red".to_owned(),
+        });
+    }
+    if n == 0 {
+        return Ok((f64::NAN, f64::NAN));
+    }
     let (mut tot_l, mut tot_m) = (0.0_f64, 0.0_f64);
     let bs = batch_size.max(1);
+    let lsz = mlp.layers.len();
     let mut s = 0;
     while s < n {
+        control.check()?;
         let e = (s + bs).min(n);
         let rows = e - s;
         let xb = &x[s * p..e * p];
         let yb = &y[s * k..e * k];
         let f = mlp.forward_cache(xb, rows, None);
-        let lsz = mlp.layers.len();
         let per = per_sample_loss(loss, mlp.output, &f.z[lsz - 1], &f.a[lsz], yb, k);
         tot_l += f64::from(crate::loss::mean_f32(&per)) * rows as f64;
         let mv = metric_values(metric, &f.a[lsz], yb, k);
         tot_m += f64::from(mv.iter().sum::<f32>());
         s = e;
     }
-    if n == 0 {
-        return (f64::NAN, f64::NAN);
-    }
-    (tot_l / n as f64, tot_m / n as f64)
+    Ok((tot_l / n as f64, tot_m / n as f64))
 }
 
 /// `model.fit(x, y, epochs, batch_size, validation_split, shuffle)` from the
@@ -166,6 +223,7 @@ pub fn fit(
     control: &FitControl<'_>,
 ) -> Result<FitResult, NnError> {
     let mut mlp = init;
+    mlp.validate()?;
     let (p, k) = (mlp.n_inputs(), mlp.n_outputs());
     if data.x.len() != data.n * p || data.y.len() != data.n * k {
         return Err(NnError::InvalidConfig {
@@ -195,7 +253,13 @@ pub fn fit(
     let (mut es_best, mut es_wait, mut es_best_epoch, mut stopped) =
         (None::<f64>, 0usize, 0usize, 0usize);
     let mut es_weights: Option<Mlp> = None;
+    // Keras 3.12: both callbacks are `MonitorCallback`s that start from `best =
+    // baseline = None`, and `_is_improvement(_, None)` is True, so the first epoch
+    // always becomes the best, even when its val_loss is NaN (Keras 2's
+    // ReduceLROnPlateau started from `np.inf` instead; review F5a finding 7 assumed
+    // that and does not apply: `keras/src/callbacks/monitor_callback.py`).
     let (mut rl_best, mut rl_wait) = (None::<f64>, 0usize);
+    let mut diverged: Option<usize> = None;
     let mut order: Vec<usize> = (0..split).collect();
 
     for epoch in 0..spec.epochs {
@@ -205,9 +269,7 @@ pub fn fit(
         let (mut tot_l, mut tot_m) = (0.0_f64, 0.0_f64);
         let mut s = 0;
         while s < split {
-            if control.cancelled() {
-                return Err(NnError::Cancelled);
-            }
+            control.check()?;
             let e = (s + spec.batch_size).min(split);
             let n_b = e - s;
             let (xb, yb) = if spec.shuffle {
@@ -231,13 +293,28 @@ pub fn fit(
                     })
                     .collect(),
             });
-            let (lval, grads, out) = mlp.gradients(&xb, &yb, n_b, spec.loss, masks.as_ref());
+            let (lval, grads, out) = mlp.gradients(&xb, &yb, n_b, spec.loss, masks.as_ref())?;
+            if !lval.is_finite() && diverged.is_none() {
+                diverged = Some(epoch);
+            }
             tot_m += f64::from(metric_values(spec.metric, &out, &yb, k).iter().sum::<f32>());
-            opt.step(&mut mlp, &grads);
+            opt.step(&mut mlp, &grads)?;
             tot_l += f64::from(lval) * n_b as f64;
             s = e;
         }
-        let (vl, vm) = evaluate(&mlp, xv, yv, n_val, spec.loss, spec.metric, spec.batch_size);
+        let (vl, vm) = evaluate(
+            &mlp,
+            xv,
+            yv,
+            n_val,
+            spec.loss,
+            spec.metric,
+            spec.batch_size,
+            control,
+        )?;
+        if !vl.is_finite() && diverged.is_none() {
+            diverged = Some(epoch);
+        }
         let log = EpochLog {
             epoch,
             loss: tot_l / split as f64,
@@ -298,6 +375,7 @@ pub fn fit(
             epochs,
             best_epoch: early.then_some(es_best_epoch),
             stopped_epoch: early.then_some(stopped),
+            diverged_epoch: diverged,
         },
         final_learning_rate: opt.learning_rate,
     })

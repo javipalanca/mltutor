@@ -360,7 +360,7 @@ Especificación ejecutable: **`tools/nn_reference.py`** (D69). Reglas (Keras 3.1
 9. **Progreso y cancelación**: evento por época (época, pérdidas, métricas, LR) y comprobación del `AtomicBool` en
    cada batch; al cancelar se descarta el entrenamiento y queda el modelo anterior (D83).
 10. **Determinismo**: un `Mutex` global para el backend de burn (MEMORY) y todo el azar (inicialización, máscaras,
-    permutaciones) con `StdRng::seed_from_u64(42)` propio, no el RNG de burn (D68).
+    permutaciones) con un `RandomState` MT19937 propio, en orden fijo (D68 resuelto: MLP propio sin burn ni Mutex; ver §8.4).
 11. **Rendimiento**: Python tarda ~1 s en Iris (50 épocas, + 2,6 s de pausas) y ~30 s en California
     (100 épocas, 207 batches por época). Presupuesto Rust: Iris < 150 ms, California < 10 s, sin bloquear la UI.
 
@@ -855,6 +855,77 @@ package::keras::keras_package}` y `codegen::NnTrainingContext`. Desviaciones del
 Keras y 1e-3 en las demás épocas acordadas (California); pasos 1–3 a `max(1e-6, 4 × diferencia de la referencia)` (Adam
 con LR 0,1–0,3 mueve cada peso ≈ ±lr y la referencia ya difiere 4e-5).
 
+
+#### 8.4.1 Revisión Rust de F5a y cálculo de F5c (2026-10-16, `rust-ml-engineer`)
+
+**Interfaces acordadas (K1–K6)**, ya en `crates/`:
+- **K1** `History.diverged_epoch: Option<usize>` (`#[serde(default)]`): primera época con la pérdida de algún batch o
+  la de validación NaN/∞. El entrenamiento **sigue**, como Keras sin `TerminateOnNaN`. Los `f64` de `EpochLog` se
+  serializan con `mltutor_core::serde_nonfinite` (`"nan"`, `"inf"`, `"-inf"`; también lee `null` como NaN), así que el
+  historial divergido hace ida y vuelta. `NeuralNetwork::is_valid()` es `false` si algún peso, sesgo o valor del
+  escalador no es finito (se calcula en `new` y al deserializar); entonces toda predicción devuelve
+  `ModelError::Numerical` y las exportaciones `ExportError::InvalidModel`. California, SGD, LR 0,3, [64, 64]: diverge
+  en la época 0.
+- **K2** Histogramas en Rust con el algoritmo de Plotly para `go.Histogram(x, nbinsx)`
+  (`core::stats::histogram_plotly`: `autoBin` + `autoShiftNumericBins` + `Lib.increment` + recorte de los bins vacíos de
+  los extremos). Se ha comparado con plotly.js 4.1.2 ejecutado en jsdom en 140 casos (pesos, sesgos y activaciones de
+  los 18 `nn/exact`, normales aleatorias, ReLU y valores únicos): mismos recuentos en todos; 54 de ellos quedan en
+  `crates/mltutor-core/tests/data/plotly_histogram.json`. `nn_stats::weights_view(&views, bins_w = 50, bins_b = 20) ->
+  WeightsView { stats, histograms: [{ weights, biases }] }` y `nn_stats::activations_view(..) -> ActivationsView {
+  rows_used, layers: [{ stats, histogram }], dead_pct, map }`. Por neurona solo viajan `neuron_means` y `neuron_stds`.
+  Con nbinsx = 50 Plotly dibuja entre 20 y 50 barras (redondea el ancho hacia arriba a 2, 5 o 10·10ᵏ).
+- **K3** `NeuralNetwork::hidden_activations(x_original, sample_size) -> Result<Activations { rows_used, layers },
+  ModelError>`: recorta a `min(sample_size, filas)` y escala dentro. Envoltorios: `NeuralNetwork::activations_view(x_test,
+  &ActivationParams)` y `TrainedNetwork::test_activations(x_dataset, &params)`, que solo copia las primeras filas de test.
+- **K4** `FitControl::from(&TrainControl)` y `TrainControl::from(&FitControl)` (la bandera; el callback por época no
+  tiene equivalente en el core). La cancelación se comprueba antes de cada batch de entrenamiento, de validación y del
+  `evaluate` final.
+- **K5** `train_network(x, &y, &arch, &training, TrainOptions { shuffle, init }, &FitControl)`; la app usa
+  `TrainOptions::default()` (`shuffle = true`, `init = None`).
+- **K6** `nn_data::training_cost(total_params, n_fit, epochs) -> TrainingCost { work = params × n_fit × epochs,
+  estimated_seconds = work / 2e9, level }`, con `CostLevel::Low` (< 10 s estimados), `High` (10–60 s) y `VeryHigh`
+  (> 1 min). Rendimiento medido en un Mac M (12 núcleos, release, batch 32, California): 5 × 256 → 3,9e9 work/s;
+  3 × 128 → 1,9e9; [64, 64] → 1,7e9; [10, 10] → 5e8 (dominado por el coste fijo, pero tarda 5 ms por época). Con 100
+  épocas en California: [64, 64] Low (3,7 s reales), 3 × 128 High (24 s), 5 × 256 VeryHigh (unos 90 s).
+
+**Hallazgos corregidos:**
+- Productos en paralelo (rayon) por filas de salida (`matmul`, `matmul_a_bt`) y por bloques de 16 filas de `kk`
+  (`matmul_at_b`). Cada elemento conserva la misma suma en el mismo orden; `matmul_a_bt` transpone `w` una vez y
+  queda contiguo. Umbral: 2¹⁹ multiplicaciones (con 2¹⁵, [64, 64] iba al doble de lento). Los 18 entrenamientos del
+  nivel (a) y 25 del nivel (b) dan los mismos bits que antes con 1, 3 y 8 hilos. California 5 × 256, batch 32:
+  **3,18 s → 0,92 s por época** (1,62 s con un hilo); California por defecto, 100 épocas: 0,66 → 0,51 s; Iris: 4,3 ms.
+- **ReLU con NaN:** `f32::max(NaN, 0)` devuelve 0, así que la ReLU anterior convertía NaN en 0 y ocultaba la
+  divergencia (`tf.nn.relu(NaN)` es NaN). Ahora `if v < 0 { 0 }`, sin cambiar ningún bit de la paridad.
+- `Scaler::fit` usa `_is_constant_feature` de sklearn (`var <= n·ε·var + (n·media·ε)²`, o `escala < 10ε`) → escala 1.
+- `Mlp::new`/`validate` y deserialización validada; `forward`, `gradients` y `hidden_activations` devuelven
+  `Result<_, ModelError>`; `Optimizer::step` devuelve error si los gradientes o el estado no cuadran.
+- `NeuralNetwork` con campos privados: `new`, `mlp()`, `scaler()`, `class_codes()`, `resolved()`, `is_valid()`,
+  `output_is_probability()` (`false` con salida tanh: las vistas de probabilidad deben ocultarse o avisar),
+  `mean_grid(x_test, &y_test, fx, fy, &TrainControl)`. `grid::mean_grid` recibe `&Scaler`.
+- Escalado por índices de fila (`Scaler::transform_rows_f32`) en lugar de `x.select` de train y test.
+- `modelo.json` compacto (`package::keras::model_json_text`): sangría de `json.dumps(indent=2)` salvo los arrays de
+  escalares, en una línea (una por fila del kernel), y pesos con el decimal f32 más corto, comprobado para que se lea
+  el mismo f32. 5 × 256: 3,2 MB (antes unos 10 MB). Se rechazan pesos, escalador o salidas de `check` no finitos.
+- ONNX: `label` = código de la clase (`Gather(class_labels)` sobre `ArgMax`, o sobre `Greater → Cast → Squeeze`) y, en
+  binaria, `probabilities` = `Concat(1 − p, p)` [N, 2] (`positive_probability`, `negative_probability`). `class_values`
+  no se usa para la red: la etiqueta es el código, como dice el LEEME. `tools/golden_nn.py::onnx_proposal_model` hace el
+  mismo grafo y los 18 `nn/exact` se han regenerado (solo cambian `onnx_proposal_D75` y `export_package`).
+- **No aplicado (hallazgo 7):** en Keras 3.12 `ReduceLROnPlateau` y `EarlyStopping` son `MonitorCallback` con
+  `best = baseline = None`, y `_is_improvement(_, None)` es `True`: la primera época siempre es la mejor, también con
+  NaN (el `np.inf` era de Keras 2). Comprobado con Keras 3.12.0 (pesos NaN, paciencia 1: `learning_rate [0.1, 0.1,
+  0.05]`, para en la época 2); `engine.rs::callbacks_with_nan_from_the_start_follow_keras_3` reproduce ese caso.
+
+**F5c (cálculo):** 📈 usa `NeuralNetwork: Predictor` con C1/C2 de F2, `test_loss`/`test_metric` y C23; 🎯 usa el
+historial (K1), `weights_view` (K2), `mean_grid` (clasificación y regresión, D78) y `activations_view` con el mapa
+(K2, K3). **Desviación aprobada (C23, 2026-10-16):** en regresión, el diagnóstico usa `convergio_regresion`,
+`salud_bueno_regresion`, `estado_bueno_regresion`, `rec_bueno_regresion` y `rec_bueno_otro_regresion` en lugar de las
+claves de clasificación (la calidad "good" de regresión solo dice que el MAE de validación ha bajado); el resto sigue
+siendo exacto respecto a Python, y el test sustituye esos literales en los fixtures.
+
+**Fixtures nuevos:** `code/nn_training.json` añade `csv_iris_classes_1_2_3` y `csv_cancer_classes_1_2` (Iris y Cáncer
+con `target + 1` en una columna `clase`; clases "Clase 1/2/3"; banda de `iris_default`/`breast_cancer_default`) y guarda
+el `input` de cada caso.
+
 ---
 
 ## 9. Subfases, reparto de tareas y checklist
@@ -922,7 +993,7 @@ Se numeran a continuación de D67 (D68–D93). Si no se dice lo contrario, se ap
 
 | # | Decisión | Recomendación |
 |---|---|---|
-| D68 | **Motor**: burn 0.22 (aprobado en F0) frente a un MLP propio sobre ndarray | Mantener **burn para tensores y autodiff**, pero con todo lo que fija la paridad escrito en `mltutor-nn`: inicialización Glorot, máscaras de dropout y permutaciones con `StdRng` propio (no el RNG global de burn), Adam y RMSprop con las fórmulas de Keras (las de burn ponen ε en otro sitio), pérdidas desde los logits, EarlyStopping y ReduceLROnPlateau. Alternativa: un MLP propio sin burn (unas 400 líneas, −4 MB, sin Mutex), igual de válido para esta lección |
+| D68 | **RESUELTO (2026-10-16): MLP propio sin burn** (ver §8.4). Propuesta original: **Motor**: burn 0.22 (aprobado en F0) frente a un MLP propio sobre ndarray | Mantener **burn para tensores y autodiff**, pero con todo lo que fija la paridad escrito en `mltutor-nn`: inicialización Glorot, máscaras de dropout y permutaciones con `StdRng` propio (no el RNG global de burn), Adam y RMSprop con las fórmulas de Keras (las de burn ponen ε en otro sitio), pérdidas desde los logits, EarlyStopping y ReduceLROnPlateau. Alternativa: un MLP propio sin burn (unas 400 líneas, −4 MB, sin Mutex), igual de válido para esta lección |
 | D69 | **Paridad con Keras** (concreción de D6) | **Dos niveles**: (a) exacta dentro del redondeo f32 con los pesos iniciales de Keras, sin barajar ni dropout (especificación `tools/nn_reference.py`, verificada en 17 de 18 casos durante todas las épocas) y el dropout con máscaras dadas; (b) estadística: la media de 5 semillas de Rust dentro de la banda de 5 semillas de Keras |
 | D70 | **Semilla**: Python no fija ninguna (cada entrenamiento da otro resultado) | Semilla 42 fija (regla 4): mismo resultado al repetir. Un control "🎲 Semilla" (1–9999, 42) en el expander avanzado para que el estudiante vea la variabilidad (NUEVO) |
 | D71 | **Activaciones de salida que no se pueden entrenar** (multiclase sigmoid/linear, binaria softmax/linear): Python entrena, falla en inglés, marca el modelo como entrenado y rompe 📈 y 🎯 | Mantener las 4 opciones (son didácticas), mostrar el aviso de Python y además un `st.error` NUEVO que explica por qué no se puede, y **deshabilitar** "🧠 Entrenar Red Neuronal". El modelo anterior se conserva |

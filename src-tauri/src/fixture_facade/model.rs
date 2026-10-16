@@ -843,6 +843,7 @@ impl ModelView for FixtureModel {
                 .clone()
                 .filter(|_| self.task == TaskType::Classification),
             show_2d_warning: self.n_features() > 2,
+            fixed: None,
         })
     }
 

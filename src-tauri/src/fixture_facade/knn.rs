@@ -347,6 +347,7 @@ impl ModelView for KnnFixtureModel {
                 .map(<[String]>::to_vec)
                 .filter(|_| self.classes.is_some()),
             show_2d_warning: frame.feature_columns.len() > 2,
+            fixed: None,
         })
     }
 

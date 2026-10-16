@@ -32,6 +32,7 @@ function view(task: "classification" | "regression", nClasses: number | null): A
     default_epochs: 50,
     suggested_epochs: 50,
     split: { train: 96, val: 24, test: 30 },
+    cost: null,
   };
 }
 

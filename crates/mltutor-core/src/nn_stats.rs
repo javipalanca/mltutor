@@ -3,13 +3,20 @@
 //! `viz/nn.py::show_weights_analysis_tab` and `show_layer_activations_tab`
 //! (`tools/nn_reference.py::weight_stats` / `activation_stats`). The network is
 //! float32; the statistics are computed in f64 from those values (`np.std` =
-//! population std). The histograms are drawn by Plotly from the raw values with
-//! `nbinsx`, as in Python, so no bins are computed here.
+//! population std).
+//!
+//! The histograms (K2) are binned **here**, with Plotly's own algorithm for
+//! `go.Histogram(x, nbinsx)` ([`crate::stats::histogram_plotly`], checked against
+//! plotly.js), so the views send `{ edges, counts }` instead of every weight or
+//! activation (a 5 × 256 network has 264 000 weights): [`weights_view`] and
+//! [`activations_view`]. Per neuron only means and standard deviations travel.
 //!
 //! Layer names follow the architecture (D77): "Oculta 1", "Oculta 2", "Salida";
 //! the Keras name (`dense_1`, `output_layer`) goes alongside.
 
 use serde::{Deserialize, Serialize};
+
+use crate::stats::{histogram_plotly, Histogram};
 
 /// A dense layer seen from the views: `kernel` is row-major `inputs × units`.
 #[derive(Debug, Clone, Copy)]
@@ -187,7 +194,10 @@ pub struct LayerActivationStats {
     pub mean_act: f64,
     pub std_act: f64,
     pub act_max: f64,
+    /// Mean of every neuron over the rows ("barras de medias").
     pub neuron_means: Vec<f64>,
+    /// Population standard deviation of every neuron over the rows.
+    pub neuron_stds: Vec<f64>,
 }
 
 /// `activation_stats` of one hidden layer: `acts` is row-major `rows × units`
@@ -224,6 +234,7 @@ pub fn activation_stats(
         std_act: mean(stds.iter().copied()),
         act_max,
         neuron_means: means,
+        neuron_stds: stds,
         dead,
         constant,
     }
@@ -305,6 +316,132 @@ pub fn network_map(dense: &[DenseView<'_>], hidden: &[LayerActivationStats]) -> 
     NetworkMapView { layers, neurons }
 }
 
+// ---------------------------------------------------------------------------
+// Binned views (K2)
+// ---------------------------------------------------------------------------
+
+/// "Bins pesos" slider: 10..=120, 50 by default.
+pub const DEFAULT_WEIGHT_BINS: usize = 50;
+pub const WEIGHT_BINS_RANGE: (usize, usize) = (10, 120);
+/// "Bins sesgos" slider: 5..=60, 20 by default.
+pub const DEFAULT_BIAS_BINS: usize = 20;
+pub const BIAS_BINS_RANGE: (usize, usize) = (5, 60);
+/// "Mostrar histograma activaciones": `go.Histogram(nbinsx=50)` (no control).
+pub const ACTIVATION_BINS: usize = 50;
+
+fn f64s(v: &[f32]) -> Vec<f64> {
+    v.iter().map(|&x| f64::from(x)).collect()
+}
+
+/// The two histograms of one dense layer (🧠 Pesos, "#### 📊 Capa i").
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LayerHistograms {
+    pub weights: Histogram,
+    pub biases: Histogram,
+}
+
+/// Everything 🧠 Análisis de Pesos draws: the statistics and, per dense layer, the
+/// binned histograms.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WeightsView {
+    pub stats: WeightStats,
+    /// One per dense layer, in order.
+    pub histograms: Vec<LayerHistograms>,
+}
+
+/// [`weight_stats`] plus the histograms with `weight_bins`/`bias_bins` (`nbinsx`;
+/// clamped to the sliders' ranges).
+pub fn weights_view(layers: &[DenseView<'_>], weight_bins: usize, bias_bins: usize) -> WeightsView {
+    let wb = weight_bins.clamp(WEIGHT_BINS_RANGE.0, WEIGHT_BINS_RANGE.1);
+    let bb = bias_bins.clamp(BIAS_BINS_RANGE.0, BIAS_BINS_RANGE.1);
+    WeightsView {
+        stats: weight_stats(layers),
+        histograms: layers
+            .iter()
+            .map(|l| LayerHistograms {
+                weights: histogram_plotly(&f64s(l.kernel), wb),
+                biases: histogram_plotly(&f64s(l.bias), bb),
+            })
+            .collect(),
+    }
+}
+
+/// The "⚙️ Parámetros de Análisis" that change the numbers.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct ActivationParams {
+    /// "Muestras": the first rows of X_test (50).
+    pub sample_size: usize,
+    /// "Umbral muerta" (0.0).
+    pub dead_threshold: f64,
+    /// "Umbral std constante" (1e-3).
+    pub constant_std: f64,
+    /// Bins of the activation histogram ([`ACTIVATION_BINS`]).
+    pub bins: usize,
+}
+
+impl Default for ActivationParams {
+    fn default() -> Self {
+        Self {
+            sample_size: DEFAULT_SAMPLE_SIZE,
+            dead_threshold: DEFAULT_DEAD_THRESHOLD,
+            constant_std: DEFAULT_CONSTANT_STD,
+            bins: ACTIVATION_BINS,
+        }
+    }
+}
+
+/// One hidden layer of 📉 Activaciones: statistics (per neuron: means and stds)
+/// and the histogram of all its activations.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LayerActivationsView {
+    pub stats: LayerActivationStats,
+    pub histogram: Histogram,
+}
+
+/// Everything 📉 Análisis de Activaciones shows.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ActivationsView {
+    /// `min(sample_size, rows of X_test)`.
+    pub rows_used: usize,
+    pub layers: Vec<LayerActivationsView>,
+    /// [`dead_pct`] over the hidden layers.
+    pub dead_pct: f64,
+    /// "🗺️ Mapa de Neuronas Muertas y Constantes".
+    pub map: NetworkMapView,
+}
+
+/// The view from the hidden activations: `hidden[i]` is the row-major `rows_used ×
+/// dense[i].units` output of hidden layer `i` (after the activation, before
+/// dropout); `dense` are all the dense layers (the last one is the output).
+pub fn activations_view(
+    dense: &[DenseView<'_>],
+    hidden: &[Vec<f32>],
+    rows_used: usize,
+    params: &ActivationParams,
+) -> ActivationsView {
+    let stats: Vec<LayerActivationStats> = hidden
+        .iter()
+        .zip(dense)
+        .map(|(a, l)| activation_stats(a, l.units, params.dead_threshold, params.constant_std))
+        .collect();
+    let map = network_map(dense, &stats);
+    let dead = dead_pct(&stats);
+    let layers = stats
+        .into_iter()
+        .zip(hidden)
+        .map(|(stats, a)| LayerActivationsView {
+            histogram: histogram_plotly(&f64s(a), params.bins.max(1)),
+            stats,
+        })
+        .collect();
+    ActivationsView {
+        rows_used,
+        layers,
+        dead_pct: dead,
+        map,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -317,7 +454,42 @@ mod tests {
         assert_eq!(s.dead, vec![0]);
         assert_eq!(s.constant, vec![1]);
         assert_eq!(s.saturation_pct, 0.0);
+        assert_eq!(s.neuron_stds[1], 0.0);
         assert!((dead_pct(&[s]) - 100.0 / 3.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn binned_views_are_small_and_complete() {
+        let kernel: Vec<f32> = (0..600).map(|i| (i as f32 - 300.0) / 100.0).collect();
+        let bias = vec![0.5_f32; 20];
+        let out_k = vec![0.1_f32; 20];
+        let out_b = vec![0.0_f32];
+        let layers = [
+            DenseView {
+                inputs: 30,
+                units: 20,
+                kernel: &kernel,
+                bias: &bias,
+            },
+            DenseView {
+                inputs: 20,
+                units: 1,
+                kernel: &out_k,
+                bias: &out_b,
+            },
+        ];
+        let w = weights_view(&layers, 50, 1000);
+        assert_eq!(w.histograms.len(), 2);
+        assert_eq!(w.histograms[0].weights.counts.iter().sum::<u32>(), 600);
+        assert_eq!(w.histograms[0].biases.counts, vec![20]);
+        assert!(w.histograms[0].weights.counts.len() <= 50);
+        let acts: Vec<f32> = (0..200).map(|i| (i % 20) as f32 * 0.1).collect();
+        let v = activations_view(&layers, &[acts], 10, &ActivationParams::default());
+        assert_eq!(v.rows_used, 10);
+        assert_eq!(v.layers[0].histogram.counts.iter().sum::<u32>(), 200);
+        assert_eq!(v.layers[0].stats.dead, vec![0]);
+        assert_eq!(v.map.layers, vec![30, 20, 1]);
+        assert!((v.dead_pct - 5.0).abs() < 1e-12);
     }
 
     #[test]

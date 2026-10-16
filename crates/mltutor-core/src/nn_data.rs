@@ -419,12 +419,26 @@ pub const LESSON_TEST_SIZE: f64 = 0.2;
 
 /// `StandardScaler` fitted on all the rows (D72): population standard deviation and
 /// scale 1 for constant columns.
+///
+/// "Constant" is scikit-learn's `_is_constant_feature` (1.3+): `var <= n·ε·var +
+/// (n·mean·ε)²`, plus `_handle_zeros_in_scale`'s `scale < 10·ε`. A column whose
+/// values are all 0.1 has, in floating point, a tiny non-zero variance (the mean is
+/// not exactly 0.1); without this rule its scale would be ~1e-17 and the scaled
+/// values ~±1, as noise.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Scaler {
     pub mean: Vec<f64>,
     pub scale: Vec<f64>,
     /// Rows it was fitted on (`n_samples_seen_`).
     pub n_samples: usize,
+}
+
+/// `sklearn.preprocessing._data._is_constant_feature(var, mean, n_samples)`.
+fn is_constant_feature(var: f64, mean: f64, n_samples: usize) -> bool {
+    let eps = f64::EPSILON;
+    let n = n_samples as f64;
+    let upper_bound = n * eps * var + (n * mean * eps) * (n * mean * eps);
+    var <= upper_bound
 }
 
 impl Scaler {
@@ -440,13 +454,20 @@ impl Scaler {
                 / n as f64;
             let s = var.sqrt();
             mean.push(m);
-            scale.push(if s == 0.0 { 1.0 } else { s });
+            let constant = is_constant_feature(var, m, n) || s < 10.0 * f64::EPSILON;
+            scale.push(if constant { 1.0 } else { s });
         }
         Scaler {
             mean,
             scale,
             n_samples: n,
         }
+    }
+
+    /// Whether every mean and scale is finite (and every scale non-zero).
+    pub fn is_finite(&self) -> bool {
+        self.mean.iter().all(|v| v.is_finite())
+            && self.scale.iter().all(|v| v.is_finite() && *v != 0.0)
     }
 
     /// `(x − mean) / scale` in f64.
@@ -465,6 +486,22 @@ impl Scaler {
         let mut out = Vec::with_capacity(x.len());
         for row in x.rows() {
             for (j, &v) in row.iter().enumerate().take(p) {
+                out.push(((v - self.mean[j]) / self.scale[j]) as f32);
+            }
+        }
+        out
+    }
+
+    /// [`Scaler::transform_f32`] of the rows `rows` of `x`, in that order, without
+    /// copying them first (`x.select(Axis(0), rows)` would duplicate the dataset).
+    /// Rows out of range are skipped.
+    pub fn transform_rows_f32(&self, x: ndarray::ArrayView2<'_, f64>, rows: &[usize]) -> Vec<f32> {
+        let mut out = Vec::with_capacity(rows.len() * x.ncols());
+        for &r in rows {
+            if r >= x.nrows() {
+                continue;
+            }
+            for (j, &v) in x.row(r).iter().enumerate() {
                 out.push(((v - self.mean[j]) / self.scale[j]) as f32);
             }
         }
@@ -680,6 +717,71 @@ pub fn complexity(total_params: u64, n_rows: usize) -> (f64, Complexity) {
     (ratio, level)
 }
 
+/// Training cost of a configuration (K6): `work = params × n_fit × epochs`, the
+/// number of multiply-adds of one forward pass over every training row in every
+/// epoch. A full step (forward + both backward products) is about 3 of them.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct TrainingCost {
+    pub params: u64,
+    pub n_fit: u64,
+    pub epochs: u64,
+    /// `params × n_fit × epochs` (as f64: it can exceed 2⁵³ only with absurd
+    /// configurations, and it is an estimate anyway).
+    pub work: f64,
+    /// `work / WORK_PER_SECOND`: seconds on the reference machine, indicative only.
+    pub estimated_seconds: f64,
+    pub level: CostLevel,
+}
+
+/// How long a training will take, for the warning of ⚙️ Entrenamiento (K6).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CostLevel {
+    /// Estimated under 10 s: no warning.
+    Low,
+    /// 10–60 s: "puede tardar".
+    High,
+    /// Over a minute: "puede tardar varios minutos".
+    VeryHigh,
+}
+
+/// Throughput of `mltutor-nn` used by the estimate, in `work` units per second.
+///
+/// Measured 2026-10-16 (Apple M-series, 12 cores, release; `bench_nn.rs
+/// california_large_networks_and_cost_model`, California, batch 32): 5 × 256 →
+/// 3.9e9/s (0.90 s per epoch), 3 × 128 → 1.9e9/s, [64, 64] → 1.7e9/s, [10, 10] →
+/// 5e8/s (overhead-bound, but then the time is negligible). 2e9 is conservative for
+/// the large networks the warning is for (it over-estimates 5 × 256 about 2×), and a
+/// laboratory laptop is slower than the reference machine.
+pub const WORK_PER_SECOND: f64 = 2.0e9;
+/// `work` from which [`CostLevel::High`] starts (≈ 10 s estimated).
+pub const COST_HIGH_WORK: f64 = 10.0 * WORK_PER_SECOND;
+/// `work` from which [`CostLevel::VeryHigh`] starts (≈ 1 min estimated).
+pub const COST_VERY_HIGH_WORK: f64 = 60.0 * WORK_PER_SECOND;
+
+/// [`TrainingCost`] of a network with `total_params` parameters trained on `n_fit`
+/// rows for (at most) `epochs` epochs.
+pub fn training_cost(total_params: u64, n_fit: usize, epochs: u16) -> TrainingCost {
+    let n_fit = n_fit as u64;
+    let epochs = u64::from(epochs);
+    let work = total_params as f64 * n_fit as f64 * epochs as f64;
+    let level = if work >= COST_VERY_HIGH_WORK {
+        CostLevel::VeryHigh
+    } else if work >= COST_HIGH_WORK {
+        CostLevel::High
+    } else {
+        CostLevel::Low
+    };
+    TrainingCost {
+        params: total_params,
+        n_fit,
+        epochs,
+        work,
+        estimated_seconds: work / WORK_PER_SECOND,
+        level,
+    }
+}
+
 /// "💡 Sugerencia para capa i": `max(10, input // i)` and, in multiclass, at least
 /// `2·classes`. The slider starts at `min(suggestion, 64)` ([`default_neurons`]).
 pub fn suggested_neurons(
@@ -761,17 +863,26 @@ pub fn output_check(task: TaskType, n_classes: usize, output: Activation) -> Out
 // ---------------------------------------------------------------------------
 
 /// Logs of one epoch (Keras `history.history[k][epoch]`).
+///
+/// The `f64` fields are NaN or infinite when the training diverged (K1): they are
+/// serialised as `"nan"`, `"inf"` and `"-inf"` ([`crate::serde_nonfinite`]) so that
+/// such a history survives a JSON round trip.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct EpochLog {
     /// 0-based.
     pub epoch: usize,
+    #[serde(with = "crate::serde_nonfinite")]
     pub loss: f64,
     /// accuracy or MAE (see [`MetricKind::key`]).
+    #[serde(with = "crate::serde_nonfinite")]
     pub metric: f64,
+    #[serde(with = "crate::serde_nonfinite")]
     pub val_loss: f64,
+    #[serde(with = "crate::serde_nonfinite")]
     pub val_metric: f64,
     /// Learning rate at the start of the epoch's callbacks (before ReduceLROnPlateau
     /// reduces it); only recorded with ReduceLROnPlateau, as in Keras.
+    #[serde(default, with = "crate::serde_nonfinite::option")]
     pub learning_rate: Option<f64>,
 }
 
@@ -787,6 +898,13 @@ pub struct History {
     /// Epoch at which EarlyStopping stopped (Keras `stopped_epoch`, 0 = did not
     /// stop). `None` without EarlyStopping.
     pub stopped_epoch: Option<usize>,
+    /// First epoch (0-based) in which the loss of some batch or the validation loss
+    /// was NaN or infinite (K1). Training goes on, as in Keras (the app has no
+    /// `TerminateOnNaN`), so the later epochs are usually NaN too; the UI warns
+    /// with `[entrenamiento]`'s divergence message. `None` = the training never
+    /// diverged.
+    #[serde(default)]
+    pub diverged_epoch: Option<usize>,
 }
 
 impl History {
@@ -901,5 +1019,81 @@ mod tests {
         assert_eq!(rows.iter().map(|r| r.params).sum::<u64>(), 193);
         assert_eq!(default_epochs(569), (56, 56));
         assert_eq!(default_epochs(20640), (200, 100));
+    }
+
+    /// Review F5a (medium): a column of 0.1 in every row is constant for sklearn
+    /// (`scale_ = 1`), although its float variance is not exactly 0.
+    #[test]
+    fn nearly_constant_columns_get_scale_one() {
+        let x =
+            ndarray::Array2::from_shape_fn((333, 2), |(i, j)| if j == 0 { 0.1 } else { i as f64 });
+        let sc = Scaler::fit(x.view());
+        assert_eq!(sc.scale[0], 1.0);
+        assert!(sc.scale[1] > 1.0);
+        let xs = sc.transform_f32(x.view());
+        assert!(
+            xs.iter().step_by(2).all(|v| v.abs() < 1e-6),
+            "{:?}",
+            &xs[..6]
+        );
+        assert!(is_constant_feature(0.0, 5.0, 10));
+        assert!(!is_constant_feature(1e-3, 0.1, 100));
+        // Row-wise scaling without copying = select + transform.
+        let rows = [5, 0, 332];
+        let a = sc.transform_rows_f32(x.view(), &rows);
+        let b = sc.transform_f32(x.select(ndarray::Axis(0), &rows).view());
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn cost_levels() {
+        // Iris default (193 params, 96 rows, 100 epochs): instant.
+        assert_eq!(training_cost(193, 96, 100).level, CostLevel::Low);
+        // California (13 209 fit rows), 100 epochs: [64, 64] ≈ 3.7 s → Low;
+        // 3 × 128 ≈ 24 s → High; 5 × 256 ≈ 90 s → VeryHigh.
+        let fit = 13_209;
+        let p = |h: &[usize]| {
+            let mut l = vec![8];
+            l.extend_from_slice(h);
+            l.push(1);
+            total_parameters(&l)
+        };
+        assert_eq!(training_cost(p(&[64, 64]), fit, 100).level, CostLevel::Low);
+        assert_eq!(training_cost(p(&[128; 3]), fit, 100).level, CostLevel::High);
+        let cal = p(&[256; 5]);
+        assert_eq!(training_cost(cal, fit, 100).level, CostLevel::VeryHigh);
+        assert!(training_cost(cal, 13_209, 1).estimated_seconds > 0.5);
+    }
+
+    #[test]
+    fn history_with_nan_round_trips() {
+        let h = History {
+            metric: MetricKind::Mae,
+            epochs: vec![EpochLog {
+                epoch: 0,
+                loss: f64::NAN,
+                metric: f64::INFINITY,
+                val_loss: f64::NEG_INFINITY,
+                val_metric: 1.5,
+                learning_rate: Some(0.3),
+            }],
+            best_epoch: None,
+            stopped_epoch: None,
+            diverged_epoch: Some(0),
+        };
+        let text = serde_json::to_string(&h).unwrap_or_default();
+        assert!(text.contains(r#""loss":"nan""#), "{text}");
+        let back: History = serde_json::from_str(&text).unwrap_or_else(|e| panic!("{e}"));
+        let e = back.epochs[0];
+        assert!(e.loss.is_nan());
+        assert_eq!(
+            (e.metric, e.val_loss, e.val_metric),
+            (f64::INFINITY, f64::NEG_INFINITY, 1.5)
+        );
+        assert_eq!(back.diverged_epoch, Some(0));
+        // Older histories (no diverged_epoch) still load.
+        let old = r#"{"metric":"mae","epochs":[],"best_epoch":null,"stopped_epoch":null}"#;
+        let h: History = serde_json::from_str(old).unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(h.diverged_epoch, None);
     }
 }

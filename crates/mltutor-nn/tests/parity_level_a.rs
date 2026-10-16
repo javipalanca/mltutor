@@ -11,7 +11,7 @@ use common::*;
 use mltutor_core::dataset::TaskType;
 use mltutor_core::nn_data::{output_size, resolve_training};
 use mltutor_core::nn_stats::{activation_stats, weight_stats};
-use mltutor_nn::{train_network, DropoutMasks, FitControl, Optimizer};
+use mltutor_nn::{train_network, DropoutMasks, FitControl, Optimizer, TrainOptions};
 use serde_json::Value;
 
 struct Case {
@@ -65,7 +65,9 @@ fn first_batch_gradients_and_steps() {
         let y = block(&c.e()["data"]["y_fit"]);
         let p = mlp.n_inputs();
         let rows = c.e()["first_batch"]["rows"].as_u64().unwrap() as usize;
-        let (loss, grads, _) = mlp.gradients(&x[..rows * p], &y[..rows * k], rows, res.loss, None);
+        let (loss, grads, _) = mlp
+            .gradients(&x[..rows * p], &y[..rows * k], rows, res.loss, None)
+            .unwrap();
         let kl = c.e()["first_batch"]["keras_loss"].as_f64().unwrap();
         assert!(
             (f64::from(loss) - kl).abs() <= 1e-6 * kl.abs().max(1.0),
@@ -93,9 +95,10 @@ fn first_batch_gradients_and_steps() {
         for (i, step) in c.e()["steps"].as_array().unwrap().iter().enumerate() {
             let s = i * bs;
             let e = (s + bs).min(split);
-            let (_, grads, _) =
-                mlp.gradients(&x[s * p..e * p], &y[s * k..e * k], e - s, res.loss, None);
-            opt.step(&mut mlp, &grads);
+            let (_, grads, _) = mlp
+                .gradients(&x[s * p..e * p], &y[s * k..e * k], e - s, res.loss, None)
+                .unwrap();
+            opt.step(&mut mlp, &grads).unwrap();
             let d = max_weight_diff(&mlp, &step["weights"]);
             // 1e-6 (meta.tolerance), or 4× what the NumPy reference itself differs
             // from Keras where that is larger (Adam with LR 0.1–0.3: the first steps
@@ -142,8 +145,10 @@ fn history_callbacks_and_final_weights() {
             &ds.target,
             &arch,
             &training,
-            false,
-            Some(init),
+            TrainOptions {
+                shuffle: false,
+                init: Some(init),
+            },
             &FitControl::default(),
         )
         .unwrap_or_else(|e| panic!("{name}: {e}"));
@@ -215,7 +220,7 @@ fn history_callbacks_and_final_weights() {
             .unwrap_or(f64::INFINITY);
         let mut wd = f64::NAN;
         if ref_diff < 1e-4 && comparable {
-            wd = max_weight_diff(&trained.network.mlp, &c.e()["final_weights"]);
+            wd = max_weight_diff(trained.network.mlp(), &c.e()["final_weights"]);
             assert!(wd <= 1e-4, "{name}: final weights {wd:e}");
         }
         // test.evaluate (loss, metric) with the final weights.
@@ -255,8 +260,10 @@ fn chaotic_case_first_epoch() {
         &ds.target,
         &arch,
         &training,
-        false,
-        Some(init),
+        TrainOptions {
+            shuffle: false,
+            init: Some(init),
+        },
         &FitControl::default(),
     )
     .unwrap();
@@ -282,7 +289,7 @@ fn views_from_final_weights() {
         // test.raw_output
         let xt = block(&e["test"]["x_test"]);
         let n = xt.len() / mlp.n_inputs();
-        let out = mlp.forward(&xt, n);
+        let out = mlp.forward(&xt, n).unwrap();
         let raw = flat(&e["test"]["raw_output"]);
         let scale = raw.iter().fold(1.0_f64, |m, v| m.max(v.abs()));
         for (a, b) in out.iter().zip(&raw) {
@@ -353,7 +360,9 @@ fn views_from_final_weights() {
             let rows = a["params"]["rows_used"].as_u64().unwrap() as usize;
             let dead = a["params"]["dead_threshold"].as_f64().unwrap();
             let cst = a["params"]["constant_std"].as_f64().unwrap();
-            let acts = mlp.hidden_activations(&xt[..rows * mlp.n_inputs()], rows);
+            let acts = mlp
+                .hidden_activations(&xt[..rows * mlp.n_inputs()], rows)
+                .unwrap();
             let stats: Vec<_> = acts
                 .iter()
                 .zip(&mlp.layers)
@@ -410,7 +419,7 @@ fn views_from_final_weights() {
                 row[pair[1]] = *y;
                 grid.extend(row.iter().map(|&v| v as f32));
             }
-            let out = mlp.forward(&grid, xs.len());
+            let out = mlp.forward(&grid, xs.len()).unwrap();
             let raw = flat(&s["sample"]["raw_output"]);
             let scale = raw.iter().fold(1.0_f64, |m, v| m.max(v.abs()));
             for (a, b) in out.iter().zip(&raw) {
@@ -423,7 +432,7 @@ fn views_from_final_weights() {
         // 🔮 prediction form: float32 input -> scaler -> network.
         let pf = &e["prediction_form"];
         let scaled: Vec<f32> = nums(&pf["scaled"]).into_iter().map(|v| v as f32).collect();
-        let out = mlp.forward(&scaled, 1);
+        let out = mlp.forward(&scaled, 1).unwrap();
         for (a, b) in out.iter().zip(flat(&pf["raw_output"])) {
             assert!(
                 (f64::from(*a) - b).abs() <= 1e-5 * b.abs().max(1.0),
@@ -482,19 +491,21 @@ fn dropout_with_given_masks() {
                     .collect(),
             ],
         };
-        let (loss, grads, _) = mlp.gradients(
-            &xtr[r[0] * 4..r[1] * 4],
-            &ytr[r[0] * 3..r[1] * 3],
-            bs,
-            mltutor_nn::LossKind::CategoricalCrossentropy,
-            Some(&masks),
-        );
+        let (loss, grads, _) = mlp
+            .gradients(
+                &xtr[r[0] * 4..r[1] * 4],
+                &ytr[r[0] * 3..r[1] * 3],
+                bs,
+                mltutor_nn::LossKind::CategoricalCrossentropy,
+                Some(&masks),
+            )
+            .unwrap();
         let kl = step["keras_loss"].as_f64().unwrap();
         assert!(
             (f64::from(loss) - kl).abs() <= 1e-6 * kl,
             "loss {loss} vs {kl}"
         );
-        opt.step(&mut mlp, &grads);
+        opt.step(&mut mlp, &grads).unwrap();
         let d = max_weight_diff(&mlp, &step["weights"]);
         assert!(d <= 1e-6, "weights {d:e}");
         worst = worst.max(d);
@@ -533,17 +544,18 @@ fn mean_grid_matches_python_surface() {
         let mlp = mlp_of(&e["final_weights"], arch.activation, arch.output_activation);
         let n_classes = ds.target.n_classes().unwrap_or(0);
         let k = output_size(task, n_classes);
-        let net = mltutor_nn::NeuralNetwork {
+        let net = mltutor_nn::NeuralNetwork::new(
             mlp,
-            scaler: Scaler {
+            Scaler {
                 mean: nums(&e["scaler"]["mean"]),
                 scale: nums(&e["scaler"]["scale"]),
                 n_samples: ds.n_rows(),
             },
             task,
-            classes: (0..n_classes).collect(),
-            resolved: resolve_training(task, arch.output_activation, k).unwrap(),
-        };
+            (0..n_classes).collect(),
+            resolve_training(task, arch.output_activation, k).unwrap(),
+        )
+        .unwrap();
         let test: Vec<usize> = e["split"]["test_indices"]
             .as_array()
             .unwrap()
@@ -557,8 +569,7 @@ fn mean_grid_matches_python_surface() {
             &net,
             x_test.view(),
             &y_test,
-            &net.scaler.mean,
-            &net.scaler.scale,
+            net.scaler(),
             0,
             1,
             &TrainControl::none(),

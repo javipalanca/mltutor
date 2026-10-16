@@ -533,6 +533,9 @@ pub struct DecisionGrid {
     pub class_names: Option<Vec<String>>,
     /// More than 2 features: the 2D model is a simplification.
     pub show_2d_warning: bool,
+    /// 🧠 surface (D78): every feature at its mean over the test set (original units);
+    /// the pair varies. `None` for the models refitted on two features.
+    pub fixed: Option<Vec<f64>>,
 }
 
 // --- Coefficients (§2.5) ---

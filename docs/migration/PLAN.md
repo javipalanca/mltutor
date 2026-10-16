@@ -4,7 +4,7 @@ Rama: `feature/rust-migration` · Inicio: 2026-10-13 · Estado: **Fases 0 y 1 co
 
 ## Objetivo
 
-Reescribir MLTutor en Rust (Tauri 2 + Svelte + linfa + burn) cumpliendo tres requisitos:
+Reescribir MLTutor en Rust (Tauri 2 + Svelte + linfa + MLP propio; burn se descartó en D68) cumpliendo tres requisitos:
 
 1. **Mantener las mismas funciones**: todo lo listado en [INVENTARIO.md](INVENTARIO.md),
    con la misma vistosidad o más.
@@ -34,7 +34,7 @@ crates/
   mltutor-core/     datasets embebidos, CSV, preprocesado, split, estadísticas,
                     árboles, lineal/logística, KNN, métricas, ROC/PR, importancia,
                     rejillas para fronteras y superficies, generación de código Python
-  mltutor-nn/       MLP con burn 0.22 (backend flex, CPU): capas, activaciones, dropout,
+  mltutor-nn/       MLP propio en f32 (D68, sin burn): capas, activaciones, dropout,
                     optimizadores, early stopping, reducción del LR, historial,
                     pesos y activaciones, diagnóstico del entrenamiento
   mltutor-export/   ONNX nativo (protobuf ai.onnx/ai.onnx.ml) y paquetes de exportación
@@ -68,7 +68,7 @@ La UI dibuja con Plotly o SVG. Nunca se envían imágenes rasterizadas.
 | D19–D35 | Detalles de la Fase 2 (paridad de la logística frente a la referencia convergida, umbrales 0,3/0,5/0,7, R² real, colores coherentes en la frontera, coeficientes corregidos, exportación con código + ONNX + paquete ZIP, script de "Generar Código" correcto, entre otros) | Recomendaciones aplicadas por defecto (2026-10-14). Detalle en [fase2-regresion.md §10](fase2-regresion.md) |
 | D36–D51 | Detalles de la Fase 3 (CART bit a bit, preselección de la tarea, importancia nativa + permutación, nombres de clase en el texto, diagrama SVG con zoom, PNG/SVG, código Python del árbol corregido, umbral ONNX como el mayor float32 ≤ t, entre otros) | Recomendaciones aplicadas por defecto (2026-10-14). Detalle en [fase3-arboles.md §10](fase3-arboles.md) |
 | D52–D67 | Detalles de la Fase 4 (kd-tree exacto con los desempates de sklearn, FMA de la distancia euclídea, lienzo interactivo nativo, ONNX propio, probabilidades y vecinos en Predicciones, K ≤ n_train, análisis de distancias con el split del modelo, entre otros) | Recomendaciones aplicadas por defecto (2026-10-15). Detalle en [fase4-knn.md §10](fase4-knn.md) |
-| D68–D93 | Detalles de la Fase 5 (motor sobre burn con optimizadores, inicialización y RNG propios con las fórmulas de Keras, paridad en dos niveles, semilla, salidas no entrenables bloqueadas, escalado con todas las filas por paridad (D72), paquete Keras + ONNX + predictor NumPy, diagrama nativo, exploración y predicción por lotes como novedad, progreso real por época, subfases) | Recomendaciones aplicadas por defecto (2026-10-15). Detalle en [fase5-redes.md §10](fase5-redes.md) |
+| D68–D93 | Detalles de la Fase 5 (motor: MLP propio sin burn, con optimizadores, inicialización y RNG MT19937 con las fórmulas de Keras, paridad en dos niveles, semilla, salidas no entrenables bloqueadas, escalado con todas las filas por paridad (D72), paquete Keras + ONNX + predictor NumPy, diagrama nativo, exploración y predicción por lotes como novedad, progreso real por época, subfases) | Recomendaciones aplicadas por defecto (2026-10-15). Detalle en [fase5-redes.md §10](fase5-redes.md) |
 | D9–D17 | Detalles de la Fase 1 (Moons fijo por sesión, CSV más tolerante, pairplot de regresión legible, correlación de -1 a 1, estado de subvistas por lección, CSV resaltado en la barra lateral, días de Propinas corregidos, consejos del pairplot, CSV embebidos desde `tests/parity`) | Recomendaciones aplicadas por defecto (2026-10-13). Detalle en [fase1-shell-datos.md §9](fase1-shell-datos.md). Revisables por el usuario |
 | D8 | MPG: columna `name` | ✅ Aprobada: **no se usa como característica** del modelo (301 modelos de coche codificados como número no tienen sentido). Se conserva en la exploración de datos: vista previa, tooltip en el pairplot y gráficos de dispersión |
 
@@ -194,7 +194,7 @@ Subfases (D92): **F5a**, motor y paridad (sin UI); **F5b**, 🏗️ Arquitectura
 en vivo y cancelación); **F5c**, 📈 Evaluación y 🎯 Visualización; **F5d**, 🔮 Predicciones y 💾 Exportar.
 Cada subfase se cierra con el CI y la revisión.
 
-- [ ] `mltutor-nn` con burn: MLP configurable, inicialización Glorot como en Keras,
+- [x] `mltutor-nn` (MLP propio, D68): MLP configurable, inicialización Glorot como en Keras,
       dropout, adam/sgd/rmsprop, batch, validación, early stopping y ReduceLROnPlateau
       propios, progreso por época y cancelación por batch.
 - [ ] Paridad en dos niveles (D69): exacta con los pesos iniciales de Keras, `shuffle=False` y dropout 0 (especificación ejecutable `tools/nn_reference.py`), y estadística: métricas finales dentro de una banda

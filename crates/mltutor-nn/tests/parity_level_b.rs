@@ -16,7 +16,9 @@ use common::*;
 use mltutor_core::dataset::TaskType;
 use mltutor_core::model::{Prediction, Predictor};
 use mltutor_core::Target;
-use mltutor_nn::{train_network, FitControl, NnArchitecture, NnTraining, OptimizerKind};
+use mltutor_nn::{
+    train_network, FitControl, NnArchitecture, NnTraining, OptimizerKind, TrainOptions,
+};
 use ndarray::Axis;
 use serde_json::Value;
 
@@ -65,8 +67,7 @@ fn metrics(case: &Value, seed: u32) -> (Vec<(String, f64)>, usize) {
         &ds.target,
         &arch,
         &training,
-        true,
-        None,
+        TrainOptions::default(),
         &FitControl::default(),
     )
     .unwrap();

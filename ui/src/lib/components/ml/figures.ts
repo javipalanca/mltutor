@@ -725,7 +725,18 @@ export function boundaryFigure(grid: DecisionGrid, theme: ChartTheme = LIGHT_THE
   return { data, layout };
 }
 
-export function surfaceFigure(grid: DecisionGrid, theme: ChartTheme = LIGHT_THEME, webgl = true): Figure {
+/**
+ * `ownScales` (🧠, D78): the surface takes the range of the predictions and the points their
+ * own, each with its colour bar ("Valor predicho" / "Valor real"). Python's contourf also
+ * scaled the surface to the predictions only: a network that predicts ≈ 0.8 for targets of
+ * 25–346 would otherwise be a flat colour.
+ */
+export function surfaceFigure(
+  grid: DecisionGrid,
+  theme: ChartTheme = LIGHT_THEME,
+  webgl = true,
+  ownScales: { surface: string; points: string } | null = null,
+): Figure {
   const [fx, fy] = grid.feature_names;
   const layout = baseLayout(theme, label(compText("frontera", "title_superficie"), { f1: fx, f2: fy }));
   layout.xaxis = { ...axis(theme, escapePlotly(fx)), range: [grid.x[0], grid.x[grid.x.length - 1]], showline: true, mirror: true, zeroline: false };
@@ -733,8 +744,14 @@ export function surfaceFigure(grid: DecisionGrid, theme: ChartTheme = LIGHT_THEM
   layout.hovermode = "closest";
   const values = grid.values.kind === "values" ? grid.values : { z: [] as number[], min: 0, max: 1 };
   const [tmin, tmax] = minMax(grid.point_target);
-  const cmin = Math.min(values.min, tmin);
-  const cmax = Math.max(values.max, tmax);
+  const cmin = ownScales ? values.min : Math.min(values.min, tmin);
+  const cmax = ownScales ? (values.max > values.min ? values.max : values.min + 1e-9) : Math.max(values.max, tmax);
+  const pmin = ownScales ? tmin : cmin;
+  const pmax = ownScales ? tmax : cmax;
+  if (ownScales) {
+    layout.margin = { l: 70, r: 150, t: 60, b: 70 };
+  }
+  const bar = (title: string, x: number) => ({ title: { text: escapePlotly(title), side: "right" as const }, len: 0.8, thickness: 16, outlinewidth: 0, x });
   return {
     data: [
       {
@@ -748,7 +765,7 @@ export function surfaceFigure(grid: DecisionGrid, theme: ChartTheme = LIGHT_THEM
         ncontours: 20,
         contours: { coloring: "fill", showlines: false },
         opacity: 0.6,
-        colorbar: { title: { text: escapePlotly(compText("frontera", "colorbar_superficie")), side: "right" }, len: 0.8, thickness: 16, outlinewidth: 0 },
+        colorbar: ownScales ? bar(ownScales.surface, 1.02) : { title: { text: escapePlotly(compText("frontera", "colorbar_superficie")), side: "right" }, len: 0.8, thickness: 16, outlinewidth: 0 },
         hovertemplate: "%{x:.3g}, %{y:.3g} → %{z:.4g}<extra></extra>",
       } as Data,
       {
@@ -759,11 +776,12 @@ export function surfaceFigure(grid: DecisionGrid, theme: ChartTheme = LIGHT_THEM
         marker: {
           color: [...grid.point_target],
           colorscale: VIRIDIS,
-          cmin,
-          cmax,
+          cmin: pmin,
+          cmax: pmax,
           size: 8,
           line: { color: "#000000", width: 1 },
-          showscale: false,
+          showscale: ownScales !== null,
+          ...(ownScales ? { colorbar: bar(ownScales.points, 1.16) } : {}),
         },
         customdata: [...grid.point_target],
         showlegend: false,

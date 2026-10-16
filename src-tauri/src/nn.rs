@@ -15,9 +15,9 @@ use serde::Serialize;
 
 use crate::core_facade::ScriptBase;
 use crate::ipc::{
-    ArchitectureView, BatchHint, CommandError, Complexity, DatasetRef, DatasetSummary, EpochLog,
-    LayerRow, NnActivation, NnArchitecture, NnMetric, NnTraining, OutputCheck, OutputLevel,
-    SizeTips, SplitSizes, TaskType,
+    ArchitectureView, BatchHint, CommandError, Complexity, CostLevel, DatasetRef, DatasetSummary,
+    EpochLog, LayerRow, NnActivation, NnArchitecture, NnMetric, NnTraining, OutputCheck,
+    OutputLevel, SizeTips, SplitSizes, TaskType, TrainingCost,
 };
 
 /// Event with the epochs of a training in progress.
@@ -288,6 +288,7 @@ pub fn architecture_view(
     summary: &DatasetSummary,
     arch: &NnArchitecture,
     validation_pct: u8,
+    epochs: Option<u16>,
 ) -> ArchitectureView {
     let task = NnTask::of(summary);
     let input = summary.n_features;
@@ -376,6 +377,18 @@ pub fn architecture_view(
         default_epochs: suggested_epochs(n_rows).min(100),
         suggested_epochs: suggested_epochs(n_rows),
         split: split_sizes(n_rows, validation_pct),
+        cost: epochs.map(|e| {
+            let fit = split_sizes(n_rows, validation_pct).train as usize;
+            let c = mltutor_core::nn_data::training_cost(total, fit, e);
+            TrainingCost {
+                level: match c.level {
+                    mltutor_core::nn_data::CostLevel::Low => CostLevel::Low,
+                    mltutor_core::nn_data::CostLevel::High => CostLevel::High,
+                    mltutor_core::nn_data::CostLevel::VeryHigh => CostLevel::VeryHigh,
+                },
+                estimated_seconds: c.estimated_seconds,
+            }
+        }),
     }
 }
 

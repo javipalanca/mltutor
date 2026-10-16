@@ -32,10 +32,34 @@
   },
   "input": {
     "template": "content/code/red_entrenamiento.py.j2",
-    "cases": ["iris_default", "breast_cancer_default", "diabetes_adam_lr01", "moons_default", "csv_string_target_default", "csv_numeric_regression_default"]
+    "cases": ["iris_default", "breast_cancer_default", "diabetes_adam_lr01", "moons_default", "csv_string_target_default", "csv_numeric_regression_default", "csv_iris_classes_1_2_3", "csv_cancer_classes_1_2"]
   },
   "expected": {
     "iris_default": {
+      "input": {
+        "dataset": "datasets/iris.json",
+        "app_label": "🌸 Iris - Clasificación de flores",
+        "nn_config": {
+          "architecture": [4, 10, 10, 3],
+          "activation": "relu",
+          "output_activation": "softmax",
+          "dropout_rate": 0.2,
+          "batch_size": 64,
+          "optimizer": "adam",
+          "task_type": "Clasificación",
+          "input_size": 4,
+          "output_size": 3
+        },
+        "lr": 0.001,
+        "epochs": 50,
+        "validation_split": 0.2,
+        "early_stopping": true,
+        "patience": 10,
+        "reduce_lr": true,
+        "lr_factor": 0.5,
+        "seeds": [0, 1, 2, 3, 4],
+        "shuffle": true
+      },
       "context": {
         "dataset": "iris",
         "dataset_label": "🌸 Iris - Clasificación de flores",
@@ -87,6 +111,30 @@
       }
     },
     "breast_cancer_default": {
+      "input": {
+        "dataset": "datasets/breast_cancer.json",
+        "app_label": "🔬 Cáncer - Diagnóstico binario",
+        "nn_config": {
+          "architecture": [30, 30, 15, 1],
+          "activation": "relu",
+          "output_activation": "sigmoid",
+          "dropout_rate": 0.2,
+          "batch_size": 64,
+          "optimizer": "adam",
+          "task_type": "Clasificación",
+          "input_size": 30,
+          "output_size": 1
+        },
+        "lr": 0.001,
+        "epochs": 56,
+        "validation_split": 0.2,
+        "early_stopping": true,
+        "patience": 10,
+        "reduce_lr": true,
+        "lr_factor": 0.5,
+        "seeds": [0, 1, 2, 3, 4],
+        "shuffle": true
+      },
       "context": {
         "dataset": "breast_cancer",
         "dataset_label": "🔬 Cáncer - Diagnóstico binario",
@@ -138,6 +186,30 @@
       }
     },
     "diabetes_adam_lr01": {
+      "input": {
+        "dataset": "datasets/diabetes.json",
+        "app_label": "🩺 Diabetes - Progresión (regresión)",
+        "nn_config": {
+          "architecture": [10, 10, 10, 1],
+          "activation": "relu",
+          "output_activation": "linear",
+          "dropout_rate": 0.2,
+          "batch_size": 64,
+          "optimizer": "adam",
+          "task_type": "Regresión",
+          "input_size": 10,
+          "output_size": 1
+        },
+        "lr": 0.1,
+        "epochs": 50,
+        "validation_split": 0.2,
+        "early_stopping": true,
+        "patience": 10,
+        "reduce_lr": true,
+        "lr_factor": 0.5,
+        "seeds": [0, 1, 2, 3, 4],
+        "shuffle": true
+      },
       "context": {
         "dataset": "diabetes",
         "dataset_label": "🩺 Diabetes - Progresión (regresión)",
@@ -192,6 +264,30 @@
       }
     },
     "moons_default": {
+      "input": {
+        "dataset": "datasets/moons.json",
+        "app_label": "🌙 Moons - Clasificación sintética",
+        "nn_config": {
+          "architecture": [2, 10, 10, 1],
+          "activation": "relu",
+          "output_activation": "sigmoid",
+          "dropout_rate": 0.2,
+          "batch_size": 64,
+          "optimizer": "adam",
+          "task_type": "Clasificación",
+          "input_size": 2,
+          "output_size": 1
+        },
+        "lr": 0.001,
+        "epochs": 50,
+        "validation_split": 0.2,
+        "early_stopping": true,
+        "patience": 10,
+        "reduce_lr": true,
+        "lr_factor": 0.5,
+        "seeds": [0, 1, 2, 3, 4],
+        "shuffle": true
+      },
       "context": {
         "dataset": "moons",
         "dataset_label": "🌙 Moons - Clasificación sintética",
@@ -243,6 +339,32 @@
       }
     },
     "csv_string_target_default": {
+      "input": {
+        "csv_fixture": "csv/string_target.json",
+        "target": "especie",
+        "task": "auto",
+        "app_label": "📄 string_target.csv",
+        "nn_config": {
+          "architecture": [2, 10, 10, 3],
+          "activation": "relu",
+          "output_activation": "softmax",
+          "dropout_rate": 0.2,
+          "batch_size": 64,
+          "optimizer": "adam",
+          "task_type": "Clasificación",
+          "input_size": 2,
+          "output_size": 3
+        },
+        "lr": 0.001,
+        "epochs": 50,
+        "validation_split": 0.2,
+        "early_stopping": true,
+        "patience": 10,
+        "reduce_lr": true,
+        "lr_factor": 0.5,
+        "seeds": [0, 1, 2, 3, 4],
+        "shuffle": true
+      },
       "context": {
         "dataset": "csv",
         "dataset_label": "📄 string_target.csv",
@@ -272,7 +394,7 @@
         "class_names": ["lirio", "rosa", "tulipán"],
         "sample": null
       },
-      "script": "\"\"\"\nMLTutor · 🧠 Redes Neuronales — entrenamiento reproducible con Keras\n\nDataset: 📄 string_target.csv\nRed:     [2, 10, 10, 3] · ocultas relu · salida softmax · dropout 0.2\nEntreno: adam (lr=0.001), batch 64, 50 épocas, validación 0.2\n\nEste script hace lo mismo que la app: carga los datos, los escala, los divide en\nentrenamiento y prueba, construye la red, la entrena con los mismos callbacks y calcula las\nmétricas de la pestaña 📈 Evaluación.\n\nUso:\n    pip install tensorflow \"scikit-learn>=1.6\" pandas numpy\n    # Copia string_target.csv en la misma carpeta que este script\n    python red_entrenamiento.py\n\"\"\"\nimport numpy as np\nimport pandas as pd\nimport tensorflow as tf\n\n# Calcular en la CPU, como MLTutor. En los Mac con tensorflow-metal (GPU), model.predict puede\n# dar salidas distintas a las de la red (comprobado con tensorflow-metal 1.2.0).\ntf.config.set_visible_devices([], \"GPU\")\nimport keras  # noqa: E402\nfrom sklearn.metrics import accuracy_score, classification_report, confusion_matrix\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.preprocessing import LabelEncoder, StandardScaler\n\n# Misma semilla en cada ejecución (MLTutor usa 42). Keras no genera los mismos pesos iniciales\n# que MLTutor, así que las cifras serán parecidas, no idénticas.\nkeras.utils.set_random_seed(42)\n\n# ---------------------------------------------------------------------------\n# 1. Cargar los datos (igual que MLTutor)\n# ---------------------------------------------------------------------------\ndf = pd.read_csv('string_target.csv')\nobjetivo = 'especie'\nX = df.drop(columns=[objetivo])\ny = df[objetivo]\n# Columnas de texto -> números (LabelEncoder numera las categorías por orden alfabético)\nfor columna in X.select_dtypes(include=[\"object\"]).columns:\n    X[columna] = LabelEncoder().fit_transform(X[columna].astype(str))\nX = X.astype(float)  # las columnas booleanas pasan a 0.0/1.0\nif y.dtype == object:  # clases de texto -> 0, 1, 2... (en orden alfabético)\n    y = pd.Series(LabelEncoder().fit_transform(y.astype(str)), name=objetivo)\n\nnombres = ['largo', 'ancho']  # nombres que muestra MLTutor\nclases = ['lirio', 'rosa', 'tulipán']\nprint(f\"Datos: {X.shape[0]} muestras y {X.shape[1]} características\")\n\n# ---------------------------------------------------------------------------\n# 2. Escalar y dividir (igual que MLTutor)\n# ---------------------------------------------------------------------------\n# Las redes aprenden mejor con características de media 0 y desviación 1. Para coincidir con la\n# versión original de la app, MLTutor ajusta el escalador con TODAS las filas antes de dividir. Es\n# una fuga de datos: la media y la desviación de las filas de prueba entran en el preprocesado.\n# Fuera de la app, divide primero y ajusta el escalador solo con el entrenamiento:\n#     X_train, X_test, y_train, y_test = train_test_split(\n#         X, y, test_size=0.2, random_state=42, stratify=y)\n#     scaler = StandardScaler().fit(X_train)\n#     X_train, X_test = scaler.transform(X_train), scaler.transform(X_test)\n# (con scikit-learn, un Pipeline lo hace solo). El objetivo no se escala.\nscaler = StandardScaler()\nX_esc = scaler.fit_transform(X)\nX_train, X_test, y_train, y_test = train_test_split(\n    X_esc, y, test_size=0.2, random_state=42, stratify=y\n)\n# stratify=y: cada clase tiene la misma proporción en entrenamiento y en prueba\nn_val = len(X_train) - int(len(X_train) * (1 - 0.2))\nprint(f\"Entrenamiento: {len(X_train) - n_val} · Validación: {n_val} (las últimas filas de \"\n      f\"entrenamiento) · Prueba: {len(X_test)}\")\n# Una columna por clase (one-hot): la salida tiene 3 neuronas\nY_train = keras.utils.to_categorical(y_train, 3)\nY_test = keras.utils.to_categorical(y_test, 3)\n\n# ---------------------------------------------------------------------------\n# 3. Construir la red (pestaña 🏗️ Arquitectura)\n# ---------------------------------------------------------------------------\nentrada = keras.layers.Input(shape=(2,), name=\"input_layer\")\nx = entrada\nx = keras.layers.Dense(10, activation='relu', name=\"dense_1\")(x)\nx = keras.layers.Dropout(0.2, name=\"dropout_1\")(x)\nx = keras.layers.Dense(10, activation='relu', name=\"dense_2\")(x)\nx = keras.layers.Dropout(0.2, name=\"dropout_2\")(x)\nsalida = keras.layers.Dense(3, activation='softmax', name=\"output_layer\")(x)\nmodelo = keras.Model(inputs=entrada, outputs=salida, name=\"neural_network\")\nmodelo.summary()\nprint(f\"Parámetros: {modelo.count_params():,}\")  # pesos + sesgos de cada capa densa\n\n# ---------------------------------------------------------------------------\n# 4. Compilar y entrenar (pestaña ⚙️ Entrenamiento)\n# ---------------------------------------------------------------------------\nmodelo.compile(\n    optimizer=keras.optimizers.Adam(learning_rate=0.001),\n    loss='categorical_crossentropy',\n    metrics=['accuracy'],\n)\ncallbacks = []\n# Para cuando la pérdida de validación lleva 10 épocas sin mejorar. Al terminar (pare o\n# no) recupera los pesos de la época con menor pérdida de validación, que puede no ser la última\ncallbacks.append(keras.callbacks.EarlyStopping(\n    monitor=\"val_loss\", patience=10, restore_best_weights=True))\n# Multiplica la LR por 0.5 cuando la pérdida de validación lleva 5 épocas sin mejorar\ncallbacks.append(keras.callbacks.ReduceLROnPlateau(\n    monitor=\"val_loss\", factor=0.5, patience=5, min_lr=1e-7))\nhistorial = modelo.fit(\n    X_train, Y_train,\n    epochs=50,\n    batch_size=64,\n    validation_split=0.2,  # las últimas filas de X_train, sin barajar\n    callbacks=callbacks,\n    verbose=2,\n)\nprint(f\"Épocas entrenadas: {len(historial.history['loss'])}\")\n\n# ---------------------------------------------------------------------------\n# 5. Evaluar con el conjunto de prueba (pestaña 📈 Evaluación)\n# ---------------------------------------------------------------------------\nsalida_test = modelo.predict(X_test, verbose=0)\ny_pred = np.argmax(salida_test, axis=1)  # la neurona con la salida más alta\naccuracy = accuracy_score(y_test, y_pred)\nprint(f\"\\nExactitud (Accuracy): {accuracy:.4f}\")\nprint(classification_report(y_test, y_pred, labels=list(range(len(clases))), target_names=clases,\n                            digits=4, zero_division=0))\nprint(\"Matriz de confusión (filas = real, columnas = predicción):\")\nprint(confusion_matrix(y_test, y_pred, labels=list(range(len(clases)))))\n\n# ---------------------------------------------------------------------------\n# 6. Predecir una muestra nueva (pestaña 🔮 Predicciones)\n# ---------------------------------------------------------------------------\nmuestra = scaler.inverse_transform(X_test[:1])[0]  # la primera muestra de prueba, sin escalar\n# DataFrame con los nombres de las columnas: el escalador se ajustó con ellos\nsalida_muestra = modelo.predict(scaler.transform(pd.DataFrame([muestra], columns=X.columns)), verbose=0)[0]\nprediccion = int(np.argmax(salida_muestra))\nprint(f\"\\nPredicción: {clases[prediccion]}\")\nfor nombre, valor in zip(clases, salida_muestra):\n    print(f\"  {nombre}: {valor:.4f}\")\n\n# ---------------------------------------------------------------------------\n# 7. Guardar el modelo y el escalador\n# ---------------------------------------------------------------------------\nmodelo.save(\"modelo_red.keras\")\nimport pickle\nwith open(\"scaler.pkl\", \"wb\") as f:\n    pickle.dump(scaler, f)\nprint(\"💾 Guardados 'modelo_red.keras' y 'scaler.pkl'\")\n",
+      "script": "\"\"\"\nMLTutor · 🧠 Redes Neuronales — entrenamiento reproducible con Keras\n\nDataset: 📄 string_target.csv\nRed:     [2, 10, 10, 3] · ocultas relu · salida softmax · dropout 0.2\nEntreno: adam (lr=0.001), batch 64, 50 épocas, validación 0.2\n\nEste script hace lo mismo que la app: carga los datos, los escala, los divide en\nentrenamiento y prueba, construye la red, la entrena con los mismos callbacks y calcula las\nmétricas de la pestaña 📈 Evaluación.\n\nUso:\n    pip install tensorflow \"scikit-learn>=1.6\" pandas numpy\n    # Copia string_target.csv en la misma carpeta que este script\n    python red_entrenamiento.py\n\"\"\"\nimport numpy as np\nimport pandas as pd\nimport tensorflow as tf\n\n# Calcular en la CPU, como MLTutor. En los Mac con tensorflow-metal (GPU), model.predict puede\n# dar salidas distintas a las de la red (comprobado con tensorflow-metal 1.2.0).\ntf.config.set_visible_devices([], \"GPU\")\nimport keras  # noqa: E402\nfrom sklearn.metrics import accuracy_score, classification_report, confusion_matrix\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.preprocessing import LabelEncoder, StandardScaler\n\n# Misma semilla en cada ejecución (MLTutor usa 42). Keras no genera los mismos pesos iniciales\n# que MLTutor, así que las cifras serán parecidas, no idénticas.\nkeras.utils.set_random_seed(42)\n\n# ---------------------------------------------------------------------------\n# 1. Cargar los datos (igual que MLTutor)\n# ---------------------------------------------------------------------------\ndf = pd.read_csv('string_target.csv')\nobjetivo = 'especie'\nX = df.drop(columns=[objetivo])\ny = df[objetivo]\n# Columnas de texto -> números (LabelEncoder numera las categorías por orden alfabético)\nfor columna in X.select_dtypes(include=[\"object\"]).columns:\n    X[columna] = LabelEncoder().fit_transform(X[columna].astype(str))\nX = X.astype(float)  # las columnas booleanas pasan a 0.0/1.0\nif y.dtype == object:  # clases de texto -> 0, 1, 2... (en orden alfabético)\n    y = pd.Series(LabelEncoder().fit_transform(y.astype(str)), name=objetivo)\n# Keras necesita las clases numeradas 0, 1, 2... (to_categorical y la pérdida binaria fallan con 1, 2, 3).\n# LabelEncoder las numera como MLTutor: de menor a mayor (1, 2, 3 -> 0, 1, 2). `clases` traduce el\n# número que predice la red al nombre de la clase\ny = pd.Series(LabelEncoder().fit_transform(y), name=objetivo)\n\nnombres = ['largo', 'ancho']  # nombres que muestra MLTutor\nclases = ['lirio', 'rosa', 'tulipán']\nprint(f\"Datos: {X.shape[0]} muestras y {X.shape[1]} características\")\n\n# ---------------------------------------------------------------------------\n# 2. Escalar y dividir (igual que MLTutor)\n# ---------------------------------------------------------------------------\n# Las redes aprenden mejor con características de media 0 y desviación 1. Para coincidir con la\n# versión original de la app, MLTutor ajusta el escalador con TODAS las filas antes de dividir. Es\n# una fuga de datos: la media y la desviación de las filas de prueba entran en el preprocesado.\n# Fuera de la app, divide primero y ajusta el escalador solo con el entrenamiento:\n#     X_train, X_test, y_train, y_test = train_test_split(\n#         X, y, test_size=0.2, random_state=42, stratify=y)\n#     scaler = StandardScaler().fit(X_train)\n#     X_train, X_test = scaler.transform(X_train), scaler.transform(X_test)\n# (con scikit-learn, un Pipeline lo hace solo). El objetivo no se escala.\nscaler = StandardScaler()\nX_esc = scaler.fit_transform(X)\nX_train, X_test, y_train, y_test = train_test_split(\n    X_esc, y, test_size=0.2, random_state=42, stratify=y\n)\n# stratify=y: cada clase tiene la misma proporción en entrenamiento y en prueba\nn_val = len(X_train) - int(len(X_train) * (1 - 0.2))\nprint(f\"Entrenamiento: {len(X_train) - n_val} · Validación: {n_val} (las últimas filas de \"\n      f\"entrenamiento) · Prueba: {len(X_test)}\")\n# Una columna por clase (one-hot): la salida tiene 3 neuronas\nY_train = keras.utils.to_categorical(y_train, 3)\nY_test = keras.utils.to_categorical(y_test, 3)\n\n# ---------------------------------------------------------------------------\n# 3. Construir la red (pestaña 🏗️ Arquitectura)\n# ---------------------------------------------------------------------------\nentrada = keras.layers.Input(shape=(2,), name=\"input_layer\")\nx = entrada\nx = keras.layers.Dense(10, activation='relu', name=\"dense_1\")(x)\nx = keras.layers.Dropout(0.2, name=\"dropout_1\")(x)\nx = keras.layers.Dense(10, activation='relu', name=\"dense_2\")(x)\nx = keras.layers.Dropout(0.2, name=\"dropout_2\")(x)\nsalida = keras.layers.Dense(3, activation='softmax', name=\"output_layer\")(x)\nmodelo = keras.Model(inputs=entrada, outputs=salida, name=\"neural_network\")\nmodelo.summary()\nprint(f\"Parámetros: {modelo.count_params():,}\")  # pesos + sesgos de cada capa densa\n\n# ---------------------------------------------------------------------------\n# 4. Compilar y entrenar (pestaña ⚙️ Entrenamiento)\n# ---------------------------------------------------------------------------\nmodelo.compile(\n    optimizer=keras.optimizers.Adam(learning_rate=0.001),\n    loss='categorical_crossentropy',\n    metrics=['accuracy'],\n)\ncallbacks = []\n# Para cuando la pérdida de validación lleva 10 épocas sin mejorar. Al terminar (pare o\n# no) recupera los pesos de la época con menor pérdida de validación, que puede no ser la última\ncallbacks.append(keras.callbacks.EarlyStopping(\n    monitor=\"val_loss\", patience=10, restore_best_weights=True))\n# Multiplica la LR por 0.5 cuando la pérdida de validación lleva 5 épocas sin mejorar\ncallbacks.append(keras.callbacks.ReduceLROnPlateau(\n    monitor=\"val_loss\", factor=0.5, patience=5, min_lr=1e-7))\nhistorial = modelo.fit(\n    X_train, Y_train,\n    epochs=50,\n    batch_size=64,\n    validation_split=0.2,  # las últimas filas de X_train, sin barajar\n    callbacks=callbacks,\n    verbose=2,\n)\nprint(f\"Épocas entrenadas: {len(historial.history['loss'])}\")\n\n# ---------------------------------------------------------------------------\n# 5. Evaluar con el conjunto de prueba (pestaña 📈 Evaluación)\n# ---------------------------------------------------------------------------\nsalida_test = modelo.predict(X_test, verbose=0)\ny_pred = np.argmax(salida_test, axis=1)  # la neurona con la salida más alta\naccuracy = accuracy_score(y_test, y_pred)\nprint(f\"\\nExactitud (Accuracy): {accuracy:.4f}\")\nprint(classification_report(y_test, y_pred, labels=list(range(len(clases))), target_names=clases,\n                            digits=4, zero_division=0))\nprint(\"Matriz de confusión (filas = real, columnas = predicción):\")\nprint(confusion_matrix(y_test, y_pred, labels=list(range(len(clases)))))\n\n# ---------------------------------------------------------------------------\n# 6. Predecir una muestra nueva (pestaña 🔮 Predicciones)\n# ---------------------------------------------------------------------------\nmuestra = scaler.inverse_transform(X_test[:1])[0]  # la primera muestra de prueba, sin escalar\n# DataFrame con los nombres de las columnas: el escalador se ajustó con ellos\nsalida_muestra = modelo.predict(scaler.transform(pd.DataFrame([muestra], columns=X.columns)), verbose=0)[0]\nprediccion = int(np.argmax(salida_muestra))\nprint(f\"\\nPredicción: {clases[prediccion]}\")\nfor nombre, valor in zip(clases, salida_muestra):\n    print(f\"  {nombre}: {valor:.4f}\")\n\n# ---------------------------------------------------------------------------\n# 7. Guardar el modelo y el escalador\n# ---------------------------------------------------------------------------\nmodelo.save(\"modelo_red.keras\")\nimport pickle\nwith open(\"scaler.pkl\", \"wb\") as f:\n    pickle.dump(scaler, f)\nprint(\"💾 Guardados 'modelo_red.keras' y 'scaler.pkl'\")\n",
       "got": {
         "accuracy": 0.16666666666666666,
         "params": 173,
@@ -294,6 +416,32 @@
       }
     },
     "csv_numeric_regression_default": {
+      "input": {
+        "csv_fixture": "csv/numeric_regression.json",
+        "target": "y",
+        "task": "auto",
+        "app_label": "📄 numeric_regression.csv",
+        "nn_config": {
+          "architecture": [2, 10, 10, 1],
+          "activation": "relu",
+          "output_activation": "linear",
+          "dropout_rate": 0.2,
+          "batch_size": 64,
+          "optimizer": "adam",
+          "task_type": "Regresión",
+          "input_size": 2,
+          "output_size": 1
+        },
+        "lr": 0.001,
+        "epochs": 50,
+        "validation_split": 0.2,
+        "early_stopping": true,
+        "patience": 10,
+        "reduce_lr": true,
+        "lr_factor": 0.5,
+        "seeds": [0, 1, 2, 3, 4],
+        "shuffle": true
+      },
       "context": {
         "dataset": "csv",
         "dataset_label": "📄 numeric_regression.csv",
@@ -345,6 +493,158 @@
       "band": {
         "lo": -1.190343379579362,
         "hi": 0.4468528317886177
+      }
+    },
+    "csv_iris_classes_1_2_3": {
+      "input": {
+        "app_label": "📄 iris_clases_1_2_3.csv",
+        "nn_config": {
+          "architecture": [4, 10, 10, 3],
+          "activation": "relu",
+          "output_activation": "softmax",
+          "dropout_rate": 0.2,
+          "batch_size": 64,
+          "optimizer": "adam",
+          "task_type": "Clasificación",
+          "input_size": 4,
+          "output_size": 3
+        },
+        "lr": 0.001,
+        "epochs": 50,
+        "validation_split": 0.2,
+        "early_stopping": true,
+        "patience": 10,
+        "reduce_lr": true,
+        "lr_factor": 0.5,
+        "shuffle": true,
+        "csv_fixture": "generated/iris_clases_1_2_3.csv",
+        "target": "clase",
+        "task": "auto"
+      },
+      "context": {
+        "dataset": "csv",
+        "dataset_label": "📄 iris_clases_1_2_3.csv",
+        "csv_file": "iris_clases_1_2_3.csv",
+        "csv_target": "clase",
+        "csv_sep": ",",
+        "csv_decimal": ".",
+        "csv_encoding": "utf-8",
+        "task": "classification",
+        "architecture": [4, 10, 10, 3],
+        "activation": "relu",
+        "output_activation": "softmax",
+        "loss": "categorical_crossentropy",
+        "one_hot": true,
+        "dropout_rate": 0.2,
+        "optimizer": "adam",
+        "learning_rate": 0.001,
+        "batch_size": 64,
+        "epochs": 50,
+        "validation_split": 0.2,
+        "early_stopping": true,
+        "patience": 10,
+        "reduce_lr": true,
+        "lr_factor": 0.5,
+        "reduce_lr_patience": 5,
+        "feature_names": ["sepal length (cm)", "sepal width (cm)", "petal length (cm)", "petal width (cm)"],
+        "class_names": ["Clase 1", "Clase 2", "Clase 3"],
+        "sample": null
+      },
+      "script": "\"\"\"\nMLTutor · 🧠 Redes Neuronales — entrenamiento reproducible con Keras\n\nDataset: 📄 iris_clases_1_2_3.csv\nRed:     [4, 10, 10, 3] · ocultas relu · salida softmax · dropout 0.2\nEntreno: adam (lr=0.001), batch 64, 50 épocas, validación 0.2\n\nEste script hace lo mismo que la app: carga los datos, los escala, los divide en\nentrenamiento y prueba, construye la red, la entrena con los mismos callbacks y calcula las\nmétricas de la pestaña 📈 Evaluación.\n\nUso:\n    pip install tensorflow \"scikit-learn>=1.6\" pandas numpy\n    # Copia iris_clases_1_2_3.csv en la misma carpeta que este script\n    python red_entrenamiento.py\n\"\"\"\nimport numpy as np\nimport pandas as pd\nimport tensorflow as tf\n\n# Calcular en la CPU, como MLTutor. En los Mac con tensorflow-metal (GPU), model.predict puede\n# dar salidas distintas a las de la red (comprobado con tensorflow-metal 1.2.0).\ntf.config.set_visible_devices([], \"GPU\")\nimport keras  # noqa: E402\nfrom sklearn.metrics import accuracy_score, classification_report, confusion_matrix\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.preprocessing import LabelEncoder, StandardScaler\n\n# Misma semilla en cada ejecución (MLTutor usa 42). Keras no genera los mismos pesos iniciales\n# que MLTutor, así que las cifras serán parecidas, no idénticas.\nkeras.utils.set_random_seed(42)\n\n# ---------------------------------------------------------------------------\n# 1. Cargar los datos (igual que MLTutor)\n# ---------------------------------------------------------------------------\ndf = pd.read_csv('iris_clases_1_2_3.csv')\nobjetivo = 'clase'\nX = df.drop(columns=[objetivo])\ny = df[objetivo]\n# Columnas de texto -> números (LabelEncoder numera las categorías por orden alfabético)\nfor columna in X.select_dtypes(include=[\"object\"]).columns:\n    X[columna] = LabelEncoder().fit_transform(X[columna].astype(str))\nX = X.astype(float)  # las columnas booleanas pasan a 0.0/1.0\nif y.dtype == object:  # clases de texto -> 0, 1, 2... (en orden alfabético)\n    y = pd.Series(LabelEncoder().fit_transform(y.astype(str)), name=objetivo)\n# Keras necesita las clases numeradas 0, 1, 2... (to_categorical y la pérdida binaria fallan con 1, 2, 3).\n# LabelEncoder las numera como MLTutor: de menor a mayor (1, 2, 3 -> 0, 1, 2). `clases` traduce el\n# número que predice la red al nombre de la clase\ny = pd.Series(LabelEncoder().fit_transform(y), name=objetivo)\n\nnombres = ['sepal length (cm)', 'sepal width (cm)', 'petal length (cm)', 'petal width (cm)']  # nombres que muestra MLTutor\nclases = ['Clase 1', 'Clase 2', 'Clase 3']\nprint(f\"Datos: {X.shape[0]} muestras y {X.shape[1]} características\")\n\n# ---------------------------------------------------------------------------\n# 2. Escalar y dividir (igual que MLTutor)\n# ---------------------------------------------------------------------------\n# Las redes aprenden mejor con características de media 0 y desviación 1. Para coincidir con la\n# versión original de la app, MLTutor ajusta el escalador con TODAS las filas antes de dividir. Es\n# una fuga de datos: la media y la desviación de las filas de prueba entran en el preprocesado.\n# Fuera de la app, divide primero y ajusta el escalador solo con el entrenamiento:\n#     X_train, X_test, y_train, y_test = train_test_split(\n#         X, y, test_size=0.2, random_state=42, stratify=y)\n#     scaler = StandardScaler().fit(X_train)\n#     X_train, X_test = scaler.transform(X_train), scaler.transform(X_test)\n# (con scikit-learn, un Pipeline lo hace solo). El objetivo no se escala.\nscaler = StandardScaler()\nX_esc = scaler.fit_transform(X)\nX_train, X_test, y_train, y_test = train_test_split(\n    X_esc, y, test_size=0.2, random_state=42, stratify=y\n)\n# stratify=y: cada clase tiene la misma proporción en entrenamiento y en prueba\nn_val = len(X_train) - int(len(X_train) * (1 - 0.2))\nprint(f\"Entrenamiento: {len(X_train) - n_val} · Validación: {n_val} (las últimas filas de \"\n      f\"entrenamiento) · Prueba: {len(X_test)}\")\n# Una columna por clase (one-hot): la salida tiene 3 neuronas\nY_train = keras.utils.to_categorical(y_train, 3)\nY_test = keras.utils.to_categorical(y_test, 3)\n\n# ---------------------------------------------------------------------------\n# 3. Construir la red (pestaña 🏗️ Arquitectura)\n# ---------------------------------------------------------------------------\nentrada = keras.layers.Input(shape=(4,), name=\"input_layer\")\nx = entrada\nx = keras.layers.Dense(10, activation='relu', name=\"dense_1\")(x)\nx = keras.layers.Dropout(0.2, name=\"dropout_1\")(x)\nx = keras.layers.Dense(10, activation='relu', name=\"dense_2\")(x)\nx = keras.layers.Dropout(0.2, name=\"dropout_2\")(x)\nsalida = keras.layers.Dense(3, activation='softmax', name=\"output_layer\")(x)\nmodelo = keras.Model(inputs=entrada, outputs=salida, name=\"neural_network\")\nmodelo.summary()\nprint(f\"Parámetros: {modelo.count_params():,}\")  # pesos + sesgos de cada capa densa\n\n# ---------------------------------------------------------------------------\n# 4. Compilar y entrenar (pestaña ⚙️ Entrenamiento)\n# ---------------------------------------------------------------------------\nmodelo.compile(\n    optimizer=keras.optimizers.Adam(learning_rate=0.001),\n    loss='categorical_crossentropy',\n    metrics=['accuracy'],\n)\ncallbacks = []\n# Para cuando la pérdida de validación lleva 10 épocas sin mejorar. Al terminar (pare o\n# no) recupera los pesos de la época con menor pérdida de validación, que puede no ser la última\ncallbacks.append(keras.callbacks.EarlyStopping(\n    monitor=\"val_loss\", patience=10, restore_best_weights=True))\n# Multiplica la LR por 0.5 cuando la pérdida de validación lleva 5 épocas sin mejorar\ncallbacks.append(keras.callbacks.ReduceLROnPlateau(\n    monitor=\"val_loss\", factor=0.5, patience=5, min_lr=1e-7))\nhistorial = modelo.fit(\n    X_train, Y_train,\n    epochs=50,\n    batch_size=64,\n    validation_split=0.2,  # las últimas filas de X_train, sin barajar\n    callbacks=callbacks,\n    verbose=2,\n)\nprint(f\"Épocas entrenadas: {len(historial.history['loss'])}\")\n\n# ---------------------------------------------------------------------------\n# 5. Evaluar con el conjunto de prueba (pestaña 📈 Evaluación)\n# ---------------------------------------------------------------------------\nsalida_test = modelo.predict(X_test, verbose=0)\ny_pred = np.argmax(salida_test, axis=1)  # la neurona con la salida más alta\naccuracy = accuracy_score(y_test, y_pred)\nprint(f\"\\nExactitud (Accuracy): {accuracy:.4f}\")\nprint(classification_report(y_test, y_pred, labels=list(range(len(clases))), target_names=clases,\n                            digits=4, zero_division=0))\nprint(\"Matriz de confusión (filas = real, columnas = predicción):\")\nprint(confusion_matrix(y_test, y_pred, labels=list(range(len(clases)))))\n\n# ---------------------------------------------------------------------------\n# 6. Predecir una muestra nueva (pestaña 🔮 Predicciones)\n# ---------------------------------------------------------------------------\nmuestra = scaler.inverse_transform(X_test[:1])[0]  # la primera muestra de prueba, sin escalar\n# DataFrame con los nombres de las columnas: el escalador se ajustó con ellos\nsalida_muestra = modelo.predict(scaler.transform(pd.DataFrame([muestra], columns=X.columns)), verbose=0)[0]\nprediccion = int(np.argmax(salida_muestra))\nprint(f\"\\nPredicción: {clases[prediccion]}\")\nfor nombre, valor in zip(clases, salida_muestra):\n    print(f\"  {nombre}: {valor:.4f}\")\n\n# ---------------------------------------------------------------------------\n# 7. Guardar el modelo y el escalador\n# ---------------------------------------------------------------------------\nmodelo.save(\"modelo_red.keras\")\nimport pickle\nwith open(\"scaler.pkl\", \"wb\") as f:\n    pickle.dump(scaler, f)\nprint(\"💾 Guardados 'modelo_red.keras' y 'scaler.pkl'\")\n",
+      "got": {
+        "accuracy": 0.5666666666666667,
+        "params": 193,
+        "epochs": 50,
+        "history_keys": ["accuracy", "learning_rate", "loss", "val_accuracy", "val_loss"],
+        "prediccion": 0.0
+      },
+      "checks": {
+        "x_test_equal_app": true,
+        "x_test_max_abs_diff": 0.0,
+        "y_test_equal_app": true,
+        "params_equal_app": true,
+        "accuracy_in_band": true,
+        "accuracy_in_band_2x": true
+      },
+      "band": {
+        "lo": 0.46901656608178344,
+        "hi": 0.9309834339182166
+      }
+    },
+    "csv_cancer_classes_1_2": {
+      "input": {
+        "app_label": "📄 cancer_clases_1_2.csv",
+        "nn_config": {
+          "architecture": [30, 30, 15, 1],
+          "activation": "relu",
+          "output_activation": "sigmoid",
+          "dropout_rate": 0.2,
+          "batch_size": 64,
+          "optimizer": "adam",
+          "task_type": "Clasificación",
+          "input_size": 30,
+          "output_size": 1
+        },
+        "lr": 0.001,
+        "epochs": 56,
+        "validation_split": 0.2,
+        "early_stopping": true,
+        "patience": 10,
+        "reduce_lr": true,
+        "lr_factor": 0.5,
+        "shuffle": true,
+        "csv_fixture": "generated/cancer_clases_1_2.csv",
+        "target": "clase",
+        "task": "auto"
+      },
+      "context": {
+        "dataset": "csv",
+        "dataset_label": "📄 cancer_clases_1_2.csv",
+        "csv_file": "cancer_clases_1_2.csv",
+        "csv_target": "clase",
+        "csv_sep": ",",
+        "csv_decimal": ".",
+        "csv_encoding": "utf-8",
+        "task": "classification",
+        "architecture": [30, 30, 15, 1],
+        "activation": "relu",
+        "output_activation": "sigmoid",
+        "loss": "binary_crossentropy",
+        "one_hot": false,
+        "dropout_rate": 0.2,
+        "optimizer": "adam",
+        "learning_rate": 0.001,
+        "batch_size": 64,
+        "epochs": 56,
+        "validation_split": 0.2,
+        "early_stopping": true,
+        "patience": 10,
+        "reduce_lr": true,
+        "lr_factor": 0.5,
+        "reduce_lr_patience": 5,
+        "feature_names": ["mean radius", "mean texture", "mean perimeter", "mean area", "mean smoothness", "mean compactness", "mean concavity", "mean concave points", "mean symmetry", "mean fractal dimension", "radius error", "texture error", "perimeter error", "area error", "smoothness error", "compactness error", "concavity error", "concave points error", "symmetry error", "fractal dimension error", "worst radius", "worst texture", "worst perimeter", "worst area", "worst smoothness", "worst compactness", "worst concavity", "worst concave points", "worst symmetry", "worst fractal dimension"],
+        "class_names": ["Clase 1", "Clase 2"],
+        "sample": null
+      },
+      "script": "\"\"\"\nMLTutor · 🧠 Redes Neuronales — entrenamiento reproducible con Keras\n\nDataset: 📄 cancer_clases_1_2.csv\nRed:     [30, 30, 15, 1] · ocultas relu · salida sigmoid · dropout 0.2\nEntreno: adam (lr=0.001), batch 64, 56 épocas, validación 0.2\n\nEste script hace lo mismo que la app: carga los datos, los escala, los divide en\nentrenamiento y prueba, construye la red, la entrena con los mismos callbacks y calcula las\nmétricas de la pestaña 📈 Evaluación.\n\nUso:\n    pip install tensorflow \"scikit-learn>=1.6\" pandas numpy\n    # Copia cancer_clases_1_2.csv en la misma carpeta que este script\n    python red_entrenamiento.py\n\"\"\"\nimport numpy as np\nimport pandas as pd\nimport tensorflow as tf\n\n# Calcular en la CPU, como MLTutor. En los Mac con tensorflow-metal (GPU), model.predict puede\n# dar salidas distintas a las de la red (comprobado con tensorflow-metal 1.2.0).\ntf.config.set_visible_devices([], \"GPU\")\nimport keras  # noqa: E402\nfrom sklearn.metrics import accuracy_score, classification_report, confusion_matrix\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.preprocessing import LabelEncoder, StandardScaler\n\n# Misma semilla en cada ejecución (MLTutor usa 42). Keras no genera los mismos pesos iniciales\n# que MLTutor, así que las cifras serán parecidas, no idénticas.\nkeras.utils.set_random_seed(42)\n\n# ---------------------------------------------------------------------------\n# 1. Cargar los datos (igual que MLTutor)\n# ---------------------------------------------------------------------------\ndf = pd.read_csv('cancer_clases_1_2.csv')\nobjetivo = 'clase'\nX = df.drop(columns=[objetivo])\ny = df[objetivo]\n# Columnas de texto -> números (LabelEncoder numera las categorías por orden alfabético)\nfor columna in X.select_dtypes(include=[\"object\"]).columns:\n    X[columna] = LabelEncoder().fit_transform(X[columna].astype(str))\nX = X.astype(float)  # las columnas booleanas pasan a 0.0/1.0\nif y.dtype == object:  # clases de texto -> 0, 1, 2... (en orden alfabético)\n    y = pd.Series(LabelEncoder().fit_transform(y.astype(str)), name=objetivo)\n# Keras necesita las clases numeradas 0, 1, 2... (to_categorical y la pérdida binaria fallan con 1, 2, 3).\n# LabelEncoder las numera como MLTutor: de menor a mayor (1, 2, 3 -> 0, 1, 2). `clases` traduce el\n# número que predice la red al nombre de la clase\ny = pd.Series(LabelEncoder().fit_transform(y), name=objetivo)\n\nnombres = ['mean radius', 'mean texture', 'mean perimeter', 'mean area', 'mean smoothness', 'mean compactness', 'mean concavity', 'mean concave points', 'mean symmetry', 'mean fractal dimension', 'radius error', 'texture error', 'perimeter error', 'area error', 'smoothness error', 'compactness error', 'concavity error', 'concave points error', 'symmetry error', 'fractal dimension error', 'worst radius', 'worst texture', 'worst perimeter', 'worst area', 'worst smoothness', 'worst compactness', 'worst concavity', 'worst concave points', 'worst symmetry', 'worst fractal dimension']  # nombres que muestra MLTutor\nclases = ['Clase 1', 'Clase 2']\nprint(f\"Datos: {X.shape[0]} muestras y {X.shape[1]} características\")\n\n# ---------------------------------------------------------------------------\n# 2. Escalar y dividir (igual que MLTutor)\n# ---------------------------------------------------------------------------\n# Las redes aprenden mejor con características de media 0 y desviación 1. Para coincidir con la\n# versión original de la app, MLTutor ajusta el escalador con TODAS las filas antes de dividir. Es\n# una fuga de datos: la media y la desviación de las filas de prueba entran en el preprocesado.\n# Fuera de la app, divide primero y ajusta el escalador solo con el entrenamiento:\n#     X_train, X_test, y_train, y_test = train_test_split(\n#         X, y, test_size=0.2, random_state=42, stratify=y)\n#     scaler = StandardScaler().fit(X_train)\n#     X_train, X_test = scaler.transform(X_train), scaler.transform(X_test)\n# (con scikit-learn, un Pipeline lo hace solo). El objetivo no se escala.\nscaler = StandardScaler()\nX_esc = scaler.fit_transform(X)\nX_train, X_test, y_train, y_test = train_test_split(\n    X_esc, y, test_size=0.2, random_state=42, stratify=y\n)\n# stratify=y: cada clase tiene la misma proporción en entrenamiento y en prueba\nn_val = len(X_train) - int(len(X_train) * (1 - 0.2))\nprint(f\"Entrenamiento: {len(X_train) - n_val} · Validación: {n_val} (las últimas filas de \"\n      f\"entrenamiento) · Prueba: {len(X_test)}\")\n# Clasificación binaria: una neurona de salida y la etiqueta 0/1\nY_train, Y_test = np.asarray(y_train), np.asarray(y_test)\n\n# ---------------------------------------------------------------------------\n# 3. Construir la red (pestaña 🏗️ Arquitectura)\n# ---------------------------------------------------------------------------\nentrada = keras.layers.Input(shape=(30,), name=\"input_layer\")\nx = entrada\nx = keras.layers.Dense(30, activation='relu', name=\"dense_1\")(x)\nx = keras.layers.Dropout(0.2, name=\"dropout_1\")(x)\nx = keras.layers.Dense(15, activation='relu', name=\"dense_2\")(x)\nx = keras.layers.Dropout(0.2, name=\"dropout_2\")(x)\nsalida = keras.layers.Dense(1, activation='sigmoid', name=\"output_layer\")(x)\nmodelo = keras.Model(inputs=entrada, outputs=salida, name=\"neural_network\")\nmodelo.summary()\nprint(f\"Parámetros: {modelo.count_params():,}\")  # pesos + sesgos de cada capa densa\n\n# ---------------------------------------------------------------------------\n# 4. Compilar y entrenar (pestaña ⚙️ Entrenamiento)\n# ---------------------------------------------------------------------------\nmodelo.compile(\n    optimizer=keras.optimizers.Adam(learning_rate=0.001),\n    loss='binary_crossentropy',\n    metrics=['accuracy'],\n)\ncallbacks = []\n# Para cuando la pérdida de validación lleva 10 épocas sin mejorar. Al terminar (pare o\n# no) recupera los pesos de la época con menor pérdida de validación, que puede no ser la última\ncallbacks.append(keras.callbacks.EarlyStopping(\n    monitor=\"val_loss\", patience=10, restore_best_weights=True))\n# Multiplica la LR por 0.5 cuando la pérdida de validación lleva 5 épocas sin mejorar\ncallbacks.append(keras.callbacks.ReduceLROnPlateau(\n    monitor=\"val_loss\", factor=0.5, patience=5, min_lr=1e-7))\nhistorial = modelo.fit(\n    X_train, Y_train,\n    epochs=56,\n    batch_size=64,\n    validation_split=0.2,  # las últimas filas de X_train, sin barajar\n    callbacks=callbacks,\n    verbose=2,\n)\nprint(f\"Épocas entrenadas: {len(historial.history['loss'])}\")\n\n# ---------------------------------------------------------------------------\n# 5. Evaluar con el conjunto de prueba (pestaña 📈 Evaluación)\n# ---------------------------------------------------------------------------\nsalida_test = modelo.predict(X_test, verbose=0)\ny_pred = (salida_test.ravel() > 0.5).astype(int)  # una neurona: umbral 0,5\naccuracy = accuracy_score(y_test, y_pred)\nprint(f\"\\nExactitud (Accuracy): {accuracy:.4f}\")\nprint(classification_report(y_test, y_pred, labels=list(range(len(clases))), target_names=clases,\n                            digits=4, zero_division=0))\nprint(\"Matriz de confusión (filas = real, columnas = predicción):\")\nprint(confusion_matrix(y_test, y_pred, labels=list(range(len(clases)))))\n\n# ---------------------------------------------------------------------------\n# 6. Predecir una muestra nueva (pestaña 🔮 Predicciones)\n# ---------------------------------------------------------------------------\nmuestra = scaler.inverse_transform(X_test[:1])[0]  # la primera muestra de prueba, sin escalar\n# DataFrame con los nombres de las columnas: el escalador se ajustó con ellos\nsalida_muestra = modelo.predict(scaler.transform(pd.DataFrame([muestra], columns=X.columns)), verbose=0)[0]\nprediccion = int(salida_muestra[0] > 0.5)\nprint(f\"\\nPredicción: {clases[prediccion]} (salida de la neurona: {salida_muestra[0]:.4f})\")\n\n# ---------------------------------------------------------------------------\n# 7. Guardar el modelo y el escalador\n# ---------------------------------------------------------------------------\nmodelo.save(\"modelo_red.keras\")\nimport pickle\nwith open(\"scaler.pkl\", \"wb\") as f:\n    pickle.dump(scaler, f)\nprint(\"💾 Guardados 'modelo_red.keras' y 'scaler.pkl'\")\n",
+      "got": {
+        "accuracy": 0.9649122807017544,
+        "params": 1411,
+        "epochs": 56,
+        "history_keys": ["accuracy", "learning_rate", "loss", "val_accuracy", "val_loss"],
+        "prediccion": 0.0
+      },
+      "checks": {
+        "x_test_equal_app": true,
+        "x_test_max_abs_diff": 0.0,
+        "y_test_equal_app": true,
+        "params_equal_app": true,
+        "accuracy_in_band": true,
+        "accuracy_in_band_2x": true
+      },
+      "band": {
+        "lo": 0.8945617529894346,
+        "hi": 1.0177189487649514
       }
     }
   }
