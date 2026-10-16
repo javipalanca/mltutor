@@ -9,13 +9,13 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use mltutor_core as core;
 
-use crate::core_facade::{ModelSummary, ModelView, Progress, TrainSpec};
+use crate::core_facade::{BatchOutcome, ModelSummary, ModelView, Progress, TrainSpec};
 use crate::ipc::{
-    ActivationsRequest, ActivationsView, CodeTemplate, CoefficientsView, CommandError,
-    DatasetSummary, DecisionGrid, DiagnosticsView, Divergence, EpochLog, Evaluation, ExportFormat,
-    HistoryView, ModelConfig, NnActivation, NnArchitecture, NnEvaluationView, NnMetric, NnSeverity,
-    NnSummary, NnTraining, NnViewNode, PredictionForm, PredictionResult, ProbabilityView,
-    ResidualsView, RocData, SplitSizes, TaskType, WeightsView,
+    ActivationsRequest, ActivationsView, BatchTemplate, CodeTemplate, CoefficientsView,
+    CommandError, DatasetSummary, DecisionGrid, DiagnosticsView, Divergence, EpochLog, Evaluation,
+    ExploreView, ExportFormat, HistoryView, ModelConfig, NnActivation, NnArchitecture,
+    NnEvaluationView, NnMetric, NnSeverity, NnSummary, NnTraining, NnViewNode, PredictionForm,
+    PredictionResult, ProbabilityView, ResidualsView, RocData, SplitSizes, TaskType, WeightsView,
 };
 use crate::nn::{self, NnTask, Resolved};
 
@@ -114,6 +114,34 @@ pub trait NnEngine: Send + Sync {
         y: usize,
         cancel: &AtomicBool,
     ) -> Result<DecisionGrid, CommandError>;
+    /// F5d: the files of 💾 Exportar (D75). The model has already checked K1.
+    fn export(&self, _format: ExportFormat) -> Result<Vec<u8>, CommandError> {
+        Err(pending())
+    }
+    /// F5d: the Keras training script (D74, with the seed) and the NumPy predictor.
+    fn code(&self, _template: CodeTemplate) -> Result<String, CommandError> {
+        Err(pending())
+    }
+    /// F5d: 🎲 Exploración (C29).
+    fn explore(&self, _row: usize, _feature: usize) -> Result<ExploreView, CommandError> {
+        Err(pending())
+    }
+    /// F5d: "📋 Formato esperado del archivo CSV".
+    fn batch_template(&self, _rows: usize) -> Result<BatchTemplate, CommandError> {
+        Err(pending())
+    }
+    /// F5d: 📊 Predicción por lotes (C29).
+    fn predict_batch(
+        &self,
+        _path: &std::path::Path,
+        _cancel: &AtomicBool,
+    ) -> Result<BatchOutcome, CommandError> {
+        Err(pending())
+    }
+    /// F5d: 📋 Metadatos (D75); `trained_at` = local date of the training.
+    fn metadata(&self, _trained_at: &str) -> Result<String, CommandError> {
+        Err(pending())
+    }
 }
 
 /// A trained network: summary, history (both facades) and, in the app, the engine
@@ -354,6 +382,29 @@ pub fn diverged_error(epoch: u16) -> CommandError {
     )
 }
 
+/// K1 in 🔮 and 💾: `[comun] red_no_valida` with `motivo_no_finita` (its weights are NaN:
+/// nothing can be predicted with it or exported).
+pub fn invalid_network_text() -> String {
+    let motivo = nn::nn_text(
+        "comun",
+        "motivo_no_finita",
+        "sus pesos contienen valores no numéricos (NaN o infinitos) porque el entrenamiento divergió; prueba con un learning rate menor",
+    );
+    nn::nn_text(
+        "comun",
+        "red_no_valida",
+        "❌ **Esta red no se puede usar:** {motivo}. No se puede predecir con ella ni exportarla. Vuelve a ⚙️ Entrenamiento y entrena de nuevo.",
+    )
+    .replace("{motivo}", &motivo)
+}
+
+/// The error of an export of a diverged network (K1).
+pub fn not_exportable(_epoch: u16) -> CommandError {
+    CommandError::Export {
+        message: invalid_network_text(),
+    }
+}
+
 /// The views of the network that arrive in F5d (or need the real engine).
 fn pending() -> CommandError {
     CommandError::invalid_selection(
@@ -395,11 +446,35 @@ impl ModelView for NnModel {
         self.engine()?.delegate().prediction_form()
     }
     fn predict_one(&self, values: &[f64]) -> Result<PredictionResult, CommandError> {
-        self.check_not_diverged()?;
-        self.engine()?.delegate().predict_one(values)
+        if self.history.diverged_epoch.is_some() {
+            return Err(CommandError::invalid_selection(invalid_network_text()));
+        }
+        let result = self.engine()?.delegate().predict_one(values)?;
+        let finite = match &result {
+            PredictionResult::Class { proba, .. } => proba
+                .as_ref()
+                .is_none_or(|p| p.iter().all(|c| c.probability.is_finite())),
+            PredictionResult::Value { value, .. } => value.is_finite(),
+        };
+        if finite {
+            Ok(result)
+        } else {
+            Err(CommandError::invalid_input(nn::nn_text(
+                "predicciones",
+                "prediccion_no_finita",
+                "❌ La red ha devuelto un valor no numérico (NaN o infinito) para esta entrada.",
+            )))
+        }
     }
-    fn export(&self, _format: ExportFormat) -> Result<Vec<u8>, CommandError> {
-        Err(pending())
+    fn export(&self, format: ExportFormat) -> Result<Vec<u8>, CommandError> {
+        if !matches!(format, ExportFormat::Onnx) && !format.needs_nn() {
+            return Err(pending());
+        }
+        // K1: a diverged network has NaN weights; nothing of it can be exported.
+        if let Some(epoch) = self.history.diverged_epoch {
+            return Err(not_exportable(epoch));
+        }
+        self.engine()?.export(format)
     }
     fn code(
         &self,
@@ -413,11 +488,38 @@ impl ModelView for NnModel {
             | CodeTemplate::PrecisionByClass
             | CodeTemplate::PredVsReal
             | CodeTemplate::ErrorDistribution => self.engine()?.delegate().code(template, pair),
+            // The training script does not need the weights: also after a divergence.
+            CodeTemplate::NnTraining => self.engine()?.code(template),
+            CodeTemplate::NnNumpyPredictor => {
+                if let Some(epoch) = self.history.diverged_epoch {
+                    return Err(not_exportable(epoch));
+                }
+                self.engine()?.code(template)
+            }
             _ => Err(pending()),
         }
     }
     fn nn_history(&self) -> Result<HistoryView, CommandError> {
         Ok(self.history.clone())
+    }
+    fn nn_explore(&self, row: usize, feature: usize) -> Result<ExploreView, CommandError> {
+        self.check_not_diverged()?;
+        self.engine()?.explore(row, feature)
+    }
+    fn nn_batch_template(&self, rows: usize) -> Result<BatchTemplate, CommandError> {
+        self.engine()?.batch_template(rows)
+    }
+    fn nn_predict_batch(
+        &self,
+        path: &std::path::Path,
+        cancel: &AtomicBool,
+    ) -> Result<BatchOutcome, CommandError> {
+        self.check_not_diverged()?;
+        self.engine()?.predict_batch(path, cancel)
+    }
+    fn nn_metadata(&self, trained_at: &str) -> Result<String, CommandError> {
+        self.summary.nn.as_ref().ok_or_else(CommandError::not_nn)?;
+        self.engine()?.metadata(trained_at)
     }
     fn nn_evaluation(&self) -> Result<NnEvaluationView, CommandError> {
         let engine = self.engine()?;

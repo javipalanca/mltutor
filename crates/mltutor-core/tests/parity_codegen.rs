@@ -225,3 +225,43 @@ fn nn_training_script_matches_exactly() {
     }
     assert_eq!(n, 8);
 }
+
+/// L1 (D70): the model's "🎲 Semilla" reaches `keras.utils.set_random_seed`.
+#[test]
+fn nn_training_script_uses_the_seed() {
+    use mltutor_core::codegen::{NnTrainingContext, ScriptDataset};
+    use mltutor_core::dataset::TaskType;
+    use mltutor_core::nn_data::{Activation, NnArchitecture, NnTraining, OptimizerKind};
+    let data = ScriptDataset {
+        dataset: "iris".into(),
+        dataset_label: "🌸 Iris - Clasificación de flores".into(),
+        csv_file: None,
+        csv_target: None,
+        csv_sep: None,
+        csv_decimal: None,
+        csv_encoding: None,
+        feature_names: (0..4).map(|i| format!("f{i}")).collect(),
+        class_names: Some(vec!["a".into(), "b".into(), "c".into()]),
+    };
+    let arch = NnArchitecture {
+        hidden: vec![10],
+        activation: Activation::Relu,
+        output_activation: Activation::Softmax,
+        dropout: 0.2,
+        batch_size: 32,
+        optimizer: OptimizerKind::Adam,
+    };
+    let training = NnTraining {
+        learning_rate: 0.01,
+        epochs: 20,
+        validation_pct: 20,
+        patience: None,
+        lr_factor: None,
+        seed: 1234,
+    };
+    let ctx = NnTrainingContext::new(data, TaskType::Classification, 3, &arch, &training).unwrap();
+    assert_eq!(ctx.seed, 1234);
+    let script = codegen::render(CodeTemplate::NnTraining, &ctx).unwrap();
+    assert!(script.contains("keras.utils.set_random_seed(1234)"));
+    assert!(!script.contains("set_random_seed(42)"));
+}

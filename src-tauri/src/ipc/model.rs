@@ -1000,6 +1000,23 @@ pub enum ExportFormat {
     TreeRules,
     /// Decision trees: the corrected Python function of the tree (D44, `arbol_decision.py`).
     TreePython,
+    /// 🧠 D75: `modelo_red.zip` (`modelo.json` + `reconstruir_modelo.py` + `predecir_numpy.py`
+    /// + `LEEME.txt`).
+    KerasPackage,
+    /// 🧠 D75: the NumPy predictor alone (`red_predictor_numpy.py`).
+    NnNumpyPredictor,
+    /// 🧠 D75: the corrected metadata JSON (`red_neuronal_metadatos.json`).
+    NnMetadata,
+}
+
+impl ExportFormat {
+    /// Formats of a neural network only.
+    pub fn needs_nn(self) -> bool {
+        matches!(
+            self,
+            Self::KerasPackage | Self::NnNumpyPredictor | Self::NnMetadata
+        )
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -1029,6 +1046,10 @@ pub enum CodeTemplate {
     TreeTraining,
     /// 💾 Exportar: "📄 Código de Entrenamiento" of KNN (`knn_entrenamiento.py.j2`).
     KnnTraining,
+    /// 🧠 💾 Exportar: the Keras training script of the trained network (D74, with its seed).
+    NnTraining,
+    /// 🧠 💾 Exportar: the NumPy predictor of the package (`red_predictor_numpy.py.j2`).
+    NnNumpyPredictor,
 }
 
 impl CodeTemplate {
@@ -1048,12 +1069,19 @@ impl CodeTemplate {
             Self::TreePython | Self::TreePythonLiteral => "arbol_decision",
             Self::TreeTraining => "arbol_decision_entrenamiento",
             Self::KnnTraining => "knn_entrenamiento",
+            Self::NnTraining => "red_entrenamiento",
+            Self::NnNumpyPredictor => "red_predictor_numpy",
         }
     }
 
     /// Templates that need a KNN.
     pub fn needs_knn(self) -> bool {
         matches!(self, Self::KnnTraining)
+    }
+
+    /// Templates that need a trained neural network.
+    pub fn needs_nn(self) -> bool {
+        matches!(self, Self::NnTraining | Self::NnNumpyPredictor)
     }
 
     /// Templates that need a decision tree.

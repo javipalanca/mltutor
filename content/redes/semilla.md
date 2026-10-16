@@ -71,8 +71,8 @@ de diferencia, sin tocar nada más.
 - **Elegir la semilla que mejor sale** y presentarla como el resultado del modelo. Eso es ajustar al azar: con
   datos nuevos, el resultado volverá a la media. Si comparas dos configuraciones, entrena cada una con varias
   semillas y compara las medias (y cuánto varían).
-- **Esperar las mismas cifras en Keras.** El script de 💾 Exportar usa también 42, pero Keras tiene su propio
-  generador: sus pesos iniciales, su dropout y su orden de lotes son otros, así que sus cifras serán parecidas
-  a las de MLTutor, no idénticas. Incluso en Keras, otra versión, la GPU o varios hilos pueden cambiar los
+- **Esperar las mismas cifras en Keras.** El script de 💾 Exportar usa la semilla que elijas aquí, pero Keras
+  tiene su propio generador: sus pesos iniciales, su dropout y su orden de lotes son otros, así que sus cifras
+  serán parecidas a las de MLTutor, no idénticas. Incluso en Keras, otra versión, la GPU o varios hilos pueden cambiar los
   últimos decimales.
 - **Creer que una semilla fija hace el modelo mejor.** Solo lo hace **repetible**.

@@ -18,6 +18,8 @@ import { architecture } from "./architecture.svelte";
 import { LESSON, nn } from "./state.svelte";
 import { nnViz } from "./visualization.svelte";
 import { training } from "./training.svelte";
+import type { ExportFormat } from "../../bindings/ExportFormat";
+import { nnPredictions, type ExportSubview, type PredictionSubview } from "./predictions.svelte";
 
 export interface NnScenario {
   dataset?: DatasetId;
@@ -49,6 +51,23 @@ export interface NnScenario {
   layerCharts?: boolean;
   /** Waits for this element after training (a view of 📈/🎯 is ready). */
   ready?: string;
+  /** 🔮 subview (`Individual`, `Lotes`, `Exploracion`). */
+  subview?: PredictionSubview;
+  /** 🔮 Individual: press "Realizar predicción". */
+  predict?: boolean;
+  /** 🔮 Lotes: press "📂 Elegir CSV…" (automation: the scenario CSV or one written from the dataset). */
+  batchCsv?: boolean;
+  /** 🎲 Exploración: base sample and feature. */
+  explore?: [number, number];
+  /** 💾 panel. */
+  exportView?: ExportSubview;
+  /** 💾: press the button of this format (automation: saved without dialog). */
+  exportSave?: ExportFormat;
+}
+
+async function click(selector: string, what: string): Promise<void> {
+  const button = (await waitFor(selector, 30000, what)) as HTMLButtonElement;
+  button.click();
 }
 
 /** Waits for the view of 🏗️ of the selected dataset with the current controls. */
@@ -79,6 +98,9 @@ export async function nnScenario(options: NnScenario): Promise<void> {
   await chooseDataset(dataset);
   nn.reset();
   nnViz.reset();
+  nnPredictions.reset();
+  nnPredictions.subview = options.subview ?? "Individual";
+  nnPredictions.exportView = options.exportView ?? "Keras";
   const key = datasetKey(dataset);
   if (options.layers !== undefined) {
     nn.layers = options.layers;
@@ -140,6 +162,26 @@ export async function nnScenario(options: NnScenario): Promise<void> {
   }
   if (options.ready) {
     await waitFor(options.ready, 60000, "la vista de la red");
+  }
+  const model = models.lesson(LESSON).info;
+  if (options.explore && model) {
+    nnPredictions.exploreRow = { [model.model_id]: options.explore[0] };
+    nnPredictions.exploreFeature = { [model.model_id]: options.explore[1] };
+  }
+  if (options.predict) {
+    await click("[data-nn-predict-single] [data-predict-button]", "el botón de predecir");
+    await waitFor("[data-nn-predict-single] [data-prediction-result]", 30000, "la predicción");
+  }
+  if (options.batchCsv) {
+    await click("[data-nn-batch-pick]", "el botón del CSV");
+    await waitFor("[data-nn-batch-file]", 30000, "el resultado del lote");
+  }
+  if (options.subview === "Exploracion" && model) {
+    await waitFor('[data-nn-explore-chart] [data-plot-rendered="true"]', 30000, "la curva de exploración");
+  }
+  if (options.exportSave) {
+    await click(`[data-nn-export] button[data-export-format="${options.exportSave}"]`, "el botón de exportar");
+    await waitFor("[data-nn-export] [data-export-result]", 30000, "el resultado de la exportación");
   }
   if (options.code) {
     const button = await waitFor("[data-nn-code-button]", 30000, "el botón del código");
@@ -228,5 +270,25 @@ export const NN_SCENARIOS: Readonly<Record<string, () => Promise<void>>> = {
   // NEW: K1 (Diabetes with tanh and SGD at LR 0.3 diverges in epoch 7) and the biggest network.
   redes_evaluacion_divergencia: S({ ...DIVERGES, tab: 3, ready: "[data-nn-diverged]" }),
   redes_activaciones_5x256: S({ dataset: "digits", tab: 4, train: true, layers: 5, neurons: [256, 256, 256, 256, 256], epochs: 10, viz: "Activaciones", ready: MAP }),
+  // F5d: 🔮 Predicciones and 💾 Exportar (Qt captures 00d, 00e, 23–29, 34, 40; the rest NEW).
+  redes_predicciones_sin_entrenar: S({ ...IRIS, tab: 5 }),
+  redes_exportar_sin_entrenar: S({ ...IRIS, tab: 6 }),
+  redes_prediccion_formulario_iris: S({ ...IRIS, tab: 5, train: true, ready: "[data-nn-predict-single] [data-predict-button]" }),
+  redes_prediccion_resultado_iris: S({ ...IRIS, tab: 5, train: true, predict: true }),
+  redes_prediccion_resultado_cancer: S({ dataset: "breast_cancer", tab: 5, train: true, predict: true }),
+  redes_prediccion_resultado_diabetes: S({ dataset: "diabetes", tab: 5, train: true, predict: true }),
+  redes_lotes_formato_iris: S({ ...IRIS, tab: 5, train: true, subview: "Lotes", ready: "[data-nn-batch-pick]" }),
+  redes_lotes_iris: S({ ...IRIS, tab: 5, train: true, subview: "Lotes", batchCsv: true }),
+  redes_lotes_diabetes: S({ dataset: "diabetes", tab: 5, train: true, subview: "Lotes", batchCsv: true }),
+  redes_exploracion_iris: S({ ...IRIS, tab: 5, train: true, subview: "Exploracion", explore: [0, 2] }),
+  redes_exploracion_iris_expandido: S({ ...IRIS, tab: 5, train: true, subview: "Exploracion", explore: [0, 2], expandAll: true }),
+  redes_exploracion_cancer: S({ dataset: "breast_cancer", tab: 5, train: true, subview: "Exploracion", explore: [0, 0] }),
+  redes_exploracion_diabetes: S({ dataset: "diabetes", tab: 5, train: true, subview: "Exploracion", explore: [0, 2] }),
+  redes_prediccion_divergencia: S({ ...DIVERGES, tab: 5, ready: "[data-nn-diverged]" }),
+  redes_exportar_keras: S({ ...IRIS, tab: 6, train: true, exportView: "Keras", exportSave: "keras_package" }),
+  redes_exportar_onnx: S({ ...IRIS, tab: 6, train: true, exportView: "Onnx", exportSave: "onnx" }),
+  redes_exportar_python: S({ ...IRIS, tab: 6, train: true, exportView: "Python", ready: '[data-nn-export] [data-export-format="nn_numpy_predictor"]' }),
+  redes_exportar_metadatos: S({ ...IRIS, tab: 6, train: true, exportView: "Metadatos", ready: "[data-nn-metadata]" }),
+  redes_exportar_divergencia: S({ ...DIVERGES, tab: 6, ready: "[data-nn-diverged]" }),
   redes_pesos_5x256: S({ dataset: "digits", tab: 4, train: true, layers: 5, neurons: [256, 256, 256, 256, 256], epochs: 10, viz: "Pesos", ready: WEIGHTS }),
 };

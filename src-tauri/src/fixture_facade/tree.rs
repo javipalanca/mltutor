@@ -530,6 +530,9 @@ impl ModelView for TreeFixtureModel {
             }
             ExportFormat::TreeRules => Ok(self.tree_rules(RulesKind::Export, true)?.into_bytes()),
             ExportFormat::TreePython => Ok(self.code(CodeTemplate::TreePython, None)?.into_bytes()),
+            ExportFormat::KerasPackage
+            | ExportFormat::NnNumpyPredictor
+            | ExportFormat::NnMetadata => Err(CommandError::not_nn()),
         }
     }
 

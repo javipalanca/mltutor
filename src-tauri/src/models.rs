@@ -530,6 +530,13 @@ pub fn validate_values(values: &[f64], n_features: usize) -> Result<(), CommandE
 /// Default file name and save-dialog filter of each export (§5.4). Trees read them from
 /// `[exportar]` of `content/arboles/mensajes.toml`.
 fn export_target(config: &ModelConfig, format: ExportFormat) -> (String, String, &'static str) {
+    // 🧠: `[exportar_rust]` of `content/redes/mensajes.toml`.
+    let nn_file = |name: &str, default_name: &str, filter: &str, default_filter: &str| {
+        (
+            crate::nn::nn_text("exportar_rust", name, default_name),
+            crate::nn::nn_text("exportar_rust", filter, default_filter),
+        )
+    };
     const ONNX: &str = "Modelo ONNX (*.onnx)";
     const ZIP: &str = "Paquete Python (*.zip)";
     let tree = |name: &str, default_name: &str, filter: &str, default_filter: &str| {
@@ -568,20 +575,50 @@ fn export_target(config: &ModelConfig, format: ExportFormat) -> (String, String,
             "zip",
         ),
         (ExportFormat::Onnx, ModelConfig::NeuralNet { .. }) => (
-            (
-                crate::nn::nn_text("exportar_rust", "archivo_onnx", "red_neuronal.onnx"),
-                ONNX.into(),
-            ),
+            nn_file("archivo_onnx", "red_neuronal.onnx", "filtro_onnx", ONNX),
             "onnx",
         ),
-        (ExportFormat::PythonPackage, ModelConfig::NeuralNet { .. }) => (
-            (
-                crate::nn::nn_text("exportar_rust", "archivo_paquete", "modelo_red.zip"),
-                ZIP.into(),
+        (
+            ExportFormat::PythonPackage | ExportFormat::KerasPackage,
+            ModelConfig::NeuralNet { .. },
+        ) => (
+            nn_file(
+                "archivo_paquete",
+                "modelo_red.zip",
+                "filtro_zip",
+                "Paquete Keras (*.zip)",
             ),
             "zip",
         ),
         (ExportFormat::PythonPackage, _) => (("modelo_regresion.zip".into(), ZIP.into()), "zip"),
+        (ExportFormat::KerasPackage, _) => (
+            nn_file(
+                "archivo_paquete",
+                "modelo_red.zip",
+                "filtro_zip",
+                "Paquete Keras (*.zip)",
+            ),
+            "zip",
+        ),
+        (ExportFormat::NnNumpyPredictor, _) => (
+            // A ZIP: predecir_numpy.py alone cannot run without its modelo.json.
+            nn_file(
+                "archivo_numpy",
+                "red_predictor_numpy.zip",
+                "filtro_zip_numpy",
+                "Predictor NumPy (*.zip)",
+            ),
+            "zip",
+        ),
+        (ExportFormat::NnMetadata, _) => (
+            nn_file(
+                "archivo_metadatos",
+                "red_neuronal_metadatos.json",
+                "filtro_json",
+                "JSON (*.json)",
+            ),
+            "json",
+        ),
         (ExportFormat::TreeRules, _) => (
             tree(
                 "archivo_reglas",
@@ -902,7 +939,12 @@ pub fn nn_code(data: &DataState, req: &NnCodeRequest) -> Result<String, CommandE
     let (dataset, label) = data.resolve(req.dataset)?;
     let summary = data.summary(req.dataset)?;
     let base = dataset.script_base(&label);
-    crate::nn::NnTrainingContext::new(base, &summary, &req.arch, &req.training)?.render()
+    crate::nn::render_training(&crate::nn::training_context(
+        base,
+        &summary,
+        &req.arch,
+        &req.training,
+    )?)
 }
 
 #[tauri::command]
@@ -914,7 +956,7 @@ pub async fn lesson_model(
 }
 
 /// Runs `view` on the model `model_id` in a blocking worker.
-async fn with_model<T, F>(
+pub(crate) async fn with_model<T, F>(
     name: &'static str,
     models: &State<'_, ModelState>,
     model_id: u32,
@@ -1060,6 +1102,9 @@ pub async fn generate_code(
         if template.needs_knn() && !m.config.is_knn() {
             return Err(CommandError::not_knn());
         }
+        if template.needs_nn() && !matches!(m.config, ModelConfig::NeuralNet { .. }) {
+            return Err(CommandError::not_nn());
+        }
         let pair = match extra {
             Some(extra) => Some(validate_pair(m, extra.feature_x, extra.feature_y)?),
             None => None,
@@ -1157,20 +1202,37 @@ pub async fn knn_playground(
 }
 
 /// Builds the ONNX file or the Python package in Rust and saves it with the native
-/// dialog: the path never goes through JS. `None` if the user cancels the dialog.
+/// dialog: the path never goes through JS. `None` if the user cancels the dialog. In the
+/// automation modes the file goes to `nn_predict::automation_dir` without a dialog.
 #[tauri::command]
 pub async fn export_model(
     app: AppHandle,
+    app_state: State<'_, crate::state::AppState>,
     models: State<'_, ModelState>,
     model_id: u32,
     format: ExportFormat,
+    trained_at: Option<String>,
 ) -> Result<Option<String>, CommandError> {
     let models = self::models(&models);
+    let automated = crate::nn_predict::is_automated(&app_state.mode);
     blocking(move || {
         let model = models.model(model_id)?;
-        let bytes = model.model.export(format)?;
+        // 📋 Metadatos: the date of the training is formatted by the UI (local time).
+        let bytes = match format {
+            ExportFormat::NnMetadata => model
+                .model
+                .nn_metadata(&crate::nn_predict::clean_date(
+                    trained_at.as_deref().unwrap_or_default(),
+                ))?
+                .into_bytes(),
+            _ => model.model.export(format)?,
+        };
         let (name, filter, extension) = export_target(&model.config, format);
         drop(model);
+        // `--smoke-test` / `--screenshot`: no dialog, a temporary folder of the run.
+        if automated {
+            return crate::nn_predict::save_automated(&name, &bytes).map(Some);
+        }
         let Some(path) = ask_save_path(&app, &name, &filter, extension)? else {
             return Ok(None);
         };

@@ -1351,6 +1351,7 @@ def register(cases: dict, eg) -> None:
     cases[f"{MODULE}/split_stratified"] = lambda w: case_split(eg, w)
     cases[f"{MODULE}/errors"] = lambda w: case_errors(eg, w)
     cases["code/nn_training"] = lambda w: case_code_nn_training(eg, w)
+    cases[f"{MODULE}/predictions"] = lambda w: case_predictions(eg, w)
 
 
 # ---------------------------------------------------------------------------
@@ -1616,7 +1617,7 @@ def training_context(eg, fixture: dict) -> tuple[dict, dict[str, bytes]]:
                reduce_lr_patience=max(1, (inp["patience"] if es else 10) // 2) if rlr else None,
                feature_names=list(feature_names) if feature_names is not None else None,
                class_names=list(class_names) if (class_names is not None and task == "classification") else None,
-               sample=None)
+               sample=None, seed=42)  # the app's default "🎲 Semilla" (D70)
     return ctx, files
 
 
@@ -1702,3 +1703,193 @@ def case_code_nn_training(eg, writer) -> None:
            "input": {"template": f"content/code/{TRAINING_TEMPLATE}", "cases": TRAINING_CASES},
            "expected": out}
     writer.write_json(eg.PARITY_DIR / "code" / "nn_training.json", doc, dump=gt.dumps_compact)
+
+
+# ---------------------------------------------------------------------------
+# nn/predictions.json: 🔮 "Predicción por lotes" and "Exploración interactiva" (C29, D81)
+# ---------------------------------------------------------------------------
+# show_neural_network_predictions (viz/nn.py) is dead code in the app (§12.13), but it is the only
+# specification of both subviews. It is rendered headlessly with a Keras model that carries the FINAL
+# weights of nn/exact/<case> and the app's StandardScaler (all rows), so Rust can rebuild exactly the
+# same network from that fixture. (sample, feature) pairs: "first"/"mid"/"last" row and a feature index.
+PREDICTION_CASES: dict[str, list[tuple[str, int]]] = {
+    "iris_default": [("first", 0), ("mid", 2), ("last", 3)],
+    "iris_tanh_output": [("mid", 1)],
+    "breast_cancer_default": [("first", 0), ("mid", 7), ("last", 27)],
+    "breast_cancer_sgd_tanh_output": [("first", 3)],
+    "moons_default": [("first", 0), ("last", 1)],
+    "diabetes_default": [("first", 2), ("last", 8)],
+    "california_housing_default_e20": [("first", 0), ("last", 5)],
+    "csv_string_target_default": [("first", 0)],
+    "csv_numeric_regression_default": [("mid", 1)],
+}
+BATCH_ROWS = 40
+BATCH_EXTRA_COLUMN = "columna_extra"
+
+
+def _exact_data(eg, inp: dict, tmp: Path):
+    """X (DataFrame, X.columns) and y of an nn/exact input, loaded like the app."""
+    if "csv_fixture" in inp:
+        from mltutor.dataset.dataset_manager import load_dataset_from_file
+
+        name = Path(inp["csv_fixture"]).stem
+        p = tmp / f"{name}.csv"
+        p.write_bytes(eg._csv_cases()[name])
+        X, y = load_dataset_from_file(str(p), inp["target"], inp.get("task", "auto"))[:2]
+    else:
+        X, y = _load(eg, inp["app_label"])[:2]
+    return X.reset_index(drop=True), y.reset_index(drop=True)
+
+
+def _keras_from_final(cfg: dict, final_weights: list):
+    """The app's Sequential (Input + Dense dense_i + Dropout + output_layer) with given weights."""
+    _tf_mod, keras = _tf()
+    arch = cfg["architecture"]
+    model = keras.Sequential(name="neural_network")
+    model.add(keras.layers.Input(shape=(arch[0],)))
+    for i, n in enumerate(arch[1:-1], start=1):
+        model.add(keras.layers.Dense(n, activation=cfg["activation"], name=f"dense_{i}"))
+        model.add(keras.layers.Dropout(cfg["dropout_rate"]))
+    model.add(keras.layers.Dense(arch[-1], activation=cfg["output_activation"], name="output_layer"))
+    ws = []
+    for layer in final_weights:
+        ws += [np.asarray(layer["kernel"], np.float32), np.asarray(layer["bias"], np.float32)]
+    model.set_weights(ws)
+    return model
+
+
+@contextlib.contextmanager
+def _record_plotly(store: list):
+    """Like plotly_as_data, and keeps every trace's x/y in full (float lists)."""
+    from mltutor.desktop import ui
+
+    original = ui.plotly_chart
+
+    def plotly_chart(figure, **kwargs):
+        store.append([{"name": t.name, "x": _fl(np.asarray(t.x, float)), "y": _fl(np.asarray(t.y, float))}
+                      for t in figure.data])
+        return ui._emit("plotly", chart=_plotly_summary(figure))
+
+    ui.plotly_chart = plotly_chart
+    try:
+        yield
+    finally:
+        ui.plotly_chart = original
+
+
+def _tab_children(tree: dict, index: int) -> list:
+    """Children of the index-th tab of the first ``tabs`` node."""
+    def find(n):
+        if isinstance(n, dict):
+            if n.get("kind") == "tabs":
+                return n
+            for c in n.get("children", []):
+                got = find(c)
+                if got is not None:
+                    return got
+        return None
+
+    tabs = find(tree)
+    return tabs["children"][index].get("children", []) if tabs else []
+
+
+def _without_plotly_and_tables(nodes: list) -> list:
+    out = []
+    for n in nodes:
+        if n.get("kind") in ("plotly", "select", "table"):
+            continue
+        n = dict(n)
+        if "children" in n:
+            n["children"] = _without_plotly_and_tables(n["children"])
+        out.append(n)
+    return out
+
+
+def case_predictions(eg, writer) -> None:
+    import golden_trees as gt
+    from golden_render import LessonRenderer
+    from sklearn.preprocessing import LabelEncoder, StandardScaler
+
+    from mltutor.viz.nn import show_neural_network_predictions
+
+    out: dict[str, Any] = {}
+    with tempfile.TemporaryDirectory() as tmpdir, warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        _tf()
+        for name, pairs in PREDICTION_CASES.items():
+            fx = json.loads((eg.PARITY_DIR / MODULE / "exact" / f"{name}.json").read_text("utf-8"))
+            inp, cfg = fx["input"], fx["input"]["nn_config"]
+            X, y = _exact_data(eg, inp, Path(tmpdir))
+            feats = list(X.columns)
+            df = X.copy()
+            df["target"] = y
+            model = _keras_from_final(cfg, fx["expected"]["final_weights"])
+            scaler = StandardScaler().fit(X)
+            classification = cfg["task_type"] == "Clasificación"
+            le = LabelEncoder().fit(y) if classification else None
+            base_state = {"nn_model": model, "nn_scaler": scaler, "nn_label_encoder": le, "nn_config": cfg,
+                          "nn_df": df, "nn_target_col": "target"}
+            n = len(df)
+            explorations = []
+            for where, feature in pairs:
+                idx = {"first": 0, "mid": n // 2, "last": n - 1}[where]
+                figs: list = []
+                state = {**base_state, "nn_interactive_sample": idx, "nn_explore_feature": feats[feature]}
+                with _record_plotly(figs):
+                    tree = LessonRenderer(show_neural_network_predictions, state).render()
+                base = df.iloc[idx][feats].to_numpy(float)
+                xs = np.linspace(float(df[feats[feature]].min()), float(df[feats[feature]].max()), 50)
+                rows = np.repeat(base[None, :], len(xs), axis=0)
+                rows[:, feature] = xs
+                explorations.append({
+                    "sample_index": idx, "feature": feature, "feature_name": feats[feature],
+                    "base": _fl(base),
+                    "base_raw_output": _mat(model.predict(scaler.transform(base[None, :]), verbose=0)[0]),
+                    "xs": _fl(xs),
+                    # The curve Python drew (one model.predict per value), float32 values.
+                    "traces": figs[-1] if figs else None,
+                    # The same 50 rows in one predict: every output (the base-class curve, NEW).
+                    "raw_output": _mat(model.predict(scaler.transform(rows), verbose=0)),
+                    "view": _scrub(_without_plotly_and_tables(_tab_children(tree, 2))),
+                })
+            # 📊 Predicción por lotes: the first rows with an extra column, then without a feature.
+            head = df[feats].head(BATCH_ROWS).copy()
+            head[BATCH_EXTRA_COLUMN] = 1.0
+            csv_bytes = head.to_csv(index=False).encode("utf-8")
+            r = LessonRenderer(show_neural_network_predictions,
+                               {**base_state, "nn_interactive_sample": 0, "nn_explore_feature": feats[0],
+                                "nn_batch_predictions": ("lote.csv", csv_bytes)})
+            with _record_plotly([]):
+                r.render()
+                tree = r.click("🚀 Generar Predicciones")
+            batch_nodes = _tab_children(tree, 1)
+            downloads = [nd for nd in r.walk() if nd.kind == "download"]
+            raw = model.predict(scaler.transform(df[feats].head(BATCH_ROWS)), verbose=0)
+            missing_csv = df[feats[1:]].head(5).to_csv(index=False).encode("utf-8")
+            with _record_plotly([]):
+                miss_tree = LessonRenderer(show_neural_network_predictions,
+                                           {**base_state, "nn_interactive_sample": 0,
+                                            "nn_explore_feature": feats[0],
+                                            "nn_batch_predictions": ("faltan.csv", missing_csv)}).render()
+            batch = {"rows": BATCH_ROWS, "extra_column": BATCH_EXTRA_COLUMN,
+                     "x": _mat(df[feats].head(BATCH_ROWS).to_numpy(float)),
+                     "raw_output": _mat(raw),
+                     "results_csv": downloads[0].props["data"].decode("utf-8") if downloads else None,
+                     "notices": [nd for nd in _scrub(batch_nodes) if nd.get("kind") == "notice"],
+                     "missing_first_feature_notices": [nd for nd in _scrub(_tab_children(miss_tree, 1))
+                                                       if nd.get("kind") == "notice"]}
+            out[name] = {"task": cfg["task_type"], "output_activation": cfg["output_activation"],
+                         "output_size": cfg["output_size"], "feature_columns": feats,
+                         "explorations": explorations, "batch": batch}
+    doc = {"meta": _meta(eg, {"xs": "exact (np.linspace)",
+                              "outputs": "f32 forward: 1e-5 absolute (Keras matmul order); classes exact "
+                                         "except |p - 0.5| < 1e-5 or argmax ties",
+                              "range_std_impact": "1e-5 absolute (Python computes them in float32)",
+                              "verdicts": "exact unless the statistic is within 1e-5 of a threshold"},
+                         "viz/nn.py::show_neural_network_predictions (unreachable in the app, D81) rendered "
+                         "headlessly with the final weights of nn/exact/<case> and StandardScaler on all rows."),
+           "input": {"function": "mltutor.viz.nn.show_neural_network_predictions",
+                     "weights": "nn/exact/<case>.json expected.final_weights", "cases": PREDICTION_CASES,
+                     "batch_rows": BATCH_ROWS},
+           "expected": out}
+    writer.write_json(eg.PARITY_DIR / MODULE / "predictions.json", doc, dump=gt.dumps_compact)

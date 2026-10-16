@@ -945,6 +945,9 @@ impl ModelView for CoreModel {
             | CodeTemplate::TreePythonLiteral
             | CodeTemplate::TreeTraining => return crate::real_trees::code(self, template),
             CodeTemplate::KnnTraining => return crate::real_knn::code(self),
+            CodeTemplate::NnTraining | CodeTemplate::NnNumpyPredictor => {
+                return Err(CommandError::not_nn())
+            }
         };
         rendered.map_err(|error| CommandError::internal(format!("plantilla: {error}")))
     }

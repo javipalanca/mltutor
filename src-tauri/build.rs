@@ -50,6 +50,11 @@ fn main() {
         "nn_weights",
         "nn_activations",
         "nn_training_code",
+        "nn_explore",
+        "nn_batch_template",
+        "nn_predict_batch",
+        "nn_save_batch",
+        "nn_metadata",
     ]);
     if let Err(error) =
         tauri_build::try_build(tauri_build::Attributes::new().app_manifest(manifest))

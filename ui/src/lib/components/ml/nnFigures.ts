@@ -9,6 +9,7 @@ import type { EpochLog } from "../../bindings/EpochLog";
 import type { NnMetric } from "../../bindings/NnMetric";
 import { axis, baseLayout, LIGHT_THEME, type ChartTheme, type Figure } from "../../charts";
 import { nnText } from "../../content";
+import { escapePlotly } from "../../escape";
 
 const ev = (key: string): string => nnText("evaluacion", key);
 
@@ -210,4 +211,145 @@ export function neuronMeansFigure(means: readonly number[], title: string, xLabe
       yaxis: axis(theme, yLabel),
     },
   };
+}
+
+// --- C29: 🎲 Exploración interactiva (D81) ---
+
+export interface ExploreFigureData {
+  kind: "binary" | "multiclass" | "regression";
+  xs: readonly number[];
+  ys: readonly number[];
+  classes: readonly number[] | null;
+  confidence: readonly number[] | null;
+  baseValue: number;
+}
+
+/**
+ * `viz/nn.py::show_neural_network_predictions`, pestaña 🎲: `lines+markers`, height 500, the
+ * green dashed "Valor Base" line; binary: "Probabilidad" and the red dashed threshold at 0.5;
+ * multiclass: "Clase Predicha" (left axis, class names as ticks: Python showed the index) and
+ * "Confianza" (right axis, red); regression: "Predicción" with "Valor Predicho".
+ */
+export function exploreFigure(
+  view: ExploreFigureData,
+  feature: string,
+  classNames: readonly string[],
+  theme: ChartTheme = LIGHT_THEME,
+): Figure {
+  const ex = (key: string): string => nnText("exploracion", key);
+  const name = escapePlotly(feature);
+  const title =
+    view.kind === "binary" ? ex("grafica_binaria") : view.kind === "multiclass" ? ex("grafica_multiclase") : ex("grafica_regresion");
+  const layout: Partial<Layout> = {
+    ...baseLayout(theme, title.replace("{caracteristica}", name)),
+    showlegend: true,
+    legend: { orientation: "h", x: 0.5, xanchor: "center", y: -0.2 },
+    margin: { l: 70, r: view.kind === "multiclass" ? 70 : 30, t: 60, b: 90 },
+    xaxis: axis(theme, name),
+    uirevision: `explore-${name}`,
+  };
+  const marker = { size: 5 };
+  const data: Data[] = [];
+  const shapes: Partial<Shape>[] = [
+    {
+      type: "line",
+      xref: "x",
+      yref: "paper",
+      x0: view.baseValue,
+      x1: view.baseValue,
+      y0: 0,
+      y1: 1,
+      line: { color: "green", width: 2, dash: "dash" },
+    },
+  ];
+  const annotations: Layout["annotations"] = [
+    {
+      x: view.baseValue,
+      xref: "x",
+      y: 1,
+      yref: "paper",
+      yanchor: "bottom",
+      text: escapePlotly(ex("valor_base")),
+      showarrow: false,
+      font: { color: "green", size: 12 },
+    },
+  ];
+  if (view.kind === "multiclass") {
+    const codes = view.classes ?? [];
+    const label = (code: number): string => escapePlotly(classNames[code] ?? `Clase ${code}`);
+    data.push({
+      type: "scatter",
+      mode: "lines+markers",
+      x: [...view.xs],
+      y: [...codes],
+      text: codes.map(label),
+      name: escapePlotly(ex("serie_clase")),
+      yaxis: "y",
+      line: { color: "#1f77b4", shape: "hv" },
+      marker,
+      hovertemplate: `${name} = %{x:.4g}<br>%{text}<extra></extra>`,
+    });
+    data.push({
+      type: "scatter",
+      mode: "lines+markers",
+      x: [...view.xs],
+      y: [...(view.confidence ?? [])],
+      name: escapePlotly(ex("serie_confianza")),
+      yaxis: "y2",
+      line: { color: "red" },
+      marker,
+      hovertemplate: `${name} = %{x:.4g}<br>%{y:.3f}<extra></extra>`,
+    });
+    const shown = [...new Set(codes)].sort((a, b) => a - b);
+    const all = classNames.map((_, i) => i);
+    const ticks = all.length > 0 ? all : shown;
+    layout.yaxis = {
+      ...axis(theme, escapePlotly(ex("serie_clase"))),
+      side: "left",
+      tickvals: ticks,
+      ticktext: ticks.map(label),
+      range: [-0.5, Math.max(ticks.length - 1, 0) + 0.5],
+    };
+    layout.yaxis2 = {
+      ...axis(theme, escapePlotly(ex("serie_confianza"))),
+      side: "right",
+      overlaying: "y",
+      showgrid: false,
+      range: [0, 1.05],
+      // Its own round ticks (0, 0.2 … 1), not the positions of the class ticks.
+      tickmode: "linear",
+      tick0: 0,
+      dtick: 0.2,
+    };
+  } else {
+    const series = view.kind === "binary" ? ex("serie_probabilidad") : ex("serie_prediccion");
+    data.push({
+      type: "scatter",
+      mode: "lines+markers",
+      x: [...view.xs],
+      y: [...view.ys],
+      name: escapePlotly(series),
+      line: { color: "#1f77b4" },
+      marker,
+      hovertemplate: `${name} = %{x:.4g}<br>%{y:.4f}<extra></extra>`,
+    });
+    layout.yaxis = axis(theme, escapePlotly(view.kind === "binary" ? ex("serie_probabilidad") : ex("eje_valor_predicho")));
+    if (view.kind === "binary") {
+      shapes.push({ type: "line", xref: "paper", yref: "y", x0: 0, x1: 1, y0: 0.5, y1: 0.5, line: { color: "red", width: 1.5, dash: "dash" } });
+      annotations.push({
+        x: 1,
+        xref: "paper",
+        xanchor: "right",
+        y: 0.5,
+        yref: "y",
+        yanchor: "bottom",
+        text: escapePlotly(ex("umbral")),
+        showarrow: false,
+        font: { color: "red", size: 12 },
+      });
+    }
+  }
+  layout.shapes = shapes;
+  layout.annotations = annotations;
+  return { data, layout };
 }

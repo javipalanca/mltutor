@@ -41,13 +41,16 @@
       reduce_lr_patience int|null  max(1, patience // 2), o 5 sin early stopping (como la app).
       feature_names     list[str]; class_names list[str]|null (classification).
       sample            list[float]|null  valores del formulario 🔮 (null = la primera fila de prueba).
+      seed              int        la "🎲 Semilla" de ⚙️ Entrenamiento (1..9999; 42 por defecto, D70).
+                                   Va a keras.utils.set_random_seed: con la misma semilla Keras repite
+                                   su entrenamiento, pero no reproduce los pesos de MLTutor (D69).
 -#}
 """
 MLTutor · 🧠 Redes Neuronales — entrenamiento reproducible con Keras
 
 Dataset: {{ dataset_label | pycomment }}
 Red:     {{ architecture | pyrepr }} · ocultas {{ activation }} · salida {{ output_activation }} · dropout {{ dropout_rate | pyrepr }}
-Entreno: {{ optimizer }} (lr={{ learning_rate | pyrepr }}), batch {{ batch_size }}, {{ epochs }} épocas, validación {{ validation_split | pyrepr }}
+Entreno: {{ optimizer }} (lr={{ learning_rate | pyrepr }}), batch {{ batch_size }}, {{ epochs }} épocas, validación {{ validation_split | pyrepr }}, semilla {{ seed }}
 
 Este script hace lo mismo que la app: carga los datos, los escala, los divide en
 entrenamiento y prueba, construye la red, la entrena con los mismos callbacks y calcula las
@@ -94,9 +97,11 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import {% if dataset in ["titanic", "tips", "penguins", "mpg", "diamonds", "csv"] %}LabelEncoder, {% endif %}StandardScaler
 
-# Misma semilla en cada ejecución (MLTutor usa 42). Keras no genera los mismos pesos iniciales
-# que MLTutor, así que las cifras serán parecidas, no idénticas.
-keras.utils.set_random_seed(42)
+# La semilla que elegiste en MLTutor (⚙️ Entrenamiento → 🎲 Semilla; 42 por defecto). Fija los pesos
+# iniciales, el dropout y el orden de los lotes: con la misma semilla, cada ejecución da el mismo
+# resultado. Keras usa otro generador de números aleatorios que MLTutor, así que las cifras serán
+# parecidas a las de la app, no idénticas.
+keras.utils.set_random_seed({{ seed }})
 
 # ---------------------------------------------------------------------------
 # 1. Cargar los datos (igual que MLTutor)

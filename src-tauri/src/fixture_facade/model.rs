@@ -1070,6 +1070,9 @@ impl ModelView for FixtureModel {
                     .map_err(CommandError::export)
             }
             ExportFormat::TreeRules | ExportFormat::TreePython => Err(CommandError::not_tree()),
+            ExportFormat::KerasPackage
+            | ExportFormat::NnNumpyPredictor
+            | ExportFormat::NnMetadata => Err(CommandError::not_nn()),
         }
     }
 

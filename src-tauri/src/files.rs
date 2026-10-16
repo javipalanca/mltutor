@@ -15,7 +15,7 @@ use crate::ipc::CommandError;
 
 /// Header with the suggested file name, percent-encoded (`encodeURIComponent`).
 pub const NAME_HEADER: &str = "x-mltutor-file-name";
-/// Header with the kind of file: `png`, `svg`, `python` or `text`.
+/// Header with the kind of file: `png`, `svg`, `python`, `text`, `csv` or `json`.
 pub const KIND_HEADER: &str = "x-mltutor-file-kind";
 /// Larger bodies are rejected (a 2× PNG of the biggest pairplot is a few MB). The IPC
 /// layer has already received the whole body when the command runs, so this limit does not
@@ -29,6 +29,8 @@ pub enum SaveKind {
     Svg,
     Python,
     Text,
+    Csv,
+    Json,
 }
 
 impl SaveKind {
@@ -38,6 +40,8 @@ impl SaveKind {
             "svg" => Some(Self::Svg),
             "python" => Some(Self::Python),
             "text" => Some(Self::Text),
+            "csv" => Some(Self::Csv),
+            "json" => Some(Self::Json),
             _ => None,
         }
     }
@@ -48,6 +52,8 @@ impl SaveKind {
             Self::Svg => "svg",
             Self::Python => "py",
             Self::Text => "txt",
+            Self::Csv => "csv",
+            Self::Json => "json",
         }
     }
 
@@ -57,6 +63,8 @@ impl SaveKind {
             Self::Svg => "Imagen SVG",
             Self::Python => "Código Python",
             Self::Text => "Texto",
+            Self::Csv => "Valores separados por comas (CSV)",
+            Self::Json => "JSON",
         }
     }
 }
@@ -128,7 +136,7 @@ fn save_target(picked: PathBuf, kind: SaveKind, exists: impl Fn(&Path) -> bool) 
     }
 }
 
-fn display_name(path: &Path) -> String {
+pub(crate) fn display_name(path: &Path) -> String {
     path.file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_else(|| path.display().to_string())
@@ -140,7 +148,11 @@ fn header<'a>(request: &'a Request<'_>, name: &str) -> Option<&'a str> {
 
 /// Opens the save dialog (with `name` and the filter of `kind`, so the native dialog
 /// checks the overwrite of the final name) until the user picks a path or cancels.
-fn ask_path(app: &AppHandle, name: &str, kind: SaveKind) -> Result<Option<PathBuf>, CommandError> {
+pub(crate) fn ask_path(
+    app: &AppHandle,
+    name: &str,
+    kind: SaveKind,
+) -> Result<Option<PathBuf>, CommandError> {
     let window = app.get_webview_window("main");
     loop {
         let mut dialog = app

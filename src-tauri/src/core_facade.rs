@@ -13,14 +13,15 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use crate::ipc::{
-    ActivationsRequest, ActivationsView, ClassDistancesView, CodeTemplate, CoefficientsView,
-    CommandError, CorrelationMatrix, CsvPreview, CsvTargetStats, DatasetEntry, DatasetId,
-    DatasetSummary, DecisionGrid, DescribeTable, DiagKind, DiagnosticsView, EpochLog, Evaluation,
-    ExportFormat, FeatureImportanceView, HistoryView, ImportanceMethod, KnnSummary, ModelConfig,
-    NnEvaluationView, NnSummary, PairplotData, PlaygroundRequest, PlaygroundView, PredictionForm,
-    PredictionResult, ProbabilityView, ResidualsView, RocData, RulesKind, TablePreview,
-    TargetDistribution, TargetInfo, TaskChoice, TaskType, TrainNotice, TrainPhase, TreeDiagram,
-    TreeSummary, WeightsView,
+    ActivationsRequest, ActivationsView, BatchPredictView, BatchTemplate, ClassDistancesView,
+    CodeTemplate, CoefficientsView, CommandError, CorrelationMatrix, CsvPreview, CsvTargetStats,
+    DatasetEntry, DatasetId, DatasetSummary, DecisionGrid, DescribeTable, DiagKind,
+    DiagnosticsView, EpochLog, Evaluation, ExploreView, ExportFormat, FeatureImportanceView,
+    HistoryView, ImportanceMethod, KnnSummary, ModelConfig, NnEvaluationView, NnSummary,
+    PairplotData, PlaygroundRequest, PlaygroundView, PredictionForm, PredictionResult,
+    ProbabilityView, ResidualsView, RocData, RulesKind, TablePreview, TargetDistribution,
+    TargetInfo, TaskChoice, TaskType, TrainNotice, TrainPhase, TreeDiagram, TreeSummary,
+    WeightsView,
 };
 
 /// Maximum number of pairplot features (slider limit of §2.6).
@@ -222,6 +223,37 @@ pub trait ModelView: Send + Sync {
     ) -> Result<ActivationsView, CommandError> {
         Err(CommandError::not_nn())
     }
+    /// C29 🎲 Exploración (D81): row and feature already validated against the dataset.
+    fn nn_explore(&self, _row: usize, _feature: usize) -> Result<ExploreView, CommandError> {
+        Err(CommandError::not_nn())
+    }
+    /// C29 📊 Predicción por lotes: the expected columns and the first `rows` rows of the
+    /// features of the dataset.
+    fn nn_batch_template(&self, _rows: usize) -> Result<BatchTemplate, CommandError> {
+        Err(CommandError::not_nn())
+    }
+    /// C29: reads the CSV at `path` (chosen in Rust), checks its columns and predicts
+    /// every row. Checks `cancel` while reading.
+    fn nn_predict_batch(
+        &self,
+        _path: &std::path::Path,
+        _cancel: &AtomicBool,
+    ) -> Result<BatchOutcome, CommandError> {
+        Err(CommandError::not_nn())
+    }
+    /// 📋 Metadatos (D75): the JSON shown in 💾 Exportar (pretty-printed). `trained_at` =
+    /// the local date of the training, formatted by the UI (the core has no clock or
+    /// time zone).
+    fn nn_metadata(&self, _trained_at: &str) -> Result<String, CommandError> {
+        Err(CommandError::not_nn())
+    }
+}
+
+/// A batch prediction: the view and, if every column was found, the CSV of
+/// "📥 Descargar Resultados" (all the rows).
+pub struct BatchOutcome {
+    pub view: BatchPredictView,
+    pub csv: Option<Vec<u8>>,
 }
 
 pub type ModelHandle = Arc<dyn ModelView>;

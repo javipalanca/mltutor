@@ -4,10 +4,12 @@
   import Notice from "../../../components/Notice.svelte";
   import * as backend from "../../backend";
   import { nnText } from "../../content";
-  import { lesson, tabName } from "../../lessons";
+  import { lesson } from "../../lessons";
   import { models } from "../../ml/modelSession.svelte";
   import ArchitectureTab from "./ArchitectureTab.svelte";
   import EvaluationTab from "./EvaluationTab.svelte";
+  import ExportTab from "./ExportTab.svelte";
+  import PredictionsTab from "./PredictionsTab.svelte";
   import { LESSON, nn } from "./state.svelte";
   import TrainingTab from "./TrainingTab.svelte";
   import VisualizationTab from "./VisualizationTab.svelte";
@@ -17,7 +19,6 @@
   }
 
   let { active }: Props = $props();
-  const lessonState = models.lesson(LESSON);
   const tabs = lesson(LESSON).tabs;
   let unlisten: (() => void) | null = null;
   let destroyed = false;
@@ -48,15 +49,13 @@
     <EvaluationTab />
   {:else if active === 4}
     <VisualizationTab />
-  {:else if !lessonState.info}
-    <h2>{tabs[active]}</h2>
-    <Notice severity="warning" markdown={nnText("comun", "sin_entrenar")} />
+  {:else if active === 5}
+    <PredictionsTab />
+  {:else if active === 6}
+    <ExportTab />
   {:else}
     <h2>{tabs[active]}</h2>
-    <Notice
-      severity="info"
-      markdown={`🚧 La pestaña **${tabName(tabs[active] ?? "")}** de esta lección se está portando a la nueva versión de MLTutor (Fase 5 del plan de migración). La red ya está entrenada y se mostrará aquí.`}
-    />
+    <Notice severity="warning" markdown={nnText("comun", "sin_entrenar")} />
   {/if}
 </div>
 

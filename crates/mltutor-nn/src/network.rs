@@ -8,6 +8,7 @@ use mltutor_core::nn_data::{
     self, Activation, History, NnArchitecture, NnError, NnTraining, ResolvedTraining, Scaler,
     SplitSizes,
 };
+use mltutor_core::nn_predict::{self, BatchView, ExploreView, NetworkOutput};
 use mltutor_core::nn_stats::{self, ActivationParams, ActivationsView, WeightsView};
 use mltutor_core::sampling::RandomState;
 use mltutor_core::split::TrainTestSplit;
@@ -337,6 +338,42 @@ impl Predictor for NeuralNetwork {
     }
 }
 
+/// The 🔮 views of C29 ([`mltutor_core::nn_predict`]) read the raw outputs.
+impl NetworkOutput for NeuralNetwork {
+    fn raw_output(&self, x: ArrayView2<'_, f64>) -> Result<Array2<f64>, ModelError> {
+        NeuralNetwork::raw_output(self, x)
+    }
+
+    fn output_is_probability(&self) -> bool {
+        NeuralNetwork::output_is_probability(self)
+    }
+}
+
+impl NeuralNetwork {
+    /// 🎲 Exploración interactiva (C29): [`nn_predict::nn_explore`] with this
+    /// network. `x` is the whole dataset in original units (Python's `nn_df`).
+    pub fn explore(
+        &self,
+        x: ArrayView2<'_, f64>,
+        sample_index: usize,
+        feature: usize,
+        n_points: usize,
+        control: &TrainControl<'_>,
+    ) -> Result<ExploreView, ModelError> {
+        nn_predict::nn_explore(self, x, sample_index, feature, n_points, control)
+    }
+
+    /// 📊 Predicción por lotes (C29): [`nn_predict::nn_predict_batch`] with this
+    /// network (`rows` in original units and the model's column order).
+    pub fn predict_batch(
+        &self,
+        rows: ArrayView2<'_, f64>,
+        control: &TrainControl<'_>,
+    ) -> Result<BatchView, ModelError> {
+        nn_predict::nn_predict_batch(self, rows, control)
+    }
+}
+
 /// Everything `train_model` keeps (fase5-redes.md §5.2).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TrainedNetwork {
@@ -364,6 +401,24 @@ impl TrainedNetwork {
     /// The test rows of the dataset `x` (original units, split order).
     pub fn x_test(&self, x: ArrayView2<'_, f64>) -> Array2<f64> {
         x.select(ndarray::Axis(0), &self.split.test)
+    }
+
+    /// Range of every feature over the **unscaled training rows** (fit +
+    /// validation) of the dataset `x` (original units): the warnings of the 🔮 form
+    /// and the batch for values the network never saw
+    /// ([`mltutor_core::nn_predict::training_ranges`]). Not the exploration axis,
+    /// which is the whole dataset's min–max, as in Python.
+    pub fn training_ranges(
+        &self,
+        x: ArrayView2<'_, f64>,
+    ) -> Result<Vec<nn_predict::FeatureRange>, ModelError> {
+        if x.ncols() != self.network.mlp.n_inputs() {
+            return Err(ModelError::FeatureMismatch {
+                expected: self.network.mlp.n_inputs(),
+                found: x.ncols(),
+            });
+        }
+        nn_predict::training_ranges(x, &self.split.train)
     }
 
     /// 📉 Activaciones of the first `params.sample_size` test rows of the dataset `x`

@@ -17,11 +17,13 @@ mod models;
 mod navigation;
 mod nn;
 mod nn_model;
+mod nn_predict;
 mod real_exports;
 mod real_facade;
 mod real_knn;
 mod real_models;
 mod real_nn;
+mod real_nn_predict;
 mod real_trees;
 mod screenshot;
 mod session;
@@ -93,6 +95,7 @@ fn run(mode: Mode, started: Instant) -> i32 {
         .manage(AppState::new(mode, started))
         .manage(data::DataState::new(facade()))
         .manage(models::ModelState::default())
+        .manage(nn_predict::NnBatches::default())
         .invoke_handler(tauri::generate_handler![
             commands::launch_mode,
             commands::frontend_ready,
@@ -142,6 +145,11 @@ fn run(mode: Mode, started: Instant) -> i32 {
             models::nn_weights,
             models::nn_activations,
             models::nn_training_code,
+            nn_predict::nn_explore,
+            nn_predict::nn_batch_template,
+            nn_predict::nn_predict_batch,
+            nn_predict::nn_save_batch,
+            nn_predict::nn_metadata,
         ])
         .setup(move |app| {
             if automated {

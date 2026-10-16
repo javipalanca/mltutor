@@ -13,7 +13,8 @@
     modelId: number;
     template: CodeTemplate;
     title: string;
-    downloadName: string;
+    /** Without it, no download button (the file is saved another way). */
+    downloadName?: string;
     /** Expander id (remembers whether it is open). */
     id: string;
     /** D30: features of the boundary. */
@@ -58,5 +59,5 @@
 {#if error}
   <Notice severity="error" markdown={escapeMarkdown(error)} />
 {:else if code}
-  <CodeBlock {id} {title} code={code.text} {downloadName} />
+  <CodeBlock {id} {title} code={code.text} {...downloadName ? { downloadName } : {}} />
 {/if}

@@ -51,3 +51,19 @@ export function costText(level: "high" | "very_high", seconds: number): string {
         { segundos: rounded },
       );
 }
+
+/** K1 in 🔮 and 💾: `[comun] red_no_valida` with `motivo_no_finita`. */
+export function invalidNetworkText(): string {
+  const motivo = optionalText(
+    nnRaw,
+    "comun",
+    "motivo_no_finita",
+    "sus pesos contienen valores no numéricos (NaN o infinitos) porque el entrenamiento divergió; prueba con un learning rate menor",
+  );
+  return optionalText(
+    nnRaw,
+    "comun",
+    "red_no_valida",
+    "❌ **Esta red no se puede usar:** {motivo}. No se puede predecir con ella ni exportarla. Vuelve a ⚙️ Entrenamiento y entrena de nuevo.",
+  ).replace("{motivo}", motivo);
+}

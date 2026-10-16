@@ -553,7 +553,7 @@ pub async fn load_scenario_csv(
 }
 
 /// The `<ruta.csv>` of `--scenario <nombre>:<ruta.csv>` in `--screenshot` mode.
-fn scenario_csv_path(mode: &Mode) -> Option<String> {
+pub(crate) fn scenario_csv_path(mode: &Mode) -> Option<String> {
     let Mode::Screenshot(options) = mode else {
         return None;
     };

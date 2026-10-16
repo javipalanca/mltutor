@@ -35,6 +35,10 @@ pub const KERAS_SCRIPT: &str = "reconstruir_modelo.py";
 pub const NUMPY_SCRIPT: &str = "predecir_numpy.py";
 /// Suggested name of the NumPy predictor when downloaded alone.
 pub const NUMPY_FILE_NAME: &str = "red_predictor_numpy.py";
+/// "📝 Código Python" as a ZIP: the NumPy predictor reads `modelo.json` (it has
+/// the weights), so the script alone cannot run; [`KerasPackage::numpy_zip`] puts
+/// both files together.
+pub const NUMPY_ZIP_NAME: &str = "red_predictor_numpy.zip";
 /// Suggested name of the ONNX file.
 pub const ONNX_FILE_NAME: &str = "red_neuronal.onnx";
 /// Format tag of `modelo.json`.
@@ -77,6 +81,16 @@ impl KerasPackage {
             (KERAS_SCRIPT, self.script.as_bytes()),
             (NUMPY_SCRIPT, self.numpy_script.as_bytes()),
             (README, self.readme.as_bytes()),
+        ])
+    }
+
+    /// The NumPy predictor with the `modelo.json` it reads ([`NUMPY_ZIP_NAME`];
+    /// deterministic). `numpy_script` alone ([`NUMPY_FILE_NAME`]) only runs next to
+    /// a `modelo.json`, e.g. inside the Keras package.
+    pub fn numpy_zip(&self) -> Result<Vec<u8>, ExportError> {
+        python_zip(&[
+            (NUMPY_SCRIPT, self.numpy_script.as_bytes()),
+            (MODEL_JSON, self.model_json.as_bytes()),
         ])
     }
 }

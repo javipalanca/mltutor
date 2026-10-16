@@ -11,8 +11,6 @@
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
-use serde::Serialize;
-
 use crate::core_facade::ScriptBase;
 use crate::ipc::{
     ArchitectureView, BatchHint, CommandError, Complexity, CostLevel, DatasetRef, DatasetSummary,
@@ -445,85 +443,86 @@ pub fn validate(arch: &NnArchitecture, training: &NnTraining) -> Result<(), Comm
     Ok(())
 }
 
-/// The patience of ReduceLROnPlateau: `max(1, paciencia // 2)`, or 5 without early stopping.
-pub fn reduce_lr_patience(training: &NnTraining) -> u8 {
-    training.patience.map_or(5, |p| (p / 2).max(1))
-}
-
-/// Context of `red_entrenamiento.py.j2` (fixture `code/nn_training.json` → `context`).
-#[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct NnTrainingContext {
-    #[serde(flatten)]
-    pub base: ScriptBase,
-    pub task: String,
-    pub architecture: Vec<u32>,
-    pub activation: String,
-    pub output_activation: String,
-    pub loss: String,
-    pub one_hot: bool,
-    pub dropout_rate: f64,
-    pub optimizer: String,
-    pub learning_rate: f64,
-    pub batch_size: u16,
-    pub epochs: u16,
-    pub validation_split: f64,
-    pub early_stopping: bool,
-    pub patience: Option<u8>,
-    pub reduce_lr: bool,
-    pub lr_factor: Option<f64>,
-    pub reduce_lr_patience: Option<u8>,
-    pub sample: Option<Vec<f64>>,
-}
-
-/// The f32 of a control as the f64 Python wrote (0.1, not 0.10000000149011612).
-pub fn control_f64(value: f32) -> f64 {
-    // The shortest decimal of the f32 is the value of the selector or slider.
-    value.to_string().parse().unwrap_or(f64::from(value))
-}
-
-impl NnTrainingContext {
-    pub fn new(
-        base: ScriptBase,
-        summary: &DatasetSummary,
-        arch: &NnArchitecture,
-        training: &NnTraining,
-    ) -> Result<Self, CommandError> {
-        let task = NnTask::of(summary);
-        check_trainable(task, arch.output_activation)?;
-        let resolved = resolve(task, arch.output_activation);
-        Ok(Self {
-            base,
-            task: match task.task() {
-                TaskType::Classification => "classification",
-                TaskType::Regression => "regression",
-            }
-            .to_owned(),
-            architecture: layer_sizes(summary.n_features, arch, task),
-            activation: arch.activation.keras_name().to_owned(),
-            output_activation: arch.output_activation.keras_name().to_owned(),
-            loss: resolved.loss.to_owned(),
-            one_hot: resolved.one_hot,
-            dropout_rate: (control_f64(arch.dropout) * 10.0).round() / 10.0,
-            optimizer: arch.optimizer.keras_name().to_owned(),
-            learning_rate: control_f64(training.learning_rate),
-            batch_size: arch.batch_size,
-            epochs: training.epochs,
-            validation_split: f64::from(training.validation_pct) / 100.0,
-            early_stopping: training.patience.is_some(),
-            patience: training.patience,
-            reduce_lr: training.lr_factor.is_some(),
-            lr_factor: training
-                .lr_factor
-                .map(|f| (control_f64(f) * 100.0).round() / 100.0),
-            reduce_lr_patience: training.lr_factor.map(|_| reduce_lr_patience(training)),
-            sample: None,
-        })
+/// The IPC controls of 🏗️ → the core architecture.
+pub fn core_arch(arch: &NnArchitecture) -> mltutor_core::nn_data::NnArchitecture {
+    use crate::ipc::NnOptimizer as O;
+    use mltutor_core::nn_data::{Activation, OptimizerKind};
+    let act = |a: NnActivation| match a {
+        NnActivation::Relu => Activation::Relu,
+        NnActivation::Tanh => Activation::Tanh,
+        NnActivation::Sigmoid => Activation::Sigmoid,
+        NnActivation::Softmax => Activation::Softmax,
+        NnActivation::Linear => Activation::Linear,
+    };
+    mltutor_core::nn_data::NnArchitecture {
+        hidden: arch.hidden.clone(),
+        activation: act(arch.activation),
+        output_activation: act(arch.output_activation),
+        dropout: arch.dropout,
+        batch_size: arch.batch_size,
+        optimizer: match arch.optimizer {
+            O::Adam => OptimizerKind::Adam,
+            O::Sgd => OptimizerKind::Sgd,
+            O::Rmsprop => OptimizerKind::Rmsprop,
+        },
     }
+}
 
-    pub fn render(&self) -> Result<String, CommandError> {
-        mltutor_core::codegen::render_named("red_entrenamiento.py.j2", self)
-            .map_err(|error| CommandError::internal(format!("plantilla: {error}")))
+/// The IPC controls of ⚙️ → the core training options.
+pub fn core_training(t: &NnTraining) -> mltutor_core::nn_data::NnTraining {
+    mltutor_core::nn_data::NnTraining {
+        learning_rate: t.learning_rate,
+        epochs: t.epochs,
+        validation_pct: t.validation_pct,
+        patience: t.patience,
+        lr_factor: t.lr_factor,
+        seed: t.seed,
     }
+}
+
+/// L1: the context of `red_entrenamiento.py.j2` is the core's
+/// ([`mltutor_core::codegen::NnTrainingContext`], with the seed of the model, D70); this
+/// only adapts the IPC controls and the dataset of the script.
+pub fn training_context(
+    base: ScriptBase,
+    summary: &DatasetSummary,
+    arch: &NnArchitecture,
+    training: &NnTraining,
+) -> Result<mltutor_core::codegen::NnTrainingContext, CommandError> {
+    let task = NnTask::of(summary);
+    check_trainable(task, arch.output_activation)?;
+    let data = mltutor_core::codegen::ScriptDataset {
+        dataset: base.dataset,
+        dataset_label: base.dataset_label,
+        csv_file: base.csv_file,
+        csv_target: base.csv_target,
+        csv_sep: base.csv_sep,
+        csv_decimal: base.csv_decimal,
+        csv_encoding: base.csv_encoding,
+        feature_names: base.feature_names,
+        class_names: base.class_names,
+    };
+    let core_task = match task.task() {
+        TaskType::Classification => mltutor_core::TaskType::Classification,
+        TaskType::Regression => mltutor_core::TaskType::Regression,
+    };
+    let n_classes = task.n_classes().unwrap_or(0) as usize;
+    mltutor_core::codegen::NnTrainingContext::new(
+        data,
+        core_task,
+        n_classes,
+        &core_arch(arch),
+        &core_training(training),
+    )
+    .map_err(crate::real_nn::nn_error)
+}
+
+/// Renders `red_entrenamiento.py.j2` with `context`.
+pub fn render_training(
+    context: &mltutor_core::codegen::NnTrainingContext,
+) -> Result<String, CommandError> {
+    mltutor_core::codegen::render(mltutor_core::codegen::CodeTemplate::NnTraining, context)
+        .map_err(|error| CommandError::internal(format!("plantilla: {error}")))
 }
 
 /// Minimum time between two `nn-epoch` events (at most 20 per second, §11).

@@ -570,3 +570,129 @@ pub struct NnCodeRequest {
     pub arch: NnArchitecture,
     pub training: NnTraining,
 }
+
+// --- 🔮 Predicciones: exploración y lotes (C29, D81) ---
+
+/// `nn_explore`: the base sample (a row of the dataset) and the feature to vary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, TS)]
+#[ts(export)]
+pub struct ExploreRequest {
+    pub model_id: u32,
+    /// "Índice de muestra": 0..n_rows of the dataset the network was trained on.
+    pub row: u32,
+    /// "Característica a explorar": column index.
+    pub feature: u32,
+}
+
+/// Which chart and analysis of 🎲 Exploración (Python's three branches).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum ExploreKind {
+    Binary,
+    Multiclass,
+    Regression,
+}
+
+/// "Característica muy / moderadamente / poco influyente" (thresholds of Python:
+/// range 0.3 / 0.1 of the probability; relative impact 20 % / 5 % in regression).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum Influence {
+    High,
+    Moderate,
+    Low,
+}
+
+/// 🎲 Exploración interactiva (`nn_explore`): the response curve of the network to one
+/// feature of one sample, the rest fixed (an ICE curve).
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[ts(export)]
+pub struct ExploreView {
+    pub kind: ExploreKind,
+    pub row: u32,
+    pub feature: u32,
+    /// Rows of the dataset (options of "Índice de muestra").
+    pub n_rows: u32,
+    /// "2. 📋 Valores base de la muestra", original units, column order.
+    pub base: Vec<f64>,
+    pub base_prediction: super::model::PredictionResult,
+    /// Value of the explored feature in the base sample ("Valor Base").
+    pub base_value: f64,
+    /// 50 values from the minimum to the maximum of the feature in the dataset.
+    pub xs: Vec<f64>,
+    /// The analysed series: P(clase positiva) (binary), P(clase de la muestra base)
+    /// (multiclass, NEW) or the prediction (regression).
+    pub ys: Vec<f64>,
+    /// Multiclass: the predicted class code at each x ("Clase Predicha").
+    pub classes: Option<Vec<u32>>,
+    /// Multiclass: the largest output at each x ("Confianza").
+    pub confidence: Option<Vec<f64>>,
+    /// Multiclass: the class of the base sample (the one `ys` follows).
+    pub base_class: Option<u32>,
+    /// max − min of `ys`.
+    pub range: f64,
+    /// Population standard deviation of `ys` (`np.std`).
+    pub volatility: f64,
+    /// Regression: range / |mean| × 100 (0 if the mean is 0).
+    pub relative_impact: Option<f64>,
+    pub influence: Influence,
+    /// D87: `false` with a tanh output.
+    pub output_is_probability: bool,
+}
+
+/// `nn_batch_template`: "📋 Formato esperado del archivo CSV" (the first rows of the
+/// features) and the range of every feature in the training rows (the "fuera de rango"
+/// warnings of the form and of the batch use it).
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[ts(export)]
+pub struct BatchTemplate {
+    /// The column names the CSV must have (`X.columns`, model order).
+    pub columns: Vec<String>,
+    pub sample: super::types::TablePreview,
+    /// Minimum and maximum of every feature in the training rows (original units).
+    pub train_min: Vec<f64>,
+    pub train_max: Vec<f64>,
+}
+
+/// `nn_predict_batch`: the CSV is chosen with the native dialog in Rust (or comes from
+/// the automation modes); the path never goes through JS.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, TS)]
+#[ts(export)]
+pub struct BatchPredictRequest {
+    pub model_id: u32,
+    pub task_id: u32,
+}
+
+/// 📊 Predicción por lotes (`nn_predict_batch`). The checks run in the order of
+/// `[lotes]` (sin_filas → duplicadas → faltan → no_numericas → vacias); with any error
+/// nothing is predicted.
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[ts(export)]
+pub struct BatchPredictView {
+    /// Name of the file (without directories).
+    pub file_name: String,
+    /// Rows and columns of the file ("✅ Archivo cargado: …").
+    pub rows: u32,
+    pub cols: u32,
+    /// Features of the model that the file lacks ("❌ Faltan características").
+    pub missing: Vec<String>,
+    /// Columns of the file that are ignored ("⚠️ Características adicionales").
+    pub extra: Vec<String>,
+    /// The ❌ messages of the checks, already formatted (Markdown).
+    pub errors: Vec<String>,
+    /// Every feature is there but in another order (`[lotes] reordenadas`).
+    pub reordered: bool,
+    pub kind: ExploreKind,
+    pub output_is_probability: bool,
+    /// `[lotes] fuera_rango` already formatted, if some row leaves the training range.
+    pub out_of_range: Option<String>,
+    /// The first rows of the results: the features in model order + "Predicción" +
+    /// "Probabilidad" and "Confianza" (binary) or "Confianza" (multiclass) + "Fuera de
+    /// rango". `None` if a check failed.
+    pub results: Option<super::types::TablePreview>,
+    /// Rows with predictions (all of the file); the CSV of "📥 Descargar Resultados" has
+    /// all of them (`nn_save_batch`).
+    pub predicted: u32,
+}

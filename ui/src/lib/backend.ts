@@ -40,6 +40,10 @@ import type { NnEvaluationView } from "./bindings/NnEvaluationView";
 import type { WeightsRequest } from "./bindings/WeightsRequest";
 import type { WeightsView } from "./bindings/WeightsView";
 import type { NnEpochEvent } from "./bindings/NnEpochEvent";
+import type { BatchPredictView } from "./bindings/BatchPredictView";
+import type { BatchTemplate } from "./bindings/BatchTemplate";
+import type { ExploreRequest } from "./bindings/ExploreRequest";
+import type { ExploreView } from "./bindings/ExploreView";
 import type { TrainedModelInfo } from "./bindings/TrainedModelInfo";
 import type { TrainRequest } from "./bindings/TrainRequest";
 import type { LessonId as RouteLesson } from "./content";
@@ -251,7 +255,7 @@ export function setCsvTarget(draftId: number, target: string, task: TaskChoice, 
   return cancellable("set_csv_target", { draftId, target, task, seq });
 }
 
-export type SaveKind = "png" | "svg" | "python" | "text";
+export type SaveKind = "png" | "svg" | "python" | "text" | "csv" | "json";
 
 /**
  * Native save dialog + writing, in Rust (`save_file`). The bytes go as the raw IPC body;
@@ -332,8 +336,8 @@ export function predictOne(modelId: number, values: number[]): Promise<Predictio
 }
 
 /** ONNX or Python package, built and saved (native dialog) in Rust. Saved name or `null`. */
-export function exportModel(modelId: number, format: ExportFormat): Promise<string | null> {
-  return call("export_model", { modelId, format });
+export function exportModel(modelId: number, format: ExportFormat, trainedAt: string | null = null): Promise<string | null> {
+  return call("export_model", { modelId, format, trainedAt });
 }
 
 export function generateCode(modelId: number, template: CodeTemplate, extra: CodeExtra | null = null): Promise<string> {
@@ -416,6 +420,40 @@ export function nnActivations(req: Omit<ActivationsRequest, "task_id">): Cancell
 /** D74: the Keras script with the controls of 🏗️ and ⚙️ (no model needed). */
 export function nnTrainingCode(req: NnCodeRequest): Promise<string> {
   return call("nn_training_code", { req });
+}
+
+/** 🎲 Exploración (C29, D81): the response of the network to one feature of one sample. */
+export function nnExplore(req: ExploreRequest): Promise<ExploreView> {
+  return call("nn_explore", { req });
+}
+
+/** 📊 Predicción por lotes: the expected columns and the first rows of the dataset. */
+export function nnBatchTemplate(modelId: number): Promise<BatchTemplate> {
+  return call("nn_batch_template", { modelId });
+}
+
+/**
+ * 📊 Predicción por lotes (C29, D81): Rust opens the native dialog, reads the CSV and
+ * predicts every row. `null` if the user closes the dialog.
+ */
+export function nnPredictBatch(modelId: number): Cancellable<BatchPredictView | null> {
+  nextTaskId = (nextTaskId + 1) % 0x7fffffff;
+  const taskId = nextTaskId;
+  busy.start(taskId);
+  const promise = invoke<BatchPredictView | null>("nn_predict_batch", { req: { model_id: modelId, task_id: taskId } }).finally(() =>
+    busy.end(taskId),
+  );
+  return { promise, taskId, cancel: () => void cancelTask(taskId) };
+}
+
+/** "📥 Descargar Resultados": the CSV of the last batch, saved with the native dialog. */
+export function nnSaveBatch(modelId: number): Promise<string | null> {
+  return call("nn_save_batch", { modelId });
+}
+
+/** 📋 Metadatos (D75): the JSON shown in 💾 Exportar. */
+export function nnMetadata(modelId: number, trainedAt: string): Promise<string> {
+  return call("nn_metadata", { modelId, trainedAt });
 }
 
 /** Subscribes to `nn-epoch` (phases and epochs of a training); returns the unsubscribe function. */

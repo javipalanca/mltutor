@@ -492,21 +492,6 @@ fn controls_are_validated() {
         &ok
     )
     .is_ok());
-    assert_eq!(reduce_lr_patience(&training()), 5);
-    assert_eq!(
-        reduce_lr_patience(&NnTraining {
-            patience: Some(5),
-            ..training()
-        }),
-        2
-    );
-    assert_eq!(
-        reduce_lr_patience(&NnTraining {
-            patience: None,
-            ..training()
-        }),
-        5
-    );
 }
 
 /// D74: `red_entrenamiento.py.j2` with the controls renders the scripts that
@@ -546,14 +531,18 @@ fn training_script_matches_the_fixture() {
         };
         let dataset = FixtureFacade::from_checkout().load_builtin(id).unwrap();
         let base = dataset.script_base(context["dataset_label"].as_str().unwrap());
-        let ours = NnTrainingContext::new(base, &summary, &arch, &training).unwrap();
+        let training = NnTraining {
+            seed: context["seed"].as_u64().map_or(42, |s| s as u32),
+            ..training
+        };
+        let ours = training_context(base, &summary, &arch, &training).unwrap();
         assert_eq!(
             serde_json::to_value(&ours).unwrap(),
             *context,
             "{name}: context"
         );
         assert_eq!(
-            ours.render().unwrap(),
+            render_training(&ours).unwrap(),
             case["script"].as_str().unwrap(),
             "{name}"
         );
@@ -597,5 +586,4 @@ fn epochs_are_batched_but_never_dropped() {
         .is_none());
     assert_eq!(batcher.flush().len(), 1);
     assert_eq!(finite_log(f64::NAN), None);
-    assert_eq!(control_f64(0.1_f32), 0.1);
 }

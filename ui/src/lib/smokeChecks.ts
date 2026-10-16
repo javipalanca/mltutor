@@ -309,6 +309,31 @@ async function nnViews(dataset: NonNullable<NnScenario["dataset"]>): Promise<voi
 }
 
 /** §3: the largest network (5 × 256): latency of `nn_weights` and `nn_activations` from the UI. */
+/** F5d: 🔮 individual, por lotes (CSV written from the dataset, no dialog) and exploración. */
+async function nnPredictions(dataset: NonNullable<NnScenario["dataset"]>): Promise<void> {
+  const base = { dataset, tab: 5 } as const;
+  await nnView({ ...base, train: true, epochs: 10, predict: true }, "[data-nn-predict-single] [data-prediction-result]", `la predicción individual de ${dataset}`);
+  await nnView({ ...base, subview: "Lotes", batchCsv: true }, "[data-nn-batch-results]", `la predicción por lotes de ${dataset}`);
+  const rows = Number(document.querySelector("[data-nn-batch-results]")?.getAttribute("data-nn-batch-results") ?? "0");
+  if (rows !== 25) {
+    throw new Error(`el lote de ${dataset} tiene ${rows} predicciones en lugar de 25`);
+  }
+  (document.querySelector("[data-nn-batch-download]") as HTMLButtonElement | null)?.click();
+  await waitFor('[data-nn-batch-saved="success"]', 30000, "el CSV de resultados");
+  await nnView({ ...base, subview: "Exploracion", explore: [3, 2] }, '[data-nn-explore-chart] [data-plot-rendered="true"]', `la exploración de ${dataset}`);
+  await waitFor("[data-nn-explore-verdict]", 30000, "el análisis de la exploración");
+}
+
+/** F5d: the four formats of 💾 (saved in a temporary folder in automation, D75). */
+async function nnExports(): Promise<void> {
+  const base = { dataset: "iris", tab: 6 } as const;
+  await nnView({ ...base, train: true, epochs: 10, exportView: "Keras", exportSave: "keras_package" }, '[data-export-result="success"]', "el paquete Keras");
+  await nnView({ ...base, exportView: "Onnx", exportSave: "onnx" }, '[data-export-result="success"]', "el ONNX de la red");
+  await nnView({ ...base, exportView: "Python", exportSave: "nn_numpy_predictor" }, '[data-export-result="success"]', "el predictor NumPy");
+  await nnView({ ...base, exportView: "Metadatos", exportSave: "nn_metadata" }, '[data-export-result="success"]', "los metadatos");
+  await waitFor("[data-nn-metadata]", 30000, "el JSON de los metadatos");
+}
+
 async function nnBigViews(): Promise<void> {
   await nnView(
     { dataset: "digits", tab: 4, train: true, epochs: 10, layers: 5, neurons: [256, 256, 256, 256, 256], viz: "Activaciones" },
@@ -431,6 +456,9 @@ const CHECKS: Readonly<Record<string, () => Promise<void>>> = {
   redes_vistas_iris: () => nnViews("iris"),
   redes_vistas_diabetes: () => nnViews("diabetes"),
   redes_vistas_5x256: nnBigViews,
+  redes_predicciones_iris: () => nnPredictions("iris"),
+  redes_predicciones_diabetes: () => nnPredictions("diabetes"),
+  redes_exportar: nnExports,
 };
 
 export async function runSmokeCheck(name: string): Promise<void> {

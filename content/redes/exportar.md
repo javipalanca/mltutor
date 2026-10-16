@@ -1,4 +1,10 @@
-<!-- NUEVO (D75, Fase 5; como content/regresion/exportar.md, content/arboles/exportar.md y content/knn/exportar.md): no existe en la versión Python, que tenía "🤖 Modelo TensorFlow" (SavedModel/HDF5/TFLite), "📊 Modelo Completo" (pickle), "📝 Código Python" (una plantilla que devolvía ceros) y "📋 Metadatos". Pestaña 💾 Exportar, expander cerrado debajo de los cuatro botones. Título: mensajes.toml [exportar_rust] ayuda_expander. ONNX: grafo de fase5-redes.md §3 C28 (entrada float_input float32 [N, F] SIN escalar → Sub/Div con el escalador → Gemm + activación por capa; salidas label + probabilities o variable; revisión ML de F5a, 2026-10-16: label = código de la clase en el dataset mediante Gather sobre el argmax o sobre p > 0,5, y en binaria probabilities [N, 2] = [1 − p, p]). El fragmento se ha ejecutado con onnxruntime sobre ese grafo construido con los pesos finales de tests/parity/nn/exact/iris_default.json (tools/golden_nn.py::onnx_proposal_model): da [0] y [[0.7971 0.1325 0.0704]], igual que la red en NumPy. Paquete: content/code/paquete_modelo_red.py.j2, red_predictor_numpy.py.j2 y paquete_leeme_red.txt.j2 (verificados en expected.export_package). -->
+<!-- NUEVO (D75, Fase 5; como content/regresion/exportar.md, content/arboles/exportar.md y content/knn/exportar.md): no existe en la versión Python, que tenía "🤖 Modelo TensorFlow" (SavedModel/HDF5/TFLite), "📊 Modelo Completo" (pickle), "📝 Código Python" (una plantilla que devolvía ceros) y "📋 Metadatos". Pestaña 💾 Exportar, expander cerrado debajo de los cuatro botones. Título: mensajes.toml [exportar_rust] ayuda_expander. ONNX: grafo de fase5-redes.md §3 C28 (entrada float_input float32 [N, F] SIN escalar → Sub/Div con el escalador → Gemm + activación por capa; salidas label + probabilities o variable; revisión ML de F5a, 2026-10-16: label = código de la clase en el dataset mediante Gather sobre el argmax o sobre p > 0,5, y en binaria probabilities [N, 2] = [1 − p, p]). El fragmento se ha ejecutado con onnxruntime sobre ese grafo construido con los pesos finales de tests/parity/nn/exact/iris_default.json (tools/golden_nn.py::onnx_proposal_model): da [0] y [[0.7971 0.1325 0.0704]], igual que la red en NumPy. Paquete: content/code/paquete_modelo_red.py.j2, red_predictor_numpy.py.j2 y paquete_leeme_red.txt.j2 (verificados en expected.export_package). Revisión de F5d (2026-10-16): el resumen inicial «En resumen» (también en mensajes.toml [exportar_rust] *_cuando) y la precisión de que los metadatos no contienen los pesos; el fragmento ONNX se ha vuelto a ejecutar con onnxruntime y da la misma salida. -->
+**En resumen:** para seguir trabajando en Python con TensorFlow/Keras, el **📦 paquete Keras**; para predecir
+desde otra aplicación o sin instalar TensorFlow, el **💾 ONNX**; para entender lo que calcula la red o repetir
+el entrenamiento, el **📝 código Python**; para documentar el modelo, los **📋 metadatos**. El ONNX y el
+predictor NumPy llevan dentro el escalado y reciben los datos en sus unidades originales; el modelo `.keras`
+que genera el paquete, no (ver los errores típicos).
+
 **📦 Paquete Keras (.zip)** — para seguir trabajando con la red en TensorFlow/Keras. Contiene `modelo.json` (la
 arquitectura, los pesos de cada capa, la media y la desviación del escalador y unas filas de comprobación) y
 `reconstruir_modelo.py`, que construye **la misma red** en Keras con esos pesos, comprueba que da las mismas
@@ -50,7 +56,7 @@ claramente setosa. Los números exactos dependen de tu entrenamiento.
   iniciales (ver «¿Por qué hay una semilla?»), así que sus cifras serán parecidas, no idénticas.
 
 **📋 Metadatos** — un JSON con la arquitectura, los hiperparámetros, las características, las clases y la fecha
-del entrenamiento. Sirve para documentar qué modelo es cuál; no permite predecir.
+del entrenamiento. Sirve para documentar qué modelo es cuál; no contiene los pesos, así que no permite predecir.
 
 ⚠️ **Errores típicos al usar la red fuera de la app**
 

@@ -107,7 +107,11 @@
 //! | `nn_weights` (C25, K2) | [`nn_stats::weights_view`]`(&[DenseView], weight_bins, bias_bins) -> WeightsView { stats: WeightStats { layers, global_*, verdict, insights }, histograms }`; bins as Plotly's `nbinsx` ([`stats::histogram_plotly`]) |
 //! | `nn_activations` (C26, K2) | [`nn_stats::activations_view`]`(&[DenseView], hidden, rows_used, &ActivationParams) -> ActivationsView { rows_used, layers: [{ stats, histogram }], dead_pct, map }` (parts: [`nn_stats::activation_stats`], [`nn_stats::dead_pct`], [`nn_stats::network_map`]) |
 //! | `decision_grid` (D78) | [`grid::mean_grid`]`(&dyn Predictor, x_test, y_test, &Scaler, fx, fy, &TrainControl) -> MeanGrid { grid: DecisionGrid, fixed }` (original units, ≤ 200 × 200) |
-//! | `generate_code(NnTraining)` (D74) | [`codegen::NnTrainingContext::new`]`(ScriptDataset, task, n_classes, &arch, &training)` + [`codegen::CodeTemplate::NnTraining`]; package templates `NnPackageScript`, `NnPackageReadme`, `NnNumpyPredictor` (used by `mltutor-export`) |
+//! | `generate_code(NnTraining)` (D74) | [`codegen::NnTrainingContext::new`]`(ScriptDataset, task, n_classes, &arch, &training)` (the only `NnTrainingContext`, L1; `seed: u64` = `training.seed`, D70, rendered in `keras.utils.set_random_seed({{ seed }})`) + [`codegen::CodeTemplate::NnTraining`]; package templates `NnPackageScript`, `NnPackageReadme`, `NnNumpyPredictor` (used by `mltutor-export`) |
+//! | `predict_one` (🔮 individual) | [`form::predict_one`]`(&network, values)` as in F2: the network scales inside; `proba` = output (`[1 − p, p]` with one neuron) |
+//! | `nn_explore` (C29, D81, L2) | [`nn_predict::nn_explore`]`(&dyn NetworkOutput, x_dataset /* whole dataset, original units */, sample_index, feature, n_points /* 50; 2..=1000 */, &TrainControl) -> Result<ExploreView { sample_index, feature, base, base_value, base_prediction: RowPrediction, kind: OutputKind, output_is_probability, xs /* linspace(min, max) of the WHOLE dataset, as Python */, curve: ExploreCurve::{Binary { probability } \| Multiclass { classes, confidence, base_class, base_class_probability /* NEW */ } \| Regression { values }}, stats: ExploreStats { range /* f32 */, std, mean, relative_impact_pct }, influence: Influence::{High, Moderate, Low} }, ModelError>`; thresholds [`nn_predict::probability_influence`] (0.3/0.1, also on the base-class probability in multiclass, NEW) and [`nn_predict::regression_influence`] (20 %/5 %). `mltutor_nn::NeuralNetwork::explore` is the same call |
+//! | `nn_predict_batch` (C29, L2) | [`nn_predict::batch_columns`]`(features /* X.columns */, file_columns) -> BatchColumns { positions, missing, extra }`, then [`nn_predict::nn_predict_batch`]`(&dyn NetworkOutput, rows: ArrayView2 /* model column order */, &TrainControl) -> Result<BatchView { rows, kind, classes, output_is_probability, predictions: BatchPredictions::{Binary { predicted, probability, confidence } \| Multiclass { predicted, confidence, probabilities } \| Regression { values }} }, ModelError>` (≤ [`nn_predict::BATCH_MAX_ROWS`], chunks of 4096 with a cancellation check; NaN → `NonFinite`); `NeuralNetwork::predict_batch` |
+//! | out-of-range warnings | [`nn_predict::training_ranges`]`(x, train_rows) -> Vec<FeatureRange { min, max }>` (unscaled training rows; `TrainedNetwork::training_ranges(x)`) and [`nn_predict::out_of_range`]`(rows, &ranges) -> Vec<(row, columns)>` |
 //!
 //! Python-style formatting of the TOML messages: [`pyfmt::py_format`]; embedded
 //! TOML: [`content::Messages`].
@@ -137,6 +141,7 @@ pub mod metrics;
 pub mod model;
 pub mod nn_data;
 pub mod nn_diagnostics;
+pub mod nn_predict;
 pub mod nn_stats;
 pub mod probabilities;
 pub mod pyfmt;

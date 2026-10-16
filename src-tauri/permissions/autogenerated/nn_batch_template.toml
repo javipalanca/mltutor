@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-nn-batch-template"
+description = "Enables the nn_batch_template command without any pre-configured scope."
+commands.allow = ["nn_batch_template"]
+
+[[permission]]
+identifier = "deny-nn-batch-template"
+description = "Denies the nn_batch_template command without any pre-configured scope."
+commands.deny = ["nn_batch_template"]

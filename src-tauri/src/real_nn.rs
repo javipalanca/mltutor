@@ -64,41 +64,6 @@ pub fn epoch_log(log: &core::nn_data::EpochLog) -> EpochLog {
     }
 }
 
-fn arch(arch: &crate::ipc::NnArchitecture) -> core::nn_data::NnArchitecture {
-    use crate::ipc::{NnActivation as A, NnOptimizer as O};
-    use core::nn_data::{Activation, OptimizerKind};
-    let act = |a: A| match a {
-        A::Relu => Activation::Relu,
-        A::Tanh => Activation::Tanh,
-        A::Sigmoid => Activation::Sigmoid,
-        A::Softmax => Activation::Softmax,
-        A::Linear => Activation::Linear,
-    };
-    core::nn_data::NnArchitecture {
-        hidden: arch.hidden.clone(),
-        activation: act(arch.activation),
-        output_activation: act(arch.output_activation),
-        dropout: arch.dropout,
-        batch_size: arch.batch_size,
-        optimizer: match arch.optimizer {
-            O::Adam => OptimizerKind::Adam,
-            O::Sgd => OptimizerKind::Sgd,
-            O::Rmsprop => OptimizerKind::Rmsprop,
-        },
-    }
-}
-
-fn training(t: &crate::ipc::NnTraining) -> core::nn_data::NnTraining {
-    core::nn_data::NnTraining {
-        learning_rate: t.learning_rate,
-        epochs: t.epochs,
-        validation_pct: t.validation_pct,
-        patience: t.patience,
-        lr_factor: t.lr_factor,
-        seed: t.seed,
-    }
-}
-
 pub fn train(
     view: &dyn DatasetView,
     dataset: &Arc<core::Dataset>,
@@ -125,8 +90,8 @@ pub fn train(
     else {
         return Err(CommandError::not_nn());
     };
-    let core_arch = arch(ipc_arch);
-    let core_training = training(ipc_training);
+    let core_arch = crate::nn::core_arch(ipc_arch);
+    let core_training = crate::nn::core_training(ipc_training);
     observer(TrainEvent::Phase(TrainPhase::Building));
     observer(TrainEvent::Phase(TrainPhase::Compiling));
     observer(TrainEvent::Phase(TrainPhase::Training));
@@ -178,8 +143,8 @@ pub fn train(
 /// The trained network and, around the same predictor and split, a [`CoreModel`] for
 /// the views every lesson shares (C1/C2, C9).
 pub struct RealNn {
-    trained: TrainedNetwork,
-    core: CoreModel,
+    pub(crate) trained: TrainedNetwork,
+    pub(crate) core: CoreModel,
 }
 
 impl RealNn {
@@ -218,6 +183,34 @@ fn indices(values: &[usize]) -> Vec<u32> {
 impl NnEngine for RealNn {
     fn delegate(&self) -> &dyn ModelView {
         &self.core
+    }
+
+    fn export(&self, format: crate::ipc::ExportFormat) -> Result<Vec<u8>, CommandError> {
+        self.export_bytes(format)
+    }
+
+    fn code(&self, template: crate::ipc::CodeTemplate) -> Result<String, CommandError> {
+        self.code_text(template)
+    }
+
+    fn metadata(&self, trained_at: &str) -> Result<String, CommandError> {
+        self.metadata_text(trained_at)
+    }
+
+    fn explore(&self, row: usize, feature: usize) -> Result<crate::ipc::ExploreView, CommandError> {
+        self.explore_view(row, feature)
+    }
+
+    fn batch_template(&self, rows: usize) -> Result<crate::ipc::BatchTemplate, CommandError> {
+        Ok(self.batch_template_view(rows))
+    }
+
+    fn predict_batch(
+        &self,
+        path: &std::path::Path,
+        cancel: &AtomicBool,
+    ) -> Result<crate::core_facade::BatchOutcome, CommandError> {
+        self.predict_batch_view(path, cancel)
     }
 
     fn test_scores(&self) -> (f64, f64) {

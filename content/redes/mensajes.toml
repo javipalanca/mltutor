@@ -20,6 +20,15 @@ sin_entrenar = "⚠️ Primero debes entrenar un modelo."
 btn_ir_entrenamiento = "🔙 Ir a Entrenamiento"            # solo en 📈 Evaluación
 # show_neural_network_export (inalcanzable: la pestaña ya comprobó model_trained_nn)
 sin_entrenar_exportar = "⚠️ Primero debes entrenar un modelo en la pestaña 'Entrenamiento'"
+# NUEVO (F5d): st.error en 🔮 Predicciones y 💾 Exportar (en lugar del contenido) cuando la red guardada no se
+# puede usar. Python no lo comprobaba: con una red divergida, predict devolvía NaN y los archivos se exportaban
+# igual. {motivo} = una de las claves motivo_* (empiezan en minúscula: van después de los dos puntos).
+red_no_valida = "❌ **Esta red no se puede usar:** {motivo}. No se puede predecir con ella ni exportarla. Vuelve a ⚙️ Entrenamiento y entrena de nuevo."
+# Algún peso, sesgo o parámetro del escalador es NaN o infinito (el entrenamiento divergió).
+motivo_no_finita = "sus pesos contienen valores no numéricos (NaN o infinitos) porque el entrenamiento divergió; prueba con un learning rate menor"
+# La red espera otro número de características que el dataset actual (p. ej., se cambió el dataset o el
+# objetivo del CSV y la red es la anterior, D91). {n_red} = entradas de la red, {n_datos} = características actuales.
+motivo_otras_caracteristicas = "se entrenó con {n_red} características y el dataset actual tiene {n_datos}"
 # Navbar (texto del botón tras "🔙 " / "🔜 "): 0 (—, "Continuar a Arquitectura");
 # 1 ("Volver a Datos", "Continuar a Entrenamiento") + nota bajo el botón siguiente;
 # 2 ("Volver a Arquitectura", "Ver Evaluación" solo si model_trained_nn, si no —);
@@ -634,24 +643,58 @@ salida_tanh_binaria = "Salida de la neurona (tanh, no es una probabilidad): {p:.
 nota_tanh_multiclase = "Con salida tanh los valores de la tabla son las salidas de cada neurona (entre −1 y 1): no son probabilidades ni suman 1."
 # Multiclase: tarjeta "Clase: {nombre}" + tabla Clase / Probabilidad ({:.4f})
 error_prediccion = "Error durante la predicción: {error}"
+# NUEVO (F5d): caption encima del formulario C9. La app escala con el StandardScaler guardado (ajustado con todas
+# las filas, D72; ver escalado.md), nunca con los valores del formulario.
+escalado_nota = "Escribe los valores en sus unidades originales: antes de pasarlos a la red, MLTutor los estandariza con la media y la desviación que guardó al entrenar, (valor − media) / desviación, igual que hizo con los datos de entrenamiento."
+# NUEVO (F5d): st.warning bajo el resultado si algún valor queda fuera del [mínimo, máximo] de esa característica
+# en las filas de ENTRENAMIENTO (sin escalar). {detalles} = los fuera_rango_item unidos por "; "; los números con
+# el mismo formato que el formulario. Las predicciones se muestran igual: es un aviso, no un error.
+fuera_rango = "⚠️ **La red está extrapolando.** Estos valores quedan fuera del rango de los datos de entrenamiento: {detalles}. La red no ha visto muestras así y responde con lo que dicte su forma (con ReLU sigue sin límite la última tendencia que aprendió), a menudo con mucha seguridad. No te fíes de esta predicción."
+fuera_rango_item = "{caracteristica} = {valor} (entrenamiento: de {min} a {max})"
+# NUEVO (F5d): st.error si la salida de la red es NaN o infinita para esta entrada (en lugar de la tarjeta).
+prediccion_no_finita = "❌ La red ha devuelto un valor no numérico (NaN o infinito) para esta entrada. Suele pasar con valores enormes, muy lejos de los datos de entrenamiento: revisa lo que has escrito."
 # NUEVO (D81, subvista "🎲 Exploración"): texto en exploracion-*.md y [exploracion]
 subvistas = [["🔮 Predicción individual", "Individual", "pred_single"], ["📊 Predicción por lotes", "Lotes", "pred_batch"], ["🎲 Exploración interactiva", "Exploracion", "pred_explore"]]
 
 # Las dos secciones siguientes existen en Python (viz/nn.py::show_neural_network_predictions) pero son
 # INALCANZABLES: la función no se llama nunca. D81: se portan como subvistas NUEVAS de 🔮 Predicciones.
 [lotes]
+# NUEVO (2026-10-16, F5d): la tabla de resultados solo muestra las primeras filas.
+primeras_filas = "Se muestran las primeras {n} de {total} filas; el CSV descargado las contiene todas."
 titulo = "📊 Predicción por Lotes"
 texto = "Sube un archivo CSV con nuevos datos para hacer predicciones en lote:"
 uploader = "Selecciona archivo CSV"                           # D81: diálogo nativo, botón btn_elegir
 btn_elegir = "📂 Elegir CSV…"                                 # NUEVO (D81)
 # NUEVO (D81): caption debajo de `columnas`
-nota_unidades = "Escribe los valores sin escalar, en sus unidades originales (MLTutor los escala igual que al entrenar). Las columnas de texto deben venir ya codificadas como números, como en la tabla de 📊 Datos."
+# Revisión de F5d: deja claro que se usa el escalador del entrenamiento (D72), no uno ajustado con el archivo.
+nota_unidades = "Escribe los valores sin escalar, en sus unidades originales: MLTutor los escala con la media y la desviación que guardó al entrenar, no con las de tu archivo (como `scaler.transform` en scikit-learn; volver a ajustar el escalador con los datos nuevos cambiaría el significado de cada valor). Las columnas de texto deben venir ya codificadas como números, como en la tabla de 📊 Datos."
 # NUEVO (D81): help de las columnas Probabilidad (binaria) y Confianza (multiclase)
 probabilidad_help = "Salida de la neurona: la probabilidad de la clase positiva. La predicción es la positiva si es mayor que 0,5."
 confianza_help = "La probabilidad de la clase predicha (la mayor salida de la softmax). Alta no significa correcta: una red mal entrenada puede equivocarse con confianza."
 cargado = "✅ Archivo cargado: {filas} filas, {columnas} columnas"
 faltan = "❌ Faltan características: {columnas}"
 sobran = "⚠️ Características adicionales (serán ignoradas): {columnas}"
+# NUEVO (F5d): comprobaciones del CSV de lotes. Las columnas se buscan por NOMBRE, como en Python
+# (new_df[feature_cols]): sobrar columnas o venir en otro orden no es un error. Orden de las comprobaciones:
+# sin_filas → duplicadas → faltan → no_numericas → vacias; con cualquier ❌ no se predice nada.
+faltan_ayuda = "La primera fila del CSV debe tener los nombres exactos de las características, como en la lista de «Formato esperado» (mayúsculas, espacios y unidades incluidos)."   # caption bajo `faltan`
+# st.info si están todas pero en otro orden (o mezcladas con columnas que sobran)
+reordenadas = "ℹ️ Las columnas venían en otro orden: MLTutor las coloca por su nombre en el orden del entrenamiento. La red solo conoce posiciones; sin este paso, cada valor se multiplicaría por los pesos de otra característica."
+duplicadas = "❌ Hay columnas repetidas: {columnas}. Cada característica debe aparecer una sola vez."
+# {detalles} = no_numericas_item de la PRIMERA celda mala de cada columna, unidos por ", ". {fila} empieza en 1
+# (la primera fila de datos, sin contar la cabecera). Recomendado: aceptar true/false como 1/0, como al cargar
+# un CSV en 📊 Datos.
+no_numericas = "❌ Estas columnas tienen valores que no son números: {detalles}. Codifica el texto como números, como en la tabla de 📊 Datos, y revisa el separador decimal."
+no_numericas_item = "{columna} (fila {fila}: «{valor}»)"
+vacias = "❌ Hay celdas vacías en: {columnas} ({filas} filas). La red necesita un valor en cada característica: completa esas celdas o elimina las filas."
+sin_filas = "❌ El archivo no tiene filas de datos, solo la cabecera."
+# st.warning después de `generadas` si alguna fila tiene un valor fuera del [mínimo, máximo] de su característica
+# en las filas de ENTRENAMIENTO. {columnas} = las características afectadas, separadas por ", ".
+fuera_rango = "⚠️ {n} de {total} filas tienen algún valor fuera del rango de los datos de entrenamiento (en {columnas}). Sus predicciones son extrapolaciones: la red no ha visto muestras así y puede equivocarse con mucha seguridad. Están marcadas en la columna «Fuera de rango»."
+columna_fuera_rango = "Fuera de rango"                         # Sí / No; también en el CSV descargado
+columna_fuera_rango_help = "«Sí» si algún valor de la fila queda fuera del mínimo y el máximo de esa característica en los datos de entrenamiento: la predicción es una extrapolación."
+valor_si = "Sí"
+valor_no = "No"
 btn_predecir = "🚀 Generar Predicciones"
 columna_prediccion = "Predicción"
 columna_probabilidad = "Probabilidad"
@@ -676,7 +719,9 @@ base_multiclase = "🎯 **Predicción Base:** {clase} (Confianza: {confianza:.3f
 base_binaria = "🎯 **Predicción Base:** {clase} (Probabilidad: {p:.3f})"
 base_regresion = "🎯 **Predicción Base:** {valor:.6f}"
 paso_3 = "**3. 🔍 Explora el efecto de una característica:**"
-objetivo = "🎯 **Objetivo:** Verás cómo cambia la predicción cuando modificas solo UNA característica, manteniendo todas las demás constantes. Esto te ayuda a entender la importancia relativa de cada variable."
+# CORREGIDO (revisión de F5d): la curva de una sola muestra no es la importancia de la característica.
+# Python: "... Esto te ayuda a entender la importancia relativa de cada variable."
+objetivo = "🎯 **Objetivo:** Verás cómo cambia la predicción cuando modificas solo UNA característica, manteniendo todas las demás constantes. Esto te ayuda a entender cómo responde la red alrededor de esta muestra (no es la importancia de la característica en todo el modelo: ver «¿Qué es la Exploración Interactiva?»)."
 caracteristica_label = "Característica a explorar:"
 caracteristica_help = "Selecciona la característica cuyo efecto quieres analizar en las predicciones"
 # Gráfico Plotly (altura 500), 50 valores de min a max de la característica; línea verde discontinua "Valor Base"
@@ -696,13 +741,19 @@ rango_probabilidades_help = "Diferencia entre la probabilidad máxima y mínima 
 volatilidad = "Volatilidad"                               # {:.3f}
 volatilidad_help = "Qué tan variables son las predicciones (desviación estándar)"
 rango_predicciones = "Rango de Predicciones"              # {:.6f}
+# NUEVO (F5d): Python no tenía help en las dos métricas de regresión
+rango_predicciones_help = "Diferencia entre la predicción máxima y la mínima de los 50 valores explorados, en las unidades del objetivo"
 impacto_relativo = "Impacto Relativo"                     # {:.1f}%
-muy_influyente = "🎯 **Característica muy influyente:** '{caracteristica}' tiene un gran impacto en las predicciones"    # binaria: rango > 0.3
-moderada = "📊 **Característica moderadamente influyente:** '{caracteristica}' tiene un impacto moderado"                 # > 0.1
-poco_influyente = "📉 **Característica poco influyente:** '{caracteristica}' tiene poco impacto en las predicciones"
-muy_influyente_regresion = "🎯 **Característica muy influyente:** '{caracteristica}' causa cambios significativos"       # impacto > 20 %
-moderada_regresion = "📊 **Característica moderadamente influyente:** '{caracteristica}' tiene impacto moderado"           # > 5 %
-poco_influyente_regresion = "📉 **Característica poco influyente:** '{caracteristica}' tiene poco impacto"
+# NUEVO (F5d). Python: rango / |media de las 50 predicciones| · 100 (0 si la media es 0)
+impacto_relativo_help = "El rango dividido por el valor absoluto de la media de las predicciones, en %. Depende de dónde esté el cero del objetivo: si las predicciones rondan el 0 se dispara aunque el cambio sea pequeño."
+# CORREGIDO (revisión de F5d) las seis claves *influyente*/moderada*: añaden "en esta muestra" (Python generalizaba
+# el efecto de una muestra a todo el modelo). Python: las mismas frases sin "de esta muestra" / "en esta muestra".
+muy_influyente = "🎯 **Característica muy influyente:** '{caracteristica}' tiene un gran impacto en las predicciones de esta muestra"    # binaria: rango > 0.3
+moderada = "📊 **Característica moderadamente influyente:** '{caracteristica}' tiene un impacto moderado en esta muestra"                 # > 0.1
+poco_influyente = "📉 **Característica poco influyente:** '{caracteristica}' tiene poco impacto en las predicciones de esta muestra"
+muy_influyente_regresion = "🎯 **Característica muy influyente:** '{caracteristica}' causa cambios significativos en esta muestra"       # impacto > 20 %
+moderada_regresion = "📊 **Característica moderadamente influyente:** '{caracteristica}' tiene impacto moderado en esta muestra"           # > 5 %
+poco_influyente_regresion = "📉 **Característica poco influyente:** '{caracteristica}' tiene poco impacto en esta muestra"
 consejos_expander = "💡 Consejos para Interpretar los Resultados"     # exploracion-consejos.md ({caracteristica})
 # Python no tenía análisis para multiclase (solo la gráfica). NUEVO (D81): el mismo análisis con la
 # probabilidad de la clase base.
@@ -750,12 +801,15 @@ python_aviso = "⚠️ El código generado es una plantilla. Debes implementar l
 python_error = "Error generando código: {error}"
 metadatos_titulo = "**Exportar metadatos del modelo:**"        # + st.json(metadatos)
 metadatos_descargar = "📥 Descargar Metadatos"                 # neural_network_metadata.json
-adicional_titulo = "💡 Información Adicional"                  # st.subheader + st.info(exportar-recomendaciones.md)
+adicional_titulo = "💡 Información Adicional"                  # st.subheader + st.info(exportar-recomendaciones.md, CORREGIDO D75 para los formatos de Rust)
 error = "Error en la exportación: {error}"
 error_info = "Asegúrate de que el modelo esté entrenado correctamente."
 
 # NUEVO (D75): 💾 Exportar en Rust. Mismo orden y estilo de botones (panel con estado por lección).
 [exportar_rust]
+# NUEVO (2026-10-16, F5d): el predictor NumPy se descarga en ZIP (predecir_numpy.py + modelo.json).
+btn_numpy = "💾 Guardar predictor NumPy ({archivo})…"
+filtro_zip_numpy = "Predictor NumPy (*.zip)"
 botones = [["📦 Paquete Keras (.zip)", "Keras", "nn_export_keras"], ["💾 ONNX", "Onnx", "nn_export_onnx"], ["📝 Código Python", "Python", "nn_export_python"], ["📋 Metadatos", "Metadatos", "nn_export_metadata"]]
 keras_titulo = "**Exportar la red para usarla con TensorFlow/Keras:**"
 keras_texto = "El ZIP contiene los pesos de la red en modelo.json y un script que la reconstruye en Keras, comprueba que da las mismas salidas que MLTutor y la guarda como .keras, .h5, SavedModel y .tflite, junto con el escalador (scaler.pkl) y un modelo_completo.pkl como el de la versión anterior. Necesitas Python con TensorFlow instalado."
@@ -769,7 +823,27 @@ onnx_salidas_clasificacion = "Salidas: `label` (el código de la clase) y `proba
 onnx_salidas_regresion = "Salida: `variable` (el valor predicho)."
 python_texto = "La red entrenada escrita en NumPy: lee modelo.json (va en el paquete Keras), escala la entrada y aplica cada capa. Útil para ver qué calcula la red; no necesita TensorFlow."
 codigo_entrenamiento = "**🐍 Script para entrenar la misma red con Keras:**"   # red_entrenamiento.py.j2 (D74)
+metadatos_texto = "Un JSON con la arquitectura, los hiperparámetros, las características, las clases y la fecha del entrenamiento. No contiene los pesos: sirve para documentar qué modelo es cuál, no para predecir."   # NUEVO (F5d): encima del st.json
 metadatos_fecha_nota = "La fecha es la del entrenamiento."
+# NUEVO (F5d): caption "Cuándo usarlo" bajo el texto de cada panel (keras_texto, onnx_texto, python_texto,
+# metadatos_texto). El detalle está en exportar.md.
+keras_cuando = "💡 **Cuándo usarlo:** si vas a seguir con la red en Python y TensorFlow/Keras: cargarla en tu código, seguir entrenándola a partir de estos pesos o llevarla a un móvil con el .tflite."
+onnx_cuando = "💡 **Cuándo usarlo:** para predecir sin Python ni TensorFlow (una aplicación en C#, Java o JavaScript, un servidor ligero). Es el formato más portable y ya incluye el escalado."
+python_cuando = "💡 **Cuándo usarlo:** para entender qué calcula la red, multiplicación a multiplicación (el predictor NumPy), o para repetir el entrenamiento en Keras con la misma configuración y semilla (el script)."
+metadatos_cuando = "💡 **Cuándo usarlo:** para documentar y comparar modelos (qué datos, qué red, cuándo). Si además quieres predecir, exporta también el paquete Keras o el ONNX."
+# Errores al guardar un archivo: content/regresion/mensajes.toml [exportar] error_guardado (común a las lecciones).
+# NUEVO (F5d): nombres propuestos y filtros de los diálogos nativos de guardar (fase5-redes.md §3 C28 y C29).
+archivo_paquete = "modelo_red.zip"
+archivo_onnx = "red_neuronal.onnx"
+archivo_numpy = "red_predictor_numpy.zip"   # ZIP: predecir_numpy.py + modelo.json (un .py suelto no se puede ejecutar)
+archivo_entrenamiento = "red_entrenamiento.py"
+archivo_metadatos = "red_neuronal_metadatos.json"
+archivo_lotes = "predicciones_neural_network.csv"            # 📥 Descargar Resultados de [lotes] (nombre de Python)
+filtro_zip = "Paquete Keras (*.zip)"
+filtro_onnx = "Modelo ONNX (*.onnx)"
+filtro_py = "Código Python (*.py)"
+filtro_json = "JSON (*.json)"
+filtro_csv = "Archivos (*.csv)"                               # guardar resultados y abrir el CSV de lotes
 ayuda_expander = "ℹ️ ¿Qué formato elijo?"                    # NUEVO: cerrado, debajo de los cuatro botones; exportar.md
 # Metadatos: el JSON de Python con dos correcciones (D75): data_info.num_classes = número de clases (Python
 # ponía output_size: 1 en binaria) y export_info.framework = "MLTutor (Rust) · compatible con Keras".

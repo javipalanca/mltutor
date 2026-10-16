@@ -147,9 +147,9 @@ Pestañas: 📊 Datos · 🏗️ Arquitectura · ⚙️ Entrenamiento · 📈 Ev
         constante, mapa de la red con opciones de dibujo (dispersión, % de conexiones,
         radio adaptativo, agrupación de capas, espaciado, subcolumnas), histogramas y
         medias por capa, y mapa de neuronas muertas 💀 y constantes 😴.
-- [ ] Predicciones: individual (formulario), por lotes y exploración (índice de muestra y
+- [x] Predicciones: individual (formulario), por lotes y exploración (índice de muestra y
       característica). Por lotes y exploración son nuevas (D81): en Python eran inalcanzables.
-- [ ] Exportar: 📦 paquete Keras ZIP (genera .keras, .h5, SavedModel y .tflite), 💾 ONNX, 📝
+- [x] Exportar: 📦 paquete Keras ZIP (genera .keras, .h5, SavedModel y .tflite), 💾 ONNX, 📝
       predictor NumPy + script y 📋 metadatos (D75).
 
 ## 7. Código Python generado 🐍 `algorithms/code_examples.py`, `utils.py`

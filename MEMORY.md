@@ -297,6 +297,43 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
     `tools/knn_reference.py` lo reproduce bit a bit y es la especificación (D52, D66).
   - La wheel arm64 suma la distancia euclídea en bloques de 8 sin FMA, y el resto (`n % 8`) con FMA
     (D53, `mul_add`).
+- **F5d, interfaz (2026-10-16):**
+  - En `--smoke-test`/`--screenshot` no se abre ningún diálogo: `export_model` y `nn_save_batch`
+    escriben en `$TMPDIR/mltutor-automatizacion-<pid>/`. El lote lee el CSV de `--scenario nombre:ruta`
+    o escribe uno con 25 filas.
+  - El CSV de resultados del lote se queda en Rust (`NnBatches`) y a la UI solo viajan 100 filas.
+  - El lector CSV renombra las cabeceras repetidas como pandas (`a`, `a.1`), así que las duplicadas se
+    detectan por ese patrón. Rechaza archivos de 1 columna (`TooFewColumns`).
+  - La fecha de los metadatos la formatea la UI (`trained_at`), porque el backend no tiene zona horaria.
+  - En Plotly, un eje derecho con `overlaying: "y"` toma las marcas del izquierdo; se fija con
+    `tickmode: "linear"`.
+  - Corregido por el coordinador: el predictor NumPy se guardaba con el filtro y la extensión de un `.py`
+    aunque el contenido era un ZIP.
+  - Medidas: `.app` de 16,8 MiB; smoke test de 55–80 s con 23 comprobaciones.
+- **F5d, cálculo (2026-10-16):**
+  - C29 vive en `mltutor_core::nn_predict` sobre el trait `NetworkOutput`, porque el core no ve
+    `NeuralNetwork`.
+  - `show_neural_network_predictions` (código muerto en Python) se puede renderizar sin interfaz con
+    `LessonRenderer`, inyectando `state["nn_batch_predictions"] = (nombre, bytes)`; así se generó
+    `nn/predictions.json`.
+  - Python formatea las salidas f32 de Keras con `{:.6f}`, y un ulp cambia el último dígito: los tests
+    de textos numéricos comparan con tolerancia.
+  - `predecir_numpy.py` necesita `modelo.json`, así que se descarga como `red_predictor_numpy.zip`.
+  - Metadatos (D75): `num_classes` = 2 en binaria, la fecha del entrenamiento y el `target_column` real.
+    Se pueden generar con una red divergida (`valid: false`).
+  - Con 5×256 en California: exploración 2 ms; lote de 20 640 filas en 204 ms (431 KB).
+- **Contenido de F5d (2026-10-16):**
+  - `red_entrenamiento.py.j2` recibe `seed` (obligatoria en modo strict): con Keras 3.12 en CPU, la
+    misma semilla reproduce el historial bit a bit.
+  - Extrapolación: con los pesos de `iris_default`, un pétalo de 20 cm da virginica con 0,996 (la
+    confianza máxima en las flores reales es ~0,8). La red ReLU es lineal a trozos y se vuelve más segura
+    fuera de los datos.
+  - La exploración (D81) son curvas ICE de una sola muestra, con 50 valores entre el mínimo y el máximo
+    del DATASET ENTERO. El "impacto relativo" es rango / |media de las predicciones| (depende del cero
+    del objetivo).
+  - Los avisos de fuera de rango usan el rango de ENTRENAMIENTO sin escalar.
+  - En la predicción por lotes, las columnas se buscan por nombre (sobrar columnas o venir en otro orden
+    no es un error) y se escala con el escalador del entrenamiento.
 - **Revisión Rust F5a, correcciones (2026-10-16):**
   - `f32::max(NaN, 0.0)` devuelve 0, así que una ReLU hecha con max OCULTA la divergencia; se usa
     `if v < 0 { 0 }`.

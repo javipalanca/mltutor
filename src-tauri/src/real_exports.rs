@@ -43,6 +43,9 @@ pub fn export(model: &CoreModel, format: ExportFormat) -> Result<Vec<u8>, Comman
                 .map_err(export_error)
         }
         ExportFormat::TreeRules | ExportFormat::TreePython => Err(CommandError::not_tree()),
+        ExportFormat::KerasPackage | ExportFormat::NnNumpyPredictor | ExportFormat::NnMetadata => {
+            Err(CommandError::not_nn())
+        }
     }
 }
 

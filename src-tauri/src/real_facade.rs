@@ -108,6 +108,11 @@ fn describe(table: core::DescribeTable) -> DescribeTable {
     }
 }
 
+/// The IPC summary of a core dataset (also for the scripts of a trained network).
+pub(crate) fn summary_of(dataset: &core::Dataset) -> DatasetSummary {
+    summary(dataset.summary())
+}
+
 fn summary(summary: core::DatasetSummary) -> DatasetSummary {
     DatasetSummary {
         // Filled in by the session (it knows the reference of the dataset).

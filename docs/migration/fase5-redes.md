@@ -926,6 +926,65 @@ siendo exacto respecto a Python, y el test sustituye esos literales en los fixtu
 con `target + 1` en una columna `clase`; clases "Clase 1/2/3"; banda de `iris_default`/`breast_cancer_default`) y guarda
 el `input` de cada caso.
 
+
+#### 8.4.2 Cálculo de F5d (2026-10-16, `rust-ml-engineer`)
+
+**Interfaces acordadas (L1–L3)**, en `crates/`:
+- **L1** El único `NnTrainingContext` es `mltutor_core::codegen::NnTrainingContext`, que gana `seed: u64`
+  (`= training.seed`, D70) y que `red_entrenamiento.py.j2` usa en `keras.utils.set_random_seed({{ seed }})`.
+  `code/nn_training.json` se ha regenerado con la plantilla final (`seed = 42` en los 8 contextos; las métricas siguen
+  dentro de la banda). Test nuevo: `nn_training_script_uses_the_seed` (semilla 1234). Tauri puede borrar su copia de
+  `src-tauri/src/nn.rs`.
+- **L2** C29 en `mltutor_core::nn_predict`, sobre el trait `NetworkOutput: Predictor` (`raw_output`,
+  `output_is_probability`), que implementa `mltutor_nn::NeuralNetwork`:
+  - `nn_explore(&dyn NetworkOutput, x_dataset, sample_index, feature, n_points, &TrainControl) -> ExploreView`. El eje es
+    `linspace(min, max, 50)` del **dataset entero**, como Python. La curva depende de la salida: binaria (`p`), multiclase
+    (clase y confianza, como Python, y, NUEVO, la probabilidad de la clase de la muestra base) o regresión (valor).
+    También devuelve `ExploreStats { range (f32, como Python), std (np.std), mean, relative_impact_pct }` y
+    `Influence::{High, Moderate, Low}`. Umbrales: rango de probabilidad > 0,3 / > 0,1 (en multiclase, NUEVO, sobre la clase
+    base); impacto relativo > 20 % / > 5 %. El impacto relativo es `rango / |media| · 100`, como Python; depende de dónde
+    esté el cero del objetivo (documentado). Límites: 2..=1000 puntos, NaN → `NonFinite`, cancelación antes y después del
+    forward.
+  - `batch_columns(features, file_columns) -> BatchColumns { positions, missing, extra }` (por nombre exacto, en el orden
+    del modelo y del archivo) y `nn_predict_batch(&dyn NetworkOutput, rows, &TrainControl) -> BatchView { rows, kind,
+    classes, output_is_probability, predictions }`. Las predicciones son `Binary { predicted, probability, confidence }`
+    (las columnas de Python Predicción/Probabilidad/Confianza; `max(p, 1 − p)` en f32), `Multiclass { predicted,
+    confidence, probabilities }` o `Regression { values }`. Como mucho 200 000 filas, en trozos de 4096 con cancelación.
+  - Avisos de fuera de rango (para la UI): `training_ranges(x, train_rows) -> Vec<FeatureRange>` sobre las filas de
+    entrenamiento **sin escalar** (`TrainedNetwork::training_ranges(x)`) y `out_of_range(rows, &ranges)`.
+  - `predict_one` (F2) ya escala dentro; probado frente a `prediction_form` de los casos `full`.
+- **L3** `mltutor_export::metadata::nn_metadata(&TrainedNetwork, &Dataset, &NnArchitecture, &NnTraining, trained_at) ->
+  serde_json::Value`, con los bloques y las claves de Python (`model_info`, `training_info`, `data_info`, `export_info`)
+  más `config`. Correcciones (D75, §12.16):
+  - `num_classes` = 2 en binaria;
+  - `training_date` es la fecha del entrenamiento, no la actual;
+  - `version` es la de MLTutor y `framework` dice que lo entrenó el MLP propio;
+  - `target_column` es la columna real (Python escribía `"target"`).
+
+  Añade también: el MAE en regresión, la pérdida y la métrica de test, `best_epoch`, `stopped_early` y `diverged_epoch` (en
+  base 1), la LR final, la semilla, los tamaños y el escalador. Es determinista, y los valores no finitos se escriben como
+  `null`. Una red divergida se describe (`valid: false`). Nombre: `red_neuronal_metadatos.json`.
+
+**C28 revisado:** ONNX y el paquete Keras rechazan con `InvalidModel` los pesos NaN o ∞, el escalador no finito y una
+divergencia real (Diabetes, tanh, SGD, LR 0,3). El paquete también rechaza las salidas de comprobación que se desbordan
+con pesos finitos. **Hueco corregido:** `predecir_numpy.py` lee `modelo.json`, así que el "📝 Código Python" descargado
+solo no funcionaba. `KerasPackage::numpy_zip()` (`red_predictor_numpy.zip`) lo empaqueta junto a su `modelo.json`.
+
+**Fixture nuevo `nn/predictions.json`** (`golden_nn.py::case_predictions`): `show_neural_network_predictions` se
+renderiza sin interfaz, con un Keras que lleva los pesos finales de `nn/exact/<caso>`. Incluye 9 casos (multiclase
+softmax y tanh, binaria sigmoid y tanh, Moons, regresión y los dos CSV), 16 exploraciones con la curva que dibuja Python
+(un `predict` por valor), sus textos y métricas, y un lote de 40 filas con columna extra (el CSV de resultados) y otro al
+que le falta una característica. Paridad (`mltutor-nn/tests/parity_predictions.rs`):
+- `xs` y muestra base, exactos;
+- salidas, error relativo máximo de 1,15e-6 en la exploración y de 2,2e-7 en el lote (tolerancia 1e-5);
+- clases, exactas (salvo empates o `|p − 0,5| < 1e-5`; no hay ninguno);
+- rango binario, 6e-8 frente al float32 de Python;
+- textos `{:.3f}`/`{:.6f}`/`{:.1f}%` y veredictos, iguales salvo el último dígito (un ulp de f32: 9,626791 frente a
+  9,626790).
+
+Medidas (release, Mac M, red 5 × 256 en California): la exploración tarda 2 ms; el lote de 20 640 filas, 204 ms (431 KB
+de JSON).
+
 ---
 
 ## 9. Subfases, reparto de tareas y checklist

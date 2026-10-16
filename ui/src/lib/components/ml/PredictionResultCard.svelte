@@ -13,9 +13,11 @@
 
   interface Props {
     result: PredictionResult;
+    /** A second line inside the card (🧠 binary: "Probabilidad clase positiva: 0.9584"). */
+    detail?: string | null;
   }
 
-  let { result }: Props = $props();
+  let { result, detail = null }: Props = $props();
   const text = (v: string): Cell => ({ kind: "text", v });
 </script>
 
@@ -28,6 +30,9 @@
       {fmtText(compText("prediccion", "resultado_valor"), { valor: result.value })}
     {/if}
   </p>
+  {#if detail}
+    <p class="detail" data-prediction-detail>{detail}</p>
+  {/if}
 </div>
 {#if result.kind === "class" && result.proba}
   <DataTable
@@ -68,6 +73,13 @@
     color: #2e7d32;
     font-size: 24px;
     font-weight: 700;
+    user-select: text;
+  }
+
+  .detail {
+    margin: 10px 0 0;
+    color: var(--color-text);
+    font-size: 14px;
     user-select: text;
   }
 

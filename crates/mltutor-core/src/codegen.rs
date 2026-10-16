@@ -291,6 +291,10 @@ pub struct NnTrainingContext {
     pub class_names: Option<Vec<String>>,
     /// Form values (column order); `None` = first test row.
     pub sample: Option<Vec<f64>>,
+    /// The model's "🎲 Semilla" (D70, [`crate::nn_data::NnTraining::seed`]): the
+    /// script passes it to `keras.utils.set_random_seed`. Keras' generator is not
+    /// MLTutor's MT19937, so the same seed repeats Keras' run, not the app's weights.
+    pub seed: u64,
 }
 
 /// The dataset part of the 🧠 contexts (how the script loads the data).
@@ -363,6 +367,7 @@ impl NnTrainingContext {
                 None
             },
             sample: None,
+            seed: u64::from(training.seed),
         })
     }
 }
