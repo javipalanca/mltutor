@@ -15,6 +15,16 @@ use mltutor_core::{
 };
 use ndarray::Axis;
 
+/// Multiplier for the time budgets (`MLTUTOR_BUDGET_FACTOR`, default 1): the budgets are
+/// calibrated on an M-series Mac, and CI runners with 4 vCPUs are slower.
+fn budget_factor() -> f64 {
+    std::env::var("MLTUTOR_BUDGET_FACTOR")
+        .ok()
+        .and_then(|v| v.parse::<f64>().ok())
+        .filter(|f| f.is_finite() && *f >= 1.0)
+        .unwrap_or(1.0)
+}
+
 fn median<F: FnMut()>(mut f: F) -> Duration {
     f();
     let mut runs: Vec<Duration> = (0..7)
@@ -31,7 +41,10 @@ fn median<F: FnMut()>(mut f: F) -> Duration {
 fn report(name: &str, d: Duration) {
     println!("{name:<40} {d:>10.2?}");
     if !cfg!(debug_assertions) {
-        assert!(d < Duration::from_millis(100), "{name}: {d:?}");
+        assert!(
+            d.as_secs_f64() * 1e3 < 100.0 * budget_factor(),
+            "{name}: {d:?}"
+        );
     }
 }
 

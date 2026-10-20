@@ -10,6 +10,16 @@ use mltutor_nn::{
     train_network, Activation, FitControl, NnArchitecture, NnTraining, OptimizerKind, TrainOptions,
 };
 
+/// Multiplier for the time budgets (`MLTUTOR_BUDGET_FACTOR`, default 1): the budgets are
+/// calibrated on an M-series Mac, and CI runners with 4 vCPUs are slower.
+fn budget_factor() -> f64 {
+    std::env::var("MLTUTOR_BUDGET_FACTOR")
+        .ok()
+        .and_then(|v| v.parse::<f64>().ok())
+        .filter(|f| f.is_finite() && *f >= 1.0)
+        .unwrap_or(1.0)
+}
+
 fn time(id: DatasetId, output: Activation, epochs: u16, patience: Option<u8>) -> (f64, usize) {
     let ds = load_builtin(id).unwrap();
     let arch = NnArchitecture {
@@ -57,8 +67,8 @@ fn training_budgets() {
         "California, 100 epochs (no early stopping): {:.2} s ({e2} epochs)",
         cal
     );
-    assert!(iris < 0.1, "Iris {iris}");
-    assert!(cal < 10.0, "California {cal}");
+    assert!(iris < 0.1 * budget_factor(), "Iris {iris}");
+    assert!(cal < 10.0 * budget_factor(), "California {cal}");
 }
 
 /// Review F5a (finding 2) and K6: California with 5 × 256 neurons (before the
@@ -117,7 +127,10 @@ fn california_large_networks_and_cost_model() {
             cost.level
         );
         if hidden == vec![256; 5] && batch == 32 {
-            assert!(secs / f64::from(epochs) < 2.0, "5x256: {secs} s");
+            assert!(
+                secs / f64::from(epochs) < 2.0 * budget_factor(),
+                "5x256: {secs} s"
+            );
         }
     }
 }

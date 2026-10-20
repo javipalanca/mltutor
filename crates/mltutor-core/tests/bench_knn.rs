@@ -20,6 +20,16 @@ use mltutor_core::model::{Predictor, TrainControl};
 use mltutor_core::split;
 use ndarray::Axis;
 
+/// Multiplier for the time budgets (`MLTUTOR_BUDGET_FACTOR`, default 1): the budgets are
+/// calibrated on an M-series Mac, and CI runners with 4 vCPUs are slower.
+fn budget_factor() -> f64 {
+    std::env::var("MLTUTOR_BUDGET_FACTOR")
+        .ok()
+        .and_then(|v| v.parse::<f64>().ok())
+        .filter(|f| f.is_finite() && *f >= 1.0)
+        .unwrap_or(1.0)
+}
+
 fn median<F: FnMut()>(mut f: F) -> Duration {
     f();
     let mut runs: Vec<Duration> = (0..5)
@@ -36,7 +46,10 @@ fn median<F: FnMut()>(mut f: F) -> Duration {
 fn report(name: &str, d: Duration, budget_ms: u64) {
     println!("{name:<56} {d:>10.2?}  (budget {budget_ms} ms)");
     if !cfg!(debug_assertions) {
-        assert!(d < Duration::from_millis(budget_ms), "{name}: {d:?}");
+        assert!(
+            d.as_secs_f64() * 1e3 < budget_ms as f64 * budget_factor(),
+            "{name}: {d:?}"
+        );
     }
 }
 
@@ -157,7 +170,6 @@ fn knn_budgets() {
 /// F4 review: the class distances of 70 000 rows (8 features). Before: O(n²) on one
 /// thread, 14.6 s (2 classes) and 10.1 s (10 classes) on an M-series Mac; now the
 /// classes are capped at 5 000 rows (`sampled`) and the rows run on up to 8 threads.
-/// The 10-class budget leaves room for a 4-vCPU CI runner (3.4 s on ubuntu-22.04).
 #[test]
 #[ignore = "benchmark: run in release with --ignored"]
 fn class_distances_70k() {
@@ -165,7 +177,7 @@ fn class_distances_70k() {
     let x = ndarray::Array2::from_shape_fn((n, 8), |(i, j)| {
         ((i.wrapping_mul(2_654_435_761) ^ (j * 40_503)) % 1000) as f64 / 100.0
     });
-    for (k, budget) in [(2usize, 300), (10, 6000)] {
+    for (k, budget) in [(2usize, 300), (10, 3000)] {
         let codes: Vec<usize> = (0..n).map(|i| i % k).collect();
         let mut sampled = false;
         let d = median(|| {

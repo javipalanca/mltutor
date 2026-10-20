@@ -459,6 +459,9 @@ jobs:
       - name: Time budgets (release)
         # One test at a time: the budgets measure wall time, and parallel tests on a
         # 4-vCPU runner would compete for the cores.
+        env:
+          # The budgets are calibrated on an M-series Mac; the runner is ~1.2–2× slower.
+          MLTUTOR_BUDGET_FACTOR: '3'
         run: |
           cargo test --release -p mltutor-core \
             --test bench_trees --test bench_knn --test bench_regression --test bench_california \

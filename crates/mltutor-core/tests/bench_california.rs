@@ -8,6 +8,16 @@ use std::time::{Duration, Instant};
 use mltutor_core::dataset::{load_builtin, DatasetId};
 use mltutor_core::explore::{self, DiagKind};
 
+/// Multiplier for the time budgets (`MLTUTOR_BUDGET_FACTOR`, default 1): the budgets are
+/// calibrated on an M-series Mac, and CI runners with 4 vCPUs are slower.
+fn budget_factor() -> f64 {
+    std::env::var("MLTUTOR_BUDGET_FACTOR")
+        .ok()
+        .and_then(|v| v.parse::<f64>().ok())
+        .filter(|f| f.is_finite() && *f >= 1.0)
+        .unwrap_or(1.0)
+}
+
 fn pipeline() -> Duration {
     let start = Instant::now();
     let ds = load_builtin(DatasetId::CaliforniaHousing).unwrap();
@@ -37,6 +47,9 @@ fn california_full_pipeline_under_100_ms() {
         runs[runs.len() - 1]
     );
     if !cfg!(debug_assertions) {
-        assert!(median < Duration::from_millis(100), "{median:?}");
+        assert!(
+            median.as_secs_f64() * 1e3 < 100.0 * budget_factor(),
+            "{median:?}"
+        );
     }
 }
