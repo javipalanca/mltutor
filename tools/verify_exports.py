@@ -124,6 +124,8 @@ KNN_TIE_REL = 1e-9
 # rows (Titanic K=5, ONNX) on macOS arm64, and 7 (ONNX) / 4 (scikit-learn) on Linux x86-64.
 KNN_TOLERATED_MAX = 0.05
 KNN_TOLERATED_MIN = 3
+# Relative rounding noise of a sum of weights 1/d: two classes this close count as tied.
+KNN_VOTE_NOISE = 1e-12
 # More valid answers than this under a tie is a failure (not expected in the corpus).
 KNN_MAX_ANSWERS = 20000
 
@@ -134,6 +136,17 @@ GLUE: dict[str, str] = {
     "tree_text": TREE_GLUE,
     "decision_path": TREE_GLUE,
 }
+# The list of names (`clases`, by code) is accepted only if classes_ == 0..n-1; otherwise
+# the snippet must raise ValueError instead of naming the wrong class.
+_LIST_PATH = (
+    "def _with_list(fn):\n"
+    "    _l = globals().get('clases')\n"
+    "    if _l is None:\n"
+    "        return None\n"
+    "    try:\n"
+    "        return ('ok', fn(_l))\n"
+    "    except ValueError as _e:\n"
+    "        return ('ValueError', str(_e))\n")
 # Code run after each snippet; it leaves what is compared in RESULT.
 AFTER: dict[str, str] = {
     "confusion_matrix": "RESULT = {'cm': cm.tolist(), "
@@ -145,15 +158,19 @@ AFTER: dict[str, str] = {
         "RESULT = {'same_columns': bool(_np.array_equal(\n"
         "    X_2d, _np.asarray(_X, dtype=float)[:, SPEC['pair']])),\n"
         "    'legend': [t.get_text() for t in ax.get_legend().get_texts()]}\n"),
-    "tree_text": "RESULT = tree_text\n",
-    "decision_path": (
-        "import contextlib, io\nRESULT = []\n"
-        "for _i in range(len(X_test)):\n"
+    "tree_text": _LIST_PATH + (
+        "RESULT = {'text': tree_text,\n"
+        "          'list': _with_list(lambda l: get_tree_text(tree_model, feature_names, l))}\n"),
+    "decision_path": _LIST_PATH + (
+        "import contextlib, io\nRESULT = {'paths': []}\n"
+        "def _path(i, names):\n"
         "    _buf = io.StringIO()\n"
         "    with contextlib.redirect_stdout(_buf):\n"
-        "        mostrar_camino_decision(tree_model, X_test.iloc[[_i]], feature_names, "
-        "nombre_clase)\n"
-        "    RESULT.append(_buf.getvalue())\n"),
+        "        mostrar_camino_decision(tree_model, X_test.iloc[[i]], feature_names, names)\n"
+        "    return _buf.getvalue()\n"
+        "for _i in range(len(X_test)):\n"
+        "    RESULT['paths'].append(_path(_i, nombre_clase))\n"
+        "RESULT['list'] = _with_list(lambda l: _path(0, l))\n"),
 }
 # Templates of content/code that the Rust app never offers as runnable code.
 NOT_RUN: dict[str, str] = {
@@ -615,6 +632,19 @@ class KnnReference:
                               answers=self._answers(d, definite, tied, slots, zero)))
         return out
 
+    def _labels(self, proba: np.ndarray) -> set[int]:
+        """The predicted class: scikit-learn, Rust and the ONNX ArgMax all take the FIRST
+        maximum, so a vote tie (1–1 with K=2) has ONE valid label. With distance weights
+        the sums 1/d carry rounding noise, so a class within KNN_VOTE_NOISE of the best
+        (relative) is also accepted; the first maximum always is."""
+        codes = self.case["model_classes"]
+        first = int(np.argmax(proba))
+        labels = {codes[first]}
+        if self.weights == "distance":
+            best = proba[first]
+            labels |= {codes[i] for i in np.flatnonzero(proba >= best * (1 - KNN_VOTE_NOISE))}
+        return labels
+
     def _answers(self, d, definite, tied, slots, zero) -> list[dict]:
         zero_rule = self.weights == "distance" and zero
         groups: dict[Any, list[int]] = {}
@@ -629,10 +659,7 @@ class KnnReference:
             if self.n_classes:
                 votes = np.bincount(self.y[chosen], weights=w, minlength=self.n_classes)
                 proba = votes / votes.sum()
-                best = proba.max()
-                labels = {self.case["model_classes"][i] for i in np.flatnonzero(
-                    proba >= best - 1e-12)}
-                answers.append({"proba": proba, "codes": labels})
+                answers.append({"proba": proba, "codes": self._labels(proba)})
             else:
                 answers.append({"value": float((w * self.y[chosen]).sum() / w.sum())})
             if len(answers) > KNN_MAX_ANSWERS:
@@ -721,11 +748,15 @@ def compare_knn(ctx: Ctx, name: str, case: dict, *, onnx: bool, codes: list | No
                        ({"codes": {rcode}} if rvalue is None else {"value": rvalue}),
                        code=code, proba=p, value=v, tol=vs_rust):
             continue
+        # Why it differs from Rust. A float64 answer means a choice under a float64 tie; only
+        # an answer that exists solely for the float32 input is a float32 effect.
+        in64 = any(knn_matches(a, code=code, proba=p, value=v, tol=art_exact)
+                   for a in r64.answers)
         if onnx and r64.zero and not r32.zero:
             causes["distancia 0"] += 1
-        elif r64.tie or r32.tie:
+        elif in64 and r64.tie:
             causes["empate"] += 1
-        elif onnx:
+        elif onnx and not in64:
             causes["float32"] += 1
         else:
             bad.append(f"row {i}: differs from Rust without a tie")
@@ -953,6 +984,26 @@ def check_training_script(case: dict, got: dict, label: str, seconds: float) -> 
     return Row(name, label + " = Rust", ok, "split = app's; " + detail, seconds), codes
 
 
+def list_accepted(case: dict) -> bool:
+    """Whether the tree snippets accept the list of names by code: the model's classes_
+    (the class values the script's y holds) must be 0..n-1."""
+    values = [case["class_values"][c] for c in case["model_classes"]]
+    return values == list(range(len(values)))
+
+
+def check_list_path(case: dict, got, with_dict) -> tuple[bool, str]:
+    """`got` = the snippet called with the list `clases`: ('ok', output) or
+    ('ValueError', message); None in regression."""
+    if case["task"] == "regression":
+        return got is None, ""
+    if list_accepted(case):
+        ok = got is not None and got[0] == "ok" and got[1] == with_dict
+        return ok, "; list = dict" if ok else f"; the list gave {got!r}"
+    ok = got is not None and got[0] == "ValueError" and "nombre_clase" in got[1]
+    return ok, ("; list → ValueError (classes_ = values)" if ok
+                else f"; the list should raise ValueError, got {got!r}")
+
+
 def check_snippet(case: dict, key: str, entry: dict, files: dict, predicted: list,
                   root: Path) -> Row:
     name = case["name"]
@@ -994,11 +1045,18 @@ def check_snippet(case: dict, key: str, entry: dict, files: dict, predicted: lis
                    if ok else f"same_columns={res['same_columns']}, legend {res['legend']} vs {want}")
     if key == "tree_text":
         rules = (root / files["rules_with_weights"]).read_text("utf-8").strip()
-        ok = res.strip() == rules
-        return Row(name, tlabel + " = 📝 Texto", ok, "same text, weights and classes" if ok
-                   else "differs from the app's text with weights")
+        ok = res["text"].strip() == rules
+        list_ok, list_detail = check_list_path(case, res["list"], res["text"])
+        return Row(name, tlabel + " = 📝 Texto", ok and list_ok,
+                   ("same text, weights and classes" if ok
+                    else "differs from the app's text with weights") + list_detail)
     if key == "decision_path":
         bad = []
+        list_ok, list_detail = check_list_path(case, res["list"], res["paths"][0]
+                                               if res["paths"] else None)
+        res = res["paths"]
+        if not list_ok:
+            return Row(name, tlabel, False, list_detail.lstrip("; "))
         if len(res) != len(case["rust"]):
             return Row(name, tlabel, False, f"{len(res)} paths for {len(case['rust'])} rows")
         for i, (text, r) in enumerate(zip(res, case["rust"])):
@@ -1010,7 +1068,8 @@ def check_snippet(case: dict, key: str, entry: dict, files: dict, predicted: lis
             if text.strip().splitlines() != want:
                 bad.append(i)
         return Row(name, tlabel + " = Rust", not bad,
-                   f"{len(res)} rows, every step" if not bad else f"rows {bad[:5]} differ")
+                   (f"{len(res)} rows, every step" if not bad else f"rows {bad[:5]} differ")
+                   + list_detail)
     if key == "tree_python":
         regression = case["task"] == "regression"
         ok, detail = (compare(case, "sk_tree", values=res) if regression
@@ -1159,6 +1218,28 @@ def case_checks(case: dict) -> list[Callable[[Ctx, str, dict], list[Row]]]:
     return checks
 
 
+def self_test() -> None:
+    """Unit checks of the KNN reference (run before every verification)."""
+    # K=2 uniform, query 0: class 0 at distance 1, class 1 at distance 2. No neighbour tie,
+    # but a 1–1 vote tie: scikit-learn, Rust and ONNX predict the FIRST class, 0, only.
+    case = {"config": {"n_neighbors": 2, "weights": "uniform", "metric": "euclidean"},
+            "task": "classification", "model_classes": [0, 1]}
+    ref = KnnReference(case, {"X_train": [[1.0], [2.0], [10.0]], "y_train": [0, 1, 1],
+                              "classes_": [0, 1]})
+    row = ref.rows(np.array([[0.0]]))[0]
+    tol = TOL["knn_onnx_exact"]
+    assert not row.tie and len(row.answers) == 1, row
+    assert any(knn_matches(a, code=0, proba=[.5, .5], tol=tol) for a in row.answers)
+    assert not any(knn_matches(a, code=1, proba=[.5, .5], tol=tol) for a in row.answers)
+    # A real tie at the K-th distance: both choices are valid.
+    tie = KnnReference(case, {"X_train": [[1.0], [-2.0], [2.0]], "y_train": [0, 0, 1],
+                              "classes_": [0, 1]}).rows(np.array([[0.0]]))[0]
+    assert tie.tie and len(tie.answers) == 2, tie
+    assert any(knn_matches(a, code=0, proba=[1.0, 0.0], tol=tol) for a in tie.answers)
+    assert any(knn_matches(a, code=0, proba=[.5, .5], tol=tol) for a in tie.answers)
+    assert not any(knn_matches(a, code=1, proba=[.5, .5], tol=tol) for a in tie.answers)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("corpus", type=Path, help="folder written by export_corpus")
@@ -1167,6 +1248,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--timeout", type=int, default=300, help="seconds per script")
     parser.add_argument("--keep", action="store_true", help="keep the temporary folders")
     args = parser.parse_args(argv)
+    self_test()
 
     root = args.corpus.resolve()
     index = json.loads((root / "index.json").read_text("utf-8"))

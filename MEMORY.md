@@ -298,7 +298,7 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
   - La wheel arm64 suma la distancia euclídea en bloques de 8 sin FMA, y el resto (`n % 8`) con FMA
     (D53, `mul_add`).
 - **Fase 6, validación cruzada de exportaciones (2026-10-20):**
-  - El corpus lo escribe `src-tauri/src/export_corpus.rs` (test `#[ignore]`, 45 casos) por la capa de dominio:
+  - El corpus lo escribe `src-tauri/src/export_corpus.rs` (test `#[ignore]`, 48 casos) por la capa de dominio:
     `DataState` (selección o `load_csv_bytes` + `set_csv_target`), `ModelState::train` y las funciones que
     ahora usan los comandos: `models::predict_with`, `code_of` y `export_bytes` (con sus `validate_*`).
     Antes de escribir comprueba el split FILA A FILA: las filas `check` de los paquetes, la matriz de
@@ -309,7 +309,7 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
   - `tools/verify_exports.py` + `tools/verify_exports.lock.txt` (`uv pip compile --universal
     --generate-hashes` de `verify_exports.requirements.txt`; en Windows hace falta `tensorflow-intel`).
     En este Mac: `uv run --no-project --python .venv/bin/python --with-requirements
-    tools/verify_exports.lock.txt python tools/verify_exports.py <corpus>`; ~374 comprobaciones en unos 50 s
+    tools/verify_exports.lock.txt python tools/verify_exports.py <corpus>`; ~398 comprobaciones en unos 50 s
     con 4 procesos. Cada script corre con `python -I -X utf8` en una carpeta nueva, sockets bloqueados,
     `SEABORN_DATA` en una copia de `mltutor/dataset/data/sample_datasets` y `SCIKIT_LEARN_DATA` vacío
     (California no carga sin red: solo su ONNX y su paquete; Diamantes no está en `sample_datasets`).
@@ -323,6 +323,13 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
     float32). Filas toleradas como mucho el 5 % (mín. 3); observado: 7/268 en Titanic (ONNX) en mac y en
     Linux, 4/268 en scikit-learn en Linux. Un duplicado exacto de train deja de estar a distancia 0 al
     pasar a float32 ("distancia 0" se cuenta aparte): lo explica el LEEME del KNN.
+    Un empate de VOTOS sin empate de vecinos (K=2, 1–1) tiene UNA etiqueta válida: sklearn, Rust y
+    el ArgMax del ONNX toman el PRIMER máximo (con pesos distance solo se admite ruido relativo de
+    1e-12). Una fila ONNX cuenta como "float32" solo si su respuesta no existe en float64.
+    `verify_exports.self_test()` lo comprueba antes de cada ejecución.
+  - `vinos_raros.csv` (cultivares 2/3/4 y un 1 solo en la prueba): valor ≠ código ≠ posición en
+    `classes_`; con la lista `clases`, `texto_arbol`/`camino_decision` deben dar ValueError, y lo
+    comprueba el verificador (también en `raras.csv`, donde `classes_` = [0, 2, 3, 4]).
   - **ONNX de una red con salida tanh (binaria):** `probabilities` = `[1−p, p]` con p ∈ (−1, 1), así que
     salen valores negativos o > 1 (observado: −0,043..1,043). Lo avisa el LEEME de la red (D87).
   - Errores máximos observados: ONNX lineal 5,1e-6 relativo (California), logística 8e-7, árboles 5e-8,

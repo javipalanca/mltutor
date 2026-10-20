@@ -1,6 +1,6 @@
 # Plan de migración de MLTutor a Rust
 
-Rama: `feature/rust-migration` · Inicio: 2026-10-13 · Estado: **Fases 0 y 1 completadas (2026-10-14, revisadas por rust-reviewer), Fases 0–4 completadas (F4: 2026-10-15, revisada por rust-reviewer y ml-correctness-reviewer), Fase 5 completada (2026-10-16, F5a–F5d revisadas por rust-reviewer y ml-correctness-reviewer), Fase 6 implementada (2026-10-20, pendiente de revisión)**
+Rama: `feature/rust-migration` · Inicio: 2026-10-13 · Estado: **Fases 0 y 1 completadas (2026-10-14, revisadas por rust-reviewer), Fases 0–4 completadas (F4: 2026-10-15, revisada por rust-reviewer y ml-correctness-reviewer), Fase 5 completada (2026-10-16, F5a–F5d revisadas por rust-reviewer y ml-correctness-reviewer), Fase 6 completada (2026-10-20, revisada por rust-reviewer y ml-correctness-reviewer), Fase 7 en curso**
 
 ## Objetivo
 
@@ -222,10 +222,10 @@ Cada subfase se cierra con el CI y la revisión.
 - [x] Validación cruzada de exportaciones en CI: un job de Python carga cada ONNX con
       `onnxruntime` y ejecuta cada paquete Python, y comprueba que las predicciones
       coinciden con las de Rust. Sustituye a `--verify-models`. *(2026-10-20, revisado: el corpus lo escribe
-      `src-tauri/src/export_corpus.rs` (test `#[ignore]`, 45 casos: lineal, logística binaria y multiclase,
+      `src-tauri/src/export_corpus.rs` (test `#[ignore]`, 48 casos: lineal, logística binaria y multiclase,
       árboles de clasificación y regresión (también absolute_error), KNN uniform/distance (kd-tree y fuerza
       bruta), MLP binaria (sigmoid y tanh), multiclase y de regresión; Pingüinos, MPG, Propinas, Dígitos,
-      Moons y CSV con `;`, coma decimal, cp1252, tabuladores, clases 1/2/3 y 2/4 y clases ausentes del train
+      Moons y CSV con `;`, coma decimal, cp1252, tabuladores, clases 1/2/3 y 2/4, clases ausentes del train
       o de la prueba) por la capa de dominio de la app (`DataState`, `ModelState`, `predict_with`,
       `code_of`, `export_bytes`); `tools/verify_exports.py` lo comprueba con onnxruntime, scikit-learn y
       Keras (también `.keras`, `.h5`, SavedModel, TFLite y los `.pkl`), con los empates de KNN enumerados;

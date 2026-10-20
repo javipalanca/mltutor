@@ -230,6 +230,26 @@ fn rare_classes_csv() -> Vec<u8> {
     .into_bytes()
 }
 
+/// Wine with cultivars 2, 3, 4 (code + 2) and a cultivar 1 on ONE test row, absent from
+/// the train set. The class value, the dataset code and the position in `classes_` then
+/// all differ (value 2 = code 1 = position 0), the model sees 3 of the 4 classes and the
+/// ONNX labels are the class values of `model_classes` only.
+fn shifted_rare_classes_csv() -> Vec<u8> {
+    let wine = builtin_dataset(DatasetId::Wine);
+    let split = core::split::train_test_split(wine.n_rows(), TEST_SIZE, SEED).unwrap();
+    let test_row = split.test[0];
+    let mut header: Vec<&str> = wine.feature_columns.iter().map(String::as_str).collect();
+    header.push("cultivar");
+    csv_from(DatasetId::Wine, ',', false, Some(&header), |i, c| {
+        if i == test_row {
+            "1".to_owned()
+        } else {
+            (c + 2).to_string()
+        }
+    })
+    .into_bytes()
+}
+
 /// `tests/parity/csv/<name>.json` → the CSV bytes it describes.
 fn parity_csv(name: &str) -> Vec<u8> {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -304,6 +324,7 @@ fn cases() -> Vec<Case> {
     let vinos = || csv("vinos.csv", "cultivar", cls, numeric_classes_csv(D::Wine, "cultivar", 1, 1));
     let cancer = || csv("cancer.csv", "diagnostico", cls, numeric_classes_csv(D::BreastCancer, "diagnostico", 2, 2));
     let raras = || csv("raras.csv", "clase", cls, rare_classes_csv());
+    let vinos_raros = || csv("vinos_raros.csv", "cultivar", cls, shifted_rare_classes_csv());
     let tab = || csv("pinguinos.tsv", "especie", cls, tab_csv());
     let relu = |h: Vec<u16>, out, opt, lr| nn(h, out, opt, lr);
     vec![
@@ -320,6 +341,7 @@ fn cases() -> Vec<Case> {
         c("lr_csv_vinos_logistic", L::Regression, vinos(), logistic()),
         c("lr_csv_cancer_2_4_logistic", L::Regression, cancer(), logistic()),
         c("lr_csv_raras_logistic", L::Regression, raras(), logistic()),
+        c("lr_csv_vinos_raros_logistic", L::Regression, vinos_raros(), logistic()),
         c("lr_csv_tab_logistic", L::Regression, tab(), logistic()),
         c("lr_csv_numeric_linear", L::Regression, numeric(), ModelConfig::Linear),
         // 🌲 Árboles
@@ -335,6 +357,7 @@ fn cases() -> Vec<Case> {
         c("tree_csv_cancer_2_4_gini_d3", L::Trees, cancer(), tree(TC, Gini, 3, 2)),
         c("tree_csv_medidas_entropy_d4", L::Trees, medidas(), tree(TC, Entropy, 4, 2)),
         c("tree_csv_raras_gini_d4", L::Trees, raras(), tree(TC, Gini, 4, 2)),
+        c("tree_csv_vinos_raros_gini_d3", L::Trees, vinos_raros(), tree(TC, Gini, 3, 2)),
         c("tree_csv_tab_gini_d3", L::Trees, tab(), tree(TC, Gini, 3, 2)),
         // 🔍 KNN
         b("knn_iris_k5_uniform_minkowski", L::Knn, D::Iris, knn(5, Uniform, Minkowski)),
@@ -349,6 +372,7 @@ fn cases() -> Vec<Case> {
         c("knn_csv_medidas_k15_distance_euclidean", L::Knn, medidas(), knn(15, Distance, Euclidean)),
         c("knn_csv_cancer_2_4_k5_uniform", L::Knn, cancer(), knn(5, Uniform, Minkowski)),
         c("knn_csv_raras_k3_uniform", L::Knn, raras(), knn(3, Uniform, Minkowski)),
+        c("knn_csv_vinos_raros_k5_distance", L::Knn, vinos_raros(), knn(5, Distance, Manhattan)),
         c("knn_csv_numeric_k5_uniform", L::Knn, numeric(), knn(5, Uniform, Minkowski)),
         // 🧠 Redes neuronales
         b("nn_iris_softmax", L::Nn, D::Iris, relu(vec![10, 10], NnActivation::Softmax, NnOptimizer::Adam, 0.01)),
@@ -847,6 +871,21 @@ fn the_corpus_csvs_are_read_with_their_dialect() {
         (train.len(), test.len()),
         (4, 4),
         "one class missing from each side"
+    );
+    let vinos = read(&shifted_rare_classes_csv(), "cultivar");
+    let core::Target::Classes {
+        class_values,
+        codes,
+        ..
+    } = &vinos.target
+    else {
+        panic!("classes");
+    };
+    assert_eq!(class_values, &[1.0, 2.0, 3.0, 4.0]);
+    let split = core::split::train_test_split(vinos.n_rows(), TEST_SIZE, SEED).unwrap();
+    assert!(
+        split.train.iter().all(|&r| codes[r] != 0),
+        "cultivar 1 only in the test set"
     );
 }
 
