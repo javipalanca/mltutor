@@ -446,6 +446,14 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
   - Los bins de `nbinsx` de Plotly pueden ser menos de los pedidos (39 en lugar de 50 en Iris).
   - Medidas con 5×256: `nn_weights` 36 ms (9 KB), `nn_activations` 39 ms (89 KB). Smoke test de 52 s
     con 20 comprobaciones; `.app` de 16,5 MiB.
+- **Canvas en blanco (2026-10-20, mapa 🗺️ de 📉 Activaciones):** CUALQUIER asignación a `canvas.width`
+  o `canvas.height`, aunque sea del mismo valor, borra el bitmap. `NetworkMap.svelte` tenía `width={width}`
+  en el `<canvas>` y `draw()` lo redimensionaba desde un `$effect`. Al montar, el efecto del
+  ResizeObserver cambia `width` (900 → ancho real) y Svelte 5.57 ejecuta el `$effect` de `draw` ANTES
+  que el efecto de plantilla que vuelve a aplicar el atributo: el mapa salía vacío en la ventana visible.
+  Con `--full-page` no se veía, porque el redimensionado posterior de la ventana provocaba otro dibujo
+  en el orden correcto. Regla: un `<canvas>` que se dibuja a mano no lleva atributos `width`/`height` en
+  la plantilla; el bitmap es solo de `draw()`. `networkMap.test.ts` lo comprueba con un contexto simulado.
 - **Plantillas de redes (2026-10-16, revisión ML F5a):**
   - `reconstruir_modelo.py` usa `np.allclose(rtol=1e-5, atol=1e-4)`: con salidas de ~3e5, el error
     absoluto de Keras f32 frente a la app ronda 3e-2, aunque el relativo sea de ~1e-7.

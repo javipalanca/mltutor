@@ -10,7 +10,8 @@
   import type { LayerActivationsView } from "../../bindings/LayerActivationsView";
   import type { NetworkMapView } from "../../bindings/NetworkMapView";
   import { nnList, nnText } from "../../content";
-  import { formatMapValue, hitNeuron, layoutMap, MAP_COLORS, MAP_HEIGHT, mapHash, type MapLayout, type MapOptions } from "./networkLayout";
+  import { theme } from "../../theme.svelte";
+  import { formatMapValue, hitNeuron, layoutMap, MAP_COLORS, mapHash, type MapLayout, type MapOptions } from "./networkLayout";
 
   interface Props {
     map: NetworkMapView;
@@ -172,11 +173,13 @@
   $effect(() => {
     const target = canvas;
     const lay = layout;
-    // Read the reactive inputs of `draw` so that the effect follows them.
+    // Read the reactive inputs of `draw` so that the effect follows them (the colours of the
+    // light/dark mode come from the computed style, so the system theme is followed as well).
     void dead;
     void constant;
     void options.connectionPct;
-    if (target) {
+    void theme.chart;
+    if (target && lay.width > 0) {
       untrack(() => draw(target, lay));
     }
   });
@@ -233,10 +236,10 @@
 
 <div class="map" data-network-map data-dead={counts.dead} data-constant={counts.constant} data-layers={arch.join(",")}>
   <div class="box" bind:this={wrapper}>
+    <!-- No `width`/`height` attributes: `draw` owns the bitmap. Any assignment to them, even
+         of the same value, clears the canvas, and Svelte may apply them after `draw` ran. -->
     <canvas
       bind:this={canvas}
-      width={width}
-      height={MAP_HEIGHT}
       aria-label="{t('mapa_titulo').replace(/^#+\s*/, '')}: {arch.join(' → ')}, {counts.dead} muertas, {counts.constant} constantes"
       onpointermove={onmove}
       onpointerleave={() => (tip = null)}
@@ -277,8 +280,6 @@
 
   canvas {
     display: block;
-    width: 100%;
-    height: 460px;
     cursor: crosshair;
     --map-text: #333333;
     --map-line: #777777;
