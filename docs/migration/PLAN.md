@@ -263,7 +263,10 @@ Cada subfase se cierra con el CI y la revisión.
 
 ### Fase 8 — Cambio de versión  *(riesgo: medio · tamaño: S)*
 
-- [ ] README y BUILD_EXECUTABLES.md reescritos para Rust.
+- [x] README y BUILD_EXECUTABLES.md reescritos para Rust. *(2026-10-20: README para estudiantes y
+      profesores, con descargas, primer arranque por sistema, WebView2 (D3), requisitos, registro y tamaños
+      medidos frente a la `v0.3.0-rc.4`; BUILD para desarrolladores, con requisitos, build, pruebas, paridad,
+      verificador de exportaciones, smoke test, capturas, CI, releases y firma. Falta la licencia (TODO del autor).)*
 - [ ] Retirada del código Python del árbol principal. Se conserva en un tag
       `python-final` y en `tools/` lo necesario para generar los fixtures.
 - [ ] Se sustituye `build-executables.yml` por `rust.yml` y se publica la `v0.4.0` estable

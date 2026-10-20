@@ -361,6 +361,12 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
   - **Job `benchmarks`** (Linux): `cargo bench --no-run` de los tres crates puros y los tests `#[ignore]`
     de presupuesto (`bench_*`) en release con `--test-threads=1`. En local, uno falló una vez mientras otra
     compilación ocupaba la CPU y pasó al repetirlo: miden tiempo de reloj. El job de release lo necesita.
+- **F8, documentación (2026-10-20):** README (estudiantes) y BUILD_EXECUTABLES.md (desarrolladores) reescritos
+  para Rust. Tamaños de la versión Python sacados de la API pública de releases (`v0.3.0-rc.4`): exe 675 697 666 B,
+  zip de macOS 476 561 431 B y binario de Linux 881 171 000 B. El tamaño del `.exe` de Windows tras comprimir los
+  CSV no se ha medido (el artefacto del CI va dentro de un zip: 8,4 MB); el README da ≈ 22 MB, el último valor
+  medido (21 755 392 B). Al publicar la `v0.4.0`, sustituir las cifras por las de la release. Los anclajes de
+  GitHub de un título que empieza por emoji llevan un guion inicial (`#-qué-cambia-…`).
 - **F7, benchmarks y rendimiento (2026-10-20; detalle en `docs/migration/benchmarks.md`):**
   - criterion 0.7 (no 0.8: su MSRV 1.86 supera el 1.85 del workspace), solo como dev-dependency y sin
     features por defecto; `[lib] bench = false` en los tres crates para que `cargo bench -- --save-baseline x`

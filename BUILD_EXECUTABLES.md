@@ -1,86 +1,312 @@
-# MLTutor portable con Qt
+# Compilar, probar y publicar MLTutor (versión Rust)
 
-La aplicación de escritorio utiliza PySide6 (Qt Widgets). Los controles son
-nativos y los gráficos interactivos se muestran en Qt WebEngine con JavaScript
-local. No hay servidor HTTP, navegador externo, Streamlit ni instalador.
+Guía para desarrolladores. La guía para estudiantes y profesores (descargas y
+primer arranque) está en el [README](README.md). Las reglas del proyecto y la lista
+completa de comandos están en [AGENTS.md](AGENTS.md), y las trampas conocidas en
+[MEMORY.md](MEMORY.md).
 
-## Para estudiantes
+MLTutor es una app **Tauri 2**: el cálculo se hace en Rust y la interfaz es
+**Svelte 5 + TypeScript + Vite**, con Plotly.js y KaTeX empaquetados en local, que
+se muestra en el WebView del sistema (WebView2 en Windows, WKWebView en macOS y
+WebKitGTK en Linux).
 
-- **Windows x86_64:** descargar `mltutor-windows-x86_64.exe` y abrirlo.
-- **macOS Apple Silicon:** descargar `mltutor-macos-arm64.zip`, descomprimir y
-  abrir `MLTutor.app` desde esa misma carpeta. No hace falta copiar a Aplicaciones.
-- **Linux x86_64:** descargar `mltutor-linux-x86_64`, marcarlo como ejecutable en
-  las propiedades del archivo y abrirlo. La compatibilidad se valida sobre
-  Ubuntu 22.04 y sistemas compatibles; no es un binario universal para toda
-  distribución de Linux.
+```
+Cargo.toml                 workspace (versión en [workspace.package])
+crates/mltutor-core/       algoritmos, métricas, preprocesado y datasets incrustados (sin UI)
+crates/mltutor-nn/         MLP propio (entrenamiento con las fórmulas de Keras)
+crates/mltutor-export/     ONNX nativo y paquetes Python
+src-tauri/                 app Tauri: comandos IPC, tareas, diálogos, registro, --smoke-test, --screenshot
+ui/                        frontend Svelte + TS
+content/                   textos pedagógicos (.md/.toml) y plantillas de código Python (code/*.j2)
+tests/parity/              fixtures generados con la versión Python de referencia
+tools/                     export_golden.py, verify_exports.py, capture_qt.py y referencias en Python
+```
 
-No se necesita instalar Python, Qt, TensorFlow ni usar permisos de administrador.
-Cada descarga contiene su propio entorno. Windows y Linux extraen componentes a
-una carpeta temporal del usuario al abrirse: el primer arranque puede tardar y
-necesita espacio libre. macOS utiliza un bundle de aplicación autocontenido.
+## Requisitos
 
-Los equipos deben permitir ejecutar aplicaciones descargadas. El empaquetado
-portable no evita políticas institucionales que bloqueen ejecutables, ni las
-comprobaciones de confianza del sistema. La firma Developer ID y notarización de
-macOS siguen pendientes de credenciales; no se promete apertura sin avisos hasta
-completar esa fase. TensorFlow sigue siendo la parte más pesada de la descarga.
+En todos los sistemas:
 
-## Desarrollo
+- **Rust** con [rustup](https://rustup.rs). No hace falta elegir versión:
+  `rust-toolchain.toml` fija `stable` con `rustfmt` y `clippy`, y rustup lo instala
+  al ejecutar el primer `cargo` en el repositorio. La versión mínima del workspace
+  es la 1.85 (`rust-version` en `Cargo.toml`).
+- **Node.js LTS** con npm (el CI usa `lts/*`; en local se usa Node 24). La CLI de
+  Tauri es una devDependency de `ui/`, así que no hace falta instalar `cargo-tauri`.
+- Para la paridad y la validación de exportaciones (opcional):
+  [uv](https://docs.astral.sh/uv/) y Python 3.11 o 3.12.
+
+Además, por sistema:
+
+| Sistema | Paquetes |
+|---|---|
+| macOS (arm64) | Xcode Command Line Tools (`xcode-select --install`) |
+| Windows (x86_64) | Microsoft C++ Build Tools (carga de trabajo «Desarrollo para el escritorio con C++») y WebView2, que viene de serie con Windows 10/11 |
+| Linux (x86_64) | Los paquetes del CI, en Ubuntu 22.04 (ver abajo) |
+
+Linux (los mismos que instala `rust.yml`):
+
+```sh
+sudo apt-get install -y \
+  build-essential curl wget file xdg-utils \
+  libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev \
+  libxdo-dev libssl-dev patchelf libfuse2
+# solo para el smoke test sin pantalla: xvfb xauth dbus-x11 libgl1-mesa-dri
+```
+
+Compila el AppImage en Ubuntu 22.04: enlaza con la glibc del sistema donde se
+compila, y uno hecho en una distribución más nueva no arrancará en 22.04.
+
+> **Mac con Apple Silicon:** si el toolchain por defecto de rustup es x86_64,
+> `cargo` falla fuera del repo con «Bad CPU type». Dentro del repo
+> `rust-toolchain.toml` lo resuelve; fuera, `rustup default stable-aarch64-apple-darwin`.
+
+## Compilar y ejecutar
+
+```sh
+npm --prefix ui ci                  # dependencias del frontend (respeta ui/package-lock.json)
+
+npm --prefix ui run tauri dev       # app en desarrollo, Vite con recarga en :5173
+npm --prefix ui run tauri dev -- -- -- --smoke-test   # pasar flags al binario en dev
+
+npm --prefix ui run tauri build     # release (LTO fat: varios minutos)
+npm --prefix ui run tauri build -- --debug --no-bundle  # target/debug/mltutor con el frontend embebido (~25 s)
+```
+
+`cargo build --release` a secas **no** empaqueta el frontend (el binario cargaría la
+URL de desarrollo): usa siempre `tauri build`.
+
+Salida de `tauri build`:
+
+| Sistema | Resultado | Descarga que publica el CI |
+|---|---|---|
+| macOS | `target/release/bundle/macos/MLTutor.app` (firma ad-hoc) | `mltutor-macos-arm64.zip` |
+| Windows | `target/release/mltutor.exe` (sin instalador: `bundle.active: false`) | `mltutor-windows-x86_64.exe` |
+| Linux | `target/release/bundle/appimage/*.AppImage` | `mltutor-linux-x86_64.AppImage` |
+
+El zip de macOS se hace con `ditto`, que conserva la firma del bundle:
+
+```sh
+ditto -c -k --sequesterRsrc --keepParent target/release/bundle/macos/MLTutor.app mltutor-macos-arm64.zip
+```
+
+La configuración está en `src-tauri/tauri.conf.json` y en los archivos por
+sistema `tauri.macos.conf.json`, `tauri.windows.conf.json` y
+`tauri.linux.conf.json`. El perfil `release` del workspace usa `opt-level = 3`,
+`lto = "fat"`, `codegen-units = 1` y `strip = true`.
+
+Variables útiles al ejecutar:
+
+| Variable | Efecto |
+|---|---|
+| `MLTUTOR_LOG_DIR` | Carpeta del registro (por defecto `~/.mltutor`, archivo `mltutor.log`) |
+| `MLTUTOR_FACADE=fixture` | Solo en debug: datos de `tests/parity` en lugar de `mltutor-core` |
+| `MLTUTOR_FIXTURE_EPOCH_MS=40` | Con la fachada de fixtures, ralentiza la red reproducida (gráfica en vivo, «Cancelar») |
+| `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` | Windows: runtime WebView2 «Fixed Version». La app la fija sola si hay una carpeta `WebView2` junto al `.exe` |
+
+## Pruebas y calidad
+
+```sh
+cargo fmt --all                                    # el CI usa --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace                             # también regenera ui/src/lib/bindings (ts-rs)
+
+npm --prefix ui run check                          # svelte-check + tsc
+npm --prefix ui run test -- --run                  # vitest (sin --run se queda en modo watch)
+```
+
+- Los tipos TypeScript de `ui/src/lib/bindings/` los genera ts-rs al ejecutar
+  `cargo test` y van versionados: el CI falla si cambian o aparecen archivos nuevos
+  sin commitear.
+- El CI ejecuta `cargo test --workspace --all-targets` y, aparte,
+  `cargo test --doc -p mltutor-core -p mltutor-nn -p mltutor-export`: en Windows,
+  los doctests con `--workspace` no enlazan por la salida del build de Tauri.
+- `Cargo.lock` y `ui/package-lock.json` siempre van versionados.
+
+### Paridad con la versión Python
+
+Los tests de paridad (`cargo test`) comparan con los fixtures de `tests/parity/`,
+que se generan con la versión Python de referencia:
 
 ```sh
 uv sync --locked --extra dev
-uv run python launcher_qt.py
-uv run pytest -q
-uv run python launcher_qt.py --smoke-test
-uv run python launcher_qt.py --verify-models
+uv run python tools/export_golden.py           # regenera los fixtures
+uv run python tools/export_golden.py --check   # sale con 1 si algún fixture cambiaría
 ```
 
-También se puede iniciar con `uv run mltutor` o `python -m mltutor.desktop`.
-Python 3.11 o 3.12. La versión original Streamlit permanece en `main`; la
-migración se desarrolla en `codex/desktop-migration-study`.
-
-## Empaquetado
+El CI de Linux comprueba además que scikit-learn en x86-64 construye los mismos
+árboles que los fixtures (generados en arm64):
 
 ```sh
-uv run pyinstaller pyinstaller.spec --noconfirm
+uv run --no-project --python 3.11 \
+  --with numpy==1.26.4 --with pandas==2.3.3 --with scikit-learn==1.7.2 \
+  python tools/check_trees_platform.py
 ```
 
-Salida: `dist/MLTutor.exe` en Windows, `dist/MLTutor` en Linux y
-`dist/MLTutor.app` en macOS. Construir por separado en cada plataforma.
-Para trabajar en paralelo con builds anteriores se puede usar
-`--distpath dist/qt --workpath build/qt`.
+### Validación de exportaciones y plantillas de código
 
-El workflow `.github/workflows/build-executables.yml` ejecuta pruebas de las
-lecciones, construye y abre el ejecutable portable en las tres plataformas. Se
-puede lanzar manualmente, desde una PR o mediante un tag `v*`. Solo los tags
-publican una release. Los tags con sufijo (por ejemplo `v0.3.0-rc.1`) publican
-una versión preliminar sin reemplazar la estable. Se exige la presencia de las
-tres descargas y se adjunta `SHA256SUMS.txt`.
+Cada ONNX, paquete Python y plantilla de `content/code/` que ofrece la app se
+comprueba con onnxruntime, scikit-learn y Keras (sustituye al `--verify-models`
+de la versión Python). Primero se escribe el corpus con el código de la propia app
+(`src-tauri/src/export_corpus.rs`) y después se verifica sin red:
 
-Para publicar desde la rama de migración: `./release.sh 0.3.0-rc.1`.
-El script necesita GitHub CLI autenticado y mantiene `main` intacta. No utiliza Inno Setup ni genera instaladores.
+```sh
+MLTUTOR_EXPORT_CORPUS=/tmp/corpus \
+  cargo test -p mltutor --bin mltutor export_corpus::export_corpus -- --ignored --exact
 
-## Arquitectura
+uv run --no-project --python .venv/bin/python --with-requirements tools/verify_exports.lock.txt \
+  python tools/verify_exports.py /tmp/corpus     # en CI: --python 3.11 y --timeout 300
+# opciones: --only <subcadena>, --jobs N, --timeout S, --keep
+```
 
-- `mltutor/desktop/ui.py`: descripción de controles y estado independiente de Qt.
-- `mltutor/desktop/window.py`: controles Qt, formularios, tablas, gráficos y
-  diálogos de archivos. Los cálculos se ejecutan en un QThread y la ventana solo
-  recibe resultados mediante señales. La cancelación es cooperativa.
-- `mltutor/desktop/__main__.py`: arranque y prueba de apertura.
-- Las lecciones de `apps`, `dataset`, `viz` y `algorithms` conservan sus textos,
-  cálculos y orden de navegación, utilizando ahora la capa de presentación local.
-  El alias `st` en esos módulos es únicamente un nombre histórico; importa
-  `mltutor.desktop.ui`, nunca Streamlit.
-- Matplotlib se convierte en imágenes en el trabajador. Plotly y las animaciones
-  HTML usan archivos locales, incluyendo Plotly JS; no necesitan CDN.
-- Los datasets ya incluidos funcionan sin conexión. Los datasets que requieren
-  descarga mantienen esa necesidad hasta que se distribuyan también sus datos.
+El entorno está fijado con hashes en `tools/verify_exports.lock.txt`. Si cambias
+`tools/verify_exports.requirements.txt`, regenera el lock:
 
-Las pruebas cubren navegación, estado, CSV, entrenamiento real de los cuatro
-algoritmos, evaluación y renderizado de las pestañas. La prueba del binario
-comprueba la apertura de las secciones sin depender de Python instalado fuera
-del paquete. `--verify-models` comprueba dentro del ejecutable entrenamiento real,
-predicción y exportaciones Pickle, ONNX, Keras, SavedModel y TensorFlow Lite,
-incluyendo equivalencia numérica de predicciones. Es recomendable
-validar también las descargas en equipos limpios
-con cuentas sin privilegios antes de publicarlas a estudiantes.
+```sh
+uv pip compile --universal --generate-hashes --python-version 3.11 \
+  tools/verify_exports.requirements.txt -o tools/verify_exports.lock.txt
+```
+
+### Smoke test
+
+```sh
+target/release/mltutor --smoke-test
+# macOS, sobre el bundle: target/release/bundle/macos/MLTutor.app/Contents/MacOS/mltutor --smoke-test
+```
+
+Recorre todas las rutas y, en cada lección, entrena modelos reales y abre sus
+vistas (📊 Datos, Regresión, Árboles, KNN y Redes, incluidas la cancelación de un
+entrenamiento y las exportaciones). Códigos de salida: **0** correcto, **1** fallo,
+**2** tiempo agotado (180 s). Registra los ms de cada ruta y comprobación, y no
+abre diálogos: lo que exporta va a `$TMPDIR/mltutor-automatizacion-XXXXXX/` (la
+ruta sale en el registro).
+
+- **Linux sin pantalla:** `xvfb-run -a dbus-run-session -- ./MLTutor.AppImage --smoke-test`,
+  con `APPIMAGE_EXTRACT_AND_RUN=1`, `WEBKIT_DISABLE_DMABUF_RENDERER=1`,
+  `WEBKIT_DISABLE_COMPOSITING_MODE=1` y `LIBGL_ALWAYS_SOFTWARE=1`, como en el CI.
+- **Windows:** el binario es de subsistema GUI, así que el código de salida solo se
+  ve con `Start-Process -Wait -PassThru` en PowerShell.
+
+### Capturas
+
+```sh
+target/release/mltutor --screenshot out.png                    # ventana inicial (macOS, Windows y Linux)
+target/release/mltutor --screenshot out.png --scenario datos_pairplot_kde_iris --full-page
+MLTUTOR_FACADE=fixture target/debug/mltutor --screenshot out.png --scenario arboles_arbol_iris
+python3 -I .github/scripts/check_png.py out.png                # rechaza capturas vacías o de un solo color
+```
+
+Los escenarios están en `ui/src/lib/scenarios.ts` y en
+`ui/src/lib/lessons/*/scenarios.ts`; los de CSV llevan la ruta
+(`csv_cargado_clasificacion:<ruta.csv>`). `--full-page` es fiable en macOS; en
+Windows y Linux es de mejor esfuerzo (en Linux, solo si el gestor de ventanas deja
+crecer la ventana). Las capturas de referencia están en
+`docs/migration/capturas/qt/` (se regeneran con `uv run python tools/capture_qt.py`)
+y las de la versión Rust en `docs/migration/capturas/rust/`.
+
+### Benchmarks y presupuestos de tiempo
+
+```sh
+cargo bench -p mltutor-core --bench core       # unos 2 min; filtro: -- 'knn/'
+cargo bench -p mltutor-nn --bench nn
+cargo bench -p mltutor-export --bench onnx
+
+# presupuestos por comando (tests #[ignore], en release)
+cargo test --release -p mltutor-core \
+  --test bench_trees --test bench_knn --test bench_regression --test bench_california \
+  -- --ignored --nocapture --test-threads=1
+cargo test --release -p mltutor-nn --test bench_nn -- --ignored --nocapture --test-threads=1
+```
+
+Los resultados y la comparación con scikit-learn y Keras están en
+[docs/migration/benchmarks.md](docs/migration/benchmarks.md). Los presupuestos
+están calibrados en un Mac con Apple Silicon; `MLTUTOR_BUDGET_FACTOR` los
+multiplica (el CI usa 3).
+
+## Integración continua (`.github/workflows/rust.yml`)
+
+Se ejecuta en cada push a `feature/rust-migration`, en las pull requests que tocan
+el código Rust, la UI, el contenido o los fixtures, con `workflow_dispatch` y con
+los tags `v*`. Caché de cargo (`Swatinem/rust-cache`) y de npm.
+
+| Job | Qué hace |
+|---|---|
+| `build` (Ubuntu 22.04, Windows, macOS arm64) | fmt, clippy, tests (y los doctests aparte), árboles en x86-64 (Linux), bindings de ts-rs al día, `npm ci`/`check`/`test`, `tauri build`, smoke test del binario empaquetado (Xvfb en Linux), aviso de WebView2 ausente (Windows), capturas validadas con `check_png.py`, empaquetado de la descarga (en macOS además `codesign --verify --deep --strict` y smoke test del zip descomprimido) y presupuesto de tamaño |
+| `exports` (Ubuntu 22.04) | Corpus de exportaciones y verificación con `tools/verify_exports.py` (Python 3.11) |
+| `benchmarks` (Ubuntu 22.04) | `cargo bench --no-run` de los tres crates puros y los presupuestos de tiempo `bench_*` en release |
+| `release` (solo tags `v*`) | Necesita los tres jobs anteriores; ver [Releases](#releases) |
+
+Artefactos (14 días): `mltutor-<plataforma>` con la descarga y
+`screenshots-<plataforma>` con las capturas y los registros; `export-corpus` (7
+días) solo si falla la verificación. Así se prueban las versiones en equipos
+reales sin publicar una release.
+
+Presupuestos:
+
+- **Tamaño de la descarga** (`matrix.size_budget`, en bytes): Linux 99 000 000,
+  Windows 21 900 000 y macOS 10 020 000, unos +15 % sobre lo medido. El resumen del
+  job muestra el tamaño y el porcentaje usado. Solo se suben a propósito,
+  explicando el motivo en MEMORY.md.
+- **Tiempo:** el smoke test tiene un vigilante interno de 180 s (en CI tarda
+  25–46 s) y un `timeout-minutes` de 8 por paso. Los jobs tienen un límite de 90
+  (`build`), 45 (`exports`) y 40 minutos (`benchmarks`).
+
+`build-executables.yml` es el workflow de la versión Python heredada: ya no
+reacciona a los tags y no publica desde esta rama.
+
+## Releases
+
+**Solo se publica una release con la aprobación explícita del responsable del
+proyecto.** Durante la migración no se publican versiones intermedias: se
+validan con los artefactos del CI.
+
+La versión vive en `Cargo.toml` (`[workspace.package]`) y debe coincidir con
+`src-tauri/tauri.conf.json`, `ui/package.json` y los dos lockfiles (lo comprueba
+el test `versions_are_in_sync`). `release.sh` se encarga de todo:
+
+```sh
+./release.sh 0.4.0-rc.2 --dry-run   # comprueba, enseña el diff de versiones y restaura los archivos
+./release.sh 0.4.0-rc.2             # prerelease (desde cualquier rama)
+./release.sh 0.4.0                  # estable (solo desde main)
+```
+
+1. Comprueba la rama (las estables solo desde `main`), que el árbol esté limpio y
+   que el tag no exista en local ni en `origin`.
+2. Actualiza la versión en los cinco archivos y verifica que coinciden.
+3. **Pide confirmación (y/N)** en una terminal interactiva. Si se responde que no,
+   si se interrumpe o si algo falla, restaura los archivos de versión.
+4. Hace el commit `Release vX.Y.Z`, crea el tag anotado y hace push de ambos.
+5. Espera a que `rust.yml` termine y comprueba que la release tiene las tres
+   descargas y `SHA256SUMS.txt`, y que el estado de prerelease es el esperado.
+
+Necesita `git`, `cargo`, `npm`, `python3` y GitHub CLI (`gh`) autenticado; con
+`--dry-run` no hace falta `gh`.
+
+El job `release` comprueba que el tag es `v` + la versión de `Cargo.toml`, exige
+las tres descargas, genera `SHA256SUMS.txt` y publica la release con notas para
+los estudiantes. Los tags con `-` (por ejemplo `v0.4.0-rc.1`) se publican como
+prerelease y no pasan a ser la última versión.
+
+## Firma
+
+- **macOS:** firma *ad-hoc* del bundle completo (`"signingIdentity": "-"` en
+  `tauri.macos.conf.json`). Sin ella, Gatekeeper diría que la app descargada «está
+  dañada»; con ella, muestra el aviso normal de «no se puede verificar». El CI lo
+  comprueba con `codesign --verify --deep --strict`. **Pendiente:** Developer ID y
+  notarización, a falta de credenciales.
+- **Windows:** el `.exe` no está firmado y SmartScreen avisa la primera vez.
+  **Pendiente:** firma con SignPath Foundation (gratis para proyectos de código
+  abierto). Requiere una licencia aprobada por la OSI, que el repositorio aún no
+  tiene, y la solicitud en signpath.org. Después, en CI: firmar `mltutor.exe` antes
+  de empaquetarlo y comprobarlo con `signtool verify`.
+- **Linux:** el AppImage no se firma.
+
+## Versión Python heredada
+
+La versión Python/Qt (PySide6, scikit-learn y TensorFlow, empaquetada con
+PyInstaller) es la referencia funcional de la migración y solo recibe correcciones
+de errores graves. Su código, `pyinstaller.spec`, `build-executables.yml` y sus
+instrucciones de compilación están en la rama
+[`codex/desktop-migration-study`](https://github.com/javipalanca/mltutor/tree/codex/desktop-migration-study).
+En esta rama solo se usa para generar fixtures y capturas de referencia
+(`uv sync --locked --extra dev`, `uv run python launcher_qt.py`). La versión
+Streamlit original y su despliegue web están en `main`.
