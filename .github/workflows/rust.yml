@@ -81,6 +81,9 @@ jobs:
       - name: System libraries for Tauri 2 and AppImage (Linux only)
         if: runner.os == 'Linux'
         run: |
+          # Third-party runner repos (packages.microsoft.com, …) sometimes answer 403;
+          # only Ubuntu's own archive is needed here.
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list /etc/apt/sources.list.d/azure-cli.list
           sudo apt-get update
           sudo apt-get install -y \
             build-essential curl wget file xdg-utils \
@@ -241,6 +244,9 @@ jobs:
       # src-tauri links WebKitGTK even in its unit tests.
       - name: System libraries for Tauri 2
         run: |
+          # Third-party runner repos (packages.microsoft.com, …) sometimes answer 403;
+          # only Ubuntu's own archive is needed here.
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list /etc/apt/sources.list.d/azure-cli.list
           sudo apt-get update
           sudo apt-get install -y build-essential libwebkit2gtk-4.1-dev \
             libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev
