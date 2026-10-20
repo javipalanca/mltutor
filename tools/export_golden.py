@@ -1559,10 +1559,20 @@ CODE_TEMPLATES = {
 # Templates that deliberately differ from the app's text (a decision fixes a bug): the
 # fixture stores the rendered text Rust must produce, plus the app's text for reference.
 CODE_TEMPLATES_CHANGED: dict[str, tuple[str, dict]] = {
+    "matriz_confusion.py.j2": (
+        "F6 (verify_exports review): labels=sorted(nombre_clase) and the names from nombre_clase "
+        "(defined by every training script): without labels= a class missing from y_test and "
+        "y_pred shifted the tick labels", {}),
+    "precision_por_clase.py.j2": (
+        "F6 (verify_exports review): labels=sorted(nombre_clase), target_names from nombre_clase "
+        "and zero_division=0: without labels= a class missing from y_test and y_pred raised "
+        "ValueError (more target_names than classes)", {}),
     "frontera_decision.py.j2": (
         "D30: the pair chosen by the student (here petal length/width of Iris, indices 2 and 3) "
         "instead of always columns 0 and 1 with every feature name; model_2d = clone(modelo) so "
-        "it runs after content/code/regresion_entrenamiento.py.j2",
+        "it runs after content/code/regresion_entrenamiento.py.j2. F6: the legend is built from "
+        "np.unique(y) and nombre_clase (legend_elements() only has the classes present, and at "
+        "most about 9)",
         {"feature_indices": [2, 3], "feature_names": ["petal length (cm)", "petal width (cm)"],
          "class_names": ["setosa", "versicolor", "virginica"]}),
 }

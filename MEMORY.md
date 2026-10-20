@@ -29,8 +29,8 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
 - **Plan aprobado como borrador (2026-10-13):** `docs/migration/PLAN.md`, con 9 fases (F0–F8)
   y las decisiones D1–D6, que tienen una opción recomendada por defecto.
 - **Toolchain local (2026-10-13):** el default de rustup en este Mac es x86_64 y falla
-  ("Bad CPU type"). `rust-toolchain.toml` fuerza `stable` = aarch64. `gh` no está
-  instalado (hace falta para release.sh).
+  ("Bad CPU type"). `rust-toolchain.toml` fuerza `stable` = aarch64. `gh` ya está instalado
+  (2026-10-20: `gh run view <id> --log --job <id>` lee los logs del CI).
 - **Datasets que hoy se descargan:** California (`fetch_california_housing`) y Diamantes
   (seaborn) dependen de la red en la versión Python. En Rust se incluyen en el binario.
 - **Código muerto en Python:** varias pestañas de `viz/nn_extra.py` y funciones de
@@ -298,35 +298,51 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
   - La wheel arm64 suma la distancia euclídea en bloques de 8 sin FMA, y el resto (`n % 8`) con FMA
     (D53, `mul_add`).
 - **Fase 6, validación cruzada de exportaciones (2026-10-20):**
-  - El corpus lo escribe `src-tauri/src/export_corpus.rs` (test `#[ignore]`, en src-tauri porque los
-    contextos de las plantillas y `RealFacade` viven allí): entrena con `train_observed` (como el comando;
-    `DatasetView::train` con una red devuelve `Internal`), pide cada `export` y cada `code` y guarda las
-    predicciones de `predict_one`. Determinista (dos ejecuciones dan los mismos bytes). Unos 0,5 s.
-  - `tools/verify_exports.py` + `tools/verify_exports.requirements.txt` (job `exports` de `rust.yml`).
+  - El corpus lo escribe `src-tauri/src/export_corpus.rs` (test `#[ignore]`, 45 casos) por la capa de dominio:
+    `DataState` (selección o `load_csv_bytes` + `set_csv_target`), `ModelState::train` y las funciones que
+    ahora usan los comandos: `models::predict_with`, `code_of` y `export_bytes` (con sus `validate_*`).
+    Antes de escribir comprueba el split FILA A FILA: las filas `check` de los paquetes, la matriz de
+    confusión o `y_true` de 📈 Evaluación y las filas de entrenamiento de los vecinos KNN. Determinista;
+    unos 3 s. `DatasetView::train` con una red devuelve `Internal`: hay que usar `train_observed`.
+  - `ipc::CodeTemplate::source()` es la única correspondencia plantilla de la UI → `content/code/*.j2`; el
+    corpus guarda ese nombre y la cobertura del verificador sale de ahí. `ClassProbability` lleva `code`.
+  - `tools/verify_exports.py` + `tools/verify_exports.lock.txt` (`uv pip compile --universal
+    --generate-hashes` de `verify_exports.requirements.txt`; en Windows hace falta `tensorflow-intel`).
     En este Mac: `uv run --no-project --python .venv/bin/python --with-requirements
-    tools/verify_exports.requirements.txt python tools/verify_exports.py <corpus>`; 239 comprobaciones
-    en unos 35 s con 4 procesos. Cada script corre con `python -I` en una carpeta nueva, con los sockets
-    bloqueados, `SEABORN_DATA` apuntando a una copia de `mltutor/dataset/data/sample_datasets` y un
-    `SCIKIT_LEARN_DATA` vacío (California no se puede cargar sin red: solo se prueban su ONNX y su
-    paquete). Diamantes no está en `sample_datasets`. `python -I` no ve `PYTHON*`, pero sí `MPLBACKEND`,
-    `SEABORN_DATA` y `OMP_NUM_THREADS`; el entorno superpuesto de `uv run --with` también funciona con `-I`.
-  - Errores máximos observados: ONNX lineal 5,1e-6 relativo (California, float32), logística 8e-7 en
-    probabilidades, árboles 5e-8, KNN 1,6e-6 (distance, por redondear la entrada a float32), MLP 2,4e-7;
-    `.keras`/`.h5`/SavedModel/`modelo_completo.pkl` 1,2e-7, TFLite 2e-7, NumPy 1,3e-7; los `.pkl` de
-    sklearn ≤ 4,3e-13. En el ONNX de KNN de Titanic se toleran 7 filas: todas tienen un empate en la
-    K-ésima distancia o un duplicado exacto en train (a distancia 0 en float64, no en float32).
-  - **Fallo encontrado (clases numéricas de un CSV, p. ej. 1/2/3):** `usar_modelo_arbol.py.j2` (literal
-    de Python) hacía `class_names[prediction]` con el VALOR de la clase: nombre de otra clase o
-    IndexError (también si una clase falta en el train). Corregido con la posición en `model.classes_`.
-    `texto_arbol.py.j2` daba IndexError con la lista por código: ahora acepta también el diccionario
-    `{valor: nombre}` (`nombre_clase` del script de entrenamiento), como documenta `camino_decision.py.j2`.
-    El paquete del árbol ya guardaba `class_names` en el orden de `classes_`.
-  - `analisis_exploratorio.py.j2` es un fragmento con huecos (`df`, `selected_features =
-    ['feature1', …]`): el verificador los rellena con Iris. Las plantillas literales que la app no
-    ofrece (`arbol_python`, `red_arquitectura`, `red_cargar_completo`, `red_predictor_plantilla`,
-    `regresion_codigo`) están en `NOT_RUN`; una plantilla nueva sin caso ni entrada en `NOT_RUN` falla.
-  - El paquete Keras atrapa los fallos al guardar cada formato (`⚠️ No se pudo guardar`), así que el
-    verificador exige los 6 archivos y que no aparezca ese aviso.
+    tools/verify_exports.lock.txt python tools/verify_exports.py <corpus>`; ~374 comprobaciones en unos 50 s
+    con 4 procesos. Cada script corre con `python -I -X utf8` en una carpeta nueva, sockets bloqueados,
+    `SEABORN_DATA` en una copia de `mltutor/dataset/data/sample_datasets` y `SCIKIT_LEARN_DATA` vacío
+    (California no carga sin red: solo su ONNX y su paquete; Diamantes no está en `sample_datasets`).
+    `python -I` no ve `PYTHON*`, pero sí `MPLBACKEND`, `SEABORN_DATA` y `OMP_NUM_THREADS`.
+  - Nada pasa en vacío: 0 filas, otro número de filas que Rust o una fila sin nada comparado es FAIL;
+    `label_gap ≤ 2·proba` y una etiqueta tolerada sigue comparando probabilidades.
+  - **KNN:** en cada fila las K distancias ordenadas de Rust, del `.pkl` y del script deben coincidir
+    (1e-9) y con las de numpy. En un empate en la K-ésima distancia el verificador enumera todas las
+    respuestas válidas (cada subconjunto compatible, con la regla de distancia 0) y la del artefacto debe
+    ser una; para ONNX, en el espacio de la entrada redondeada a float32 y con 1e-6 (sus salidas son
+    float32). Filas toleradas como mucho el 5 % (mín. 3); observado: 7/268 en Titanic (ONNX) en mac y en
+    Linux, 4/268 en scikit-learn en Linux. Un duplicado exacto de train deja de estar a distancia 0 al
+    pasar a float32 ("distancia 0" se cuenta aparte): lo explica el LEEME del KNN.
+  - **ONNX de una red con salida tanh (binaria):** `probabilities` = `[1−p, p]` con p ∈ (−1, 1), así que
+    salen valores negativos o > 1 (observado: −0,043..1,043). Lo avisa el LEEME de la red (D87).
+  - Errores máximos observados: ONNX lineal 5,1e-6 relativo (California), logística 8e-7, árboles 5e-8,
+    MLP 2,4e-7; `.keras`/`.h5`/SavedModel/`modelo_completo.pkl` 2,4e-7, TFLite 2e-7, NumPy 1,3e-7; `.pkl`
+    lineal/logística ≤ 4,4e-16 (tolerancia 1e-12: `coef_` se fija, no se reentrena); script logístico
+    (newton-cholesky reentrenado) 6,4e-7 en Dígitos.
+  - **Fallos encontrados en plantillas** (clases numéricas de un CSV como 1/2/3, o una clase ausente):
+    `usar_modelo_arbol` hacía `class_names[prediction]` con el VALOR; `texto_arbol` y `camino_decision`
+    indexaban la lista por valor (nombre de otra clase en silencio); `matriz_confusion` y
+    `precision_por_clase` no pasaban `labels=` (etiquetas desplazadas y ValueError);
+    `frontera_decision` emparejaba `legend_elements()` (solo clases presentes, ~9 como mucho) con todos
+    los nombres. Convención única: el diccionario `nombre_clase` {valor: nombre} que definen todos los
+    scripts de entrenamiento (`red_entrenamiento` lo añade; `arbol_entrenamiento` pone `None` en
+    regresión). Una lista solo se acepta si `classes_ == 0..n−1`; si no, ValueError claro.
+  - `analisis_exploratorio.py.j2` tiene huecos (`df`, `selected_features = ['feature1', …]`): el
+    verificador los rellena con Iris. Las plantillas literales que la app no ofrece están en `NOT_RUN`.
+  - El paquete Keras atrapa los fallos al guardar cada formato (`⚠️ No se pudo guardar`): el verificador
+    exige los 6 archivos y que no aparezca el aviso.
+  - El bug de Python del binario 1/2 sin LabelEncoder hace fallar `red_entrenamiento` (ValueError en
+    `confusion_matrix`); además el verificador exige pérdidas ≥ 0 y exactitud > clase mayoritaria.
 - **Contenido de la revisión F5c/F5d (2026-10-16):**
   - "Tu modelo de regresión lineal explica" pasa a "Tu modelo explica" en `[interpretacion] reg`. Los
     fixtures de Árboles y KNN conservan el texto de Python, y `parity_components.rs` lo normaliza en el

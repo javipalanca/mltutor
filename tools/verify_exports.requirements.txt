@@ -1,3 +1,6 @@
+# Inputs of tools/verify_exports.lock.txt (the locked environment the CI uses):
+#   uv pip compile --universal --generate-hashes --python-version 3.11 \
+#       tools/verify_exports.requirements.txt -o tools/verify_exports.lock.txt
 # Python environment of tools/verify_exports.py (Phase 6: exports and code templates).
 # Same versions as uv.lock (the Python reference app), plus onnxruntime, which the app does not
 # need. onnx < 1.18 because TF 2.16 needs ml-dtypes 0.3 (MEMORY.md). TensorFlow: the CPU wheel
@@ -18,3 +21,7 @@ h5py==3.15.1
 keras==3.12.0
 tensorflow-cpu==2.16.2; sys_platform == "linux"
 tensorflow-macos==2.16.2; sys_platform == "darwin" and platform_machine == "arm64"
+# Windows: the tensorflow wheel is an empty meta-package; tensorflow-intel must be explicit
+# (MEMORY.md, "TensorFlow en Windows"). Not used by the CI (Linux), kept for students' PCs.
+tensorflow==2.16.2; sys_platform == "win32"
+tensorflow-intel==2.16.2; sys_platform == "win32"

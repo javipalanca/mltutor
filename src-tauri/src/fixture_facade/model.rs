@@ -1049,6 +1049,7 @@ impl ModelView for FixtureModel {
                 p.iter()
                     .enumerate()
                     .map(|(i, prob)| ClassProbability {
+                        code: to_u32(i),
                         name: names.get(i).cloned().unwrap_or_else(|| i.to_string()),
                         probability: *prob,
                     })

@@ -221,12 +221,15 @@ Cada subfase se cierra con el CI y la revisión.
 
 - [x] Validación cruzada de exportaciones en CI: un job de Python carga cada ONNX con
       `onnxruntime` y ejecuta cada paquete Python, y comprueba que las predicciones
-      coinciden con las de Rust. Sustituye a `--verify-models`. *(2026-10-20: el corpus lo escribe
-      `src-tauri/src/export_corpus.rs` (test `#[ignore]`, 29 casos: lineal, logística binaria y
-      multiclase, árboles de clasificación y regresión, KNN uniform/distance, MLP binaria, multiclase y
-      de regresión, y CSV con `;`, coma decimal, cp1252 y clases 1/2/3 y 2/4) por los mismos caminos que
-      la app; `tools/verify_exports.py` lo comprueba con onnxruntime, scikit-learn y Keras (también
-      `.keras`, `.h5`, SavedModel, TFLite y los `.pkl`); job `exports` de `rust.yml`)*
+      coinciden con las de Rust. Sustituye a `--verify-models`. *(2026-10-20, revisado: el corpus lo escribe
+      `src-tauri/src/export_corpus.rs` (test `#[ignore]`, 45 casos: lineal, logística binaria y multiclase,
+      árboles de clasificación y regresión (también absolute_error), KNN uniform/distance (kd-tree y fuerza
+      bruta), MLP binaria (sigmoid y tanh), multiclase y de regresión; Pingüinos, MPG, Propinas, Dígitos,
+      Moons y CSV con `;`, coma decimal, cp1252, tabuladores, clases 1/2/3 y 2/4 y clases ausentes del train
+      o de la prueba) por la capa de dominio de la app (`DataState`, `ModelState`, `predict_with`,
+      `code_of`, `export_bytes`); `tools/verify_exports.py` lo comprueba con onnxruntime, scikit-learn y
+      Keras (también `.keras`, `.h5`, SavedModel, TFLite y los `.pkl`), con los empates de KNN enumerados;
+      job `exports` de `rust.yml`, entorno bloqueado en `tools/verify_exports.lock.txt`)*
 - [x] Cada plantilla de `content/code/*.py.j2` se ejecuta en CI con sklearn/Keras. *(con el texto que
       renderiza la app, sin red; los scripts de entrenamiento reproducen el split y las predicciones de
       Rust; las plantillas literales que la app no ofrece quedan en `NOT_RUN` con el motivo)*

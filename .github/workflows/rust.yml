@@ -21,6 +21,7 @@ on:
       - 'tests/parity/**'
       - 'tools/verify_exports.py'
       - 'tools/verify_exports.requirements.txt'
+      - 'tools/verify_exports.lock.txt'
       - 'mltutor/dataset/data/sample_datasets/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
@@ -251,14 +252,16 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
-          cache-dependency-glob: tools/verify_exports.requirements.txt
+          cache-dependency-glob: tools/verify_exports.lock.txt
       - name: Verify the exports with onnxruntime, scikit-learn and Keras
         # Explicit bash: -o pipefail, so that tee does not hide the verifier's exit status.
         shell: bash
+        timeout-minutes: 25
         run: |
           uv run --no-project --python 3.11 \
-            --with-requirements tools/verify_exports.requirements.txt \
-            python tools/verify_exports.py "$RUNNER_TEMP/export-corpus" | tee verify_exports.txt
+            --with-requirements tools/verify_exports.lock.txt \
+            python tools/verify_exports.py --timeout 300 "$RUNNER_TEMP/export-corpus" \
+            | tee verify_exports.txt
           {
             echo "### Exportaciones y plantillas"
             echo '```'
@@ -266,7 +269,7 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
-        if: failure()
+        if: failure() || cancelled()
         with:
           name: export-corpus
           path: |
@@ -275,7 +278,7 @@ jobs:
           retention-days: 7
 
   release:
-    needs: build
+    needs: [build, exports]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     permissions:

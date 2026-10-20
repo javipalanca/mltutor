@@ -11,7 +11,8 @@
     siguiente o IndexError, y también fallaba si una clase no llegaba al entrenamiento. Ahora el
     nombre se busca por la posición de la predicción en model.classes_. Diferencias con el literal
     (tests/parity/code/trees.json, python_text): las dos expresiones class_names[prediction] ->
-    class_names[list(model.classes_).index(prediction)], con un comentario encima de la primera. -#}
+    class_names[list(model.classes_).index(prediction)], con un comentario encima de la primera, y
+    f"Clase {i}" (posición) -> f"Clase {model.classes_[i]}" (el valor, como f"Clase {prediction}"). -#}
 # Código para usar el modelo de árbol de decisión
 import pickle
 import numpy as np
@@ -66,7 +67,7 @@ if task_type == "Clasificación" and hasattr(model, 'predict_proba'):
         resultado = {
             'prediccion': class_names[list(model.classes_).index(prediction)] if class_names else f"Clase {prediction}",
             'probabilidades': {
-                (class_names[i] if class_names else f"Clase {i}"): prob 
+                (class_names[i] if class_names else f"Clase {model.classes_[i]}"): prob 
                 for i, prob in enumerate(probabilities)
             }
         }

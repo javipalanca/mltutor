@@ -99,8 +99,10 @@ uv run pytest -q
 uv run python tools/export_golden.py      # --check en CI
 # F6: exportaciones (ONNX, paquetes) y plantillas de código contra onnxruntime/sklearn/Keras (job `exports`)
 MLTUTOR_EXPORT_CORPUS=/tmp/corpus cargo test -p mltutor --bin mltutor export_corpus::export_corpus -- --ignored --exact
-uv run --no-project --python .venv/bin/python --with-requirements tools/verify_exports.requirements.txt \
+uv run --no-project --python .venv/bin/python --with-requirements tools/verify_exports.lock.txt \
   python tools/verify_exports.py /tmp/corpus   # en CI: --python 3.11
+# el lock se regenera con: uv pip compile --universal --generate-hashes --python-version 3.11 \
+#   tools/verify_exports.requirements.txt -o tools/verify_exports.lock.txt
 uv run python tools/capture_qt.py         # capturas de referencia Qt
 ```
 

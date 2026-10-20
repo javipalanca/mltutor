@@ -60,11 +60,11 @@ pub fn render(template: CodeTemplate, input: &TreeCodeInput<'_>) -> Result<Strin
     use mltutor_core::codegen::render_named;
     let empty = serde_json::json!({});
     let text = match template {
-        CodeTemplate::TreeViz => render_named("visualizar_arbol.py.j2", &empty),
-        CodeTemplate::TreeText => render_named("texto_arbol.py.j2", &empty),
-        CodeTemplate::DecisionPath => render_named("camino_decision.py.j2", &empty),
+        CodeTemplate::TreeViz | CodeTemplate::TreeText | CodeTemplate::DecisionPath => {
+            render_named(template.source().file_name(), &empty)
+        }
         CodeTemplate::TreeUsage => render_named(
-            "usar_modelo_arbol.py.j2",
+            template.source().file_name(),
             &serde_json::json!({ "feature_names": input.feature_names }),
         ),
         CodeTemplate::TreeTraining => {
@@ -80,7 +80,7 @@ pub fn render(template: CodeTemplate, input: &TreeCodeInput<'_>) -> Result<Strin
             let csv = input.csv.as_ref();
             let classifier = task == crate::ipc::TreeTask::Classification;
             render_named(
-                "arbol_entrenamiento.py.j2",
+                template.source().file_name(),
                 &TrainingContext {
                     dataset: input.dataset,
                     dataset_label: input.dataset_label,

@@ -836,6 +836,7 @@ impl ModelView for CoreModel {
                     proba: proba.map(|rows| {
                         rows.into_iter()
                             .map(|(code, probability)| ipc::ClassProbability {
+                                code: to_u32(code),
                                 name: self.name_of(code),
                                 probability,
                             })
@@ -913,12 +914,12 @@ impl ModelView for CoreModel {
         template: CodeTemplate,
         pair: Option<(usize, usize)>,
     ) -> Result<String, CommandError> {
-        use core::codegen::{render, render_static, CodeTemplate as T, DecisionBoundaryContext};
+        use core::codegen::{render, render_static, DecisionBoundaryContext};
         let rendered = match template {
-            CodeTemplate::ConfusionMatrix => render_static(T::ConfusionMatrix),
-            CodeTemplate::PrecisionByClass => render_static(T::PrecisionByClass),
-            CodeTemplate::PredVsReal => render_static(T::PredVsReal),
-            CodeTemplate::ErrorDistribution => render_static(T::ErrorDistribution),
+            CodeTemplate::ConfusionMatrix
+            | CodeTemplate::PrecisionByClass
+            | CodeTemplate::PredVsReal
+            | CodeTemplate::ErrorDistribution => render_static(template.source()),
             CodeTemplate::DecisionBoundary => {
                 let (x, y) =
                     pair.unwrap_or((0, 1.min(self.dataset.n_features().saturating_sub(1))));
@@ -936,10 +937,10 @@ impl ModelView for CoreModel {
                 } else {
                     context
                 };
-                render(T::DecisionBoundary, &context)
+                render(template.source(), &context)
             }
             // D29: the complete training script (Python's literal snippet did not run).
-            CodeTemplate::RegressionCode => render(T::RegressionTraining, &self.training_context()),
+            CodeTemplate::RegressionCode => render(template.source(), &self.training_context()),
             CodeTemplate::TreeViz
             | CodeTemplate::TreeText
             | CodeTemplate::DecisionPath

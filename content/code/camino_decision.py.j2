@@ -24,9 +24,11 @@
                 print(f"- {feature_name} = {X_nuevo[0, feature_id]:.4f} > {threshold_value:.4f}")
     (las líneas en blanco del literal llevaban espacios finales; leaf_id = tree_model.apply(X_nuevo)
     desaparece porque la hoja es siempre el último nodo del camino).
-    CORREGIDO (F6, 2026-10-20, tools/verify_exports.py): el docstring dice que class_names puede ser
-    un diccionario {valor de la clase: nombre}. model.predict devuelve el VALOR de la clase, así que con
-    la lista en el orden de los códigos un CSV con clases 1, 2, 3 mostraba el nombre de otra clase. -#}
+    CORREGIDO (F6, 2026-10-20, tools/verify_exports.py): class_names es el diccionario
+    {valor de la clase: nombre} (nombre_clase). model.predict devuelve el VALOR de la clase, así que con la
+    lista en el orden de los códigos un CSV con clases 1, 2, 3 mostraba en silencio el nombre de otra
+    clase; una lista solo se acepta si las clases son 0, 1, 2... (si no, ValueError). El ejemplo pasa
+    nombre_clase. -#}
 import numpy as np
 
 def mostrar_camino_decision(tree_model, X_nuevo, feature_names, class_names=None):
@@ -41,10 +43,10 @@ def mostrar_camino_decision(tree_model, X_nuevo, feature_names, class_names=None
         Ejemplo para predecir (debe ser un solo ejemplo)
     feature_names : list
         Nombres de las características
-    class_names : list o dict, optional
-        Nombres de las clases (solo para clasificación): una lista en el orden de sus códigos
-        0, 1, 2... o un diccionario {valor de la clase: nombre}, necesario si las clases son
-        números que no son 0, 1, 2... (por ejemplo, 3 y 6 en un CSV)
+    class_names : dict, optional
+        Solo para clasificación: el diccionario {valor de la clase: nombre} (nombre_clase en el
+        script de entrenamiento). Una lista en el orden de los códigos solo se acepta si las
+        clases del modelo son 0, 1, 2...
     """
     # Asegurar que X_nuevo sea un array numpy 2D con una sola fila
     X_nuevo = np.asarray(X_nuevo).reshape(1, -1)
@@ -79,9 +81,19 @@ def mostrar_camino_decision(tree_model, X_nuevo, feature_names, class_names=None
     # Mostrar la predicción final
     prediccion = tree_model.predict(X_nuevo)[0]
     if hasattr(tree_model, 'classes_') and class_names:
+        if not isinstance(class_names, dict):
+            # Una lista (nombres en el orden de los códigos) solo vale si las clases del modelo
+            # son 0, 1, 2...; con otros valores (1, 2, 3 en un CSV) daría el nombre de otra clase
+            if tree_model.classes_.tolist() != list(range(len(tree_model.classes_))):
+                raise ValueError(
+                    "class_names es una lista, pero las clases del modelo son "
+                    f"{tree_model.classes_.tolist()}: pasa el diccionario nombre_clase "
+                    "{valor de la clase: nombre} del script de entrenamiento")
+            class_names = dict(enumerate(class_names))
         print(f"Predicción final: {class_names[prediccion]}")
     else:
         print(f"Predicción final: {prediccion:.4f}")
 
-# Ejemplo de uso:
-# mostrar_camino_decision(tree_model, X_nuevo, feature_names, class_names)
+# Ejemplo de uso, a continuación del script de entrenamiento (nombre_clase es su diccionario
+# {valor de la clase: nombre}; en regresión no hace falta):
+# mostrar_camino_decision(tree_model, X_test.iloc[[0]], feature_names, nombre_clase)

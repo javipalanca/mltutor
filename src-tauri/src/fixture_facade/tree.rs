@@ -498,6 +498,7 @@ impl ModelView for TreeFixtureModel {
                     .iter()
                     .zip(&self.tree.value[leaf])
                     .map(|(&c, &p)| ClassProbability {
+                        code: to_u32(c),
                         name: self.name_of(c),
                         probability: p,
                     })

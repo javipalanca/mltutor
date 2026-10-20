@@ -5,7 +5,9 @@
     Variables (pásalas todas):
       feature_indices  [int, int]  posiciones de las dos características elegidas en X
       feature_names    [str, str]  sus nombres legibles, en el mismo orden
-      class_names      list[str]|null  nombres de las clases en el orden de sus códigos
+      class_names      list[str]|null  nombres de las clases en el orden de sus códigos. Desde F6 no
+                       se usa: la leyenda sale de nombre_clase, que define el script de
+                       entrenamiento (se sigue pasando para no cambiar el contrato)
     Variable opcional (D63, Fase 4; si no se pasa vale "entrenamiento" y el texto es el de F2/F3):
       datos            "entrenamiento" | "todos"
                        "entrenamiento": Regresión y Árboles. Se ejecuta a continuación de
@@ -14,6 +16,9 @@
                        "todos": 🔍 KNN. Como la app (D63), el modelo 2D se ajusta con TODAS las
                          muestras del dataset y se dibujan todas. Se ejecuta a continuación de
                          knn_entrenamiento.py.j2 y usa X, y y modelo.
+    CORREGIDO (F6, 2026-10-20): la leyenda emparejaba scatter.legend_elements() (solo las clases
+    presentes, y como mucho unas 9) con TODOS los nombres de class_names: con una clase ausente los
+    nombres quedaban desplazados. Ahora se construye desde np.unique(y) con nombre_clase.
 -#}
 {%- set todos = datos is defined and datos == "todos" %}
 {%- set Xd = "X" if todos else "X_train" %}
@@ -69,16 +74,13 @@ else:
     ax.set_xlabel("Característica 1")
     ax.set_ylabel("Característica 2")
 
-# Añadir leyenda de clases
-class_names = {{ class_names | pyrepr }}
-if class_names:
-    legend_labels = class_names
-else:
-    legend_labels = [f"Clase {i}" for i in range(len(np.unique({{ yd }})))]
-
-# Crear leyenda para las clases
-handles, _ = scatter.legend_elements()
-ax.legend(handles, legend_labels, title="Clases", loc="best")
+# Leyenda: una entrada por cada clase que aparece en el gráfico, con el color de sus puntos y su
+# nombre (nombre_clase es {valor de la clase: nombre}, del script de entrenamiento)
+clases_presentes = np.unique({{ yd }})
+handles = [plt.Line2D([], [], marker="o", linestyle="", markeredgecolor="black",
+                      markerfacecolor=scatter.cmap(scatter.norm(c)))
+           for c in clases_presentes]
+ax.legend(handles, [nombre_clase[c] for c in clases_presentes], title="Clases", loc="best")
 
 ax.set_title("Frontera de Decisión")
 plt.tight_layout()

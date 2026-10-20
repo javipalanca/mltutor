@@ -9,6 +9,8 @@
       classes        list[{value, name}]|null   código de la clase en MLTutor (la salida `label` del ONNX y el
                                                  índice de la neurona de salida, o 0/1 en binaria) y nombre
       n_train, n_test int
+    F6 (2026-10-20): con salida tanh en binaria se avisa de que p (y "probabilities" del ONNX) no es una
+    probabilidad.
 -#}
 RED NEURONAL EXPORTADA DESDE MLTUTOR
 ====================================
@@ -56,6 +58,9 @@ Clases (salida de la red)
 {% endfor %}
 {%- if classes | length == 2 %}
 La red tiene una sola neurona de salida, p: predice la clase 1 si p > 0,5.
+{%- if output_activation == "tanh" %}
+Con la salida tanh, p va de -1 a 1 y NO es una probabilidad: MLTutor solo la compara con 0,5.
+{%- endif %}
 {%- else %}
 La red tiene una neurona por clase: predice la de la salida más alta.
 {%- endif %}
@@ -69,6 +74,9 @@ Si exportas también el ONNX (botón "💾 ONNX" de MLTutor)
 {%- if classes %}
 - "label" es el código de la clase de la lista de arriba.
 - "probabilities" tiene una columna por clase{% if classes | length == 2 %}: [1 - p, p]{% endif %}.
+{%- if classes | length == 2 and output_activation == "tanh" %}
+  Con la salida tanh, p está entre -1 y 1: esas dos columnas pueden ser negativas o pasar de 1.
+{%- endif %}
 {%- else %}
 - "variable" es la predicción.
 {%- endif %}

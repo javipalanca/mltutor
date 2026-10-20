@@ -394,6 +394,7 @@ impl ModelView for KnnFixtureModel {
                             .iter()
                             .zip(proba)
                             .map(|(&c, probability)| ClassProbability {
+                                code: to_u32(c),
                                 name: self.name_of(c),
                                 probability,
                             })

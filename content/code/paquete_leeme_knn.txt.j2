@@ -12,6 +12,7 @@
       weights        str        "uniform" o "distance"
       metric         str        "minkowski", "euclidean" o "manhattan"
       pkl_name       str        "modelo_knn.pkl"
+    F6 (2026-10-20): sección sobre el ONNX (entrada float32: la distancia 0 y los empates).
 -#}
 MODELO EXPORTADO DESDE MLTUTOR
 ==============================
@@ -56,5 +57,16 @@ Clases (lo que devuelve predict)
 {%- endif %}
 Las columnas de texto del dataset original se convirtieron en números por orden
 alfabético (LabelEncoder). Codifica igual los datos nuevos.
+
+Si exportas también el ONNX (botón "💾 ONNX" de MLTutor)
+-------------------------------------------------------
+- Recibe las muestras en float32 (la entrada "float_input") y calcula las distancias en
+  float64 con las muestras de entrenamiento originales. Redondear a float32 cambia un poco
+  las distancias: una muestra idéntica a una de entrenamiento ya no queda a distancia 0
+  (salvo que sus valores sean exactos en float32, como los enteros pequeños){% if weights == "distance" %}, así
+  que la regla de scikit-learn "si hay vecinos a distancia 0, solo cuentan ellos" no se aplica
+  y sus probabilidades pueden diferir ligeramente de las de MLTutor{% endif %}.
+- Si varias muestras empatan en la distancia del K-ésimo vecino, el ONNX elige la de menor
+  posición en el entrenamiento; scikit-learn y MLTutor pueden elegir otra igual de cercana.
 
 Atención: abrir un archivo .pkl puede ejecutar código. Carga solo los que hayas generado tú.

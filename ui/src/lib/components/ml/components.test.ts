@@ -79,7 +79,7 @@ describe("PredictionForm (C9)", () => {
 describe("PredictionResultCard (C9)", () => {
   it("shows the class and the probability table with 4 decimals (D33)", () => {
     render(PredictionResultCard, {
-      result: { kind: "class", index: 1, name: "versicolor", proba: [{ name: "setosa", probability: 0.0427128 }, { name: "versicolor", probability: 0.928777 }], path: null, neighbors: null },
+      result: { kind: "class", index: 1, name: "versicolor", proba: [{ code: 0, name: "setosa", probability: 0.0427128 }, { code: 1, name: "versicolor", probability: 0.928777 }], path: null, neighbors: null },
     });
     expect(screen.getByText("Clase: versicolor")).toBeTruthy();
     expect(screen.getByText("0.0427")).toBeTruthy();

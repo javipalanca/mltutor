@@ -61,6 +61,7 @@ impl RealNn {
                         .iter()
                         .zip([1.0 - probability, *probability])
                         .map(|(&code, probability)| ClassProbability {
+                            code: crate::ipc::to_u32(code),
                             name: self.class_name(code),
                             probability,
                         })
@@ -81,6 +82,7 @@ impl RealNn {
                         .iter()
                         .zip(probabilities)
                         .map(|(&code, &probability)| ClassProbability {
+                            code: crate::ipc::to_u32(code),
                             name: self.class_name(code),
                             probability,
                         })

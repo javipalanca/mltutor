@@ -1,17 +1,24 @@
 {#- Literal de mltutor/algorithms/code_examples.py::VIZ_TREE_CODE (sin el salto de línea inicial).
-    Pestaña 📉 Visualización → 🌲 Árbol: show_code_with_download(VIZ_TREE_CODE, "Código para visualizar el árbol", "visualizar_arbol.py"). Sin variables. -#}
+    Pestaña 📉 Visualización → 🌲 Árbol: show_code_with_download(VIZ_TREE_CODE, "Código para visualizar el árbol", "visualizar_arbol.py"). Sin variables.
+    CORREGIDO (F6, 2026-10-20): misma convención que texto_arbol y camino_decision, el diccionario
+    nombre_clase {valor de la clase: nombre} del script de entrenamiento. plot_tree quiere los nombres
+    en el orden de tree_model.classes_; Python pasaba class_names tal cual (bien solo si todas las
+    clases llegan al entrenamiento). Diferencias con el literal (tests/parity/code/trees.json,
+    python_text): el comentario "Suponiendo…" y class_names=class_names -> la lista por classes_. -#}
 import matplotlib.pyplot as plt
 from sklearn.tree import plot_tree
 
-# Suponiendo que ya tienes un modelo entrenado (tree_model)
-# y los nombres de las características (feature_names) y clases (class_names)
+# Suponiendo que ya tienes un modelo entrenado (tree_model), los nombres de las características
+# (feature_names) y, en clasificación, el diccionario nombre_clase {valor de la clase: nombre}
+# del script de entrenamiento (None en regresión)
 
 fig, ax = plt.subplots(figsize=(14, 10))
 
 plot_tree(
     tree_model,
     feature_names=feature_names,
-    class_names=class_names,  # Solo para clasificación
+    # Solo para clasificación: un nombre por clase, en el orden de tree_model.classes_
+    class_names=None if nombre_clase is None else [str(nombre_clase[c]) for c in tree_model.classes_],
     filled=True,
     rounded=True,
     ax=ax,

@@ -914,20 +914,29 @@ CODE_LITERALS = {
 # Templates that deliberately differ from the app's text: 'text' is the expected render and
 # 'python_text' the app's string (like CODE_TEMPLATES_CHANGED of export_golden.py).
 CODE_CHANGED = {
+    "visualizar_arbol.py.j2": "F6 (verify_exports review): class_names for plot_tree is built from "
+                              "the dict nombre_clase in the order of tree_model.classes_ (the "
+                              "convention of the three tree snippets); Python passed class_names "
+                              "as is",
     "texto_arbol.py.j2": "D40: export_text receives class_names (in the order of classes_), so the "
                          "leaves say 'class: setosa' instead of 'class: 0'; the unused "
                          "show_class_name parameter becomes class_names=None. F6 "
                          "(verify_exports): class_names may also be a dict {class value: name}, "
-                         "needed when a CSV's classes are numbers such as 1, 2, 3",
+                         "needed when a CSV's classes are numbers such as 1, 2, 3. F6 review: the dict "
+                         "nombre_clase is THE convention (the example passes it); a list is "
+                         "accepted only if classes_ == 0..n-1, otherwise ValueError",
     "usar_modelo_arbol.py.j2": "F6 (verify_exports): class_names[prediction] indexed the names "
                                "(in the order of classes_) with the class VALUE: wrong name or "
                                "IndexError with CSV classes 1, 2, 3 or a class missing from the "
-                               "train set; now class_names[list(model.classes_).index(prediction)]",
+                               "train set; now class_names[list(model.classes_).index(prediction)], and "
+                               "'Clase {i}' of the probabilities uses the class value like the "
+                               "prediction",
     "camino_decision.py.j2": "ML review F3: the branch is read from the decision path "
                              "(children_left of the next node) and float32(x) is shown; the "
                              "Python literal compared in float64 (threshold 2.449999988079071, "
                              "x = 2.44999995: it printed '≤' but sklearn goes right). F6: the "
-                             "docstring allows class_names as a dict {class value: name}",
+                             "function takes the dict nombre_clase {class value: name} (a list only if "
+                             "classes_ == 0..n-1, otherwise ValueError); the example passes it",
 }
 
 

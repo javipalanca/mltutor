@@ -1087,10 +1087,54 @@ pub async fn predict_one(
     req: PredictRequest,
 ) -> Result<PredictionResult, CommandError> {
     with_model("predict_one", &models, req.model_id, move |m| {
-        validate_values(&req.values, m.model.summary().feature_columns.len())?;
-        m.model.predict_one(&req.values)
+        predict_with(m, &req.values)
     })
     .await
+}
+
+/// C9 behind `predict_one`: checks the form values and predicts.
+pub fn predict_with(m: &TrainedModel, values: &[f64]) -> Result<PredictionResult, CommandError> {
+    validate_values(values, m.model.summary().feature_columns.len())?;
+    m.model.predict_one(values)
+}
+
+/// C12 behind `generate_code`: checks that the template belongs to the model and the
+/// pair of features, and renders it.
+pub fn code_of(
+    m: &TrainedModel,
+    template: CodeTemplate,
+    extra: Option<CodeExtra>,
+) -> Result<String, CommandError> {
+    if template.needs_tree() && !m.config.is_tree() {
+        return Err(CommandError::not_tree());
+    }
+    if template.needs_knn() && !m.config.is_knn() {
+        return Err(CommandError::not_knn());
+    }
+    if template.needs_nn() && !matches!(m.config, ModelConfig::NeuralNet { .. }) {
+        return Err(CommandError::not_nn());
+    }
+    let pair = match extra {
+        Some(extra) => Some(validate_pair(m, extra.feature_x, extra.feature_y)?),
+        None => None,
+    };
+    m.model.code(template, pair)
+}
+
+/// C11 behind `export_model`: the bytes of an export (the command adds the dialog).
+/// `trained_at` is the date of the 📋 metadata, formatted by the UI.
+pub fn export_bytes(
+    m: &TrainedModel,
+    format: ExportFormat,
+    trained_at: Option<&str>,
+) -> Result<Vec<u8>, CommandError> {
+    match format {
+        ExportFormat::NnMetadata => Ok(m
+            .model
+            .nn_metadata(trained_at.unwrap_or_default())?
+            .into_bytes()),
+        _ => m.model.export(format),
+    }
 }
 
 #[tauri::command]
@@ -1101,20 +1145,7 @@ pub async fn generate_code(
     extra: Option<CodeExtra>,
 ) -> Result<String, CommandError> {
     with_model("generate_code", &models, model_id, move |m| {
-        if template.needs_tree() && !m.config.is_tree() {
-            return Err(CommandError::not_tree());
-        }
-        if template.needs_knn() && !m.config.is_knn() {
-            return Err(CommandError::not_knn());
-        }
-        if template.needs_nn() && !matches!(m.config, ModelConfig::NeuralNet { .. }) {
-            return Err(CommandError::not_nn());
-        }
-        let pair = match extra {
-            Some(extra) => Some(validate_pair(m, extra.feature_x, extra.feature_y)?),
-            None => None,
-        };
-        m.model.code(template, pair)
+        code_of(m, template, extra)
     })
     .await
 }
@@ -1223,13 +1254,7 @@ pub async fn export_model(
     blocking(move || {
         let model = models.model(model_id)?;
         // 📋 Metadatos: the date of the training is formatted by the UI (local time).
-        let bytes = match format {
-            ExportFormat::NnMetadata => model
-                .model
-                .nn_metadata(trained_at.as_deref().unwrap_or_default())?
-                .into_bytes(),
-            _ => model.model.export(format)?,
-        };
+        let bytes = export_bytes(&model, format, trained_at.as_deref())?;
         let (name, filter, extension) = export_target(&model.config, format);
         drop(model);
         // `--smoke-test` / `--screenshot`: no dialog, a temporary folder of the run.

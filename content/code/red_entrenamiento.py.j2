@@ -191,6 +191,8 @@ y = pd.Series(LabelEncoder().fit_transform(y), name=objetivo)
 nombres = {{ feature_names | pyrepr }}  # nombres que muestra MLTutor
 {%- if task == "classification" %}
 clases = {{ class_names | pyrepr }}
+# Código de cada clase (0, 1, 2...: la neurona de salida) -> su nombre
+nombre_clase = dict(enumerate(clases))
 {%- endif %}
 print(f"Datos: {X.shape[0]} muestras y {X.shape[1]} características")
 

@@ -668,6 +668,9 @@ pub struct PredictRequest {
 #[derive(Debug, Clone, PartialEq, Serialize, TS)]
 #[ts(export)]
 pub struct ClassProbability {
+    /// Class code of the dataset (index into `class_names`): the order does not depend on
+    /// the display names (which may repeat after `display_label`).
+    pub code: u32,
     pub name: String,
     pub probability: f64,
 }
@@ -1053,6 +1056,31 @@ pub enum CodeTemplate {
 }
 
 impl CodeTemplate {
+    /// The `content/code/` template the app renders for it: the single mapping used by
+    /// the lessons and by the export corpus of F6 (`export_corpus.rs`).
+    pub fn source(self) -> mltutor_core::codegen::CodeTemplate {
+        use mltutor_core::codegen::CodeTemplate as T;
+        match self {
+            Self::ConfusionMatrix => T::ConfusionMatrix,
+            Self::PrecisionByClass => T::PrecisionByClass,
+            Self::PredVsReal => T::PredVsReal,
+            Self::ErrorDistribution => T::ErrorDistribution,
+            Self::DecisionBoundary => T::DecisionBoundary,
+            // D29: the complete training script (Python's literal snippet did not run).
+            Self::RegressionCode => T::RegressionTraining,
+            Self::TreeViz => T::TreeViz,
+            Self::TreeText => T::TreeText,
+            Self::DecisionPath => T::DecisionPath,
+            Self::TreeUsage => T::TreeUsage,
+            Self::TreePython => T::TreePython,
+            Self::TreePythonLiteral => T::TreePythonLiteral,
+            Self::TreeTraining => T::TreeTraining,
+            Self::KnnTraining => T::KnnTraining,
+            Self::NnTraining => T::NnTraining,
+            Self::NnNumpyPredictor => T::NnNumpyPredictor,
+        }
+    }
+
     /// File of `content/code/` and default download name.
     pub fn file_stem(self) -> &'static str {
         match self {
