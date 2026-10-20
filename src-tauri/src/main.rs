@@ -7,6 +7,8 @@ mod cli;
 mod commands;
 mod core_facade;
 mod data;
+#[cfg(test)]
+mod export_corpus;
 mod files;
 #[cfg(any(test, debug_assertions))]
 mod fixture_facade;

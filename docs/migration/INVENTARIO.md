@@ -27,7 +27,7 @@ Leyenda: 🐍 = origen en Python · ⚠️ = requiere decisión o implementació
       (en Qt no se pueden ordenar; ordenarlas es una mejora opcional) y bloques de código Python con resaltado, botón de copiar y descarga.
 - [x] Los cálculos se hacen en segundo plano, con progreso y cancelación; la interfaz *(F1: Cancelar en la lectura de CSV y la correlación; el entrenamiento se añade en F2–F5)*
       nunca se bloquea.
-- [ ] Diálogos nativos para guardar las exportaciones y abrir CSV. *(F1: abrir CSV y guardar PNG/código; exportaciones en F2–F6)*
+- [x] Diálogos nativos para guardar las exportaciones y abrir CSV. *(F1: abrir CSV y guardar PNG/código; exportaciones en F2–F5; F6: todas las exportaciones se validan en CI con `tools/verify_exports.py`)*
 - [x] Funciona sin conexión: datasets, gráficos y fuentes van incluidos.
 
 ## 1. Datos (pestaña "📊 Datos", común a las cuatro lecciones) 🐍 `dataset/`

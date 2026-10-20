@@ -1,6 +1,6 @@
 # Plan de migración de MLTutor a Rust
 
-Rama: `feature/rust-migration` · Inicio: 2026-10-13 · Estado: **Fases 0 y 1 completadas (2026-10-14, revisadas por rust-reviewer), Fases 0–4 completadas (F4: 2026-10-15, revisada por rust-reviewer y ml-correctness-reviewer), Fase 5 completada (2026-10-16, F5a–F5d revisadas por rust-reviewer y ml-correctness-reviewer), Fase 6 en curso**
+Rama: `feature/rust-migration` · Inicio: 2026-10-13 · Estado: **Fases 0 y 1 completadas (2026-10-14, revisadas por rust-reviewer), Fases 0–4 completadas (F4: 2026-10-15, revisada por rust-reviewer y ml-correctness-reviewer), Fase 5 completada (2026-10-16, F5a–F5d revisadas por rust-reviewer y ml-correctness-reviewer), Fase 6 implementada (2026-10-20, pendiente de revisión)**
 
 ## Objetivo
 
@@ -219,10 +219,17 @@ Cada subfase se cierra con el CI y la revisión.
 
 ### Fase 6 — Exportación y código: cierre  *(riesgo: medio · tamaño: M)*
 
-- [ ] Validación cruzada de exportaciones en CI: un job de Python carga cada ONNX con
+- [x] Validación cruzada de exportaciones en CI: un job de Python carga cada ONNX con
       `onnxruntime` y ejecuta cada paquete Python, y comprueba que las predicciones
-      coinciden con las de Rust. Sustituye a `--verify-models`.
-- [ ] Cada plantilla de `content/code/*.py.j2` se ejecuta en CI con sklearn/Keras.
+      coinciden con las de Rust. Sustituye a `--verify-models`. *(2026-10-20: el corpus lo escribe
+      `src-tauri/src/export_corpus.rs` (test `#[ignore]`, 29 casos: lineal, logística binaria y
+      multiclase, árboles de clasificación y regresión, KNN uniform/distance, MLP binaria, multiclase y
+      de regresión, y CSV con `;`, coma decimal, cp1252 y clases 1/2/3 y 2/4) por los mismos caminos que
+      la app; `tools/verify_exports.py` lo comprueba con onnxruntime, scikit-learn y Keras (también
+      `.keras`, `.h5`, SavedModel, TFLite y los `.pkl`); job `exports` de `rust.yml`)*
+- [x] Cada plantilla de `content/code/*.py.j2` se ejecuta en CI con sklearn/Keras. *(con el texto que
+      renderiza la app, sin red; los scripts de entrenamiento reproducen el split y las predicciones de
+      Rust; las plantillas literales que la app no ofrece quedan en `NOT_RUN` con el motivo)*
 
 ### Fase 7 — Pulido y validación  *(riesgo: bajo · tamaño: M)*
 

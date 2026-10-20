@@ -23,7 +23,10 @@
             else:
                 print(f"- {feature_name} = {X_nuevo[0, feature_id]:.4f} > {threshold_value:.4f}")
     (las líneas en blanco del literal llevaban espacios finales; leaf_id = tree_model.apply(X_nuevo)
-    desaparece porque la hoja es siempre el último nodo del camino). -#}
+    desaparece porque la hoja es siempre el último nodo del camino).
+    CORREGIDO (F6, 2026-10-20, tools/verify_exports.py): el docstring dice que class_names puede ser
+    un diccionario {valor de la clase: nombre}. model.predict devuelve el VALOR de la clase, así que con
+    la lista en el orden de los códigos un CSV con clases 1, 2, 3 mostraba el nombre de otra clase. -#}
 import numpy as np
 
 def mostrar_camino_decision(tree_model, X_nuevo, feature_names, class_names=None):
@@ -38,8 +41,10 @@ def mostrar_camino_decision(tree_model, X_nuevo, feature_names, class_names=None
         Ejemplo para predecir (debe ser un solo ejemplo)
     feature_names : list
         Nombres de las características
-    class_names : list, optional
-        Nombres de las clases (solo para clasificación)
+    class_names : list o dict, optional
+        Nombres de las clases (solo para clasificación): una lista en el orden de sus códigos
+        0, 1, 2... o un diccionario {valor de la clase: nombre}, necesario si las clases son
+        números que no son 0, 1, 2... (por ejemplo, 3 y 6 en un CSV)
     """
     # Asegurar que X_nuevo sea un array numpy 2D con una sola fila
     X_nuevo = np.asarray(X_nuevo).reshape(1, -1)

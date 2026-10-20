@@ -297,6 +297,36 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
     `tools/knn_reference.py` lo reproduce bit a bit y es la especificación (D52, D66).
   - La wheel arm64 suma la distancia euclídea en bloques de 8 sin FMA, y el resto (`n % 8`) con FMA
     (D53, `mul_add`).
+- **Fase 6, validación cruzada de exportaciones (2026-10-20):**
+  - El corpus lo escribe `src-tauri/src/export_corpus.rs` (test `#[ignore]`, en src-tauri porque los
+    contextos de las plantillas y `RealFacade` viven allí): entrena con `train_observed` (como el comando;
+    `DatasetView::train` con una red devuelve `Internal`), pide cada `export` y cada `code` y guarda las
+    predicciones de `predict_one`. Determinista (dos ejecuciones dan los mismos bytes). Unos 0,5 s.
+  - `tools/verify_exports.py` + `tools/verify_exports.requirements.txt` (job `exports` de `rust.yml`).
+    En este Mac: `uv run --no-project --python .venv/bin/python --with-requirements
+    tools/verify_exports.requirements.txt python tools/verify_exports.py <corpus>`; 239 comprobaciones
+    en unos 35 s con 4 procesos. Cada script corre con `python -I` en una carpeta nueva, con los sockets
+    bloqueados, `SEABORN_DATA` apuntando a una copia de `mltutor/dataset/data/sample_datasets` y un
+    `SCIKIT_LEARN_DATA` vacío (California no se puede cargar sin red: solo se prueban su ONNX y su
+    paquete). Diamantes no está en `sample_datasets`. `python -I` no ve `PYTHON*`, pero sí `MPLBACKEND`,
+    `SEABORN_DATA` y `OMP_NUM_THREADS`; el entorno superpuesto de `uv run --with` también funciona con `-I`.
+  - Errores máximos observados: ONNX lineal 5,1e-6 relativo (California, float32), logística 8e-7 en
+    probabilidades, árboles 5e-8, KNN 1,6e-6 (distance, por redondear la entrada a float32), MLP 2,4e-7;
+    `.keras`/`.h5`/SavedModel/`modelo_completo.pkl` 1,2e-7, TFLite 2e-7, NumPy 1,3e-7; los `.pkl` de
+    sklearn ≤ 4,3e-13. En el ONNX de KNN de Titanic se toleran 7 filas: todas tienen un empate en la
+    K-ésima distancia o un duplicado exacto en train (a distancia 0 en float64, no en float32).
+  - **Fallo encontrado (clases numéricas de un CSV, p. ej. 1/2/3):** `usar_modelo_arbol.py.j2` (literal
+    de Python) hacía `class_names[prediction]` con el VALOR de la clase: nombre de otra clase o
+    IndexError (también si una clase falta en el train). Corregido con la posición en `model.classes_`.
+    `texto_arbol.py.j2` daba IndexError con la lista por código: ahora acepta también el diccionario
+    `{valor: nombre}` (`nombre_clase` del script de entrenamiento), como documenta `camino_decision.py.j2`.
+    El paquete del árbol ya guardaba `class_names` en el orden de `classes_`.
+  - `analisis_exploratorio.py.j2` es un fragmento con huecos (`df`, `selected_features =
+    ['feature1', …]`): el verificador los rellena con Iris. Las plantillas literales que la app no
+    ofrece (`arbol_python`, `red_arquitectura`, `red_cargar_completo`, `red_predictor_plantilla`,
+    `regresion_codigo`) están en `NOT_RUN`; una plantilla nueva sin caso ni entrada en `NOT_RUN` falla.
+  - El paquete Keras atrapa los fallos al guardar cada formato (`⚠️ No se pudo guardar`), así que el
+    verificador exige los 6 archivos y que no aparezca ese aviso.
 - **Contenido de la revisión F5c/F5d (2026-10-16):**
   - "Tu modelo de regresión lineal explica" pasa a "Tu modelo explica" en `[interpretacion] reg`. Los
     fixtures de Árboles y KNN conservan el texto de Python, y `parity_components.rs` lo normaliza en el

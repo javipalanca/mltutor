@@ -4,7 +4,14 @@
     de "📦 Exportar como Pickle"), que Rust no genera (D1): el paquete Python lo crea con este formato (D43).
     Variables: feature_names (list[str], nombres legibles; Python los imprime con str(list) = repr).
     Van dentro del docstring: `pyrepr | pycomment` (pycomment quita las comillas triples de un nombre
-    de columna de un CSV, que cerrarían el docstring; con nombres normales no cambia nada). -#}
+    de columna de un CSV, que cerrarían el docstring; con nombres normales no cambia nada).
+    CORREGIDO (F6, 2026-10-20, tools/verify_exports.py): Python hacía class_names[prediction], pero
+    model.predict devuelve el VALOR de la clase (uno de model.classes_) y class_names va en el orden de
+    model.classes_ (como predict_proba). Con un CSV de clases 1, 2, 3 daba el nombre de la clase
+    siguiente o IndexError, y también fallaba si una clase no llegaba al entrenamiento. Ahora el
+    nombre se busca por la posición de la predicción en model.classes_. Diferencias con el literal
+    (tests/parity/code/trees.json, python_text): las dos expresiones class_names[prediction] ->
+    class_names[list(model.classes_).index(prediction)], con un comentario encima de la primera. -#}
 # Código para usar el modelo de árbol de decisión
 import pickle
 import numpy as np
@@ -38,7 +45,8 @@ def predecir(valores_caracteristicas):
     
     if task_type == "Clasificación":
         if class_names:
-            return class_names[prediction]
+            # class_names va en el orden de model.classes_ (los valores de la clase)
+            return class_names[list(model.classes_).index(prediction)]
         else:
             return f"Clase {prediction}"
     else:
@@ -56,7 +64,7 @@ if task_type == "Clasificación" and hasattr(model, 'predict_proba'):
         probabilities = model.predict_proba(X)[0]
         
         resultado = {
-            'prediccion': class_names[prediction] if class_names else f"Clase {prediction}",
+            'prediccion': class_names[list(model.classes_).index(prediction)] if class_names else f"Clase {prediction}",
             'probabilidades': {
                 (class_names[i] if class_names else f"Clase {i}"): prob 
                 for i, prob in enumerate(probabilities)
