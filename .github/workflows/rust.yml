@@ -271,8 +271,9 @@ jobs:
             xvfb-run -a --server-args="-screen 0 1600x1000x24" \
               dbus-run-session -- "${{ steps.out.outputs.path }}" --screenshot "$@"
           }
-          shot screenshots/inicio.png
-          shot screenshots/pairplot-pagina.png --scenario datos_pairplot_kde_iris --full-page \
+          # Absolute paths: the AppImage's AppRun changes the working directory.
+          shot "$PWD/screenshots/inicio.png"
+          shot "$PWD/screenshots/pairplot-pagina.png" --scenario datos_pairplot_kde_iris --full-page \
             || echo "::warning::Full-page screenshot failed (best effort on Linux)"
       - name: Screenshots (macOS)
         if: runner.os == 'macOS'

@@ -157,6 +157,7 @@ fn knn_budgets() {
 /// F4 review: the class distances of 70 000 rows (8 features). Before: O(n²) on one
 /// thread, 14.6 s (2 classes) and 10.1 s (10 classes) on an M-series Mac; now the
 /// classes are capped at 5 000 rows (`sampled`) and the rows run on up to 8 threads.
+/// The 10-class budget leaves room for a 4-vCPU CI runner (3.4 s on ubuntu-22.04).
 #[test]
 #[ignore = "benchmark: run in release with --ignored"]
 fn class_distances_70k() {
@@ -164,7 +165,7 @@ fn class_distances_70k() {
     let x = ndarray::Array2::from_shape_fn((n, 8), |(i, j)| {
         ((i.wrapping_mul(2_654_435_761) ^ (j * 40_503)) % 1000) as f64 / 100.0
     });
-    for (k, budget) in [(2usize, 300), (10, 3000)] {
+    for (k, budget) in [(2usize, 300), (10, 6000)] {
         let codes: Vec<usize> = (0..n).map(|i| i % k).collect();
         let mut sampled = false;
         let d = median(|| {
