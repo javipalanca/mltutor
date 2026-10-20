@@ -64,9 +64,9 @@
     min-height: 42px;
     padding: 10px 14px;
     text-align: center;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    /* Wraps (instead of "Cargar CSV Person…") when the sidebar narrows in small windows. */
+    white-space: normal;
+    line-height: 1.3;
     background: var(--color-bg);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-button);
@@ -86,9 +86,8 @@
   }
 
   button:focus-visible {
-    outline: none;
-    border: 2px solid var(--color-focus);
-    padding: 9px 13px;
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
   }
 
   button.active {

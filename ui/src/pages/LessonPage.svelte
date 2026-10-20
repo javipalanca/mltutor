@@ -43,9 +43,9 @@
     <Markdown source={md(`${id}/intro.md`)} />
   </Expander>
 
-  <LessonTabs tabs={content.tabs} {active} onchange={go} />
+  <LessonTabs tabs={content.tabs} {active} onchange={go} idPrefix="lesson-{id}" label="Pestañas de {content.title}" />
 
-  <div class="tab-body" data-lesson-tab={active}>
+  <div class="tab-body" data-lesson-tab={active} role="tabpanel" id="lesson-{id}-panel" aria-labelledby="lesson-{id}-tab-{active}">
     <DatasetTab lesson={id} {block} />
     {#if active > 0 && id === "regresion"}
       <RegressionLesson {active} />

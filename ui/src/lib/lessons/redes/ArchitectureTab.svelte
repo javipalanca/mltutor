@@ -324,7 +324,7 @@
     line-height: 1.45;
   }
 
-  @media (max-width: 860px) {
+  @container page (max-width: 520px) {
     .two {
       grid-template-columns: minmax(0, 1fr);
     }

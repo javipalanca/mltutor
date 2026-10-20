@@ -92,8 +92,9 @@ plataformas** antes de escribir lógica.
       anota en MEMORY.md.
 - [x] Esqueleto de Tauri 2 + Svelte 5 + Vite + TS, con CSP estricta, sin red,
       `tauri-plugin-dialog`/`fs` y el icono actual (`assets/`).
-- [x] Flags del binario (la captura de Windows y Linux, pendiente): `--smoke-test`, que navega por todas las rutas y sale con 0, y
-      `--screenshot <png>`. Además, registro en `~/.mltutor/mltutor.log` y hook de panic.
+- [x] Flags del binario: `--smoke-test`, que navega por todas las rutas y sale con 0, y
+      `--screenshot <png>` (Windows y Linux desde el 2026-10-20: `CapturePreview` y
+      `webkit_web_view_get_snapshot`; el CI valida una captura en cada sistema). Además, registro en `~/.mltutor/mltutor.log` y hook de panic.
 - [x] (verde en los 3 sistemas desde la ejecución 38430755760) Workflow `.github/workflows/rust.yml`: fmt, clippy, test, npm check/test, build
       Tauri, smoke test (xvfb en Linux) y empaquetado
       `mltutor-windows-x86_64.exe` / `mltutor-macos-arm64.zip` /
@@ -101,7 +102,11 @@ plataformas** antes de escribir lógica.
       misma lógica de prerelease que el workflow actual.
 - [x] `release.sh` adaptado para leer y escribir la versión en Cargo.toml y
       tauri.conf.json, conservando las reglas de main y de `-rc`.
-- [ ] D3: aviso con enlace en Windows si falta el WebView2 Runtime (`tauri-ui-engineer`).
+- [x] D3: aviso con enlace en Windows si falta el WebView2 Runtime (`tauri-ui-engineer`). *(2026-10-20:
+      `src-tauri/src/webview_runtime.rs` lo detecta antes de crear la ventana y muestra un `MessageBoxW` con
+      el texto de `content/app/arranque.toml`, que también va al registro; plan B: runtime «Fixed Version» en
+      una carpeta `WebView2` junto al `.exe`. El CI lo prueba con una carpeta de runtime vacía. Falta
+      verlo en un Windows real sin WebView2.)*
 - [x] `tools/export_golden.py`, con la infraestructura y un primer fixture (Iris). También están los 12 datasets, el split y los fixtures de lineal y logística.
 - [x] **Hito:** CI en verde en los 3 sistemas, con artefactos descargables que se abren y
       pasan el smoke test. Sin release.
@@ -154,7 +159,7 @@ reutilizarán el resto de lecciones.
 
 #### Pendientes de la verificación de F2 (se hacen con la F3)
 
-- [ ] (parcial: con R bien condicionada ya se usa sustitución hacia atrás; 3000×1500 pasa de 14,4 s a 1,4 s; queda el caso de rango deficiente: 1500×1500 tarda 12,7 s sin poder cancelar) OLS: la SVD de R (linfa-linalg) cuesta O(p³) y no se puede cancelar (1500 columnas: 11 s).
+- [x] (2026-10-20: con R bien condicionada, sustitución hacia atrás (3000×1500: de 14,4 s a 1,4 s); con rango deficiente, SVD propia de Golub–Kahan en `linear/lstsq.rs`, cancelable en < 1 ms: 1500×1500 pasa de 14 s a ≈ 1,3–1,4 s) OLS: la SVD de R (linfa-linalg) cuesta O(p³) y no se puede cancelar (1500 columnas: 11 s).
       Resolver por sustitución hacia atrás cuando R esté bien condicionada y dejar la SVD solo
       para el rango deficiente, o limitar p con un error claro.
 - [x] OLS: con valores de ±1e308 devuelve `Ok` con el intercepto NaN. Comprobar la finitud de los
@@ -214,8 +219,9 @@ Cada subfase se cierra con el CI y la revisión.
 - [x] Unificar el `NnTrainingContext` duplicado (`src-tauri/src/nn.rs` y `mltutor_core::codegen`).
 - [x] Lote de predicción con un modelo de UNA sola característica: el lector CSV rechaza los archivos de
       1 columna (`TooFewColumns`). Resuelto con `ReadOptions { min_columns: 1 }`.
-- [ ] El smoke test tarda 55–80 s con 23 comprobaciones (el límite es 180 s); vigilarlo en el CI de
-      Windows/Linux y, si hace falta, partirlo o subir el límite en F7.
+- [x] El smoke test tarda 55–80 s con 23 comprobaciones (el límite es 180 s); vigilarlo en el CI de
+      Windows/Linux y, si hace falta, partirlo o subir el límite en F7. *(2026-10-20: en CI tarda 25–46 s en
+      los tres sistemas; no hace falta partirlo. Los ms de cada paso salen en el registro y en el resumen del job.)*
 
 ### Fase 6 — Exportación y código: cierre  *(riesgo: medio · tamaño: M)*
 
@@ -238,7 +244,13 @@ Cada subfase se cierra con el CI y la revisión.
 
 - [ ] Revisión visual pantalla por pantalla frente a la versión Qt, accesibilidad
       (teclado, contraste), HiDPI y tamaños de ventana.
-- [ ] Benchmarks (`criterion`) y presupuesto de tamaño del binario.
+- [x] Benchmarks (`criterion`) y presupuesto de tamaño del binario. *(Presupuesto hecho el 2026-10-20:
+      `matrix.size_budget` en `rust.yml`, ≈ +15 % sobre los tamaños actuales, con la tabla en el resumen del
+      job; ahorros medidos y aplicados en MEMORY.md; el job `benchmarks` del CI compila los criterion y ejecuta
+      en release los presupuestos `bench_*`. Benchmarks (2026-10-20): `benches/` de mltutor-core, -nn y
+      -export, resultados y comparación con sklearn/Keras en [benchmarks.md](benchmarks.md); de paso, SVD
+      propia y cancelable para OLS (14 s → ≈ 1,3–1,4 s), Cholesky de la logística más rápida (Dígitos 1,8×, bit a bit) y
+      datasets incrustados comprimidos con deflate (−2 MB).)*
 - [ ] Validación en equipos limpios con cuentas sin privilegios en los 3 sistemas, y
       en equipos de laboratorio reales.
 - [ ] Revisión completa de `ml-correctness-reviewer` y `rust-reviewer`.

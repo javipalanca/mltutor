@@ -74,6 +74,17 @@
 
   .control:focus-within {
     border-color: var(--color-input-focus-border);
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  .control:has(.steppers button:focus-visible) {
+    outline: none;
+  }
+
+  .steppers button:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: -2px;
   }
 
   input {

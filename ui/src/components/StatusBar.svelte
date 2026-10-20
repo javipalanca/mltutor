@@ -4,8 +4,8 @@
   import { status } from "../lib/status.svelte";
 </script>
 
-<footer class="statusbar" aria-live="polite">
-  <span class="text">{status.text}</span>
+<footer class="statusbar">
+  <span class="text" role="status" aria-live="polite">{status.text}</span>
   {#if busy.active}
     <span class="activity">
       {#if busy.canCancel}
@@ -13,7 +13,7 @@
           Cancelar
         </button>
       {/if}
-      <span class="progress" role="progressbar" aria-label="Actualizando"><span class="bar"></span></span>
+      <span class="progress" role="progressbar" aria-label="Calculando…" aria-valuetext="En curso"><span class="bar"></span></span>
     </span>
   {/if}
 </footer>
@@ -65,7 +65,7 @@
     width: 170px;
     height: 10px;
     overflow: hidden;
-    border: 1px solid #dce2ea;
+    border: 1px solid var(--color-input-border);
     border-radius: 4px;
   }
 
@@ -76,6 +76,14 @@
     width: 40%;
     background: var(--color-primary);
     animation: slide 1.1s ease-in-out infinite;
+  }
+
+  /* No sliding bar with reduced motion (theme.css stops animations): a static, full bar. */
+  @media (prefers-reduced-motion: reduce) {
+    .bar {
+      width: 100%;
+      opacity: 0.55;
+    }
   }
 
   @keyframes slide {

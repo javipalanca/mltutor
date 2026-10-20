@@ -31,11 +31,12 @@ pub enum DatasetId {
 macro_rules! embedded {
     ($slug:literal) => {
         (
+            // Deflated by build.rs from tests/parity/datasets/data/<slug>.csv.
             include_bytes!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../../tests/parity/datasets/data/",
+                env!("OUT_DIR"),
+                "/datasets/",
                 $slug,
-                ".csv"
+                ".csv.deflate"
             ))
             .as_slice(),
             include_str!(concat!(
@@ -100,9 +101,27 @@ impl DatasetId {
     }
 
     /// The embedded CSV (golden data: features in `X.columns` order, then label
-    /// columns, then the target).
-    pub fn csv_bytes(self) -> &'static [u8] {
-        self.embedded().0
+    /// columns, then the target), byte for byte. It is stored deflated in the
+    /// binary (build.rs) and inflated here: California (1.8 MB) takes about 4 ms.
+    pub fn csv_bytes(self) -> Result<Vec<u8>, DatasetError> {
+        use std::io::Read;
+        let broken = |message: String| DatasetError::Data {
+            dataset: self.slug().to_owned(),
+            message,
+        };
+        let packed = self.embedded().0;
+        let (len, body) = packed
+            .split_first_chunk::<4>()
+            .ok_or_else(|| broken("CSV incrustado vacío".to_owned()))?;
+        let len = u32::from_le_bytes(*len) as usize;
+        let mut csv = Vec::with_capacity(len);
+        flate2::read::DeflateDecoder::new(body)
+            .read_to_end(&mut csv)
+            .map_err(|e| broken(e.to_string()))?;
+        if csv.len() != len {
+            return Err(broken(format!("{} bytes en lugar de {len}", csv.len())));
+        }
+        Ok(csv)
     }
 
     /// The embedded `content/datasets/<slug>.toml`.
@@ -177,7 +196,7 @@ pub fn list_builtin() -> Result<Vec<DatasetEntry>, DatasetError> {
 /// to [`super::moons::moons_dataset`]`(42)`.
 pub fn load_builtin(id: DatasetId) -> Result<Dataset, DatasetError> {
     let meta = id.metadata()?;
-    let raw = crate::csv::read_csv(id.csv_bytes()).map_err(|e| DatasetError::Data {
+    let raw = crate::csv::read_csv(&id.csv_bytes()?).map_err(|e| DatasetError::Data {
         dataset: id.slug().to_owned(),
         message: e.to_string(),
     })?;

@@ -244,6 +244,9 @@
   }
 </script>
 
+<!-- Escape dismisses the hover tooltip (WCAG 1.4.13). -->
+<svelte:window onkeydown={(event) => { if (event.key === "Escape") hover = null; }} />
+
 <div class="tree-diagram" data-tree-diagram data-nodes={diagram.nodes.length} bind:this={container}>
   <div class="toolbar">
     <button type="button" class="btn icon" title="Acercar (+)" aria-label="Acercar" onclick={() => zoomAt(1.25, viewWidth / 2, viewHeight / 2)}>＋</button>

@@ -22,8 +22,27 @@ function toml(): Plugin {
   };
 }
 
+/**
+ * KaTeX's CSS lists every font as woff2, woff and ttf; the system WebViews (WKWebView,
+ * WebView2, WebKitGTK) all read woff2, so the other two are dropped before Vite bundles
+ * them (~480 KB less in the binary, F7).
+ */
+function katexWoff2Only(): Plugin {
+  return {
+    name: "mltutor-katex-woff2",
+    enforce: "pre",
+    transform(code, id) {
+      if (!/katex[\\/]dist[\\/]katex(\.min)?\.css$/.test(id.split("?")[0] ?? "")) {
+        return null;
+      }
+      const stripped = code.replace(/,\s*url\([^)]+\.woff\)\s*format\("woff"\)|,\s*url\([^)]+\.ttf\)\s*format\("truetype"\)/g, "");
+      return { code: stripped, map: null };
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [toml(), svelte()],
+  plugins: [katexWoff2Only(), toml(), svelte()],
   clearScreen: false,
   resolve: {
     alias: { "@content": contentDir },

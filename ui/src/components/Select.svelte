@@ -32,9 +32,9 @@
 
 <div class="field">
   <label for={id} title={help} class:strong>{label}</label>
-  {#if hint}<p class="hint">{hint}</p>{/if}
+  {#if hint}<p class="hint" id="{id}-hint">{hint}</p>{/if}
   <div class="control">
-    <select {id} {disabled} value={String(selectedIndex)} onchange={change} title={help}>
+    <select {id} {disabled} aria-describedby={hint ? `${id}-hint` : undefined} value={String(selectedIndex)} onchange={change} title={help}>
       {#each options as option, index (index)}
         <option value={String(index)}>{option.label}</option>
       {/each}
@@ -85,7 +85,8 @@
   }
 
   select:focus-visible {
-    outline: none;
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
     background: var(--color-bg);
     border-color: var(--color-input-focus-border);
   }

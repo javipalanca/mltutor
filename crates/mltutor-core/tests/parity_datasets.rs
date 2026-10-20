@@ -18,8 +18,9 @@ fn every_dataset_matches_its_fixture_exactly() {
         let exp = &fx["expected"];
         let id = DatasetId::from_slug(slug).unwrap();
 
-        // Bytes embedded with include_bytes! are the golden CSV.
-        let csv = id.csv_bytes();
+        // The embedded (deflated) bytes inflate to the golden CSV.
+        let csv = id.csv_bytes().unwrap();
+        let csv = csv.as_slice();
         assert_eq!(
             hex(&Sha256::digest(csv)),
             exp["csv_sha256"].as_str().unwrap(),

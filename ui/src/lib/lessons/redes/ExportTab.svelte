@@ -241,7 +241,7 @@
     margin: 0;
   }
 
-  @media (max-width: 760px) {
+  @container page (max-width: 420px) {
     .cards {
       grid-template-columns: 1fr;
     }

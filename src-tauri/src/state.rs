@@ -56,6 +56,8 @@ pub struct AppState {
     ready: AtomicBool,
     finished: AtomicBool,
     smoke: Mutex<SmokeProgress>,
+    /// When the previous smoke-test route or check was reported (per-check timings).
+    last_report: Mutex<Option<Instant>>,
 }
 
 impl AppState {
@@ -66,7 +68,23 @@ impl AppState {
             ready: AtomicBool::new(false),
             finished: AtomicBool::new(false),
             smoke: Mutex::new(SmokeProgress::default()),
+            last_report: Mutex::new(None),
         }
+    }
+
+    /// Time since the previous smoke-test report (since startup for the first one) and
+    /// since startup, in ms. Shown for every route and check so slow ones stand out in CI.
+    pub fn smoke_lap(&self) -> (u128, u128) {
+        let now = Instant::now();
+        let mut last = self
+            .last_report
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let since = last.replace(now).unwrap_or(self.started);
+        (
+            now.duration_since(since).as_millis(),
+            now.duration_since(self.started).as_millis(),
+        )
     }
 
     /// Returns `true` only the first time the frontend reports it is ready.
@@ -183,6 +201,16 @@ mod tests {
             .filter_map(|rest| rest.split('"').next())
             .collect();
         assert_eq!(ids, SMOKE_ROUTES);
+    }
+
+    #[test]
+    fn smoke_laps_measure_from_the_previous_report() {
+        let state = AppState::new(Mode::SmokeTest, Instant::now());
+        let (first, total) = state.smoke_lap();
+        assert!(first <= total);
+        std::thread::sleep(Duration::from_millis(5));
+        let (lap, total) = state.smoke_lap();
+        assert!(lap >= 5 && total >= lap, "{lap} {total}");
     }
 
     #[test]

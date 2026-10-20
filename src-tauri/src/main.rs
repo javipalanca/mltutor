@@ -32,6 +32,7 @@ mod session;
 mod state;
 mod tasks;
 mod tree_code;
+mod webview_runtime;
 
 use std::process::ExitCode;
 use std::time::Instant;
@@ -82,13 +83,20 @@ fn main() -> ExitCode {
             .map_or_else(|| "<stderr>".into(), |path| path.display().to_string())
     );
 
-    let code = run(mode, started);
+    // D3: without WebView2 the window cannot exist; explain it natively instead of vanishing.
+    let interactive = matches!(mode, Mode::Normal);
+    if !webview_runtime::ensure_available(interactive, log_path.as_deref()) {
+        log::logger().flush();
+        return ExitCode::from(EXIT_FAILURE as u8);
+    }
+
+    let code = run(mode, started, log_path.as_deref());
     log::info!("MLTutor termina con código {code}");
     log::logger().flush();
     ExitCode::from(u8::try_from(code).unwrap_or(EXIT_FAILURE as u8))
 }
 
-fn run(mode: Mode, started: Instant) -> i32 {
+fn run(mode: Mode, started: Instant, log_path: Option<&std::path::Path>) -> i32 {
     let automated = !matches!(mode, Mode::Normal);
     let app = tauri::Builder::default()
         // The dialogs are only opened from Rust (no `dialog:` permission for JS).
@@ -154,6 +162,9 @@ fn run(mode: Mode, started: Instant) -> i32 {
             nn_predict::nn_metadata,
         ])
         .setup(move |app| {
+            if let Some(window) = app.get_webview_window("main") {
+                match_system_theme(&window);
+            }
             if automated {
                 spawn_watchdog(app.handle().clone());
             }
@@ -166,8 +177,37 @@ fn run(mode: Mode, started: Instant) -> i32 {
         Err(error) => {
             log::error!("no se pudo iniciar la ventana: {error}");
             eprintln!("mltutor: no se pudo iniciar la ventana: {error}");
+            // The exe has no console on Windows: tell the student in a native dialog.
+            #[cfg(windows)]
+            webview_runtime::report(
+                webview_runtime::Problem::WindowFailed,
+                &error.to_string(),
+                !automated,
+                log_path,
+            );
+            #[cfg(not(windows))]
+            let _ = log_path;
             EXIT_FAILURE
         }
+    }
+}
+
+/// `--color-bg` of the dark theme (`ui/src/styles/theme.css`, `:root[data-theme="dark"]`).
+const DARK_BACKGROUND: tauri::window::Color = tauri::window::Color(0x0f, 0x17, 0x24, 0xff);
+
+/// Paints the window and the webview with the dark background when the system is in dark
+/// mode, so the app does not flash white before the page loads. `tauri.conf.json` keeps
+/// white, the light `--color-bg`, as the fallback when the theme cannot be read. `setup`
+/// runs before the event loop draws anything, so the first frame already has this colour.
+fn match_system_theme(window: &tauri::WebviewWindow) {
+    match window.theme() {
+        Ok(tauri::Theme::Dark) => {
+            if let Err(error) = window.set_background_color(Some(DARK_BACKGROUND)) {
+                log::warn!("no se pudo aplicar el fondo oscuro inicial: {error}");
+            }
+        }
+        Ok(_) => {}
+        Err(error) => log::debug!("tema del sistema desconocido ({error}); fondo blanco"),
     }
 }
 

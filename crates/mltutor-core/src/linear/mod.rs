@@ -3,6 +3,7 @@
 //! [`fit`], the entry point of `train_model`.
 
 pub mod logistic;
+mod lstsq;
 pub mod ols;
 
 use serde::{Deserialize, Serialize};

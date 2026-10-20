@@ -179,7 +179,7 @@
                 rows={countRows(loaded.target_stats.value_counts)}
                 index={loaded.target_stats.value_counts.map(([label]) => label)}
               />
-              <PlotlyChart data={figure.data} layout={figure.layout} height={420} downloadName="distribucion_objetivo.png" />
+              <PlotlyChart data={figure.data} layout={figure.layout} height={420} downloadName="distribucion_objetivo.png" label="Distribución de la variable objetivo" />
             </div>
           {:else}
             {@const s = loaded.target_stats}
@@ -192,7 +192,7 @@
                 <p class="count-line">{fmtText(t("resultado", "mediana"), { v: s.median })}</p>
                 <p class="count-line">{fmtText(t("resultado", "std"), { v: s.std })}</p>
               </div>
-              <PlotlyChart data={figure.data} layout={figure.layout} height={420} downloadName="distribucion_objetivo.png" />
+              <PlotlyChart data={figure.data} layout={figure.layout} height={420} downloadName="distribucion_objetivo.png" label="Distribución de la variable objetivo" />
             </div>
           {/if}
         </Expander>

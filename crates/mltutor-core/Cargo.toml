@@ -20,11 +20,10 @@ rand_mt = { version = "6.1", default-features = false }
 indexmap = "2"
 # TextColumn: hash table of codes over one string buffer (already used by indexmap).
 hashbrown = { version = "0.17", default-features = false }
-# F2 linear models (MEMORY: spike 2026-10-13). OLS is our Householder QR + the SVD of R
-# from linfa-linalg (O(n·p²), sklearn's rank cutoff); the logistic regression uses the same
-# L-BFGS + More-Thuente solver as linfa-logistic, called directly so that training can be
-# cancelled and report iterations/convergence.
-linfa-linalg = { version = "0.2", default-features = false }
+# F2 linear models (MEMORY: spike 2026-10-13). OLS is our Householder QR + our own
+# Golub-Kahan SVD of R (linear/lstsq.rs: O(n·p²), sklearn's rank cutoff, cancellable); the
+# logistic regression uses the same L-BFGS + More-Thuente solver as linfa-logistic, called
+# directly so that training can be cancelled and report iterations/convergence.
 argmin = { version = "0.11", default-features = false }
 argmin-math = { version = "0.5", default-features = false, features = ["ndarray_v0_16-nolinalg"] }
 # Python code shown to the student (content/code/*.py.j2).
@@ -34,8 +33,19 @@ serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
 unicode-ident = { version = "1", default-features = false }
 unicode-normalization = { version = "0.1", default-features = false }
 
+# Embedded datasets are deflated at build time (build.rs) and inflated on load: 3.0 MB of
+# CSV become 0.97 MB in the binary. Same flate2 + zlib-rs backend that mltutor-export's
+# zip already links, so the decoder adds little code.
+flate2 = { version = "1.1", default-features = false, features = ["zlib-rs"] }
+
+[build-dependencies]
+flate2 = { version = "1.1", default-features = false, features = ["zlib-rs"] }
+
 [dev-dependencies]
 approx = "0.5"
+# Benchmarks only (benches/, docs/migration/benchmarks.md); never in the app binary.
+# 0.7: the last release whose MSRV (1.80) is below the workspace's 1.85.
+criterion = { version = "0.7", default-features = false, features = ["cargo_bench_support"] }
 # Only to check that our objective is linfa-logistic's with alpha = 1/C.
 linfa = { version = "0.8.1", default-features = false }
 linfa-logistic = { version = "0.8.1", default-features = false }
@@ -47,6 +57,15 @@ tempfile = "3"
 [target.'cfg(unix)'.dev-dependencies]
 # csv_memory.rs: peak RSS via getrusage.
 libc = "0.2"
+
+# `cargo bench -- --save-baseline x` passes criterion's flags to every bench target:
+# the lib's libtest harness would reject them.
+[lib]
+bench = false
+
+[[bench]]
+name = "core"
+harness = false
 
 [lints]
 workspace = true

@@ -16,8 +16,8 @@
     /** File name of the "save image" button; no button if omitted. */
     downloadName?: string;
     downloadLabel?: string;
-    /** Accessible description of the chart. */
-    label?: string;
+    /** Accessible name of the chart (required: screen readers only get this). */
+    label: string;
   }
 
   let {
@@ -80,7 +80,7 @@
       } catch (error) {
         failed = error instanceof Error ? error.message : String(error);
         if (isTauri()) {
-          void logToBackend("error", `Plotly no pudo dibujar «${label ?? "gráfico"}»: ${failed}`);
+          void logToBackend("error", `Plotly no pudo dibujar «${label}»: ${failed}`);
         }
       }
     })();
@@ -118,7 +118,7 @@
   }
 </script>
 
-<figure class="chart" aria-label={label}>
+<figure class="chart" aria-label={label} data-chart-label={label}>
   <div class="wrap" style:height="{height}px">
     <div class="plot" bind:this={container} data-plot-rendered={failed ? "error" : rendered}></div>
     {#if !rendered && !failed}
@@ -129,7 +129,7 @@
     <p class="error">No se pudo dibujar el gráfico: {failed}</p>
   {/if}
   {#if downloadName}
-    <button type="button" class="btn block save" disabled={!rendered} onclick={download}>{downloadLabel}</button>
+    <button type="button" class="btn block save" disabled={!rendered} aria-label="{downloadLabel} ({label})" onclick={download}>{downloadLabel}</button>
   {/if}
 </figure>
 

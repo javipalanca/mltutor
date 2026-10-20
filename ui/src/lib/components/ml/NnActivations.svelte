@@ -255,7 +255,7 @@
     opacity: 0.55;
   }
 
-  @media (max-width: 900px) {
+  @container page (max-width: 560px) {
     .grid.four,
     .grid.three {
       grid-template-columns: repeat(2, minmax(0, 1fr));

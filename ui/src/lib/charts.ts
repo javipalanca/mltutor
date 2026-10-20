@@ -32,7 +32,7 @@ export interface ChartTheme {
 export const LIGHT_THEME: ChartTheme = {
   text: "#243247",
   grid: "#e5eaf1",
-  axis: "#8a99ad",
+  axis: "#7b8aa0",
   background: "#ffffff",
 };
 

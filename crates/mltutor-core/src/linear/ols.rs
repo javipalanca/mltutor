@@ -10,14 +10,17 @@
 //! 2. The SVD of the small `R` (`O(p³)`): `Xc` and `R` have the same singular
 //!    values, so the rank and the minimum-norm solution `β = V·Σ⁺·Uᵀ·c` are those of
 //!    `lstsq(Xc, yc)` (LAPACK `gelsd`), also with collinear or constant columns and
-//!    with more columns than rows.
+//!    with more columns than rows. It is our own Golub–Kahan SVD
+//!    ([`super::lstsq`]), which never forms `U` or `V` and checks the cancellation
+//!    flag (1 500 × 1 500 of rank 1 499: 14 s with linfa-linalg's full SVD and no
+//!    cancellation, about 1.3–1.4 s now, cancelled in < 1 ms).
 //!
 //! When `R` is square and clearly well conditioned (the usual case: `n > p` and no
 //! collinear columns) step 2 is a back substitution `R·β = c` (`O(p²)`,
 //! cancellable): the solution is unique, so it is the same `β` (to rounding). The
 //! check is conservative: an inverse-iteration estimate of `σ_min(R)` (an upper
 //! bound that converges from above) must exceed the rank cutoff by a factor of
-//! 10⁶; anything closer goes to the SVD. 3 000 × 1 500: 14.4 s → see
+//! 10⁶; anything closer goes to the SVD. 3 000 × 1 500: 14.4 s → 1.5 s, see
 //! `bench_regression::ols_wide_design_matrices`.
 //!
 //! Singular values `≤ f64::EPSILON · max(n, p) · σ_max` count as zero: scikit-learn
@@ -27,7 +30,6 @@
 
 use std::any::Any;
 
-use linfa_linalg::svd::SVDInto;
 use ndarray::{s, Array1, Array2, ArrayView1, ArrayView2, Axis};
 use serde::{Deserialize, Serialize};
 
@@ -187,7 +189,7 @@ fn solve_centered(
         }
     }
     control.check()?;
-    min_norm_lstsq(r, c, n.max(p))
+    super::lstsq::min_norm_lstsq(r.view(), c.view(), n.max(p), control)
 }
 
 /// The overflow error of the logistic regression, for the same cause.
@@ -342,53 +344,10 @@ fn dot(a: &[f64], b: &[f64]) -> f64 {
     (acc[0] + acc[1]) + (acc[2] + acc[3]) + tail
 }
 
-/// Minimum-norm solution of `min ‖R·β − c‖` through the SVD of `R`,
-/// `β = Σ_k (u_kᵀ·c / σ_k)·v_k` over `σ_k > eps · max_dim · σ_max`; returns
-/// `(β, rank)`. `max_dim` is `max(n, p)` of the original matrix (sklearn's `cond`).
-fn min_norm_lstsq(
-    r: Array2<f64>,
-    c: Array1<f64>,
-    max_dim: usize,
-) -> Result<(Array1<f64>, usize), ModelError> {
-    let p = r.ncols();
-    if r.iter().all(|&v| v == 0.0) {
-        return Ok((Array1::zeros(p), 0)); // Every column is constant.
-    }
-    let (u, sigma, vt) = r.svd_into(true, true).map_err(numerical)?;
-    let (Some(u), Some(vt)) = (u, vt) else {
-        return Err(ModelError::Numerical {
-            message: "SVD sin vectores singulares".to_owned(),
-        });
-    };
-    let s_max = sigma.iter().copied().fold(0.0_f64, f64::max);
-    let cutoff = rank_cutoff(s_max, max_dim);
-    let uty = u.t().dot(&c);
-    let mut beta = Array1::<f64>::zeros(p);
-    let mut rank = 0;
-    for (k, &s) in sigma.iter().enumerate() {
-        if s > cutoff {
-            beta.scaled_add(uty[k] / s, &vt.row(k));
-            rank += 1;
-        }
-    }
-    if beta.iter().any(|v| !v.is_finite()) {
-        return Err(ModelError::Numerical {
-            message: "coeficientes no finitos".to_owned(),
-        });
-    }
-    Ok((beta, rank))
-}
-
 /// Singular values at or below this count as zero: `eps · max(n, p) · σ_max`, the
 /// `cond` that scikit-learn passes to `scipy.linalg.lstsq`.
 fn rank_cutoff(s_max: f64, max_dim: usize) -> f64 {
     f64::EPSILON * max_dim as f64 * s_max
-}
-
-fn numerical(e: impl std::fmt::Display) -> ModelError {
-    ModelError::Numerical {
-        message: e.to_string(),
-    }
 }
 
 impl Predictor for LinearRegression {
@@ -471,7 +430,8 @@ mod tests {
         let fast = well_conditioned_solve(&r, &c, 40, &ctl)
             .unwrap_or_else(|e| panic!("{e}"))
             .unwrap_or_else(|| panic!("well conditioned"));
-        let (svd, rank) = min_norm_lstsq(r, c, 40).unwrap_or_else(|e| panic!("{e}"));
+        let (svd, rank) = crate::linear::lstsq::min_norm_lstsq(r.view(), c.view(), 40, &ctl)
+            .unwrap_or_else(|e| panic!("{e}"));
         assert_eq!(rank, 5);
         for (a, b) in fast.iter().zip(&svd) {
             assert!((a - b).abs() <= 1e-10 * b.abs().max(1.0), "{a} vs {b}");
@@ -732,5 +692,49 @@ mod tests {
             LinearRegression::fit(x.view(), y.view(), &TrainControl::none().with_cancel(&flag)),
             Err(ModelError::Cancelled)
         );
+    }
+
+    /// The rank-deficient 1 500 × 1 500 case (rank 1 499 after centring) used to
+    /// spend 13 s in linfa-linalg's SVD without checking the flag. Now every phase
+    /// (QR of the data, bidiagonalisation, bidiagonal QR) checks it: whenever the
+    /// flag is raised, `fit` returns `Cancelled` within 100 ms.
+    #[test]
+    fn rank_deficient_fit_cancels_quickly() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::time::{Duration, Instant};
+        let n = 1500;
+        let mut st = 7_u64;
+        let x = Array2::from_shape_fn((n, n), |_| uniform(&mut st) * 2.0 - 1.0);
+        let y = Array1::from_shape_fn(n, |i| x[[i, 0]] * 3.0 + uniform(&mut st));
+        // 150 ms falls in the QR of the data and 900 ms in the bidiagonalisation of R
+        // on an M-series Mac (fit ≈ 1.3 s); slower machines just cancel earlier.
+        for delay in [150_u64, 900] {
+            let flag = AtomicBool::new(false);
+            let (result, latency) = std::thread::scope(|scope| {
+                let worker = scope.spawn(|| {
+                    let r = LinearRegression::fit(
+                        x.view(),
+                        y.view(),
+                        &TrainControl::none().with_cancel(&flag),
+                    );
+                    (r, Instant::now())
+                });
+                std::thread::sleep(Duration::from_millis(delay));
+                let raised = Instant::now();
+                flag.store(true, Ordering::Relaxed);
+                let (r, done) = worker.join().unwrap_or_else(|_| panic!("worker panicked"));
+                (r, done.saturating_duration_since(raised))
+            });
+            match result {
+                Err(ModelError::Cancelled) => {
+                    assert!(
+                        latency < Duration::from_millis(100),
+                        "{delay} ms: {latency:?}"
+                    );
+                }
+                Ok(m) => assert_eq!(m.rank(), n - 1), // Finished before the flag.
+                Err(e) => panic!("{e}"),
+            }
+        }
     }
 }

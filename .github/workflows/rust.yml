@@ -50,12 +50,20 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # size_budget: bytes of the download (F7), ~+15 % over the size after the CSVs were
+          # deflated (2026-10-20). macOS measured locally: zip 8 709 325 B (binary 16.10 → 13.37 MB).
+          # Windows estimated from the same binary delta: 21 755 392 − 2 724 040 ≈ 19.03 MB.
+          # AppImage ≈ 86.1 MB (squashfs already compressed the CSVs). Tighten Windows/Linux
+          # to the first CI value + 15 %; raise a budget only on purpose, noting why in MEMORY.md.
           - os: ubuntu-22.04
             platform: linux-x86_64
+            size_budget: 99000000
           - os: windows-latest
             platform: windows-x86_64
+            size_budget: 21900000
           - os: macos-latest
             platform: macos-arm64
+            size_budget: 10020000
     steps:
       # ts-rs writes LF; keep the checkout LF too so the bindings diff is meaningful on Windows.
       - name: Disable CRLF conversion
@@ -160,6 +168,7 @@ jobs:
         if: runner.os == 'Linux'
         timeout-minutes: 8
         env:
+          MLTUTOR_LOG_DIR: ${{ runner.temp }}/log-smoke
           # No FUSE needed on the runner; also what students without libfuse2 can do.
           APPIMAGE_EXTRACT_AND_RUN: '1'
           WEBKIT_DISABLE_DMABUF_RENDERER: '1'
@@ -172,33 +181,155 @@ jobs:
             dbus-run-session -- "${{ steps.out.outputs.path }}" --smoke-test || status=$?
           if [[ $status -ne 0 ]]; then
             echo "::error::Smoke test failed with exit code $status"
-            tail -n 100 ~/.mltutor/mltutor.log || true
+            tail -n 100 "$MLTUTOR_LOG_DIR/mltutor.log" || true
             exit "$status"
           fi
       - name: Smoke test (macOS, packaged .app)
         if: runner.os == 'macOS'
         timeout-minutes: 8
+        env:
+          MLTUTOR_LOG_DIR: ${{ runner.temp }}/log-smoke
         run: |
           status=0
           "${{ steps.out.outputs.path }}/Contents/MacOS/mltutor" --smoke-test || status=$?
           if [[ $status -ne 0 ]]; then
             echo "::error::Smoke test failed with exit code $status"
-            tail -n 100 ~/.mltutor/mltutor.log || true
+            tail -n 100 "$MLTUTOR_LOG_DIR/mltutor.log" || true
             exit "$status"
           fi
       - name: Smoke test (Windows)
         if: runner.os == 'Windows'
         timeout-minutes: 8
         shell: pwsh
+        env:
+          MLTUTOR_LOG_DIR: ${{ runner.temp }}\log-smoke
         run: |
           # GUI subsystem binary: the exit code is only visible through Start-Process.
           $p = Start-Process -FilePath "${{ steps.out.outputs.path }}" -ArgumentList "--smoke-test" -Wait -PassThru
           if ($p.ExitCode -ne 0) {
-            Get-Content "$env:USERPROFILE\.mltutor\mltutor.log" -Tail 100 -ErrorAction SilentlyContinue
+            Get-Content "$env:MLTUTOR_LOG_DIR\mltutor.log" -Tail 100 -ErrorAction SilentlyContinue
             throw "Smoke test failed with exit code $($p.ExitCode)"
           }
 
+      # Per-route/check timings (the frontend reports them in order, so each lap is the time
+      # of that step). The automation watchdog stops the run at 180 s (state.rs).
+      - name: Smoke test timings
+        if: always() && steps.out.outcome == 'success'
+        shell: bash
+        env:
+          # Byte-wise matching, the same on the three runners whatever their locale.
+          LC_ALL: C
+        run: |
+          log="$RUNNER_TEMP/log-smoke/mltutor.log"
+          test -f "$log" || { echo "No smoke-test log"; exit 0; }
+          # «name» … en N ms (total M ms)
+          sed -nE 's/.*smoke test: (comprobación )?«(.*)» (renderizada|superada).* en ([0-9]+) ms \(total ([0-9]+) ms\).*/\4 \5 \2/p' "$log" > timings.txt
+          sort -rn timings.txt | head -n 8
+          {
+            echo "### Smoke test (${{ matrix.platform }}): $(tail -n 1 timings.txt | cut -d' ' -f2) ms en total, límite 180 000 ms"
+            echo
+            echo "| Paso | ms |"
+            echo "|---|---:|"
+            while read -r lap _ name; do echo "| $name | $lap |"; done < timings.txt
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # D3: with no usable WebView2 the exe must explain it (message box in a normal session,
+      # log + exit 1 in automation modes) instead of vanishing. An empty fixed-runtime folder
+      # makes the WebView2 loader find nothing.
+      - name: Missing WebView2 is reported (Windows)
+        if: runner.os == 'Windows'
+        timeout-minutes: 4
+        shell: pwsh
+        env:
+          MLTUTOR_LOG_DIR: ${{ runner.temp }}\log-nowebview2
+        run: |
+          $empty = New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP\no-webview2"
+          $env:WEBVIEW2_BROWSER_EXECUTABLE_FOLDER = $empty.FullName
+          $p = Start-Process -FilePath "${{ steps.out.outputs.path }}" -ArgumentList "--smoke-test" -Wait -PassThru
+          $log = Get-Content "$env:MLTUTOR_LOG_DIR\mltutor.log" -Raw -ErrorAction SilentlyContinue
+          Write-Output $log
+          if ($p.ExitCode -ne 1) { throw "Expected exit code 1 without WebView2, got $($p.ExitCode)" }
+          if ($log -notmatch "WebView2" -or $log -notmatch "developer.microsoft.com/microsoft-edge/webview2") {
+            throw "The log does not explain the missing WebView2 Runtime"
+          }
+
+      # `--screenshot` on every platform: the start page (strict) and a full-page Plotly
+      # screen (best effort on Windows/Linux, see screenshot.rs). check_png.py rejects
+      # small, tiny or single-colour images.
+      - name: Screenshots (Linux, under Xvfb)
+        if: runner.os == 'Linux'
+        timeout-minutes: 6
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+          WEBKIT_DISABLE_DMABUF_RENDERER: '1'
+          WEBKIT_DISABLE_COMPOSITING_MODE: '1'
+          LIBGL_ALWAYS_SOFTWARE: '1'
+          MLTUTOR_LOG_DIR: ${{ runner.temp }}/log-screenshot
+        run: |
+          mkdir -p screenshots
+          shot() {
+            xvfb-run -a --server-args="-screen 0 1600x1000x24" \
+              dbus-run-session -- "${{ steps.out.outputs.path }}" --screenshot "$@"
+          }
+          shot screenshots/inicio.png
+          shot screenshots/pairplot-pagina.png --scenario datos_pairplot_kde_iris --full-page \
+            || echo "::warning::Full-page screenshot failed (best effort on Linux)"
+      - name: Screenshots (macOS)
+        if: runner.os == 'macOS'
+        timeout-minutes: 6
+        env:
+          MLTUTOR_LOG_DIR: ${{ runner.temp }}/log-screenshot
+        run: |
+          mkdir -p screenshots
+          bin="${{ steps.out.outputs.path }}/Contents/MacOS/mltutor"
+          "$bin" --screenshot screenshots/inicio.png
+          "$bin" --screenshot screenshots/pairplot-pagina.png --scenario datos_pairplot_kde_iris --full-page
+      - name: Screenshots (Windows)
+        if: runner.os == 'Windows'
+        timeout-minutes: 6
+        shell: pwsh
+        env:
+          MLTUTOR_LOG_DIR: ${{ runner.temp }}\log-screenshot
+        run: |
+          New-Item -ItemType Directory -Force -Path screenshots | Out-Null
+          $exe = "${{ steps.out.outputs.path }}"
+          $dir = (Resolve-Path screenshots).Path
+          # Start-Process joins the arguments with spaces: quote the paths.
+          $p = Start-Process -FilePath $exe -ArgumentList "--screenshot", "`"$dir\inicio.png`"" -Wait -PassThru
+          if ($p.ExitCode -ne 0) {
+            Get-Content "$env:MLTUTOR_LOG_DIR\mltutor.log" -Tail 60 -ErrorAction SilentlyContinue
+            throw "Screenshot failed with exit code $($p.ExitCode)"
+          }
+          $fullPage = "--screenshot", "`"$dir\pairplot-pagina.png`"", "--scenario", "datos_pairplot_kde_iris", "--full-page"
+          $p = Start-Process -FilePath $exe -ArgumentList $fullPage -Wait -PassThru
+          if ($p.ExitCode -ne 0) {
+            Get-Content "$env:MLTUTOR_LOG_DIR\mltutor.log" -Tail 60 -ErrorAction SilentlyContinue
+            Write-Output "::warning::Full-page screenshot failed with exit code $($p.ExitCode) (best effort on Windows)"
+          }
+      - name: Check the screenshots
+        shell: bash
+        run: |
+          py=$(command -v python3 || command -v python)
+          echo "### Capturas (${{ matrix.platform }})" >> "$GITHUB_STEP_SUMMARY"
+          "$py" -I .github/scripts/check_png.py screenshots/inicio.png --summary "$GITHUB_STEP_SUMMARY"
+          if [[ -f screenshots/pairplot-pagina.png ]]; then
+            # A full page is taller than the 920 px window; only a warning if it is not.
+            "$py" -I .github/scripts/check_png.py screenshots/pairplot-pagina.png \
+              --min-height 1200 --summary "$GITHUB_STEP_SUMMARY" \
+              || echo "::warning::The full-page screenshot did not pass the checks"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.out.outcome == 'success'
+        with:
+          name: screenshots-${{ matrix.platform }}
+          path: |
+            screenshots/
+            ${{ runner.temp }}/log-*/mltutor.log
+          retention-days: 14
+          if-no-files-found: warn
+
       - name: Package the portable download
+        id: package
         shell: bash
         run: |
           src="${{ steps.out.outputs.path }}"
@@ -217,7 +348,32 @@ jobs:
             "$check/MLTutor.app/Contents/MacOS/mltutor" --smoke-test
           fi
           ls -la "$out"
-          echo "### ${{ matrix.platform }}: \`$out\` ($(du -h "$out" | cut -f1))" >> "$GITHUB_STEP_SUMMARY"
+          echo "out=$out" >> "$GITHUB_OUTPUT"
+      # F7 size budget: fail if the download grows more than planned (matrix.size_budget).
+      - name: Size budget
+        shell: bash
+        env:
+          BUDGET: ${{ matrix.size_budget }}
+        run: |
+          out="${{ steps.package.outputs.out }}"
+          src="${{ steps.out.outputs.path }}"
+          size=$(wc -c < "$out" | tr -d ' ')
+          unpacked=$(du -sk "$src" | cut -f1)
+          mib() { awk -v b="$1" 'BEGIN { printf "%.2f MiB", b / 1048576 }'; }
+          pct=$(awk -v s="$size" -v b="$BUDGET" 'BEGIN { printf "%.0f", 100 * s / b }')
+          {
+            echo "### Tamaño (${{ matrix.platform }})"
+            echo
+            echo "| Archivo | Tamaño | Presupuesto |"
+            echo "|---|---:|---:|"
+            echo "| \`$out\` (descarga) | $size B ($(mib "$size")) | $BUDGET B ($(mib "$BUDGET"), $pct % usado) |"
+            echo "| \`$src\` (sin comprimir) | $((unpacked * 1024)) B ($(mib $((unpacked * 1024)))) | |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "$out: $size bytes (budget $BUDGET, $pct %)"
+          if (( size > BUDGET )); then
+            echo "::error::$out is $size bytes, over the budget of $BUDGET bytes. Find what grew, or raise matrix.size_budget on purpose and note why in MEMORY.md."
+            exit 1
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: mltutor-${{ matrix.platform }}
@@ -283,8 +439,33 @@ jobs:
             verify_exports.txt
           retention-days: 7
 
+  # F7: the criterion benchmarks must keep compiling, and the per-command time budgets
+  # (#[ignore] tests in crates/*/tests/bench_*.rs, 10–100× above the times measured in
+  # docs/migration/benchmarks.md) must hold in release. Pure crates only: no WebKitGTK.
+  benchmarks:
+    name: Benchmarks (compile) and time budgets
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the toolchain from rust-toolchain.toml
+        run: rustup toolchain install --profile minimal
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: benchmarks-linux-x86_64
+      - name: cargo bench --no-run
+        run: cargo bench --no-run -p mltutor-core -p mltutor-nn -p mltutor-export
+      - name: Time budgets (release)
+        # One test at a time: the budgets measure wall time, and parallel tests on a
+        # 4-vCPU runner would compete for the cores.
+        run: |
+          cargo test --release -p mltutor-core \
+            --test bench_trees --test bench_knn --test bench_regression --test bench_california \
+            -- --ignored --nocapture --test-threads=1
+          cargo test --release -p mltutor-nn --test bench_nn -- --ignored --nocapture --test-threads=1
+
   release:
-    needs: [build, exports]
+    needs: [build, exports, benchmarks]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     permissions:

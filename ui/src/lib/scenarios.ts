@@ -17,6 +17,8 @@ import { NN_SCENARIOS } from "./lessons/redes/scenarios";
 import { router } from "./router.svelte";
 import { chooseDataset } from "./selection";
 import { session, type Analysis } from "./session.svelte";
+import { MAIN_VIEW_SELECTOR, parseScenarioSpec, type ScenarioSpec } from "./scenarioSpec";
+import { theme } from "./theme.svelte";
 
 interface DatosOptions {
   lesson?: LessonId;
@@ -103,13 +105,37 @@ async function loadCsv(path: string | undefined): Promise<void> {
 
 export const SCENARIO_NAMES = Object.keys(SCENARIOS);
 
-export async function runScenario(spec: string): Promise<void> {
-  const colon = spec.indexOf(":");
-  const name = colon < 0 ? spec : spec.slice(0, colon);
-  const arg = colon < 0 ? undefined : spec.slice(colon + 1);
-  const scenario = SCENARIOS[name];
+/**
+ * Prepares the screen of `spec` (`nombre[@mod…][:ruta.csv]`, see `scenarioSpec.ts`). Returns
+ * the parsed spec so the caller can apply `@vista` once everything is drawn.
+ */
+export async function runScenario(spec: string): Promise<ScenarioSpec> {
+  const parsed = parseScenarioSpec(spec);
+  const scenario = SCENARIOS[parsed.name];
   if (!scenario) {
-    throw new Error(`Escenario desconocido: ${name}. Disponibles: ${SCENARIO_NAMES.join(", ")}`);
+    throw new Error(`Escenario desconocido: ${parsed.name}. Disponibles: ${SCENARIO_NAMES.join(", ")}`);
   }
-  await scenario(arg);
+  if (parsed.theme) {
+    theme.force(parsed.theme);
+  }
+  if (parsed.viewport) {
+    const app = document.getElementById("app");
+    if (app) {
+      app.style.width = `${parsed.viewport.width}px`;
+      app.style.height = `${parsed.viewport.height}px`;
+      app.style.overflow = "hidden";
+    }
+  }
+  await scenario(parsed.arg);
+  return parsed;
+}
+
+/** `@vista`: brings the main view of the tab to the top of the content area. */
+export function scrollToMainView(): void {
+  const view = document.querySelector<HTMLElement>(MAIN_VIEW_SELECTOR);
+  const content = document.querySelector<HTMLElement>("[data-content]");
+  if (view && content) {
+    const top = view.getBoundingClientRect().top - content.getBoundingClientRect().top + content.scrollTop;
+    content.scrollTo({ top: Math.max(0, top - 16) });
+  }
 }

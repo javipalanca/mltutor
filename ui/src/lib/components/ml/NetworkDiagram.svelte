@@ -108,6 +108,9 @@
   });
 </script>
 
+<!-- Escape dismisses the hover tooltip (WCAG 1.4.13). -->
+<svelte:window onkeydown={(event) => { if (event.key === "Escape") hover = null; }} />
+
 <div class="network" data-network-diagram data-layers={sizes.join(",")}>
   <div class="box">
     <strong>{t("diagrama_caja_titulo")}</strong>
@@ -272,11 +275,9 @@
     font-size: 13px;
   }
 
-  @media (prefers-color-scheme: dark) {
-    .canvas {
-      --nn-bg-from: #1b2534;
-      --nn-bg-to: #131c29;
-      --nn-text: #dbe4f0;
-    }
+  :global(:root[data-theme="dark"]) .canvas {
+    --nn-bg-from: #1b2534;
+    --nn-bg-to: #131c29;
+    --nn-text: #dbe4f0;
   }
 </style>

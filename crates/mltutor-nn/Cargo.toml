@@ -20,8 +20,20 @@ rayon = "1.10"
 
 [dev-dependencies]
 approx = "0.5"
+# Benchmarks only (benches/, docs/migration/benchmarks.md); never in the app binary.
+# 0.7: the last release whose MSRV (1.80) is below the workspace's 1.85.
+criterion = { version = "0.7", default-features = false, features = ["cargo_bench_support"] }
 base64 = "0.22"
 serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+
+# `cargo bench -- --save-baseline x` passes criterion's flags to every bench target:
+# the lib's libtest harness would reject them.
+[lib]
+bench = false
+
+[[bench]]
+name = "nn"
+harness = false
 
 [lints]
 workspace = true

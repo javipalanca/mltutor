@@ -179,6 +179,7 @@
     void constant;
     void options.connectionPct;
     void theme.chart;
+    void theme.dpr;
     if (target && lay.width > 0) {
       untrack(() => draw(target, lay));
     }
@@ -234,12 +235,18 @@
   const legend = $derived(t("mapa_leyenda").split(/\s{2,}/));
 </script>
 
+<!-- Escape dismisses the hover tooltip (WCAG 1.4.13). -->
+<svelte:window onkeydown={(event) => { if (event.key === "Escape") tip = null; }} />
+
 <div class="map" data-network-map data-dead={counts.dead} data-constant={counts.constant} data-layers={arch.join(",")}>
   <div class="box" bind:this={wrapper}>
     <!-- No `width`/`height` attributes: `draw` owns the bitmap. Any assignment to them, even
          of the same value, clears the canvas, and Svelte may apply them after `draw` ran. -->
+    <!-- The bitmap is a picture: role img makes WebKit/WebView2 read the aria-label. -->
+    <!-- svelte-ignore a11y_no_interactive_element_to_noninteractive_role -->
     <canvas
       bind:this={canvas}
+      role="img"
       aria-label="{t('mapa_titulo').replace(/^#+\s*/, '')}: {arch.join(' → ')}, {counts.dead} muertas, {counts.constant} constantes"
       onpointermove={onmove}
       onpointerleave={() => (tip = null)}
@@ -313,19 +320,21 @@
     color: #1976d2;
   }
 
+  :global(:root[data-theme="dark"]) .legend .active {
+    color: #64b5f6;
+  }
+
   .legend .inactive {
     color: var(--color-text);
     opacity: 0.45;
   }
 
-  @media (prefers-color-scheme: dark) {
-    .box {
-      --map-bg: #151d29;
-    }
+  :global(:root[data-theme="dark"]) .box {
+    --map-bg: #151d29;
+  }
 
-    canvas {
-      --map-text: #dbe4f0;
-      --map-line: #a9b6c8;
-    }
+  :global(:root[data-theme="dark"]) canvas {
+    --map-text: #dbe4f0;
+    --map-line: #a9b6c8;
   }
 </style>

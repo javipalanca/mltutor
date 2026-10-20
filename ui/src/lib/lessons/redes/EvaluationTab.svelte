@@ -160,7 +160,7 @@
     max-width: 50%;
   }
 
-  @media (max-width: 760px) {
+  @container page (max-width: 420px) {
     .results.single {
       max-width: none;
     }

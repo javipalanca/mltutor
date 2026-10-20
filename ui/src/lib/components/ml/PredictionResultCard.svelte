@@ -83,17 +83,15 @@
     user-select: text;
   }
 
-  @media (prefers-color-scheme: dark) {
-    :global(:root:not([data-theme="light"])) .card {
-      background: #13291b;
-    }
+  :global(:root[data-theme="dark"]) .card {
+    background: #13291b;
+  }
 
-    :global(:root:not([data-theme="light"])) h3 {
-      color: #8cc0ff;
-    }
+  :global(:root[data-theme="dark"]) h3 {
+    color: #8cc0ff;
+  }
 
-    :global(:root:not([data-theme="light"])) .value {
-      color: #7fd08a;
-    }
+  :global(:root[data-theme="dark"]) .value {
+    color: #7fd08a;
   }
 </style>

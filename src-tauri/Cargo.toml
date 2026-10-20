@@ -43,7 +43,22 @@ objc2-web-kit = { version = "0.3", default-features = false, features = ["std", 
 block2 = "0.6"
 objc2-core-foundation = { version = "0.3", default-features = false, features = ["std", "CFCGTypes"] }
 
+# D3 (WebView2 missing: native message box) and `--screenshot` (CapturePreview / DevTools
+# protocol). Same versions as wry's, so that the COM types match.
+[target.'cfg(windows)'.dependencies]
+webview2-com = "0.39"
+# The DevTools protocol returns the full-page PNG in base64.
+base64 = "0.22"
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_System_Com", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+
+# `--screenshot` on Linux: `webkit_web_view_get_snapshot` returns a cairo surface.
+[target.'cfg(target_os = "linux")'.dependencies]
+webkit2gtk = { version = "2.0", features = ["v2_40"] }
+cairo-rs = { version = "0.18", features = ["png"] }
+
 [dev-dependencies]
+# Tests of the DevTools screenshot decoder, which run on every platform.
+base64 = "0.22"
 # Reads back the Python package in the export tests (same version as mltutor-export).
 zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 

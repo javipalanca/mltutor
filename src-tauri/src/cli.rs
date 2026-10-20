@@ -57,7 +57,7 @@ Uso: mltutor [OPCIONES]
 Opciones:
   --smoke-test          Abre la ventana, recorre todas las pantallas y sale
                         (0 = correcto, 1 = fallo, 2 = tiempo agotado)
-  --screenshot <png>    Guarda una captura de la ventana y sale (solo macOS)
+  --screenshot <png>    Guarda una captura de la ventana (PNG) y sale
   --scenario <nombre>   Con --screenshot: pantalla que se prepara antes de capturar
                         (p. ej. datos_iris, datos_pairplot_kde_iris, csv_vacio;
                         csv_clasificacion:<ruta.csv>). Por defecto, la inicial

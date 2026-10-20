@@ -24,11 +24,12 @@
   const guideTitle = /###\s*(.+)/.exec(howTo.body)?.[1] ?? "Guía de uso";
 </script>
 
+<!-- Card title: #0288D1 in Python (3.4:1 on #E1F5FE); #0270B5 reaches WCAG AA (4.7:1). -->
 <article class="home" data-route-page="inicio">
   <h1 data-page-title>{welcome.title}</h1>
   <div class="lead"><Markdown source={welcome.body} /></div>
 
-  <Card background="#E1F5FE" titleColor="#0288D1" title={whatIs.title}>
+  <Card background="#E1F5FE" titleColor="#0270B5" title={whatIs.title}>
     <Markdown source={whatIs.body} />
   </Card>
 
@@ -77,6 +78,13 @@
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 22px;
     margin: 14px 0 10px;
+  }
+
+  /* 1024 px windows: 2 × 2 cards instead of four narrow columns. */
+  @container page (max-width: 820px) {
+    .cards {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
   }
 
   .card-column {

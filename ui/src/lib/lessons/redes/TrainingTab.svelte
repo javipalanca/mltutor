@@ -71,6 +71,9 @@
   });
   const lastLog = $derived(nn.live.logs.at(-1) ?? null);
   const percent = $derived(nn.live.epochs > 0 && lastLog ? Math.min(100, (lastLog.epoch / nn.live.epochs) * 100) : 0);
+  // Screen readers: the epoch line changes up to 20 times per second, so the live region
+  // only announces every 10 % (it changes text, and is announced, at most 10 times).
+  const announced = $derived(`${t("spinner")} ${Math.floor(percent / 10) * 10} %`);
   const epochLine = $derived(
     lastLog
       ? lastLog.val_loss !== null
@@ -303,6 +306,7 @@
           </div>
           <button type="button" class="btn" onclick={cancel} disabled={nn.live.cancelRequested} data-nn-cancel>{t("btn_cancelar")}</button>
         </div>
+        <p class="sr-only" aria-live="polite">{announced}</p>
         <p class="epoch-line" data-nn-epoch={lastLog?.epoch ?? 0}>{epochLine ?? t("spinner")}</p>
         {#if nn.live.cancelRequested}
           <Notice severity="warning" markdown={t("cancelando")} />

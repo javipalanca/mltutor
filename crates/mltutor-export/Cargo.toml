@@ -22,10 +22,22 @@ zip = { version = "9", default-features = false, features = ["deflate-flate2-zli
 
 [dev-dependencies]
 approx = "0.5"
+# Benchmarks only (benches/, docs/migration/benchmarks.md); never in the app binary.
+# 0.7: the last release whose MSRV (1.80) is below the workspace's 1.85.
+criterion = { version = "0.7", default-features = false, features = ["cargo_bench_support"] }
 # Tree fixtures of user CSVs (base64 in tests/parity/csv).
 base64 = "0.22"
 # KNN fixtures: hashes of the large training sets.
 sha2 = "0.10"
+
+# `cargo bench -- --save-baseline x` passes criterion's flags to every bench target:
+# the lib's libtest harness would reject them.
+[lib]
+bench = false
+
+[[bench]]
+name = "onnx"
+harness = false
 
 [lints]
 workspace = true

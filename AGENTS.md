@@ -72,9 +72,10 @@ npm --prefix ui run test -- --run  # vitest (sin --run se queda en modo watch)
 # App
 npm --prefix ui run tauri dev    # app en desarrollo (Vite con recarga en :5173)
 npm --prefix ui run tauri build  # release: .app (macOS), AppImage (Linux), mltutor.exe sin instalador (Windows)
-target/release/mltutor --smoke-test          # recorre las rutas, prueba 📊 Datos (correlación y pairplot de Iris) y entrena en 📊 Regresión (Iris, Cáncer y Diabetes) y en 🌲 Árboles (Iris gini, Diabetes squared_error y Cáncer entropy d10) con todas sus vistas; 0 ok, 1 fallo, 2 timeout (180 s)
-target/release/mltutor --screenshot out.png  # captura de la ventana (solo macOS por ahora)
-target/release/mltutor --screenshot out.png --scenario datos_pairplot_kde_iris --full-page  # pantalla concreta, página entera
+target/release/mltutor --smoke-test          # recorre las rutas, prueba 📊 Datos (correlación y pairplot de Iris) y entrena en 📊 Regresión (Iris, Cáncer y Diabetes) y en 🌲 Árboles (Iris gini, Diabetes squared_error y Cáncer entropy d10) con todas sus vistas; 0 ok, 1 fallo, 2 timeout (180 s); imprime los ms de cada ruta y comprobación
+target/release/mltutor --screenshot out.png  # captura de la ventana en PNG (macOS, Windows y Linux)
+target/release/mltutor --screenshot out.png --scenario datos_pairplot_kde_iris --full-page  # pantalla concreta, página entera (Linux: si el gestor de ventanas deja crecer la ventana)
+python3 -I .github/scripts/check_png.py out.png  # en CI: la captura no está vacía ni es de un solo color
 MLTUTOR_FACADE=fixture target/debug/mltutor --screenshot out.png --scenario arboles_arbol_iris  # con los fixtures (solo debug)
 #   escenarios en ui/src/lib/scenarios.ts (nombres de docs/migration/capturas/qt/, con prefijo regresion_/arboles_ en F2/F3); los CSV llevan la ruta: csv_cargado_clasificacion:<ruta.csv>
 #   F2: regresion_<nombre Qt sin número> (ui/src/lib/lessons/regression/scenarios.ts), p. ej. regresion_roc_multiclase_iris

@@ -10,6 +10,8 @@
   }
 
   let { label, options, value, max, onchange, help }: Props = $props();
+  // A generated id: the label may contain spaces, and `aria-labelledby` splits on them.
+  const uid = $props.id();
   const limitReached = $derived(max !== undefined && value.length >= max);
   const summary = $derived(
     `${value.length} de ${options.length} seleccionadas${max === undefined ? "" : ` · Máximo ${max}`}`,
@@ -26,9 +28,9 @@
 </script>
 
 <div class="field" title={help}>
-  <div class="label" id="ms-{label}">{label}</div>
-  <div class="box" role="group" aria-labelledby="ms-{label}">
-    <div class="summary">{summary}</div>
+  <div class="label" id="{uid}-label">{label}</div>
+  <div class="box" role="group" aria-labelledby="{uid}-label" aria-describedby="{uid}-summary">
+    <div class="summary" id="{uid}-summary" aria-live="polite">{summary}</div>
     <div class="chips">
       {#each options as option (option)}
         {@const on = value.includes(option)}
@@ -111,8 +113,8 @@
   }
 
   .chip:focus-visible {
-    outline: none;
-    border: 2px solid var(--color-input-focus-border);
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
   }
 
   .tick {

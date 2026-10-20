@@ -659,38 +659,74 @@ impl Gradient for Objective<'_> {
 
 /// Solves `A·x = b` for a symmetric positive definite `A` (Cholesky, `A = L·Lᵀ`).
 /// `None` if `A` is not numerically positive definite.
+///
+/// Column by column (left-looking): `l[i][j] = (a[i][j] − Σ_{m<j} l[i][m]·l[j][m]) / l[j][j]`,
+/// with the sum over `m` in increasing order. The rows `i > j` of a column are
+/// independent, so four of them are computed together (four dependency chains
+/// instead of one) over contiguous row slices; every entry keeps its own
+/// summation order, so the result is the same, bit for bit, as the plain triple
+/// loop (checked on the coefficients and probabilities of five datasets). Digits
+/// (`d = 650`, 12 Newton iterations): 100 ms → about 12 ms per factorisation, and the
+/// whole fit from 1.5 s to 0.4 s (F7, 2026-10-20).
 fn cholesky_solve(a: &Array2<f64>, b: &Array1<f64>) -> Option<Array1<f64>> {
     let d = a.nrows();
-    let mut l = Array2::<f64>::zeros((d, d));
-    for i in 0..d {
-        for j in 0..=i {
-            let mut sum = a[[i, j]];
-            for m in 0..j {
-                sum -= l[[i, m]] * l[[j, m]];
+    let mut l = vec![0.0_f64; d * d]; // Row-major; only the lower triangle is used.
+    for j in 0..d {
+        let (head, tail) = l.split_at_mut((j + 1) * d);
+        let row_j = &mut head[j * d..];
+        let mut sum = a[[j, j]];
+        for &v in &row_j[..j] {
+            sum -= v * v;
+        }
+        if sum.is_nan() || sum <= 0.0 {
+            return None;
+        }
+        let ljj = sum.sqrt();
+        row_j[j] = ljj;
+        let row_j = &row_j[..j];
+        let quads = (d - j - 1) / 4 * 4;
+        let (quad, rest) = tail.split_at_mut(quads * d);
+        let mut i = j + 1;
+        for block in quad.chunks_exact_mut(4 * d) {
+            let (r0, r) = block.split_at_mut(d);
+            let (r1, r) = r.split_at_mut(d);
+            let (r2, r3) = r.split_at_mut(d);
+            let mut s = [a[[i, j]], a[[i + 1, j]], a[[i + 2, j]], a[[i + 3, j]]];
+            for (m, &v) in row_j.iter().enumerate() {
+                s[0] -= r0[m] * v;
+                s[1] -= r1[m] * v;
+                s[2] -= r2[m] * v;
+                s[3] -= r3[m] * v;
             }
-            if i == j {
-                if sum.is_nan() || sum <= 0.0 {
-                    return None;
-                }
-                l[[i, i]] = sum.sqrt();
-            } else {
-                l[[i, j]] = sum / l[[j, j]];
+            r0[j] = s[0] / ljj;
+            r1[j] = s[1] / ljj;
+            r2[j] = s[2] / ljj;
+            r3[j] = s[3] / ljj;
+            i += 4;
+        }
+        for r in rest.chunks_exact_mut(d) {
+            let mut s = a[[i, j]];
+            for (&x, &v) in r[..j].iter().zip(row_j) {
+                s -= x * v;
             }
+            r[j] = s / ljj;
+            i += 1;
         }
     }
     // L·y = b, then Lᵀ·x = y.
     let mut y = b.clone();
     for i in 0..d {
-        for m in 0..i {
-            y[i] -= l[[i, m]] * y[m];
+        let row = &l[i * d..i * d + i];
+        for (m, &v) in row.iter().enumerate() {
+            y[i] -= v * y[m];
         }
-        y[i] /= l[[i, i]];
+        y[i] /= l[i * d + i];
     }
     for i in (0..d).rev() {
         for m in i + 1..d {
-            y[i] -= l[[m, i]] * y[m];
+            y[i] -= l[m * d + i] * y[m];
         }
-        y[i] /= l[[i, i]];
+        y[i] /= l[i * d + i];
     }
     Some(y)
 }

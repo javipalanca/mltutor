@@ -65,7 +65,7 @@ describe("ButtonPanel and LessonTabs", () => {
   it("has seven tabs with arrow-key navigation", async () => {
     const onchange = vi.fn();
     const tabs = ["📊 Datos", "🏋️ Entrenamiento", "📈 Evaluación", "📉 Visualización", "🔍 Coeficientes", "🔮 Predicciones", "💾 Exportar"];
-    render(LessonTabs, { tabs, active: 0, onchange });
+    render(LessonTabs, { tabs, active: 0, onchange, idPrefix: "lesson-test" });
     expect(screen.getAllByRole("tab")).toHaveLength(7);
     expect(screen.getByRole("tab", { name: "📊 Datos" }).getAttribute("aria-selected")).toBe("true");
     await fireEvent.keyDown(screen.getByRole("tablist"), { key: "ArrowLeft" });

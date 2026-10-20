@@ -12,7 +12,9 @@
   }
 
   let { label, open = false, id, children }: Props = $props();
+  const uid = $props.id();
   let local = $state<boolean | null>(null);
+  let header: HTMLButtonElement | undefined = $state();
   const isOpen = $derived(id ? session.expander(id, open) : (local ?? open));
 
   function toggle(): void {
@@ -22,15 +24,36 @@
       local = !isOpen;
     }
   }
+
+  /** Escape closes the expander from anywhere inside it and returns focus to its header. */
+  function onkeydown(event: KeyboardEvent): void {
+    if (event.key !== "Escape" || !isOpen || event.defaultPrevented) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    toggle();
+    header?.focus();
+  }
 </script>
 
-<section class="expander" class:open={isOpen}>
-  <button type="button" class="btn block header" aria-expanded={isOpen} onclick={toggle}>
+<!-- Escape bubbles up from any control inside the expander. -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<section class="expander" class:open={isOpen} {onkeydown}>
+  <button
+    type="button"
+    class="btn block header"
+    id="{uid}-header"
+    aria-expanded={isOpen}
+    aria-controls="{uid}-body"
+    bind:this={header}
+    onclick={toggle}
+  >
     <span class="chevron" aria-hidden="true">{isOpen ? "▾" : "▸"}</span>
     <span>{label}</span>
   </button>
   {#if isOpen}
-    <div class="body">
+    <div class="body" id="{uid}-body">
       {@render children()}
     </div>
   {/if}

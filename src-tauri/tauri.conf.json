@@ -18,7 +18,7 @@
         "title": "MLTutor — Aprende Machine Learning",
         "width": 1400,
         "height": 920,
-        "minWidth": 1000,
+        "minWidth": 1024,
         "minHeight": 700,
         "center": true,
         "resizable": true,

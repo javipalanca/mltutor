@@ -2,7 +2,7 @@ import * as backend from "./backend";
 import { busy } from "./busy.svelte";
 import { nextPaint, pageHeading, waitForIdle } from "./dom";
 import { router } from "./router.svelte";
-import { runScenario } from "./scenarios";
+import { runScenario, scrollToMainView } from "./scenarios";
 import { session } from "./session.svelte";
 import { status } from "./status.svelte";
 import { runSmokeTest } from "./smoke";
@@ -89,13 +89,16 @@ export async function startup(): Promise<void> {
     });
   } else if (mode.kind === "screenshot") {
     try {
-      if (mode.scenario) {
-        await runScenario(mode.scenario);
-      }
+      const spec = mode.scenario ? await runScenario(mode.scenario) : null;
       await waitForIdle(() => busy.active, 60000);
       // Plotly animations and fonts settle.
       await new Promise((resolve) => setTimeout(resolve, 400));
       await waitForIdle(() => busy.active, 60000);
+      if (spec?.scrollToView) {
+        scrollToMainView();
+        await nextPaint();
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
       await backend.screenshotReady(mode.full_page ? fullPageHeight() : null);
     } catch (error) {
       await backend.screenshotReady(null, describe(error));

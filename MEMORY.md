@@ -95,9 +95,8 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
   atributos `style=`. Para Plotly y KaTeX (F1/F2) habrá que poner `'unsafe-inline'` en
   `style-src` y `dangerousDisableAssetCspModification: ["style-src"]`. Hasta entonces, nada de
   `style=` estáticos.
-- **Captura:** `--screenshot` es nativa solo en macOS (`WKWebView.takeSnapshot`, recortando
-  la barra de título). En Windows (`CapturePreview`) y Linux (`webkit_web_view_get_snapshot`)
-  sale con 1 por ahora.
+- **Captura:** `--screenshot` es nativa en los tres sistemas (`screenshot.rs`; detalle en la entrada
+  de F7 del 2026-10-20). En macOS, `WKWebView.takeSnapshot`, recortando la barra de título.
 - **Exit codes:** `App::run_return` + `AppHandle::exit(code)`; el watchdog usa
   `process::exit(2)`. En Windows el binario es `windows_subsystem="windows"`, así que el CI
   necesita `Start-Process -Wait -PassThru` para leer el código.
@@ -129,7 +128,7 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
   *Abrir igualmente* o con `xattr -dr com.apple.quarantine MLTutor.app`). El CI
   descomprime el zip y ejecuta `codesign --verify --deep --strict`. La solución
   definitiva sigue siendo Developer ID + notarización.
-- **D3 sin implementar:** todavía no existe el aviso con enlace si falta WebView2.
+- **D3 implementado (2026-10-20):** ver la entrada de F7, empaquetado.
 - **Sin releases intermedias (2026-10-13, usuario):** no se publica ninguna versión hasta que
   la funcionalidad esté completa o casi. Durante la migración se valida con los artefactos
   del CI. `rust.yml` se ejecuta en cada push a `feature/rust-migration`.
@@ -297,6 +296,90 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
     `tools/knn_reference.py` lo reproduce bit a bit y es la especificación (D52, D66).
   - La wheel arm64 suma la distancia euclídea en bloques de 8 sin FMA, y el resto (`n % 8`) con FMA
     (D53, `mul_add`).
+- **F7, empaquetado (2026-10-20):**
+  - **D3:** `src-tauri/src/webview_runtime.rs` comprueba el motor web ANTES de crear la app con
+    `tauri::webview_version()` (wry → `GetAvailableCoreWebView2BrowserVersionString`, el mismo cargador
+    y las mismas variables que usa la creación de la ventana; no hace falta `webview2-com` para esto).
+    Error o versión vacía = falta. En una sesión normal sale un `MessageBoxW` (Sí/No; «Sí» abre la página
+    con `ShellExecuteW`) y el texto va al registro; en `--smoke-test`/`--screenshot` nunca hay diálogo:
+    registro y código 1. Si falla `Builder::build` (runtime dañado, directivas), mismo aviso con la
+    sección `[ventana]`. Textos en `content/app/arranque.toml` (`include_str!`, así que existen antes de
+    Tauri; un test los comprueba).
+  - **Plan B de WebView2:** el runtime «Fixed Version» descomprimido en una carpeta `WebView2` junto a
+    `mltutor.exe` (o en su única subcarpeta `Microsoft.WebView2.FixedVersionRuntime.*`) se usa con
+    `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER`, que la app fija al arrancar si no está ya definida. El Evergreen
+    Bootstrapper sin permisos de administrador se instala para el usuario.
+  - `webviewInstallMode` solo afecta a los instaladores NSIS/MSI. En Windows no hay instalador
+    (`bundle.active: false`), así que se deja `skip` explícito en `tauri.windows.conf.json`.
+  - El CI de Windows ejecuta `--smoke-test` con `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` apuntando a una
+    carpeta vacía y exige código 1 y el enlace en el registro.
+  - **`--screenshot` en Windows:** `ICoreWebView2::CapturePreview` (PNG) sobre `SHCreateMemStream`.
+    `--full-page`: `Emulation.setDeviceMetricsOverride` (viewport del ancho de la ventana y la altura de
+    la página) + `Page.captureScreenshot` por `CallDevToolsProtocolMethod`, porque Windows no deja que
+    la ventana supere la pantalla y el contenido hace scroll dentro de `[data-content]`, así que
+    `captureBeyondViewport` solo no basta. Depende de que el protocolo DevTools responda en release
+    (Tauri desactiva las DevTools de la interfaz, no la API); está por confirmar en CI.
+  - **`--screenshot` en Linux:** `webkit_web_view_get_snapshot(Visible)` → `cairo::ImageSurface` →
+    `write_to_png` (cairo-rs con la feature `png`). `--full-page` agranda la ventana con `set_size`:
+    funciona en Xvfb (sin gestor de ventanas); un escritorio con gestor puede limitarla a la pantalla.
+    `FullDocument` no sirve: el documento mide lo mismo que el viewport porque el scroll es interno.
+  - Todas las capturas se validan (firma, `IHDR`, tamaño no nulo) antes de escribirse y el mensaje de
+    salida incluye las dimensiones. En CI, `.github/scripts/check_png.py` (solo stdlib) rechaza PNG
+    pequeños o de un solo color y las capturas se suben como artefacto `screenshots-<plataforma>`.
+  - **Comprobar Windows y Linux desde este Mac:** `cargo check/clippy --target x86_64-pc-windows-msvc`
+    funciona con `RC=<script>` que imite `llvm-rc` (responde «Resource Converter» a `/?` y crea el
+    archivo de `/fo`), porque `tauri-winres` necesita un compilador de recursos. Para Linux,
+    `PKG_CONFIG_ALLOW_CROSS=1 PKG_CONFIG_LIBDIR=<dir>` con `.pc` falsos (Version 99) de glib, gtk+-3.0,
+    webkit2gtk-4.1, libsoup-3.0, javascriptcoregtk-4.1, cairo(-gobject), pango, atk, gdk-pixbuf, dbus-1… y
+    `cargo check`. Solo comprueba tipos; no enlaza ni ejecuta.
+  - **Duración del smoke test en CI** (ejecuciones 38935191138, 38971274690 y 39406333682): Linux
+    28–46 s, Windows 32–38 s, macOS 25–45 s, frente al límite de 180 s. No hace falta partirlo. Cada ruta y
+    comprobación registra ahora «en N ms (total M ms)» (`AppState::smoke_lap`) y el CI publica la tabla en
+    el resumen. En local (Mac, release) tarda 23 s; lo más lento es `redes_vistas_5x256` (2,8 s).
+  - **Presupuesto de tamaño** (`matrix.size_budget` en `rust.yml`). Antes de comprimir los CSV (ejecución
+    39406333682): exe 21 755 392 B, zip de macOS 9 418 508 B, AppImage 86 653 432 B. Después (CSV con
+    deflate, sin los .ttf/.woff de KaTeX ni los subconjuntos no latinos de Inter), medido en local: binario
+    de macOS de 16 098 208 a 13 373 168 B, zip 8 709 325 B, `.app` 14,2 MiB. Presupuestos (≈ +15 %): zip
+    10 020 000; exe 21 900 000 (estimado: 19,03 MB con la misma reducción del binario) y AppImage 99 000 000
+    (≈ 86,1 MB; squashfs ya comprimía los CSV). Ajustar Windows y Linux al primer valor del CI + 15 %.
+  - **Qué ocupa el AppImage (83 MB):** WebKitGTK y sus dependencias (libwebkit2gtk 90 MB sin comprimir,
+    libjavascriptcoregtk 34 MB, libicudata 29 MB, librsvg, gtk…); MLTutor es un 7 % del total. No se
+    puede reducir sin depender del WebKitGTK del sistema, y no se puede dar por hecho que un Ubuntu 22.04
+    tenga instalado `libwebkit2gtk-4.1`.
+  - **Ahorros (aplicados en `ui/` y `crates/` el 2026-10-20):** solo el woff2 de KaTeX (WebView2,
+    WKWebView y WebKitGTK no cargan .woff ni .ttf: 817 KB, ≈ 480 KB tras el brotli de Tauri), solo los
+    subconjuntos latinos de Inter (85 KB) y los 12 CSV con deflate (3,03 → 0,97 MB). Pendiente y poco
+    rentable: un bundle parcial de Plotly (4,97 MB, 1,1 MB con brotli), porque `surface` arrastra gl3d.
+  - **Fondo inicial:** `main.rs::match_system_theme` pinta la ventana y el webview con el `--color-bg`
+    oscuro (#0f1724) en `setup` si `window.theme()` es Dark; `setup` corre antes de que el bucle de eventos
+    pinte, así que no hay destello blanco. El blanco de `tauri.conf.json` queda como respaldo. wry 0.57 lo
+    aplica también al WKWebView (`drawsBackground` + `underPageBackgroundColor`). `minWidth` = 1024.
+  - `ShellExecuteW` puede cargar extensiones COM del shell: va entre `CoInitializeEx(STA)` y
+    `CoUninitialize` (solo si el primero tuvo éxito, S_FALSE incluido).
+  - Full-page en Windows emula `deviceScaleFactor: 1`: con un DPR de 1,5–2, 16 000 px CSS superarían el
+    límite de textura de Chromium (~16 384 px).
+  - **Job `benchmarks`** (Linux): `cargo bench --no-run` de los tres crates puros y los tests `#[ignore]`
+    de presupuesto (`bench_*`) en release con `--test-threads=1`. En local, uno falló una vez mientras otra
+    compilación ocupaba la CPU y pasó al repetirlo: miden tiempo de reloj. El job de release lo necesita.
+- **F7, benchmarks y rendimiento (2026-10-20; detalle en `docs/migration/benchmarks.md`):**
+  - criterion 0.7 (no 0.8: su MSRV 1.86 supera el 1.85 del workspace), solo como dev-dependency y sin
+    features por defecto; `[lib] bench = false` en los tres crates para que `cargo bench -- --save-baseline x`
+    no falle en el arnés de libtest de la biblioteca. `cargo bench` usa el perfil release (LTO fat): compilar
+    tarda 1–2 min.
+  - **La SVD de linfa-linalg es inexacta en algunos casos:** en una 8×8 de rango 3 da σ₂ = 1,84517 en lugar
+    de 1,84509 (error relativo 4e-5, muy por encima de ε). La referencia de los tests de `lstsq.rs` es un
+    Jacobi de una cara (Hestenes), no linfa.
+  - Logística en Dígitos: el 70 % del tiempo era la Cholesky 650×650 con indexado `l[[i, m]]` (100 ms por
+    iteración de Newton). Por columnas, con cuatro filas a la vez y slices contiguos (cada elemento conserva
+    su orden de suma), es bit a bit igual (22 624 coeficientes y probabilidades de 5 datasets comparados) y el
+    ajuste pasa de ~1 s a 0,5 s en release.
+  - Datasets incrustados: `build.rs` los comprime con deflate nivel 9 (flate2 + zlib-rs, el mismo backend que
+    ya enlaza el zip de mltutor-export) en `OUT_DIR/datasets/*.csv.deflate` (longitud u32 LE + deflate):
+    3,03 MB → 0,97 MB. `DatasetId::csv_bytes()` devuelve ahora `Result<Vec<u8>, DatasetError>`; inflar
+    California cuesta ~4 ms (carga de 10,8 a 12,5 ms). El test de paridad comprueba el SHA-256 de los bytes
+    inflados. zstd daría 0,78 MB pero añade un decodificador nuevo.
+  - Más lento que Python, con margen: OLS 1500×1500 (Accelerate multihilo: 0,33 s frente a ≈ 1,3–1,4 s). Más
+    rápido: CART, KNN (predicción y rejillas 3–4×), la red (Iris 100 épocas 7 ms frente a 2,4 s de Keras).
 - **Fase 6, validación cruzada de exportaciones (2026-10-20):**
   - El corpus lo escribe `src-tauri/src/export_corpus.rs` (test `#[ignore]`, 48 casos) por la capa de dominio:
     `DataState` (selección o `load_csv_bytes` + `set_csv_target`), `ModelState::train` y las funciones que
@@ -661,7 +744,8 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
   `resolve(process.cwd(), "../tests/…")`. `fmt` también escapa dentro de los bloques de código, así que
   los identificadores entre comillas invertidas se sustituyen antes.
 - **Smoke test:** en 1 de 5 ejecuciones locales acabó en timeout (2) tras `predict_one` de Cáncer,
-  posiblemente por los timers congelados con la ventana oculta. Vigilarlo en CI.
+  posiblemente por los timers congelados con la ventana oculta. Vigilarlo en CI. (2026-10-20: en CI
+  tarda 25–46 s en los tres sistemas; ver la entrada de F7.)
 - **CART de Rust (2026-10-15):** `tree/cart.rs` transcribe `cart_reference.py` y reproduce bit a bit la
   estructura y los umbrales de los 40 árboles de los fixtures. Las impurezas difieren ≤ 1,1e-13 por la FMA
   de la wheel arm64. California d10 tarda unos 48 ms (sklearn 59 ms), de los que 33 son del introsort. No
@@ -671,8 +755,13 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
   `class_ids = 0`), como skl2onnx; con las dos clases, onnxruntime equivoca 537 de 891 etiquetas en Titanic.
 - **`py_float_repr`:** `format!("{:e}")` da la representación más corta, pero no siempre la más cercana
   (1400.50006103515625: Rust `…563`, CPython `…562`); se usa `{:.Ne}` con el mismo nº de dígitos.
-- **OLS:** se resuelve por sustitución hacia atrás si σ_min estimado supera en 1e6 el umbral de rango. Un
-  1500×1500 centrado pierde rango y sigue en 12,7 s en la SVD de linfa-linalg, sin cancelación (pendiente).
+- **OLS:** se resuelve por sustitución hacia atrás si σ_min estimado supera en 1e6 el umbral de rango. Si no,
+  **SVD propia** (`linear/lstsq.rs`, 2026-10-20): bidiagonalización de Golub–Kahan + QR implícito sobre la
+  bidiagonal, sin formar U ni V (las rotaciones izquierdas se aplican a c y las derechas se guardan y se
+  aplican al final a Σ⁺·g). 1500×1500 de rango 1499: de 14 s (SVD de linfa-linalg, sin cancelación) a ≈ 1,3–1,4 s,
+  y se cancela en < 1 ms (test `rank_deficient_fit_cancels_quickly`). Coste: ~0,85·m² rotaciones de 24 B
+  (45 MB con m = 1500), con un tope de 6·m² (como `MAXITR·n²` de LAPACK) que da
+  `Numerical` en lugar de crecer sin límite. linfa-linalg ya no es dependencia.
 - **friedman_mse ≈ squared_error en un árbol único (2026-10-15):** la puntuación de Friedman es la reducción
   del SSE, así que los árboles salen idénticos salvo en empates numéricos (en sklearn difieren en 10 de
   60 árboles con muchos empates; en Diabetes e Iris coinciden en las 450 combinaciones).
@@ -829,6 +918,35 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
 - **Cáncer:** 0 = malignant y 1 = benign, en el orden de sklearn. Titanic rellena la edad y
   la tarifa con la mediana y embarked con 'S'. Pingüinos: 333 filas tras dropna; MPG: 392.
 - Rama de trabajo: `feature/rust-migration`, creada el 2026-10-13 a partir de `codex/desktop-migration-study`, que tiene la versión Qt de referencia.
+
+- **F7, revisión visual y accesibilidad (2026-10-20; detalle en `docs/migration/capturas/comparacion-fase7.md`):**
+  - Modificadores de `--scenario` (`ui/src/lib/scenarioSpec.ts`): `nombre@vista@1024x668@oscuro:ruta.csv`.
+    `@WxH` dibuja la app en una caja de ese tamaño dentro de la ventana de 1400×888 (hay que recortar el
+    PNG); solo encoge, no se puede probar 1920×1080. Es fiel porque el diseño usa `@container page`
+    (`.page`) y `cqw` (`#app`), no `@media` del viewport: **no añadir `@media (max-width)`**, que además mide
+    la ventana con la barra lateral incluida. `@vista` sube la primera gráfica/diagrama/tabla, para revisar
+    en ventana normal lo que `--full-page` esconde.
+  - El tema oscuro cuelga de `<html data-theme="dark">`, que pone `theme.svelte.ts` (importado en `main.ts`
+    antes de montar) siguiendo `prefers-color-scheme` en vivo; los componentes usan
+    `:global(:root[data-theme="dark"])`, nunca `@media (prefers-color-scheme)`.
+  - WKWebView solo recorre con Tab campos de texto y desplegables salvo que el usuario active la
+    «Navegación con teclado» de macOS (`tabsToAllFormControls`); un `tabindex` explícito lo evita.
+    `lib/keyboard.ts` lo pone a los controles nativos (solo en WebKit de Mac). Sin verificar con Tab real:
+    los eventos sintéticos no mueven el foco.
+  - `text-overflow: ellipsis` no funciona en un `.btn` (`inline-flex`): el texto centrado se corta por los
+    dos lados. Las pestañas estrechas usan `white-space: normal` + `hyphens: auto` (`lang="es"`).
+  - `aria-labelledby`/`aria-describedby` son listas de ids separadas por espacios: un id hecho con la
+    etiqueta («🎯 Selecciona características») no resuelve. Usar `$props.id()`.
+  - Contraste: `a11y.test.ts` calcula WCAG para los pares de tokens de `theme.css` en los dos temas y falla
+    si alguno baja de 4,5 (texto) o 3 (foco, bordes de campo, ejes). El azul de Qt #1e88e5 con texto blanco
+    da 3,68: el primario es #1976d2. Títulos de 17 px en negrita no son «texto grande» (hace falta 18,66 px).
+  - Una media query `(resolution: Ndppx)` solo avisa al cruzar ese valor: hay que volver a crearla en cada
+    cambio (`theme.dpr`) para redibujar los canvas al mover la ventana entre pantallas 1× y 2×. Las dos
+    pantallas de este Mac son de 1×: falta probar en Retina.
+  - Tamaño: un plugin de Vite quita los `.woff`/`.ttf` de `katex.min.css` (817 KB de recursos) y
+    `styles/fonts.css` declara solo Inter `latin` + `latin-ext` (85 KB); β/σ caen a la fuente del sistema.
+  - Capturas: 219 escenarios × (página entera, `@vista`, `@1024x668`, `@oscuro`) tardan unos 2,5 min cada
+    pasada con 3 procesos en paralelo (binario de depuración); no fallan con 3 a la vez.
 
 ## Decisiones de diseño (versión Python/Qt)
 

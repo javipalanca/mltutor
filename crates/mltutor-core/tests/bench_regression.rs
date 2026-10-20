@@ -209,9 +209,10 @@ fn ols_large_design_matrices() {
     }
 }
 
-/// Review F2 (pending): 1 500 columns. With the SVD of R always: about 11 s.
-/// Full rank (3 000 × 1 500) takes the back-substitution path; 1 500 × 1 500 is
-/// rank deficient after centring (rank ≤ n − 1) and needs the SVD.
+/// Review F2: 1 500 columns. With the SVD of R always: about 11 s.
+/// Full rank (3 000 × 1 500) takes the back-substitution path (1.5 s); 1 500 × 1 500
+/// is rank deficient after centring (rank ≤ n − 1) and needs the SVD: 14.0 s with
+/// linfa-linalg's, 1.3 s with our own Golub–Kahan SVD (`linear/lstsq.rs`, 2026-10-20).
 /// `cargo test -p mltutor-core --release --test bench_regression ols_wide -- --ignored --nocapture`
 #[test]
 #[ignore = "benchmark: run in release with --ignored"]

@@ -216,7 +216,7 @@
     margin: 6px 0;
   }
 
-  @media (max-width: 860px) {
+  @container page (max-width: 520px) {
     .two,
     .options {
       grid-template-columns: minmax(0, 1fr);

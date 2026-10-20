@@ -44,9 +44,7 @@
     font-size: 17px;
   }
 
-  @media (prefers-color-scheme: dark) {
-    :global(:root:not([data-theme="light"])) .card {
-      filter: brightness(0.92);
-    }
+  :global(:root[data-theme="dark"]) .card {
+    filter: brightness(0.92);
   }
 </style>

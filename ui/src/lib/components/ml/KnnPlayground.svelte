@@ -552,11 +552,11 @@
       <Select id="knn-lienzo-metrica" label={t("metrica_label")} options={metricOptions} value={pg.metric} onchange={(metric) => setControl({ metric })} />
       <Select id="knn-lienzo-pesos" label={t("pesos_label")} options={weightOptions} value={pg.weights} onchange={(weights) => setControl({ weights })} />
       <div class="toggle">
-        <span class="toggle-label">{t("confianza_label")}</span>
+        <label class="toggle-label" for="knn-lienzo-confianza">{t("confianza_label")}</label>
         <Checkbox id="knn-lienzo-confianza" label="" checked={pg.showConfidence} onchange={(v) => (controller.playground.showConfidence = v)} />
       </div>
       <div class="toggle">
-        <span class="toggle-label">{t("distancias_label")}</span>
+        <label class="toggle-label" for="knn-lienzo-distancias">{t("distancias_label")}</label>
         <Checkbox id="knn-lienzo-distancias" label="" checked={pg.showDistances} onchange={(v) => (controller.playground.showDistances = v)} />
       </div>
       <button type="button" class="btn clear" disabled={pg.points.length === 0} onclick={() => controller.clearPoints()}>{t("btn_limpiar")}</button>
@@ -573,8 +573,8 @@
         class="plot"
         bind:this={container}
         style:height="{height}px"
-        role="application"
-        aria-label={t("caja_titulo")}
+        role="img"
+        aria-label="{t('caja_titulo').replace(/[*#]/g, '')}: {pg.points.length} puntos de prueba. Con el teclado, usa «{t('modo_exacto')}»."
         data-plot-rendered={failed ? "error" : rendered}
         onpointerdowncapture={pointerdown}
         onpointermovecapture={pointermove}
@@ -682,6 +682,13 @@
     margin: 6px 0 4px;
   }
 
+  /* 1024 px windows: K, metric and weights on one row; the toggles and "Limpiar" below. */
+  @container page (max-width: 900px) {
+    .controls {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
   .toggle {
     display: flex;
     flex-direction: column;
@@ -697,15 +704,16 @@
   .clear {
     margin: 12px 0;
     min-height: 46px;
-    background: #ff4444;
-    border-color: #ff4444;
+    /* #ff4444 in Python; darker so the white text reaches 4.5:1 (WCAG AA). */
+    background: #d32f2f;
+    border-color: #d32f2f;
     color: #ffffff;
     font-weight: 600;
   }
 
   .clear:hover:not(:disabled) {
-    background: #e53935;
-    border-color: #e53935;
+    background: #c62828;
+    border-color: #c62828;
   }
 
   .clear:disabled {
@@ -826,10 +834,8 @@
     color: var(--color-text-muted);
   }
 
-  @media (prefers-color-scheme: dark) {
-    :global(:root:not([data-theme="light"])) .canvas {
-      border-color: #3a4558;
-      background: linear-gradient(135deg, #1f2733 0%, #2c3a52 100%);
-    }
+  :global(:root[data-theme="dark"]) .canvas {
+    border-color: #3a4558;
+    background: linear-gradient(135deg, #1f2733 0%, #2c3a52 100%);
   }
 </style>

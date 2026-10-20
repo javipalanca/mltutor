@@ -10,8 +10,8 @@
   --font-size: 14px;
 
   --color-text: #243247;
-  --color-text-muted: #64748b;
-  --color-footer: #888888;
+  --color-text-muted: #5b6b80;
+  --color-footer: #707070;
   --color-bg: #ffffff;
   --color-sidebar-bg: #f3f6fb;
   --color-border: #d5dce5;
@@ -23,21 +23,21 @@
   --color-title: #1e88e5;
   --color-heading: #0d47a1;
 
-  --color-primary: #1e88e5;
-  --color-primary-hover: #1572c4;
+  --color-primary: #1976d2;
+  --color-primary-hover: #1565c0;
   --color-on-primary: #ffffff;
   --color-hover-bg: #e3f2fd;
   --color-hover-border: #90caf9;
   --color-pressed-bg: #dbeafe;
-  --color-focus: #60a5fa;
+  --color-focus: #2563eb;
   --color-disabled-text: #9aa3ac;
   --color-disabled-bg: #f4f5f7;
 
   /* Inputs (QComboBox / QSpinBox) */
   --color-input-bg: #f8fafd;
-  --color-input-border: #d7e2f0;
+  --color-input-border: #7f8fa4;
   --color-input-hover-bg: #f2f7ff;
-  --color-input-hover-border: #a3bde0;
+  --color-input-hover-border: #5f86bd;
   --color-input-focus-border: #3b82f6;
   --color-slider-groove: #e5edf7;
   --color-slider-fill: #60a5fa;
@@ -86,7 +86,7 @@
   --color-code-button-hover: #334e70;
 
   --color-statusbar-bg: #f3f6fb;
-  --color-statusbar-text: #64748b;
+  --color-statusbar-text: #5b6b80;
   --color-tooltip-bg: #fff8e1;
   --color-tooltip-border: #ffe082;
 
@@ -96,92 +96,91 @@
   /* Charts (read by lib/charts.ts) */
   --chart-text: #243247;
   --chart-grid: #e5eaf1;
-  --chart-axis: #8a99ad;
+  --chart-axis: #7b8aa0;
   --chart-bg: #ffffff;
 
   --radius-button: 8px;
   --radius-box: 10px;
   --radius-notice: 6px;
-  --sidebar-width: 260px;
+  /* 260 px as in Qt; down to 210 px in a 1024 px window so the lessons keep their width. */
+  --sidebar-width: clamp(210px, 22cqw, 260px);
   --content-max-width: 1180px;
 
   color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --color-text: #dbe4f0;
-    --color-text-muted: #94a3b8;
-    --color-footer: #8b97a8;
-    --color-bg: #0f1724;
-    --color-sidebar-bg: #141f30;
-    --color-border: #2c3b52;
-    --color-divider: #23324a;
-    --color-rule: #3a4a63;
-    --color-link: #7cb8ff;
-    --color-code-inline-bg: #1f2c40;
+:root[data-theme="dark"] {
+  --color-text: #dbe4f0;
+  --color-text-muted: #94a3b8;
+  --color-footer: #8b97a8;
+  --color-bg: #0f1724;
+  --color-sidebar-bg: #141f30;
+  --color-border: #2c3b52;
+  --color-divider: #23324a;
+  --color-rule: #3a4a63;
+  --color-link: #7cb8ff;
+  --color-code-inline-bg: #1f2c40;
 
-    --color-title: #5aaaf5;
-    --color-heading: #8cc0ff;
+  --color-title: #5aaaf5;
+  --color-heading: #8cc0ff;
 
-    --color-primary: #2f8ee8;
-    --color-primary-hover: #4aa0f0;
-    --color-hover-bg: #1b2d47;
-    --color-hover-border: #3b6ea8;
-    --color-pressed-bg: #20385a;
-    --color-disabled-text: #66758a;
-    --color-disabled-bg: #182234;
+  --color-primary: #1d6fc9;
+  --color-primary-hover: #1a65b8;
+  --color-hover-bg: #1b2d47;
+  --color-hover-border: #3b6ea8;
+  --color-pressed-bg: #20385a;
+  --color-disabled-text: #66758a;
+  --color-disabled-bg: #182234;
 
-    --color-input-bg: #162235;
-    --color-input-border: #2c3d57;
-    --color-input-hover-bg: #1a2a42;
-    --color-input-hover-border: #44618a;
-    --color-slider-groove: #24344d;
+  --color-input-bg: #162235;
+  --color-input-border: #5b6e8a;
+  --color-input-hover-bg: #1a2a42;
+  --color-input-hover-border: #7891b5;
+  --color-slider-groove: #24344d;
 
-    --color-chip-bg: #162235;
-    --color-chip-text: #a9b8cc;
-    --color-chip-border: #2c3d57;
-    --color-chip-on-bg: #1d3557;
-    --color-chip-on-text: #9ccaff;
-    --color-chip-on-border: #3f6fae;
+  --color-chip-bg: #162235;
+  --color-chip-text: #a9b8cc;
+  --color-chip-border: #2c3d57;
+  --color-chip-on-bg: #1d3557;
+  --color-chip-on-text: #9ccaff;
+  --color-chip-on-border: #3f6fae;
 
-    --color-table-border: #26364e;
-    --color-table-row-border: #1e2b3f;
-    --color-table-alt: #131e2e;
-    --color-table-head-bg: #1a2a42;
-    --color-table-head-text: #a9c4e6;
-    --color-table-index-bg: #141f30;
-    --color-table-selected: #1f3a60;
-    --color-table-selected-text: #dbeafe;
+  --color-table-border: #26364e;
+  --color-table-row-border: #1e2b3f;
+  --color-table-alt: #131e2e;
+  --color-table-head-bg: #1a2a42;
+  --color-table-head-text: #a9c4e6;
+  --color-table-index-bg: #141f30;
+  --color-table-selected: #1f3a60;
+  --color-table-selected-text: #dbeafe;
 
-    --color-info-bg: #13283f;
-    --color-info-border: #24507e;
-    --color-warning-bg: #2d2513;
-    --color-warning-border: #6b5520;
-    --color-error-bg: #2f1719;
-    --color-error-border: #7a3036;
-    --color-success-bg: #13291b;
-    --color-success-border: #2d6440;
+  --color-info-bg: #13283f;
+  --color-info-border: #24507e;
+  --color-warning-bg: #2d2513;
+  --color-warning-border: #6b5520;
+  --color-error-bg: #2f1719;
+  --color-error-border: #7a3036;
+  --color-success-bg: #13291b;
+  --color-success-border: #2d6440;
 
-    --color-metric-bg: #152235;
-    --color-metric-border: #24344d;
-    --color-metric-value: #8cc0ff;
+  --color-metric-bg: #152235;
+  --color-metric-border: #24344d;
+  --color-metric-value: #8cc0ff;
 
-    --color-statusbar-bg: #141f30;
-    --color-statusbar-text: #94a3b8;
-    --color-tooltip-bg: #2d2513;
-    --color-tooltip-border: #6b5520;
+  --color-statusbar-bg: #141f30;
+  --color-statusbar-text: #94a3b8;
+  --color-tooltip-bg: #2d2513;
+  --color-tooltip-border: #6b5520;
 
-    --color-scrollbar-track: #141f30;
-    --color-scrollbar-thumb: #33445e;
+  --color-scrollbar-track: #141f30;
+  --color-scrollbar-thumb: #33445e;
 
-    --chart-text: #dbe4f0;
-    --chart-grid: #26364e;
-    --chart-axis: #6b7c94;
-    --chart-bg: #0f1724;
+  --chart-text: #dbe4f0;
+  --chart-grid: #26364e;
+  --chart-axis: #6b7c94;
+  --chart-bg: #0f1724;
 
-    color-scheme: dark;
-  }
+  color-scheme: dark;
 }
 
 *,
@@ -195,6 +194,12 @@ body,
 #app {
   height: 100%;
   margin: 0;
+}
+
+/* `cqw` in --sidebar-width is relative to the app box (= the window, or the emulated
+   window of `--scenario …@1024x668`). */
+#app {
+  container-type: inline-size;
 }
 
 body {
@@ -230,6 +235,19 @@ a {
   color: var(--color-link);
 }
 
+/* Visually hidden but read by screen readers (live regions, chart descriptions). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 hr {
   border: none;
   border-top: 1px solid var(--color-rule);
@@ -263,10 +281,16 @@ hr {
   background: var(--color-pressed-bg);
 }
 
+/* Keyboard focus: one ring for every control (WCAG 2.4.7). It is an outline with an
+   offset, so it stays visible on the blue primary buttons and does not move the layout. */
+:where(button, a, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
 .btn:focus-visible {
-  outline: none;
-  border: 2px solid var(--color-focus);
-  padding: 9px 13px;
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
 }
 
 .btn.primary {

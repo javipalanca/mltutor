@@ -135,7 +135,11 @@ pub async fn smoke_route_rendered(
     require_smoke(&state)?;
     match state.record_smoke_route(&route, &title) {
         Ok(done) => {
-            log::info!("smoke test: «{route}» renderizada ({title})");
+            let (lap, total) = state.smoke_lap();
+            log::info!(
+                "smoke test: «{route}» renderizada ({title}) en {lap} ms (total {total} ms)"
+            );
+            println!("  {lap:>6} ms  ruta {route}");
             if done {
                 state.finish(
                     &app,
@@ -165,7 +169,11 @@ pub async fn smoke_check_passed(
     require_smoke(&state)?;
     match state.record_smoke_check(&check) {
         Ok(done) => {
-            log::info!("smoke test: comprobación «{check}» superada");
+            let (lap, total) = state.smoke_lap();
+            log::info!(
+                "smoke test: comprobación «{check}» superada en {lap} ms (total {total} ms)"
+            );
+            println!("  {lap:>6} ms  {check}");
             if done {
                 state.finish(
                     &app,

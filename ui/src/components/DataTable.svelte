@@ -112,9 +112,14 @@
               scope="col"
               class:sortable
               aria-sort={sortColumn === c ? (descending ? "descending" : "ascending") : undefined}
-              onclick={() => sortBy(c)}
             >
-              {column}{#if sortColumn === c}<span class="arrow">{descending ? " ▼" : " ▲"}</span>{/if}
+              {#if sortable}
+                <button type="button" class="sort" title="Ordenar por {column}" onclick={() => sortBy(c)}>
+                  {column}{#if sortColumn === c}<span class="arrow" aria-hidden="true">{descending ? " ▼" : " ▲"}</span>{/if}
+                </button>
+              {:else}
+                {column}
+              {/if}
             </th>
           {/each}
         </tr>
@@ -194,6 +199,20 @@
 
   thead th.sortable:hover {
     background: var(--color-hover-bg);
+  }
+
+  .sort {
+    all: unset;
+    display: block;
+    width: 100%;
+    cursor: pointer;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .sort:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
   }
 
   .arrow {
