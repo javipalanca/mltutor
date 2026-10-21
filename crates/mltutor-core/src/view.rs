@@ -1,4 +1,4 @@
-//! A small declarative view tree, with the shape that `tools/golden_render.py`
+//! A small declarative view tree, with the shape that `v1.0.0:tools/golden_render.py`
 //! records from the Python lessons (`expected.views` of the fixtures).
 //!
 //! Views that are pure logic over the model (the 🧠 training diagnostics, the

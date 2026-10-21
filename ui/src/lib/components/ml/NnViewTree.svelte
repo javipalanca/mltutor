@@ -1,7 +1,7 @@
 <script lang="ts">
   /**
    * Renders a view tree built in Rust with its texts already resolved (C23 diagnostics, the
-   * cards of 📊 Historial): the shape `tools/golden_render.py` records from Python. Text is
+   * cards of 📊 Historial): the shape `v1.0.0:tools/golden_render.py` records from Python. Text is
    * Markdown; nothing is rendered as raw HTML.
    */
   import Expander from "../../../components/Expander.svelte";

@@ -3,7 +3,7 @@ import type { NnSeverity } from "./NnSeverity";
 
 /**
  * A view built in the core with its texts already resolved (C23, the history cards):
- * the shape `tools/golden_render.py` records from the Python lessons. The UI renders it
+ * the shape `v1.0.0:tools/golden_render.py` records from the Python lessons. The UI renders it
  * as it comes.
  */
 export type NnViewNode = { "kind": "page", children: Array<NnViewNode>, } | { "kind": "text", text: string, html: boolean, } | { "kind": "heading", text: string, level: number, } | { "kind": "notice", text: string, severity: NnSeverity, } | { "kind": "metric", label: string, value: string, delta: string | null, 

@@ -13,10 +13,11 @@
     (tests/parity/code/nn_training.json).
 
     Los bloques "import ... sklearn.datasets" y "1. Cargar los datos" son copia literal de
-    knn_entrenamiento.py.j2 / arbol_entrenamiento.py.j2 (con `task`); tools/golden_nn.py comprueba que
+    knn_entrenamiento.py.j2 / arbol_entrenamiento.py.j2 (con `task`); el test `training_templates_share_the_dataset_blocks` (parity_codegen.rs) comprueba que
     siguen siendo iguales. Si cambias uno, cambia los otros.
 
-    Se renderiza con minijinja (Rust) y con jinja2 (tools/export_golden.py). Filtros: `pyrepr` y
+    Se renderiza con minijinja (Rust); los textos de tests/parity se generaron con jinja2
+    (tools/export_golden.py, en el tag v1.0.0) y se actualizan con MLTUTOR_BLESS=1. Filtros: `pyrepr` y
     `pycomment`. Pasa SIEMPRE todas las variables, con null (None) las que no apliquen.
 
     Variables:

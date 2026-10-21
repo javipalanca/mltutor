@@ -1,7 +1,7 @@
 //! 📦 Paquete Keras (.zip) of the 🧠 network (C28, D75): what replaces Python's
 //! SavedModel/HDF5/TFLite/pickle exports, which need TensorFlow.
 //!
-//! - `modelo.json` (`mltutor-red-neuronal/1`, `tools/golden_nn.py::package_model_json`,
+//! - `modelo.json` (`mltutor-red-neuronal/1`, `v1.0.0:tools/golden_nn.py::package_model_json`,
 //!   written compactly by [`model_json_text`]):
 //!   task, names, classes, architecture, activations, dropout, loss, metric,
 //!   optimizer with the final learning rate, scaler (with `n_samples`), the dense

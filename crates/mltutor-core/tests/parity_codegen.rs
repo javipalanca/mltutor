@@ -108,7 +108,7 @@ fn knn_templates_are_embedded() {
 }
 
 /// F4: `knn_entrenamiento.py.j2` rendered from the typed context gives exactly the
-/// script that `tools/golden_knn.py` executed and checked against the fixtures.
+/// script that `v1.0.0:tools/golden_knn.py` executed and checked against the fixtures.
 #[test]
 fn knn_training_script_matches_jinja2_exactly() {
     use mltutor_core::codegen::KnnTrainingContext;
@@ -130,7 +130,7 @@ fn knn_training_script_matches_jinja2_exactly() {
 }
 
 /// D63: `frontera_decision.py.j2` with `datos = "todos"` (🔍 KNN), executed after the
-/// KNN training script in `tools/golden_knn.py`; without `datos` the text is F2/F3's.
+/// KNN training script in `v1.0.0:tools/golden_knn.py`; without `datos` the text is F2/F3's.
 #[test]
 fn knn_boundary_all_rows_matches_jinja2() {
     use mltutor_core::codegen::DecisionBoundaryContext;
@@ -167,7 +167,7 @@ fn knn_boundary_all_rows_matches_jinja2() {
 }
 
 /// 🧠 D74: `red_entrenamiento.py.j2` with the typed context built from the lesson's
-/// configuration equals the script `export_golden.py` executed (`code/nn_training.json`).
+/// configuration equals the script `v1.0.0:tools/export_golden.py` executed (`code/nn_training.json`).
 #[test]
 fn nn_training_script_matches_exactly() {
     use mltutor_core::codegen::{NnTrainingContext, ScriptDataset};
@@ -287,4 +287,42 @@ fn nn_training_script_uses_the_seed() {
     let script = codegen::render(CodeTemplate::NnTraining, &ctx).unwrap();
     assert!(script.contains("keras.utils.set_random_seed(1234)"));
     assert!(!script.contains("set_random_seed(42)"));
+}
+
+/// The dataset blocks ("import … make_moons" and "1. Cargar los datos") of the four
+/// training scripts are literal copies of each other (only the regression script says
+/// `model == "logistic"` where the others say `task == "classification"`). Ported from
+/// the `_training_shared_blocks` checks of the removed `tools/golden_{trees,knn,nn}.py`.
+#[test]
+fn training_templates_share_the_dataset_blocks() {
+    fn block<'a>(text: &'a str, start: &str, end: &str, name: &str) -> &'a str {
+        let i = text
+            .find(start)
+            .unwrap_or_else(|| panic!("{name}: no {start:?}"));
+        let j = text[i..]
+            .find(end)
+            .unwrap_or_else(|| panic!("{name}: no {end:?} after {start:?}"));
+        &text[i..i + j + end.len()]
+    }
+    let source = |name: &str| codegen::template_source(name).unwrap();
+    let regression = source("regresion_entrenamiento.py.j2");
+    for (start, end) in [
+        ("import numpy as np\n", "make_moons\n{%- endif %}\n"),
+        ("# 1. Cargar los datos", "{%- endif %}\n{%- endif %}\n"),
+    ] {
+        let reference = block(regression, start, end, "regresion_entrenamiento.py.j2")
+            .replace(r#"model == "logistic""#, r#"task == "classification""#);
+        for name in [
+            "arbol_entrenamiento.py.j2",
+            "knn_entrenamiento.py.j2",
+            "red_entrenamiento.py.j2",
+        ] {
+            assert_eq!(
+                block(source(name), start, end, name),
+                reference,
+                "{name}: the block {:?} differs from regresion_entrenamiento.py.j2",
+                start.trim()
+            );
+        }
+    }
 }

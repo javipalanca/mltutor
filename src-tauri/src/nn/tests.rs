@@ -495,7 +495,7 @@ fn controls_are_validated() {
 }
 
 /// D74: `red_entrenamiento.py.j2` with the controls renders the scripts that
-/// `export_golden.py` executed (text exact) for the built-in datasets.
+/// `v1.0.0:tools/export_golden.py` executed (text exact) for the built-in datasets.
 #[test]
 fn training_script_matches_the_fixture() {
     let code = fixture("code/nn_training.json");

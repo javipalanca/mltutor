@@ -151,7 +151,7 @@ fn is_python_keyword(s: &str) -> bool {
 ///    `XID_Start` (a digit, a combining mark), a `_` suffix for keywords;
 /// 4. `_2`, `_3`… when the normalized name is already taken.
 ///
-/// `py_identifier` of `tools/golden_trees.py` is the same rule.
+/// `py_identifier` of `v1.0.0:tools/golden_trees.py` is the same rule.
 pub fn py_identifiers(names: &[String]) -> Vec<String> {
     let mut used: Vec<String> = Vec::with_capacity(names.len());
     for name in names {
@@ -198,7 +198,7 @@ enum Style {
     Corrected,
 }
 
-/// The recursive `if/else` body (`tree_python_body` of `tools/golden_trees.py`).
+/// The recursive `if/else` body (`tree_python_body` of `v1.0.0:tools/golden_trees.py`).
 /// `names` are the names written in the comparisons; `leaf_labels[k]` the text
 /// returned for tree class `k` (already quoted).
 fn body(
@@ -354,7 +354,7 @@ mod tests {
     /// Python identifiers are XID_Start XID_Continue* after NFKC: `²` is
     /// alphanumeric but not XID_Continue (`superficie_m²` does not compile), and
     /// `ﬁn` is `fin` to Python. Checked with `str.isidentifier` and `compile`
-    /// in `tools/golden_trees.py` (`py_identifier`).
+    /// in `v1.0.0:tools/golden_trees.py` (`py_identifier`).
     #[test]
     fn identifiers_are_valid_python_3() {
         let names: Vec<String> = [

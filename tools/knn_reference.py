@@ -25,9 +25,10 @@ reproduces it exactly (``plain=True`` gives the portable sum without FMA). Manha
 ``sum(|x_j - y_j|)``. ``dist = sqrt(rdist)`` (Euclidean) or ``rdist`` (Manhattan).
 ``metric='minkowski'`` (p=2, the default) IS ``'euclidean'`` in every neighbour search.
 
-Used by ``tools/golden_knn.py``; run it directly to self-check against scikit-learn::
+Used by ``v1.0.0:tools/golden_knn.py``; run it directly to self-check against scikit-learn::
 
-    uv run python tools/knn_reference.py
+    uv run --no-project --python 3.11 --with numpy==1.26.4 --with scikit-learn==1.7.2 \
+        python tools/knn_reference.py
 """
 
 from __future__ import annotations

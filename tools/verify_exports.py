@@ -9,7 +9,7 @@ side, through the app's domain layer (``src-tauri/src/export_corpus.rs``):
     uv run --no-project --python 3.11 --with-requirements tools/verify_exports.lock.txt \\
         python tools/verify_exports.py /tmp/corpus
 
-(on the Apple Silicon Mac of the project: ``--python .venv/bin/python``, see MEMORY.md).
+(``--python 3.11`` must resolve to a native interpreter: on Apple Silicon, an arm64 one).
 
 For every case of the corpus (every test row of the split is an input):
 
@@ -94,7 +94,7 @@ TOL: dict[str, dict[str, float]] = {
     # Training script, OLS refitted by scipy's lstsq.
     "script_linear": {"rel": 1e-9, "abs": 1e-9, "proba": 1e-9, "label_gap": 0.0},
     # Training script, LogisticRegression(newton-cholesky, tol=1e-8) REFITTED, against Rust's
-    # optimum (export_golden: ≤ 1e-6 vs the optimum; Rust ≤ 1e-5 vs the converged reference).
+    # optimum (v1.0.0:tools/export_golden.py: ≤ 1e-6 vs the optimum; Rust ≤ 1e-5 vs the converged reference).
     "script_logistic": {"rel": 1e-9, "abs": 1e-9, "proba": 1e-5, "label_gap": 2e-5},
     "sk_tree": {"rel": 1e-12, "abs": 1e-12, "proba": 1e-12, "label_gap": 0.0},
     # Keras artefacts (float32): the package's own check uses rtol=1e-5, atol=1e-4.
