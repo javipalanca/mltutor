@@ -74,7 +74,7 @@ import numpy as np
 REPO = Path(__file__).resolve().parents[1]
 CODE_DIR = REPO / "content" / "code"
 # Offline copies of the seaborn datasets (sns.load_dataset reads them from SEABORN_DATA).
-SEABORN_DATA = REPO / "mltutor" / "dataset" / "data" / "sample_datasets"
+SEABORN_DATA = REPO / "tools" / "data" / "seaborn"
 
 # --- tolerances --------------------------------------------------------------------------
 # Values: |artefact − Rust| ≤ abs + rel·|Rust|. A label may differ only when Rust's two

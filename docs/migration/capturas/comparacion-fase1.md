@@ -6,7 +6,7 @@ Fecha: 2026-10-13. Capturas Qt en [`qt/`](qt/) (`tools/capture_qt.py`) y Rust en
 ```sh
 target/release/mltutor --screenshot rust/06_datos_pairplot_kde_iris.png \
     --scenario datos_pairplot_kde_iris --full-page
-# CSV: --scenario csv_cargado_clasificacion:mltutor/dataset/data/sample_datasets/tips.csv
+# CSV: --scenario csv_cargado_clasificacion:tools/data/seaborn/tips.csv
 ```
 
 Están cuantizadas a 256 colores con Pillow (2,7 MB las 22). Diferencia de formato: las

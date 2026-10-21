@@ -13,7 +13,7 @@ samples = 333
 description = "Dataset Pingüinos: 333 pingüinos, 6 características, 3 especies"
 selector_blurb = "🐧 **Pingüinos**: Clasificación de especies con datos biológicos."
 selector_info = "333 pingüinos • 6 características • 3 especies • Clasificación"
-source = "mltutor/dataset/data/sample_datasets/penguins.csv via load_penguins_dataset()"
+source = "seaborn-data penguins.csv (copy in tools/data/seaborn/penguins.csv), loaded by the Python app (v1.0.0) via load_penguins_dataset()"
 fixture = "tests/parity/datasets/penguins.json"
 classes = ["Adelie", "Chinstrap", "Gentoo"]
 

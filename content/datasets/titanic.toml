@@ -13,7 +13,7 @@ samples = 891
 description = "Dataset Titanic: 891 pasajeros, 11 características, supervivencia (binario)"
 selector_blurb = "🚢 **Titanic**: Predicción de supervivencia con datos categóricos y numéricos."
 selector_info = "891 pasajeros • 11 características • Supervivencia • Clasificación"
-source = "mltutor/dataset/data/sample_datasets/titanic.csv via load_titanic_dataset()"
+source = "seaborn-data titanic.csv (copy in tools/data/seaborn/titanic.csv), loaded by the Python app (v1.0.0) via load_titanic_dataset()"
 fixture = "tests/parity/datasets/titanic.json"
 classes = ["No_Sobrevivió", "Sobrevivió"]
 

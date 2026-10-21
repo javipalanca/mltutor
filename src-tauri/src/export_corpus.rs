@@ -88,7 +88,7 @@ impl Case {
     }
 
     /// Whether the scripts can load the dataset offline: California needs a download
-    /// in scikit-learn (and Diamonds is not in `sample_datasets`). The verifier skips
+    /// in scikit-learn (and Diamonds is not in `tools/data/seaborn`). The verifier skips
     /// their templates; ONNX and packages do not load data.
     fn templates_offline(&self) -> bool {
         !matches!(
