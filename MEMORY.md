@@ -386,6 +386,13 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
     inflados. zstd daría 0,78 MB pero añade un decodificador nuevo.
   - Más lento que Python, con margen: OLS 1500×1500 (Accelerate multihilo: 0,33 s frente a ≈ 1,3–1,4 s). Más
     rápido: CART, KNN (predicción y rejillas 3–4×), la red (Iris 100 épocas 7 ms frente a 2,4 s de Keras).
+- **Web del proyecto (2026-10-21, desplegada con permiso del usuario):** `site/` se publica en
+  https://spadeagents.eu/mltutor/ desde la rama `gh-pages` (Pages "Deploy from a branch",
+  `git subtree split --prefix site`). El sitio de usuario `javipalanca.github.io` tiene el dominio
+  `spadeagents.eu`, así que los project sites cuelgan de él: rutas siempre relativas y sin `CNAME`.
+  Un workflow con solo `workflow_dispatch` no se puede lanzar si no está en la rama por defecto
+  (`main`), por eso no se usa GitHub Actions. Las descargas exigen tag ≥ v0.4.0: la release Python
+  v0.3.0-rc.4 tiene assets con los mismos nombres (zip de 476 MB).
 - **Fase 6, validación cruzada de exportaciones (2026-10-20):**
   - El corpus lo escribe `src-tauri/src/export_corpus.rs` (test `#[ignore]`, 48 casos) por la capa de dominio:
     `DataState` (selección o `load_csv_bytes` + `set_csv_target`), `ModelState::train` y las funciones que
