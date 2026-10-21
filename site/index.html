@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src https://api.github.com; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <title>MLTutor · Aprende Machine Learning experimentando</title>
+  <meta name="description" content="MLTutor es una aplicación de escritorio en español para aprender Machine Learning experimentando: árboles de decisión, regresión, KNN y redes neuronales, con gráficos interactivos y el código Python equivalente. Sin conexión, sin instalador y sin permisos de administrador.">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f6f8fc" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0b1220" media="(prefers-color-scheme: dark)">
+
+  <!-- Open Graph / Twitter. og:image es relativa a propósito (el sitio vive bajo /mltutor/);
+       algunas redes sociales solo aceptan URL absolutas: ver site/README.md. -->
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="es_ES">
+  <meta property="og:site_name" content="MLTutor">
+  <meta property="og:title" content="MLTutor · Aprende Machine Learning experimentando">
+  <meta property="og:description" content="Aplicación de escritorio en español para aprender Machine Learning: árboles, regresión, KNN y redes neuronales. Sin conexión, sin instalador.">
+  <meta property="og:image" content="assets/img/og-image.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Pantalla de inicio de MLTutor con las cuatro lecciones">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="MLTutor · Aprende Machine Learning experimentando">
+  <meta name="twitter:description" content="Aplicación de escritorio en español para aprender Machine Learning. Sin conexión, sin instalador.">
+  <meta name="twitter:image" content="assets/img/og-image.jpg">
+  <meta name="twitter:image:alt" content="Pantalla de inicio de MLTutor con las cuatro lecciones">
+
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="icon" href="assets/img/favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <script src="assets/js/theme-init.js"></script>
+  <script type="module" src="assets/js/main.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#contenido">Saltar al contenido</a>
+
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand" href="./" aria-label="MLTutor, inicio">
+        <img src="assets/img/icono-96.webp" width="40" height="40" alt="">
+        <span>MLTutor</span>
+      </a>
+      <nav class="site-nav" aria-label="Secciones">
+        <ul>
+          <li><a href="#lecciones">Lecciones</a></li>
+          <li><a href="#galeria">Capturas</a></li>
+          <li><a href="#novedades">Por qué</a></li>
+          <li><a href="#funciones">Funciones</a></li>
+          <li><a class="nav-cta" href="#descargar">Descargar</a></li>
+        </ul>
+      </nav>
+      <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Cambiar a tema oscuro" title="Cambiar el tema">
+        <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4.5"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1"/></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20.5 14.6A8.5 8.5 0 0 1 9.4 3.5a8.5 8.5 0 1 0 11.1 11.1Z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main id="contenido" tabindex="-1">
+    <!-- ======================= Hero ======================= -->
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-glow" aria-hidden="true"></div>
+      <div class="wrap hero-grid">
+        <div class="hero-copy">
+          <p class="eyebrow">🎓 Aplicación de escritorio · en español</p>
+          <h1 id="hero-title">Aprende <span class="grad">Machine Learning</span> experimentando</h1>
+          <p class="lead">Eliges un conjunto de datos, ajustas los parámetros, entrenas el modelo y ves qué ocurre por dentro, con explicaciones en español, gráficos interactivos y el código Python equivalente para repetirlo fuera de la app.</p>
+          <ul class="pills" aria-label="Características principales">
+            <li>📴 Sin conexión</li>
+            <li>📦 Sin instalador</li>
+            <li>🔓 Sin permisos de administrador</li>
+          </ul>
+          <div class="hero-actions">
+            <a class="btn btn-primary" id="hero-download" href="#descargar">⬇️ <span id="hero-download-label">Descargar MLTutor</span></a>
+            <a class="btn btn-ghost" href="#lecciones">📚 Ver las lecciones</a>
+          </div>
+          <p class="hero-note">Pensada para estudiantes y para usarla en clase o en laboratorios. Windows, macOS (Apple Silicon) y Linux.</p>
+        </div>
+
+        <figure class="demo-card" aria-labelledby="demo-title">
+          <div class="demo-head">
+            <h2 id="demo-title" class="demo-title">🔍 Prueba K-Nearest Neighbors</h2>
+            <span class="demo-badge">demo en vivo</span>
+          </div>
+          <div class="demo-stage">
+            <canvas id="knn-canvas" tabindex="0" role="img"
+              aria-label="Lienzo interactivo de KNN. Mueve el ratón o usa las flechas para mover el punto de prueba; haz clic o pulsa Intro para añadir un punto de la clase elegida; arrastra un punto para moverlo; Mayúsculas y clic, o Suprimir, para quitarlo."
+              aria-describedby="knn-readout"></canvas>
+            <noscript><p class="demo-noscript">La demo necesita JavaScript.</p></noscript>
+          </div>
+          <div class="demo-controls">
+            <div class="ctrl">
+              <label for="knn-k">Vecinos (K): <output id="knn-k-out" for="knn-k">5</output></label>
+              <input id="knn-k" type="range" min="1" max="15" step="1" value="5">
+            </div>
+            <fieldset class="ctrl class-picker">
+              <legend>Clase al hacer clic</legend>
+              <label class="chip chip-a"><input type="radio" name="knn-class" value="0" checked><span>Clase A</span></label>
+              <label class="chip chip-b"><input type="radio" name="knn-class" value="1"><span>Clase B</span></label>
+              <label class="chip chip-c"><input type="radio" name="knn-class" value="2"><span>Clase C</span></label>
+            </fieldset>
+            <button type="button" class="btn btn-small" id="knn-reset">↺ Reiniciar</button>
+          </div>
+          <figcaption>
+            <p id="knn-readout" class="demo-readout" aria-live="polite">El punto de prueba se clasifica por la mayoría de sus K vecinos más cercanos.</p>
+            <p class="demo-hint">Datos de ejemplo generados al azar. El fondo muestra la clase que KNN predeciría en cada zona; cuanto más intenso, más vecinos de acuerdo.</p>
+          </figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- ======================= Lecciones ======================= -->
+    <section id="lecciones" class="section" aria-labelledby="lecciones-title">
+      <div class="wrap">
+        <header class="section-head">
+          <p class="eyebrow">📚 Algoritmos disponibles</p>
+          <h2 id="lecciones-title">Cuatro lecciones y tus propios datos</h2>
+          <p>Árboles, Regresión y KNN se organizan en las mismas pestañas; Redes neuronales añade 🏗️ Arquitectura antes de ⚙️ Entrenamiento.</p>
+        </header>
+
+        <div class="lessons">
+          <article class="lesson lesson-arboles">
+            <h3>🌲 Árboles de Decisión</h3>
+            <p class="lesson-lead">Algoritmos que toman decisiones basadas en condiciones en forma de árbol.</p>
+            <ul>
+              <li>Clasificación y regresión con gini, entropía, error cuadrático…</li>
+              <li>Diagrama del árbol con zoom y reglas en texto</li>
+              <li>Importancia de las características, también por permutación</li>
+              <li>Fronteras de decisión y el camino que sigue cada predicción</li>
+            </ul>
+            <ul class="tabs-list" aria-label="Pestañas de la lección">
+              <li>📊 Datos</li><li>🏋️ Entrenamiento</li><li>📈 Evaluación</li><li>📉 Visualización</li><li>🔍 Características</li><li>🔮 Predicciones</li><li>💾 Exportar</li>
+            </ul>
+          </article>
+
+          <article class="lesson lesson-regresion">
+            <h3>📊 Regresión</h3>
+            <p class="lesson-lead">Modelos lineales para regresión y clasificación logística.</p>
+            <ul>
+              <li>Coeficientes y su interpretación</li>
+              <li>Residuos, probabilidades y umbrales</li>
+              <li>Curvas ROC y precisión-recall</li>
+              <li>Matriz de confusión</li>
+            </ul>
+            <ul class="tabs-list" aria-label="Pestañas de la lección">
+              <li>📊 Datos</li><li>🏋️ Entrenamiento</li><li>📈 Evaluación</li><li>📉 Visualización</li><li>🔍 Coeficientes</li><li>🔮 Predicciones</li><li>💾 Exportar</li>
+            </ul>
+          </article>
+
+          <article class="lesson lesson-knn">
+            <h3>🔍 K-Nearest Neighbors</h3>
+            <p class="lesson-lead">Algoritmo basado en la similitud entre ejemplos.</p>
+            <ul>
+              <li>Clasificación y regresión, con los vecinos de cada predicción</li>
+              <li>Métricas de distancia y efecto de K</li>
+              <li>Análisis de distancias entre clases</li>
+              <li>Lienzo interactivo: arrastra puntos y mira cómo cambia la predicción</li>
+            </ul>
+            <ul class="tabs-list" aria-label="Pestañas de la lección">
+              <li>📊 Datos</li><li>🏋️ Entrenamiento</li><li>📈 Evaluación</li><li>📉 Visualización</li><li>🔍 Características</li><li>🔮 Predicciones</li><li>💾 Exportar</li>
+            </ul>
+          </article>
+
+          <article class="lesson lesson-redes">
+            <h3>🧠 Redes Neuronales</h3>
+            <p class="lesson-lead">Modelos inspirados en el cerebro humano.</p>
+            <ul>
+              <li>Arquitectura con diagrama interactivo, activaciones, optimizadores, dropout y early stopping</li>
+              <li>Entrenamiento en directo con la curva de pérdida (y botón para cancelar)</li>
+              <li>Diagnóstico, pesos, superficies de decisión y neuronas muertas</li>
+              <li>Predicción individual o por lotes desde un CSV</li>
+            </ul>
+            <ul class="tabs-list" aria-label="Pestañas de la lección">
+              <li>📊 Datos</li><li>🏗️ Arquitectura</li><li>⚙️ Entrenamiento</li><li>📈 Evaluación</li><li>🎯 Visualización</li><li>🔮 Predicciones</li><li>💾 Exportar</li>
+            </ul>
+          </article>
+
+          <article class="lesson lesson-datos">
+            <h3>📁 Datos y CSV</h3>
+            <p class="lesson-lead">12 conjuntos incluidos, o carga tus propios CSV.</p>
+            <ul class="datasets" aria-label="Conjuntos de datos incluidos">
+              <li>🌸 Iris</li><li>🍷 Vino</li><li>🔬 Cáncer</li><li>🩺 Diabetes</li><li>🏠 Viviendas California</li><li>🔢 Dígitos</li><li>🚢 Titanic</li><li>💰 Propinas</li><li>🐧 Pingüinos</li><li>💎 Diamantes</li><li>⛽ MPG</li><li>🌙 Moons</li>
+            </ul>
+            <ul>
+              <li>Estadísticas, correlación y matriz de dispersión (pairplot)</li>
+              <li>Todos los datos van dentro de la app: nada se descarga</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================= Galería ======================= -->
+    <section id="galeria" class="section section-alt" aria-labelledby="galeria-title">
+      <div class="wrap">
+        <header class="section-head">
+          <p class="eyebrow">🖼️ Capturas reales</p>
+          <h2 id="galeria-title">Así se ve MLTutor</h2>
+          <p>Capturas de la versión Rust. Las que tienen versión clara y oscura siguen el tema que elijas; ábrelas para verlas en grande.</p>
+        </header>
+        <ul class="gallery" id="gallery">
+          <li><button type="button" class="shot" data-light="inicio_claro" data-dark="inicio_oscuro" data-caption="🏠 Inicio: las cuatro lecciones con sus colores">
+            <img src="assets/img/capturas/inicio_claro-640.webp" width="640" height="406" loading="lazy" decoding="async" alt="Pantalla de inicio de MLTutor con la barra de navegación y las tarjetas de Árboles, Regresión, KNN y Redes neuronales">
+            <span class="shot-cap">🏠 Inicio</span></button></li>
+          <li><button type="button" class="shot" data-light="pairplot_claro" data-caption="📊 Datos: matriz de dispersión de Iris con densidades (KDE)">
+            <img src="assets/img/capturas/pairplot_claro-640.webp" width="640" height="497" loading="lazy" decoding="async" alt="Matriz de dispersión de las cuatro características de Iris, coloreada por especie, con curvas de densidad en la diagonal">
+            <span class="shot-cap">📊 Pairplot de Iris</span></button></li>
+          <li><button type="button" class="shot" data-light="arbol_claro" data-dark="arbol_oscuro" data-caption="🌲 Árbol de decisión de Iris, con zoom y detalle de cada nodo">
+            <img src="assets/img/capturas/arbol_claro-640.webp" width="640" height="406" loading="lazy" decoding="async" alt="Diagrama de un árbol de decisión de profundidad 3 entrenado con Iris, con nodos coloreados por clase y las condiciones de cada división">
+            <span class="shot-cap">🌲 Diagrama del árbol</span></button></li>
+          <li><button type="button" class="shot" data-light="frontera_claro" data-caption="📊 Regresión logística: frontera de decisión multiclase">
+            <img src="assets/img/capturas/frontera_claro-640.webp" width="640" height="406" loading="lazy" decoding="async" alt="Frontera de decisión de una regresión logística en Iris: tres regiones de color con los puntos de cada especie encima">
+            <span class="shot-cap">📊 Frontera de decisión</span></button></li>
+          <li><button type="button" class="shot" data-dark="roc_oscuro" data-caption="📊 Curvas ROC y precisión-recall multiclase (tema oscuro)">
+            <img src="assets/img/capturas/roc_oscuro-640.webp" width="640" height="406" loading="lazy" decoding="async" alt="Curvas ROC y precisión-recall por clase, macro y micro promedio, en tema oscuro">
+            <span class="shot-cap">📊 Curvas ROC</span></button></li>
+          <li><button type="button" class="shot" data-light="knn_claro" data-dark="knn_oscuro" data-caption="🔍 Lienzo interactivo de KNN con puntos de prueba">
+            <img src="assets/img/capturas/knn_claro-640.webp" width="640" height="406" loading="lazy" decoding="async" alt="Lienzo interactivo de KNN con los puntos de Iris y tres puntos de prueba clasificados, con su porcentaje de confianza">
+            <span class="shot-cap">🔍 Lienzo de KNN</span></button></li>
+          <li><button type="button" class="shot" data-light="entrenamiento_claro" data-caption="🧠 Entrenamiento de la red: pérdida y exactitud por época">
+            <img src="assets/img/capturas/entrenamiento_claro-640.webp" width="640" height="326" loading="lazy" decoding="async" alt="Gráficas de pérdida y exactitud durante el entrenamiento de una red neuronal en Iris, con las curvas de entrenamiento y validación">
+            <span class="shot-cap">🧠 Curvas de entrenamiento</span></button></li>
+          <li><button type="button" class="shot" data-light="activaciones_claro" data-dark="activaciones_oscuro" data-caption="🧠 Activaciones: resumen por capa y mapa de neuronas muertas y constantes">
+            <img src="assets/img/capturas/activaciones_claro-640.webp" width="640" height="406" loading="lazy" decoding="async" alt="Tabla de activaciones por capa oculta y mapa de la red con sus neuronas y conexiones">
+            <span class="shot-cap">🧠 Mapa de neuronas</span></button></li>
+        </ul>
+      </div>
+
+      <dialog class="lightbox" id="lightbox" aria-labelledby="lightbox-caption">
+        <div class="lightbox-inner">
+          <div class="lightbox-bar">
+            <p id="lightbox-caption" class="lightbox-caption"></p>
+            <div class="lightbox-tools">
+              <div class="seg" role="group" aria-label="Variante de la captura" id="lightbox-variants">
+                <button type="button" data-variant="light" aria-pressed="true">☀️ Claro</button>
+                <button type="button" data-variant="dark" aria-pressed="false">🌙 Oscuro</button>
+              </div>
+              <button type="button" class="icon-btn" id="lightbox-close" aria-label="Cerrar">✕</button>
+            </div>
+          </div>
+          <div class="lightbox-stage">
+            <button type="button" class="icon-btn nav-prev" id="lightbox-prev" aria-label="Captura anterior">‹</button>
+            <img id="lightbox-img" alt="" width="1400" height="888">
+            <button type="button" class="icon-btn nav-next" id="lightbox-next" aria-label="Captura siguiente">›</button>
+          </div>
+          <p class="lightbox-count" id="lightbox-count" aria-live="polite"></p>
+        </div>
+      </dialog>
+    </section>
+
+    <!-- ======================= Por qué ======================= -->
+    <section id="novedades" class="section" aria-labelledby="novedades-title">
+      <div class="wrap">
+        <header class="section-head">
+          <p class="eyebrow">🔄 La nueva versión, en Rust</p>
+          <h2 id="novedades-title">Por qué la nueva versión</h2>
+          <p>Las lecciones, las pestañas, las explicaciones, los colores y los emojis son los mismos, y los resultados coinciden con los de scikit-learn y Keras (se comprueba automáticamente). Lo que cambia es todo lo demás.</p>
+        </header>
+
+        <div class="why-grid">
+          <article class="panel" aria-labelledby="size-title">
+            <h3 id="size-title">📉 Descargas mucho más pequeñas</h3>
+            <p class="panel-sub">La versión Python incluía Python, Qt y TensorFlow.</p>
+            <div class="bars" data-bars="size">
+              <div class="bar-row" data-python="676" data-rust="22" data-max="881">
+                <p class="bar-label">🪟 Windows <strong class="factor" data-factor></strong></p>
+                <div class="bar-pair">
+                  <div class="bar bar-py"><span class="bar-fill"></span><span class="bar-val">Python/Qt <b data-count="676">676</b> MB</span></div>
+                  <div class="bar bar-rs"><span class="bar-fill"></span><span class="bar-val">Rust <b data-count="22">22</b> MB</span></div>
+                </div>
+              </div>
+              <div class="bar-row" data-python="477" data-rust="8.7" data-max="881">
+                <p class="bar-label">🍎 macOS (zip) <strong class="factor" data-factor></strong></p>
+                <div class="bar-pair">
+                  <div class="bar bar-py"><span class="bar-fill"></span><span class="bar-val">Python/Qt <b data-count="477">477</b> MB</span></div>
+                  <div class="bar bar-rs"><span class="bar-fill"></span><span class="bar-val">Rust <b data-count="8.7" data-decimals="1">8,7</b> MB</span></div>
+                </div>
+              </div>
+              <div class="bar-row" data-python="881" data-rust="86" data-max="881">
+                <p class="bar-label">🐧 Linux <strong class="factor" data-factor></strong></p>
+                <div class="bar-pair">
+                  <div class="bar bar-py"><span class="bar-fill"></span><span class="bar-val">Python/Qt <b data-count="881">881</b> MB</span></div>
+                  <div class="bar bar-rs"><span class="bar-fill"></span><span class="bar-val">Rust <b data-count="86">86</b> MB</span></div>
+                </div>
+              </div>
+            </div>
+            <p class="fine">Tamaños de las descargas publicadas de la <code>v0.3.0-rc.4</code> (Python/Qt) y de las compilaciones de prueba de la versión Rust del 2026-10-20.</p>
+          </article>
+
+          <article class="panel" aria-labelledby="speed-title">
+            <h3 id="speed-title">⚡ Más rápida</h3>
+            <p class="panel-sub">Arranca en unos <strong><span data-count="0.6" data-decimals="1">0,6</span> s</strong> (Mac con Apple Silicon) y los cálculos interactivos tardan milisegundos.</p>
+            <div class="bars" data-bars="speed">
+              <div class="bar-row" data-python="30000" data-rust="660">
+                <p class="bar-label">Red neuronal por defecto, Viviendas California, 100 épocas <strong class="factor" data-factor></strong></p>
+                <div class="bar-pair">
+                  <div class="bar bar-py"><span class="bar-fill"></span><span class="bar-val">Python ~30 s (en la app)</span></div>
+                  <div class="bar bar-rs"><span class="bar-fill"></span><span class="bar-val">Rust 0,66 s</span></div>
+                </div>
+              </div>
+              <div class="bar-row" data-python="2400" data-rust="7.5">
+                <p class="bar-label">Red 10×10, Iris, 100 épocas <strong class="factor" data-factor></strong></p>
+                <div class="bar-pair">
+                  <div class="bar bar-py"><span class="bar-fill"></span><span class="bar-val">Keras 2,4 s (solo <code>fit</code>)</span></div>
+                  <div class="bar bar-rs"><span class="bar-fill"></span><span class="bar-val">Rust 7,5 ms</span></div>
+                </div>
+              </div>
+              <div class="bar-row" data-python="484" data-rust="0.93">
+                <p class="bar-label">Regresión logística, Cáncer <strong class="factor" data-factor></strong></p>
+                <div class="bar-pair">
+                  <div class="bar bar-py"><span class="bar-fill"></span><span class="bar-val">scikit-learn 484 ms (sin converger)</span></div>
+                  <div class="bar bar-rs"><span class="bar-fill"></span><span class="bar-val">Rust 0,93 ms (converge en 9 iteraciones)</span></div>
+                </div>
+              </div>
+              <div class="bar-row" data-python="9.9" data-rust="1.6">
+                <p class="bar-label">KNN: predecir el conjunto de prueba de Viviendas California <strong class="factor" data-factor></strong></p>
+                <div class="bar-pair">
+                  <div class="bar bar-py"><span class="bar-fill"></span><span class="bar-val">scikit-learn 9,9 ms</span></div>
+                  <div class="bar bar-rs"><span class="bar-fill"></span><span class="bar-val">Rust 1,6 ms</span></div>
+                </div>
+              </div>
+              <div class="bar-row" data-python="58" data-rust="51">
+                <p class="bar-label">Árbol de profundidad 10, Viviendas California <strong class="factor" data-factor></strong></p>
+                <div class="bar-pair">
+                  <div class="bar bar-py"><span class="bar-fill"></span><span class="bar-val">scikit-learn 58 ms</span></div>
+                  <div class="bar bar-rs"><span class="bar-fill"></span><span class="bar-val">Rust 51 ms</span></div>
+                </div>
+              </div>
+            </div>
+            <p class="fine">Medido en el mismo Mac con Apple Silicon (2026-10-20). Las barras son proporcionales al tiempo de Python en cada fila. Más detalles en <a href="https://github.com/javipalanca/mltutor/blob/feature/rust-migration/docs/migration/benchmarks.md">benchmarks.md</a>.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================= Funciones ======================= -->
+    <section id="funciones" class="section section-alt" aria-labelledby="funciones-title">
+      <div class="wrap">
+        <header class="section-head">
+          <p class="eyebrow">✨ Funciones</p>
+          <h2 id="funciones-title">Todo lo necesario, dentro de la app</h2>
+        </header>
+        <ul class="features">
+          <li class="feature">
+            <span class="feature-icon" aria-hidden="true">📴</span>
+            <h3>Sin conexión de verdad</h3>
+            <p>No hace falta instalar Python, TensorFlow ni nada más, ni tener Internet: los datos, los gráficos y las fórmulas van dentro de la app. Viviendas California y Diamantes ya no se descargan.</p>
+          </li>
+          <li class="feature">
+            <span class="feature-icon" aria-hidden="true">💻</span>
+            <h3>Windows, macOS y Linux</h3>
+            <p>Un único archivo por sistema: <code>.exe</code> portable, <code>.app</code> para Apple Silicon y AppImage. Se abre con una cuenta de usuario normal, también en laboratorios.</p>
+          </li>
+          <li class="feature">
+            <span class="feature-icon" aria-hidden="true">💾</span>
+            <h3>Exporta a ONNX</h3>
+            <p>El modelo entrenado en un formato abierto que se usa desde Python (<code>onnxruntime</code>), C#, Java o JavaScript sin depender de MLTutor.</p>
+          </li>
+          <li class="feature">
+            <span class="feature-icon" aria-hidden="true">📦</span>
+            <h3>Paquetes Python</h3>
+            <p>Los parámetros aprendidos y un script que reconstruye <strong>el mismo modelo</strong> en scikit-learn o Keras, comprueba que predice lo mismo que MLTutor y lo guarda como <code>.pkl</code>, <code>.keras</code>, <code>.h5</code>, SavedModel o <code>.tflite</code>.</p>
+          </li>
+          <li class="feature">
+            <span class="feature-icon" aria-hidden="true">🐍</span>
+            <h3>Código en scikit-learn y Keras</h3>
+            <p>Se calcula en Rust y se enseña Python: cada paso muestra el script que repite el entrenamiento con los mismos datos y el mismo reparto entrenamiento/prueba.</p>
+          </li>
+          <li class="feature">
+            <span class="feature-icon" aria-hidden="true">♿</span>
+            <h3>Accesible</h3>
+            <p>Navegación completa con teclado, foco visible, contraste WCAG AA comprobado en los temas claro y oscuro, etiquetas para lectores de pantalla y respeto por «reducir movimiento».</p>
+          </li>
+          <li class="feature">
+            <span class="feature-icon" aria-hidden="true">🛡️</span>
+            <h3>Más estable</h3>
+            <p>Los entrenamientos largos se pueden cancelar y un error en un cálculo no cierra la app. Todo es determinista, con semilla 42 como <code>random_state=42</code>.</p>
+          </li>
+          <li class="feature">
+            <span class="feature-icon" aria-hidden="true">🌗</span>
+            <h3>Tema claro y oscuro</h3>
+            <p>La app sigue en vivo el tema claro u oscuro del sistema, con gráficos Plotly interactivos y fórmulas KaTeX incluidos en la propia app.</p>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ======================= Descargar ======================= -->
+    <section id="descargar" class="section" aria-labelledby="descargar-title">
+      <div class="wrap">
+        <header class="section-head">
+          <p class="eyebrow">⬇️ Descargar y abrir</p>
+          <h2 id="descargar-title">Descarga MLTutor</h2>
+          <p>Elige la de tu sistema. No se instala: se descarga, se abre y listo.</p>
+        </header>
+
+        <div class="release-status" id="release-status" role="status" aria-live="polite">
+          <span class="spinner" aria-hidden="true"></span> Buscando la última versión publicada…
+        </div>
+
+        <p class="os-note" id="os-note" hidden></p>
+
+        <div class="downloads" id="downloads">
+          <a class="dl" data-os="windows" href="https://github.com/javipalanca/mltutor/releases">
+            <span class="dl-badge" hidden>Recomendado para tu equipo</span>
+            <span class="dl-icon" aria-hidden="true">🪟</span>
+            <span class="dl-title">Windows</span>
+            <span class="dl-sub">Windows 10/11 (x86_64)</span>
+            <code class="dl-file">mltutor-windows-x86_64.exe</code>
+            <span class="dl-meta" data-meta>unos 22 MB</span>
+            <span class="dl-action" data-action>Ver releases</span>
+          </a>
+          <a class="dl" data-os="macos" href="https://github.com/javipalanca/mltutor/releases">
+            <span class="dl-badge" hidden>Recomendado para tu equipo</span>
+            <span class="dl-icon" aria-hidden="true">🍎</span>
+            <span class="dl-title">macOS</span>
+            <span class="dl-sub">Apple Silicon (M1 o posterior)</span>
+            <code class="dl-file">mltutor-macos-arm64.zip</code>
+            <span class="dl-meta" data-meta>unos 9 MB</span>
+            <span class="dl-action" data-action>Ver releases</span>
+          </a>
+          <a class="dl" data-os="linux" href="https://github.com/javipalanca/mltutor/releases">
+            <span class="dl-badge" hidden>Recomendado para tu equipo</span>
+            <span class="dl-icon" aria-hidden="true">🐧</span>
+            <span class="dl-title">Linux</span>
+            <span class="dl-sub">x86_64, Ubuntu 22.04 o compatible</span>
+            <code class="dl-file">mltutor-linux-x86_64.AppImage</code>
+            <span class="dl-meta" data-meta>unos 86 MB</span>
+            <span class="dl-action" data-action>Ver releases</span>
+          </a>
+        </div>
+        <p class="fine center" id="release-extra">Todas las versiones y las sumas de comprobación (<code>SHA256SUMS.txt</code>) están en la página de <a href="https://github.com/javipalanca/mltutor/releases">Releases de GitHub</a>. Las releases <code>v0.3.x</code> y anteriores son de la versión Python; la versión Rust empieza en la <code>v0.4.0</code>.</p>
+
+        <div class="firstrun" aria-labelledby="firstrun-title">
+          <h3 id="firstrun-title">🚀 La primera vez</h3>
+          <p>Todavía no hay firma de desarrollador en Windows ni en macOS, así que la primera vez el sistema avisa de que no conoce la aplicación. Es normal; así se abre:</p>
+
+          <div class="tabs" data-tabs>
+            <div class="tablist" role="tablist" aria-label="Instrucciones por sistema">
+              <button type="button" role="tab" id="tab-windows" aria-controls="panel-windows" aria-selected="true" data-os="windows">🪟 Windows</button>
+              <button type="button" role="tab" id="tab-macos" aria-controls="panel-macos" aria-selected="false" tabindex="-1" data-os="macos">🍎 macOS</button>
+              <button type="button" role="tab" id="tab-linux" aria-controls="panel-linux" aria-selected="false" tabindex="-1" data-os="linux">🐧 Linux</button>
+            </div>
+
+            <div class="tabpanel" role="tabpanel" id="panel-windows" aria-labelledby="tab-windows" tabindex="0">
+              <ol class="steps">
+                <li>Descarga <code>mltutor-windows-x86_64.exe</code> y ábrelo con doble clic. No se instala: puedes guardarlo en cualquier carpeta (Escritorio, Documentos, un USB…).</li>
+                <li>Si aparece <strong>«Windows protegió su PC»</strong> (SmartScreen), pulsa <strong>Más información</strong> y después <strong>Ejecutar de todas formas</strong>. Solo hace falta la primera vez.</li>
+              </ol>
+              <details class="note">
+                <summary>ℹ️ ¿Y si falta WebView2?</summary>
+                <p>MLTutor usa <strong>Microsoft Edge WebView2</strong> para dibujar su ventana, que ya viene de serie con Windows 10 y Windows 11. Si en algún equipo faltara, la app no se cierra sin más: muestra un aviso con el enlace de descarga. Para solucionarlo, <strong>sin ser administrador</strong>:</p>
+                <ol>
+                  <li>Abre la <a href="https://developer.microsoft.com/microsoft-edge/webview2/">página de WebView2 de Microsoft</a>.</li>
+                  <li>Descarga el instalador <strong>«Evergreen Bootstrapper»</strong> y ejecútalo. Sin permisos de administrador se instala solo para tu usuario.</li>
+                  <li>Vuelve a abrir MLTutor.</li>
+                </ol>
+                <p>Si en el equipo no se puede instalar nada (algunos laboratorios), descarga en esa misma página la versión <strong>«Fixed Version» (x64)</strong>, descomprímela en una carpeta llamada <code>WebView2</code> junto a <code>mltutor.exe</code> y vuelve a abrir MLTutor: la usará automáticamente.</p>
+              </details>
+            </div>
+
+            <div class="tabpanel" role="tabpanel" id="panel-macos" aria-labelledby="tab-macos" tabindex="0" hidden>
+              <ol class="steps">
+                <li>Descarga <code>mltutor-macos-arm64.zip</code> y descomprímelo (Safari suele hacerlo solo).</li>
+                <li>Abre <code>MLTutor.app</code> con doble clic. No hace falta moverla a Aplicaciones.</li>
+                <li>La primera vez macOS dirá que <strong>no puede verificar</strong> la aplicación. Pulsa <strong>OK</strong> (o <strong>Listo</strong>), ve a <strong>Ajustes del Sistema → Privacidad y seguridad</strong>, baja hasta el mensaje sobre MLTutor y pulsa <strong>Abrir igualmente</strong>. Confirma y se abrirá; las siguientes veces ya no pregunta.</li>
+              </ol>
+              <p>Alternativa desde Terminal, en la carpeta donde está la app:</p>
+              <pre class="code"><code>xattr -dr com.apple.quarantine MLTutor.app</code></pre>
+              <p class="fine">La app lleva una firma <em>ad-hoc</em> (sin Developer ID ni notarización de Apple). Por eso aparece ese aviso y no el de «está dañada». No hay versión para Mac con procesador Intel.</p>
+            </div>
+
+            <div class="tabpanel" role="tabpanel" id="panel-linux" aria-labelledby="tab-linux" tabindex="0" hidden>
+              <ol class="steps">
+                <li>Descarga <code>mltutor-linux-x86_64.AppImage</code>.</li>
+                <li>Dale permiso de ejecución, desde las propiedades del archivo o con:
+                  <pre class="code"><code>chmod +x mltutor-linux-x86_64.AppImage
+./mltutor-linux-x86_64.AppImage</code></pre></li>
+                <li>Si no arranca y menciona <strong>FUSE</strong> o <code>libfuse.so.2</code> (Ubuntu 22.04 no trae <code>libfuse2</code> de serie), ábrelo así, sin instalar nada:
+                  <pre class="code"><code>./mltutor-linux-x86_64.AppImage --appimage-extract-and-run</code></pre></li>
+              </ol>
+              <p class="fine">El AppImage incluye su propio motor web (WebKitGTK), por eso es la descarga más grande. Se valida en Ubuntu 22.04; las distribuciones más recientes suelen funcionar, pero no es un binario universal para cualquier Linux. Si la ventana sale en blanco (pasa en algunas máquinas virtuales y tarjetas gráficas), prueba con <code>WEBKIT_DISABLE_DMABUF_RENDERER=1 ./mltutor-linux-x86_64.AppImage</code>.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="reqs">
+          <h3>💻 Requisitos</h3>
+          <dl>
+            <div><dt>🪟 Windows</dt><dd>Windows 10 u 11 de 64 bits (x86_64) con WebView2 (incluido de serie)</dd></div>
+            <div><dt>🍎 macOS</dt><dd>macOS 11 Big Sur o posterior, con Apple Silicon</dd></div>
+            <div><dt>🐧 Linux</dt><dd>x86_64, Ubuntu 22.04 o una distribución compatible</dd></div>
+          </dl>
+          <p class="fine">Si algo falla, MLTutor guarda un registro en <code>~/.mltutor/mltutor.log</code> (en Windows, <code>C:\Users\&lt;tu usuario&gt;\.mltutor\mltutor.log</code>). Adjúntalo si <a href="https://github.com/javipalanca/mltutor/issues">informas de un problema</a>.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap footer-inner">
+      <div class="footer-brand">
+        <img src="assets/img/icono-96.webp" width="32" height="32" alt="">
+        <span>🎓 MLTutor · Plataforma de aprendizaje de Machine Learning</span>
+      </div>
+      <p class="footer-author">Desarrollado por Javi Palanca · Departament de Sistemes Informàtics i Computació · Universitat Politècnica de València</p>
+      <p class="footer-links">
+        <a href="https://github.com/javipalanca/mltutor">
+          <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+          Código en GitHub</a>
+        <span aria-hidden="true">·</span>
+        <a href="https://github.com/javipalanca/mltutor/blob/feature/rust-migration/LICENSE">Licencia MIT</a>
+        <span aria-hidden="true">·</span>
+        <a href="https://github.com/javipalanca/mltutor/releases">Releases</a>
+      </p>
+    </div>
+  </footer>
+</body>
+</html>
