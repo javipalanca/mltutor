@@ -78,7 +78,7 @@ function mock(kind) {
     prerelease: true,
     published_at: "2026-10-21T10:00:00Z",
     assets: [
-      { name: ASSETS.windows, size: 22.4e6, browser_download_url: `${RELEASES_PAGE}/download/v0.4.0-rc.1/${ASSETS.windows}` },
+      { name: ASSETS.windows, size: 19.1e6, browser_download_url: `${RELEASES_PAGE}/download/v0.4.0-rc.1/${ASSETS.windows}` },
       { name: ASSETS.macos, size: 8.7e6, browser_download_url: `${RELEASES_PAGE}/download/v0.4.0-rc.1/${ASSETS.macos}` },
       { name: ASSETS.linux, size: 86.1e6, browser_download_url: `${RELEASES_PAGE}/download/v0.4.0-rc.1/${ASSETS.linux}` },
       { name: "SHA256SUMS.txt", size: 300, browser_download_url: `${RELEASES_PAGE}/download/v0.4.0-rc.1/SHA256SUMS.txt` },
