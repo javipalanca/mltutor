@@ -50,7 +50,7 @@ sistema:
 
 | Sistema | Archivo | Tamaño aproximado |
 |---|---|---:|
-| Windows 10/11 (x86_64) | `mltutor-windows-x86_64.exe` | 22 MB |
+| Windows 10/11 (x86_64) | `mltutor-windows-x86_64.exe` | 19 MB |
 | macOS con Apple Silicon (M1 o posterior) | `mltutor-macos-arm64.zip` | 9 MB |
 | Linux x86_64 (Ubuntu 22.04 o compatible) | `mltutor-linux-x86_64.AppImage` | 86 MB |
 
@@ -159,7 +159,7 @@ automáticamente). Lo que cambia:
 
   | Sistema | Python/Qt (`v0.3.0-rc.4`) | Rust |
   |---|---:|---:|
-  | Windows | 676 MB | 22 MB |
+  | Windows | 676 MB | 19 MB |
   | macOS (zip) | 477 MB | 8,7 MB |
   | Linux | 881 MB | 86 MB |
 
