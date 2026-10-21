@@ -1,0 +1,172 @@
+# AGENTS.md — Guía para agentes de código en MLTutor
+
+MLTutor es una aplicación educativa de escritorio para aprender Machine Learning
+en español. **El proyecto está en migración de Python/Qt a Rust.** La versión
+Python (PySide6 + scikit-learn + TensorFlow) es la referencia funcional y visual;
+la versión Rust debe igualarla en contenido, resultados y aspecto, y superarla en
+velocidad, tamaño y estabilidad.
+
+> **Plan de migración:** [docs/migration/PLAN.md](docs/migration/PLAN.md) (fases,
+> decisiones y criterios de aceptación) e [INVENTARIO.md](docs/migration/INVENTARIO.md)
+> (lista de funciones que hay que mantener). Toda tarea de migración pertenece a una fase
+> del plan y a casillas del inventario. Al terminarla, marca las casillas.
+>
+> **Memoria del proyecto:** antes de empezar una tarea lee [MEMORY.md](MEMORY.md).
+> Contiene decisiones, trampas conocidas y lecciones aprendidas que no se deducen
+> del código. Cuando descubras algo no obvio (una diferencia numérica con
+> scikit-learn, una limitación de un crate, un fallo de plataforma), añádelo allí
+> con fecha absoluta.
+
+## Ramas
+
+- `feature/rust-migration`: migración a Rust. **Aquí se trabaja.**
+- `codex/desktop-migration-study`: versión Python/Qt de referencia (solo bugs).
+- `main`: versión original Streamlit y su despliegue web (Docker, Swarm, nginx).
+
+## Stack objetivo (Rust)
+
+| Capa | Elección | Motivo |
+|---|---|---|
+| Aplicación | **Tauri 2** | Binario pequeño y rápido; interfaz web local que permite reutilizar Plotly, Markdown y el estilo actual |
+| Interfaz | **Svelte 5 + TypeScript + Vite**, Plotly.js y KaTeX empaquetados en local | Componentes reactivos ligeros; gráficos interactivos y fórmulas sin CDN |
+| ML clásico | **linfa 0.8** (`linfa-linear`, `linfa-logistic`) sobre `ndarray 0.16`; CART y KNN propios | API tipo scikit-learn; linfa-trees y KdTree descartados (ver MEMORY.md) |
+| Redes neuronales | **MLP propio** en `mltutor-nn` (f32 con productos acumulados en f64, retropropagación manual, optimizadores y callbacks con las fórmulas de Keras; D68) | Paridad exacta con Keras, determinista, sin estado global; 4 MB menos que burn |
+| Lo que falte | Implementación propia en `mltutor-core` | Árboles de regresión, permutation importance, fronteras de decisión, curvas ROC, etc. |
+
+Principio: **se calcula en Rust y se enseña scikit-learn/PyTorch/Keras.** El código
+de ejemplo que se muestra al estudiante sigue siendo Python, porque es lo que usará
+fuera de la app. Ese código debe ser correcto y reproducir lo que la app calcula.
+
+## Estructura (objetivo)
+
+```
+Cargo.toml                 workspace
+crates/mltutor-core/       algoritmos, métricas, preprocesado, datasets embebidos.
+                           Sin Tauri ni UI; 100 % testeable con `cargo test`
+crates/mltutor-nn/         MLP propio (arquitectura, entrenamiento, historial), sin burn (D68)
+crates/mltutor-export/     ONNX nativo y "paquetes Python" (JSON + script sklearn/Keras)
+src-tauri/                 app Tauri: comandos IPC, estado, tareas en segundo plano,
+                           diálogos de archivo, exportaciones
+ui/                        frontend Svelte + TS: lecciones, controles, gráficos
+content/                   textos pedagógicos en Markdown (+KaTeX), uno por lección/pestaña,
+                           y plantillas de código Python (code/*.py.j2, minijinja)
+docs/migration/            PLAN.md, INVENTARIO.md y un plan por módulo
+tests/parity/              fixtures "golden" generados desde la versión Python
+tools/export_golden.py     genera esos fixtures con la app Python
+mltutor/, tests/*.py       versión Python de referencia: congelada salvo bugs graves
+```
+
+## Comandos
+
+```sh
+# Rust
+cargo fmt --all
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace           # también regenera ui/src/lib/bindings (ts-rs)
+
+# Frontend (la CLI de Tauri es una devDependency de ui/; no hace falta cargo-tauri)
+npm --prefix ui ci
+npm --prefix ui run check        # svelte-check + tsc
+npm --prefix ui run test -- --run  # vitest (sin --run se queda en modo watch)
+
+# App
+npm --prefix ui run tauri dev    # app en desarrollo (Vite con recarga en :5173)
+npm --prefix ui run tauri build  # release: .app (macOS), AppImage (Linux), mltutor.exe sin instalador (Windows)
+target/release/mltutor --smoke-test          # recorre las rutas, prueba 📊 Datos (correlación y pairplot de Iris) y entrena en 📊 Regresión (Iris, Cáncer y Diabetes) y en 🌲 Árboles (Iris gini, Diabetes squared_error y Cáncer entropy d10) con todas sus vistas; 0 ok, 1 fallo, 2 timeout (180 s); imprime los ms de cada ruta y comprobación
+target/release/mltutor --screenshot out.png  # captura de la ventana en PNG (macOS, Windows y Linux)
+target/release/mltutor --screenshot out.png --scenario datos_pairplot_kde_iris --full-page  # pantalla concreta, página entera (Linux: si el gestor de ventanas deja crecer la ventana)
+python3 -I .github/scripts/check_png.py out.png  # en CI: la captura no está vacía ni es de un solo color
+MLTUTOR_FACADE=fixture target/debug/mltutor --screenshot out.png --scenario arboles_arbol_iris  # con los fixtures (solo debug)
+#   escenarios en ui/src/lib/scenarios.ts (nombres de docs/migration/capturas/qt/, con prefijo regresion_/arboles_ en F2/F3); los CSV llevan la ruta: csv_cargado_clasificacion:<ruta.csv>
+#   F2: regresion_<nombre Qt sin número> (ui/src/lib/lessons/regression/scenarios.ts), p. ej. regresion_roc_multiclase_iris
+#   el registro incluye el tiempo de cada vista de modelo (DEBUG «evaluate_model del modelo N: x ms»)
+npm --prefix ui run tauri build -- --debug --no-bundle  # binario de depuración con el frontend embebido (target/debug/mltutor), rápido para iterar
+MLTUTOR_FACADE=fixture target/debug/mltutor  # solo en debug: datos de tests/parity en lugar de mltutor-core
+# En --smoke-test y --screenshot no se abre ningún diálogo: las exportaciones y el CSV de resultados van a
+# $TMPDIR/mltutor-automatizacion-XXXXXX/ (nombre aleatorio, en el log) y el lote de 🔮 lee el CSV de --scenario <nombre>:<ruta.csv>
+# (o uno que escribe con las primeras filas del dataset)
+# Ojo: `cargo build --release` a secas no empaqueta el frontend (carga devUrl); usa `tauri build`.
+# Registro: ~/.mltutor/mltutor.log (MLTUTOR_LOG_DIR lo cambia, útil en CI)
+# Capturas de una lección: --scenario <nombre> --full-page (redes_*, knn_*… en ui/src/lib/lessons/*/scenarios.ts)
+# Desarrollo con fixtures: MLTUTOR_FACADE=fixture (solo debug); MLTUTOR_FIXTURE_EPOCH_MS=40 ralentiza la red
+# reproducida para ver la gráfica en vivo y probar «Cancelar»
+# F5c: redes_evaluacion_iris, redes_pesos_iris, redes_activaciones_5x256, redes_evaluacion_divergencia…
+#   (📈/🎯 necesitan el motor real: con MLTUTOR_FACADE=fixture solo se reproducen el historial y el diagnóstico)
+
+# Referencia Python (para comparar y generar fixtures)
+uv sync --locked --extra dev
+uv run python launcher_qt.py
+uv run pytest -q
+uv run python tools/export_golden.py      # --check en CI
+# F6: exportaciones (ONNX, paquetes) y plantillas de código contra onnxruntime/sklearn/Keras (job `exports`)
+MLTUTOR_EXPORT_CORPUS=/tmp/corpus cargo test -p mltutor --bin mltutor export_corpus::export_corpus -- --ignored --exact
+uv run --no-project --python .venv/bin/python --with-requirements tools/verify_exports.lock.txt \
+  python tools/verify_exports.py /tmp/corpus   # en CI: --python 3.11
+# el lock se regenera con: uv pip compile --universal --generate-hashes --python-version 3.11 \
+#   tools/verify_exports.requirements.txt -o tools/verify_exports.lock.txt
+uv run python tools/capture_qt.py         # capturas de referencia Qt
+
+# Sitio web (site/, HTML+CSS+JS sin compilar; ver site/README.md). Vista previa bajo /mltutor/:
+tmp=$(mktemp -d) && ln -s "$PWD/site" "$tmp/mltutor" && python3 -m http.server 8765 --directory "$tmp"
+#   http://127.0.0.1:8765/mltutor/ (?releases=none|rust|error|ratelimit simula la API). Publicar (con permiso): subtree split de site/ a la rama gh-pages (site/README.md)
+```
+
+No ejecutes `release.sh`, no crees tags ni hagas push sin permiso explícito.
+
+## Reglas que no se deben romper
+
+1. **`mltutor-core` no depende de la UI.** Funciones puras sobre `ndarray`/structs;
+   Tauri solo adapta tipos (serde) y orquesta.
+2. **Nunca bloquees el hilo principal.** El entrenamiento y el cálculo pesado van en
+   `tauri::async_runtime::spawn_blocking`. El progreso se envía como eventos y la
+   cancelación es cooperativa (un `Arc<AtomicBool>` comprobado en los bucles).
+3. **Sin `unwrap()`/`expect()` en código de producción**, salvo invariantes
+   documentados. Errores con `thiserror` en core; la capa Tauri los traduce a
+   mensajes en español para el estudiante. Un panic no puede cerrar la app.
+4. **Determinismo:** todo lo aleatorio recibe semilla explícita (`StdRng::seed_from_u64`),
+   con `42` por defecto, como `random_state=42` en la versión Python.
+5. **`f64` en todo el core.** Comparaciones con tolerancia, nunca `==` en flotantes.
+6. **Sin red en tiempo de ejecución.** CSP estricta en `tauri.conf.json`; Plotly,
+   KaTeX, fuentes y datasets van empaquetados (`include_bytes!` en el caso de los datasets).
+7. **Paridad antes que novedad.** Cada algoritmo portado tiene un test que lo
+   compara con el fixture de scikit-learn/TensorFlow, con tolerancia documentada. Si
+   no puede coincidir (otro solver, otro desempate), se explica en MEMORY.md.
+8. **Contenido como datos.** Los textos pedagógicos van en `content/*.md`, no
+   incrustados en Rust ni en componentes. Se conserva el orden de pestañas, emojis,
+   colores y explicaciones de la versión Python.
+9. **Español** en toda la interfaz y en los mensajes de error. Identificadores,
+   comentarios y commits en inglés.
+
+## Definición de terminado (cada tarea de migración)
+
+1. Las casillas correspondientes de `docs/migration/INVENTARIO.md` están marcadas.
+2. `cargo fmt`, clippy sin avisos, `cargo test --workspace` y `npm --prefix ui run check/test`
+   en verde. Los tests de paridad cubren el cálculo nuevo.
+3. Hay una captura Rust comparada con la captura Qt equivalente, sin pérdidas de
+   contenido ni de vistosidad.
+4. Lo aprendido que no sea obvio está en MEMORY.md.
+5. Han revisado `rust-reviewer` y, si hay ML, `ml-correctness-reviewer`.
+
+## Convenciones
+
+- Rust edition 2021+, `rustfmt` por defecto, clippy sin avisos.
+- Tipos de dominio explícitos (`Dataset`, `TrainConfig`, `Metrics`…) serializables
+  con `serde` para el IPC; mantén los tipos TS sincronizados (p. ej. `ts-rs` o `specta`).
+- Un comando Tauri = una acción de usuario; respuestas pequeñas. Las imágenes
+  grandes no se transfieren: se envían datos y la UI dibuja con Plotly.
+- Pruebas: unitarias en core, de paridad en `tests/parity`, de componentes con
+  vitest y un smoke test de arranque en CI para cada plataforma.
+
+## Subagentes disponibles (`.claude/agents/`)
+
+| Agente | Úsalo para |
+|---|---|
+| `migration-porter` | Inventariar un módulo Python, planificar su port y generar fixtures de paridad |
+| `rust-ml-engineer` | Algoritmos en `mltutor-core`/`mltutor-nn` con linfa, burn o implementación propia |
+| `tauri-ui-engineer` | Comandos Tauri, frontend Svelte, Plotly, estilos, IPC y tareas en segundo plano |
+| `ml-lesson-author` | Contenido pedagógico en `content/` y su presentación en lecciones |
+| `ml-correctness-reviewer` | Revisión de rigor de ML y de la paridad numérica (solo lectura) |
+| `rust-reviewer` | Revisión de código Rust: errores, panics, concurrencia, rendimiento (solo lectura) |
+| `packaging-release-engineer` | Bundler de Tauri, CI en tres plataformas, releases; también el PyInstaller heredado |
+| `test-runner` | Ejecutar cargo/npm/pytest y resumir fallos |
+| `qt-desktop-engineer` | Solo mantenimiento de la versión Python/Qt heredada |

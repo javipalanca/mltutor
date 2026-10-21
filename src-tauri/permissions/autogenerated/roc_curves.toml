@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-roc-curves"
+description = "Enables the roc_curves command without any pre-configured scope."
+commands.allow = ["roc_curves"]
+
+[[permission]]
+identifier = "deny-roc-curves"
+description = "Denies the roc_curves command without any pre-configured scope."
+commands.deny = ["roc_curves"]

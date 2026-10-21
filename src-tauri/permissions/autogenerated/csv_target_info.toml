@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-csv-target-info"
+description = "Enables the csv_target_info command without any pre-configured scope."
+commands.allow = ["csv_target_info"]
+
+[[permission]]
+identifier = "deny-csv-target-info"
+description = "Denies the csv_target_info command without any pre-configured scope."
+commands.deny = ["csv_target_info"]

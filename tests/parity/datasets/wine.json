@@ -1,0 +1,215 @@
+{
+  "meta": {
+    "format_version": 1,
+    "generator": "tools/export_golden.py",
+    "generated": "2026-10-13",
+    "versions": {
+      "python": "3.11.14",
+      "numpy": "1.26.4",
+      "pandas": "2.3.3",
+      "scipy": "1.16.3",
+      "scikit-learn": "1.7.2",
+      "seaborn": "0.13.2",
+      "platform": "Darwin-arm64"
+    },
+    "seed": 42,
+    "tolerance": {
+      "data_abs": 0.0,
+      "hash": "exact"
+    },
+    "tolerance_rationale": "Static data: the embedded CSV must reproduce the matrix exactly. CSV floats use Python's shortest round-trip repr, so parsing them as f64 is lossless and data_sha256_f64 must match bit for bit."
+  },
+  "input": {
+    "app_label": "🍷 Vino - Clasificación de vinos",
+    "source": "sklearn.datasets.load_wine (bundled with scikit-learn)"
+  },
+  "expected": {
+    "csv": "data/wine.csv",
+    "csv_sha256": "be39d34a607b93fb2ffd82e55df7f453500382b25ccf7878f43322cd2ac20b59",
+    "csv_bytes": 12264,
+    "data_sha256_f64": "b6ff7c6847be41ee158bdf2267e98a97e1d240566564154aba1c0cc61f551fc3",
+    "data_sha256_f64_definition": "sha256 of row-major little-endian f64 values, each row = feature columns in 'columns' order followed by the target",
+    "shape": [
+      178,
+      13
+    ],
+    "columns": [
+      "alcohol",
+      "malic_acid",
+      "ash",
+      "alcalinity_of_ash",
+      "magnesium",
+      "total_phenols",
+      "flavanoids",
+      "nonflavanoid_phenols",
+      "proanthocyanins",
+      "color_intensity",
+      "hue",
+      "od280/od315_of_diluted_wines",
+      "proline"
+    ],
+    "label_columns": [],
+    "csv_columns": [
+      "alcohol",
+      "malic_acid",
+      "ash",
+      "alcalinity_of_ash",
+      "magnesium",
+      "total_phenols",
+      "flavanoids",
+      "nonflavanoid_phenols",
+      "proanthocyanins",
+      "color_intensity",
+      "hue",
+      "od280/od315_of_diluted_wines",
+      "proline",
+      "wine_type"
+    ],
+    "dtypes": {
+      "alcohol": "float64",
+      "malic_acid": "float64",
+      "ash": "float64",
+      "alcalinity_of_ash": "float64",
+      "magnesium": "float64",
+      "total_phenols": "float64",
+      "flavanoids": "float64",
+      "nonflavanoid_phenols": "float64",
+      "proanthocyanins": "float64",
+      "color_intensity": "float64",
+      "hue": "float64",
+      "od280/od315_of_diluted_wines": "float64",
+      "proline": "float64"
+    },
+    "feature_names": [
+      "alcohol",
+      "malic_acid",
+      "ash",
+      "alcalinity_of_ash",
+      "magnesium",
+      "total_phenols",
+      "flavanoids",
+      "nonflavanoid_phenols",
+      "proanthocyanins",
+      "color_intensity",
+      "hue",
+      "od280/od315_of_diluted_wines",
+      "proline"
+    ],
+    "target_name": "wine_type",
+    "target_dtype": "int64",
+    "class_names": [
+      "class_0",
+      "class_1",
+      "class_2"
+    ],
+    "task_type": "Clasificación",
+    "dataset_info": {
+      "description": "Dataset Vino: 178 muestras, 13 características, 3 tipos de vino",
+      "target": "wine_type",
+      "task_type": "Clasificación",
+      "samples": 178,
+      "features": 13,
+      "classes": 3
+    },
+    "target_summary": {
+      "class_counts": {
+        "0": 59,
+        "1": 71,
+        "2": 48
+      }
+    },
+    "index_is_range": true,
+    "head": [
+      {
+        "features": [
+          14.23,
+          1.71,
+          2.43,
+          15.6,
+          127.0,
+          2.8,
+          3.06,
+          0.28,
+          2.29,
+          5.64,
+          1.04,
+          3.92,
+          1065.0
+        ],
+        "target": 0
+      },
+      {
+        "features": [
+          13.2,
+          1.78,
+          2.14,
+          11.2,
+          100.0,
+          2.65,
+          2.76,
+          0.26,
+          1.28,
+          4.38,
+          1.05,
+          3.4,
+          1050.0
+        ],
+        "target": 0
+      },
+      {
+        "features": [
+          13.16,
+          2.36,
+          2.67,
+          18.6,
+          101.0,
+          2.8,
+          3.24,
+          0.3,
+          2.81,
+          5.68,
+          1.03,
+          3.17,
+          1185.0
+        ],
+        "target": 0
+      },
+      {
+        "features": [
+          14.37,
+          1.95,
+          2.5,
+          16.8,
+          113.0,
+          3.85,
+          3.49,
+          0.24,
+          2.18,
+          7.8,
+          0.86,
+          3.45,
+          1480.0
+        ],
+        "target": 0
+      },
+      {
+        "features": [
+          13.24,
+          2.59,
+          2.87,
+          21.0,
+          118.0,
+          2.8,
+          2.69,
+          0.39,
+          1.82,
+          4.32,
+          1.04,
+          2.93,
+          735.0
+        ],
+        "target": 0
+      }
+    ]
+  }
+}

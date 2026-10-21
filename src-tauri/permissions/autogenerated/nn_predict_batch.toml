@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-nn-predict-batch"
+description = "Enables the nn_predict_batch command without any pre-configured scope."
+commands.allow = ["nn_predict_batch"]
+
+[[permission]]
+identifier = "deny-nn-predict-batch"
+description = "Denies the nn_predict_batch command without any pre-configured scope."
+commands.deny = ["nn_predict_batch"]

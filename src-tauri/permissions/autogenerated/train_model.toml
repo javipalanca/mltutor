@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-train-model"
+description = "Enables the train_model command without any pre-configured scope."
+commands.allow = ["train_model"]
+
+[[permission]]
+identifier = "deny-train-model"
+description = "Denies the train_model command without any pre-configured scope."
+commands.deny = ["train_model"]

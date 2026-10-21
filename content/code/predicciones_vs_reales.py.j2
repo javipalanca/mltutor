@@ -1,0 +1,15 @@
+import matplotlib.pyplot as plt
+import numpy as np
+
+# Crear el gráfico
+fig, ax = plt.subplots(figsize=(8, 6))
+scatter = ax.scatter(y_test, y_pred, alpha=0.5,
+                    c=np.abs(y_test - y_pred), cmap='viridis')
+ax.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--')
+ax.set_xlabel('Valores reales')
+ax.set_ylabel('Predicciones')
+ax.set_title('Predicciones vs Valores reales')
+plt.colorbar(scatter, ax=ax, label='Error absoluto')
+
+plt.tight_layout()
+plt.show()

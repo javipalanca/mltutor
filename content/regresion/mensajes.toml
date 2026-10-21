@@ -1,0 +1,228 @@
+# Textos cortos de la lección 📊 Regresión (mltutor/apps/linear_regression_app.py), literales.
+# {llaves} = valores que se sustituyen; el formato numérico va indicado con la sintaxis de
+# Python ({x:.4f}). Cabecera, subtítulo, pestañas y navbar: content/inicio/navegacion.toml.
+# Expander de la cabecera: intro.md.
+#
+# Marcas:  "NUEVO (Dnn)" = texto que no existe en Python, exigido por una decisión de
+# fase2-regresion.md §10.  "CORREGIDO (Dnn)" = el texto de Python era incorrecto; el literal
+# original queda en el comentario "Python:".
+
+[entrenamiento]
+header = "Configuración del Modelo"                          # st.header
+info_titulo = "### Información del Dataset"
+# a continuación create_info_box(dataset_info): la descripción del dataset (content/datasets/<id>.toml
+# description) o, en un CSV, "Dataset personalizado: {n} muestras, {f} características, {k} clases"
+tipo_titulo = "### Tipo de Modelo Lineal"
+btn_lineal = "📈 Regresión Lineal"                           # key btn_linear, primary si model_type_lr == "Linear"
+btn_lineal_help = "Para predecir valores numéricos continuos"
+btn_logistica = "🏷️ Regresión Logística"                     # key btn_logistic
+btn_logistica_help = "Para predecir categorías o clases"
+aviso_lineal_en_clasificacion = "Este dataset parece ser más adecuado para Regresión Logística. La selección actual podría no ofrecer resultados óptimos."   # st.warning
+aviso_logistica_en_regresion = "Este dataset parece ser más adecuado para Regresión Lineal. La selección actual podría no ofrecer resultados óptimos."   # st.warning
+error_carga = "Error al cargar el dataset: {error}"          # st.error
+parametros_titulo = "### Parámetros del Modelo"
+max_iter_label = "Máximo de Iteraciones:"                    # slider 100..2000 paso 100, 1000; solo logística
+max_iter_help = "Número máximo de iteraciones para el optimizador de regresión logística."
+# NUEVO (revisión ML de F2, 2026-10-14): st.caption debajo del deslizador (solo logística). El
+# solver de Rust (Newton; L-BFGS si hay más de 300 parámetros) converge casi siempre en pocas
+# iteraciones, así que el deslizador apenas cambia el resultado y hay que explicarlo.
+max_iter_nota = "ℹ️ En cada iteración el optimizador corrige los coeficientes para reducir la pérdida. MLTutor usa un método de **segundo orden** (Newton), que además de la pendiente tiene en cuenta la curvatura de la pérdida: en casi todos los datasets llega al mínimo en menos de 30 iteraciones, así que mover este deslizador apenas cambia el modelo. Incluso 🔢 Dígitos (650 parámetros) converge en unas 12 iteraciones. Solo con problemas muy grandes (más de 700 parámetros, por ejemplo un CSV con muchas columnas y clases) se usa L-BFGS, un método más ligero que necesita cientos de iteraciones; ahí un máximo bajo puede dejar el modelo sin converger."
+lineal_sin_iteraciones = "La regresión lineal no requiere configuración adicional de iteraciones."   # st.info en lugar del slider
+test_size_label = "Tamaño del Conjunto de Prueba:"           # slider 0.1..0.5 paso 0.05, 0.3
+test_size_help = "Proporción de datos que se usará para evaluar el modelo."
+btn_entrenar = "🚀 Entrenar Modelo"                          # key train_lr_button, primary
+spinner = "Entrenando modelo..."
+exito = "¡Modelo entrenado exitosamente!"                    # st.success
+error_entrenar = "Error al entrenar el modelo: {error}"      # st.error
+error_sin_dataset = "Por favor, carga un dataset válido primero."
+# NUEVO (D19): st.warning debajo del st.success cuando el optimizador agota max_iter sin
+# converger (TrainNotice::NotConverged). Expander debajo: no-convergencia.md.
+aviso_no_convergencia = "⚠️ El optimizador no ha convergido en {max_iter} iteraciones. Prueba a aumentar el máximo de iteraciones."
+no_convergencia_expander = "ℹ️ ¿Qué significa que el modelo no converja?"   # cerrado; no-convergencia.md
+# NUEVO (D26): st.error que sustituye al entrenamiento cuando se elige 🏷️ Regresión Logística con un
+# dataset (o CSV) de regresión. Python entrenaba 192 clases en Diabetes y fallaba en inglés en
+# California. {dataset} = nombre del dataset seleccionado. El botón "🚀 Entrenar Modelo" sigue
+# visible; al pulsarlo sale este error (CommandError::InvalidTarget) y no se crea modelo.
+error_logistica_regresion = "La regresión logística necesita una variable objetivo con clases. Elige 📈 Regresión Lineal o un dataset de clasificación."
+error_logistica_regresion_detalle = "En **{dataset}** el objetivo es un número continuo. La regresión logística no predice números: estima la probabilidad de cada clase. Si se forzara, cada valor distinto del objetivo se convertiría en una «clase» con uno o dos ejemplos (en 🩺 Diabetes saldrían cerca de 200) y el modelo no tendría sentido."   # st.info debajo del error
+
+[comun]
+sin_entrenar_evaluacion = "Primero debes entrenar un modelo en la pestaña '🏋️ Entrenamiento'."   # st.warning (Evaluación y Frontera)
+sin_entrenar_visualizacion = "Entrena un modelo primero para ver las visualizaciones."           # st.info
+sin_entrenar_coeficientes = "Entrena un modelo primero para ver los coeficientes."
+sin_entrenar_predicciones = "Entrena un modelo primero para hacer predicciones."
+sin_entrenar_exportar = "Entrena un modelo primero para exportarlo."
+# NUEVO (D32): el modelo guarda el dataset con el que se entrenó. Las pestañas 2–6 muestran
+# `modelo_entrenado_con` (st.info, debajo de "📊 **Dataset actual:** …") y, si la selección ha
+# cambiado desde el entrenamiento, también `aviso_dataset_cambiado` (st.warning).
+modelo_entrenado_con = "🏋️ **Modelo entrenado con:** {dataset}"
+aviso_dataset_cambiado = "⚠️ Has cambiado de dataset: el modelo de estas pestañas se entrenó con **{dataset_modelo}**, no con **{dataset_actual}**. Vuelve a 🏋️ Entrenamiento y pulsa «🚀 Entrenar Modelo» para usar el nuevo."
+
+[evaluacion]
+header = "Evaluación del Modelo"
+
+[visualizacion]
+header = "Visualizaciones"
+# Paneles de subvistas (create_button_panel): (etiqueta, valor, key)
+lineal = [["📈 Análisis de Residuos", "Residuos", "viz_residuals"], ["🌐 Superficie de Predicción", "Superficie", "viz_surface"]]
+logistica = [["📉 Curva ROC", "ROC", "viz_roc"], ["🌈 Frontera de Decisión", "Frontera", "viz_boundary"], ["📊 Distribución de Probabilidades", "Probs", "viz_prob"]]
+residuos_titulo_pred = "### 📊 Gráfico de Predicciones vs Valores Reales"
+residuos_titulo = "### 📈 Análisis de Residuos"
+probs_titulo = "### 📊 Distribución de Probabilidades"
+frontera_error = "Error al mostrar la visualización de frontera de decisión: {error}"   # st.error + st.info siguiente + st.exception
+frontera_error_info = """La frontera de decisión requiere:
+- Un modelo de clasificación entrenado
+- Exactamente 2 características para visualizar
+- Datos de entrenamiento válidos"""
+
+[coeficientes]
+header = "Coeficientes del Modelo"
+expander = "ℹ️ ¿Cómo interpretar los coeficientes?"         # coeficientes-lineal.md / coeficientes-logistica.md
+# CORREGIDO (D27): con el selector se puede elegir otra clase, pero el texto seguía diciendo "la
+# primera". Python: "**Nota:** Este es un modelo de clasificación multiclase con {n_clases} clases.
+# Mostrando los coeficientes para la primera clase ({clase0})."
+nota_multiclase = "**Nota:** Este es un modelo de clasificación multiclase con {n_clases} clases: cada clase tiene sus propios coeficientes y su propio intercepto. Mostrando los de la clase **{clase}**."   # st.info; {clase} = la elegida en el selector (al entrar, la 0)
+selector_clase = "Selecciona la clase para mostrar coeficientes:"   # selectbox, opciones = índices, se muestran los nombres; índice 0
+error_longitud = ["Error: Se encontraron {n_coef} coeficientes pero {n_feat} características.", "Forma de coef_: {shape}", "Características: {features}"]
+error_proceso = ["Error al procesar los coeficientes: {error}", "Forma de model.coef_: {shape}", "Número de características: {n_feat}"]
+tabla_titulo = "### 📊 Tabla de Coeficientes"
+efecto_positivo = "📈 Positivo"                              # coef > 0
+efecto_negativo = "📉 Negativo"                              # en otro caso (incluido 0)
+importancia_alta = "🔥 Alta"                                 # |coef| > cuantil 0.75 de |coef|
+importancia_media = "🔶 Media"                               # > cuantil 0.25
+importancia_baja = "🔹 Baja"
+# CORREGIDO (D27): la fuerza se decide por |coef|, simétrica para efectos positivos y negativos,
+# como explica coeficientes-logistica.md. Python usaba OR > 7.4 / > 2.7 / (> 1.6 o < 0.625): un
+# coeficiente −2.5 (OR 0.08, Hombre_Adulto en 🚢 Titanic) salía "Moderado".
+fuerza_muy_fuerte = "🔥 Muy Fuerte"                          # |coef| > 2   (OR > 7.39 o < 0.135)
+fuerza_fuerte = "🔥 Fuerte"                                  # |coef| > 1   (OR > 2.72 o < 0.368)
+fuerza_moderado = "🔶 Moderado"                              # |coef| > 0.5 (OR > 1.65 o < 0.607)
+fuerza_debil = "🔹 Débil"                                    # |coef| ≤ 0.5
+columnas_lineal = ["Característica", "Coeficiente", "Efecto", "Importancia"]          # Coeficiente {:.4f}
+columnas_logistica = ["Característica", "Coeficiente", "Odds Ratio", "Cambio en Odds", "Efecto", "Fuerza del Efecto"]   # {:.4f}, {:.3f}, {:+.1f}%
+tabla_expander = "📖 ¿Cómo leer esta tabla?"                 # tabla-lineal.md / tabla-logistica.md
+intercepto_titulo = "### 🎯 Intercepto del Modelo"
+# CORREGIDO (D27): el intercepto es el de la clase elegida (Python mostraba siempre intercept_[0]).
+intercepto_metric = "Intercepto"                             # {:.4f}
+# CORREGIDO: e^β₀ son las odds cuando todo vale 0, no un odds ratio (un odds ratio compara dos
+# odds). Python: "Odds Ratio Base". Solo en logística binaria; en multiclase no se muestra.
+odds_base_metric = "Odds base"                               # {:.3f} = e^intercepto
+# CORREGIDO: Python: "**Interpretación:** Cuando todas las características son 0, el log-odds base es
+# {intercepto:.4f} (Odds Ratio = {odds:.3f})". {clase} = clase positiva (la de código 1).
+intercepto_info_logistica = "**Interpretación:** Cuando todas las características valen 0, el log-odds de la clase positiva (**{clase}**) es {intercepto:.4f}, es decir, unas odds de {odds:.3f} (probabilidad {prob:.1%})."   # {prob} = odds / (1 + odds)
+# NUEVO (D27): logística multiclase.
+intercepto_info_multiclase = "**Interpretación:** Cuando todas las características valen 0, la puntuación (logit) de la clase **{clase}** es {intercepto:.4f}. En multiclase no es un log-odds por sí sola: la probabilidad de cada clase sale de comparar las puntuaciones de todas (softmax)."
+intercepto_info_lineal = "**Interpretación:** Cuando todas las características son 0, el modelo predice un valor de {intercepto:.4f}"
+grafico_titulo = "### 📈 Visualización de Coeficientes"
+grafico_title = "Coeficientes del Modelo (ordenados por importancia)"
+grafico_xlabel = "Valor del Coeficiente"
+grafico_leyenda = ["Efecto Positivo", "Efecto Negativo"]     # colores #4ecdc4 y #ff6b6b, alpha 0.7
+analisis_titulo = "### 🔍 Análisis Detallado de Importancia"
+# Logística
+log_aumentan = "#### 🎯 **Características que MÁS aumentan la probabilidad:**"
+log_disminuyen = "#### 📉 **Características que MÁS disminuyen la probabilidad:**"
+# CORREGIDO (D27): {n} = puesto en la lista, 1, 2, 3. Python ponía la posición original de la
+# característica + 1 (en 🌸 Iris, "3." para la primera de la lista).
+# NUEVO (D27): en multiclase, debajo de analisis_titulo, para que "odds" no se lea como en binaria.
+nota_odds_multiclase = "ℹ️ **En multiclase** cada clase tiene su propio vector de coeficientes y las «odds» de la clase **{clase}** se miden frente a una clase promedio (la media geométrica de las probabilidades de todas las clases). Para comparar dos clases concretas *k* y *l*, el odds ratio de una característica es e^(βₖ − βₗ), con los coeficientes de esa característica en cada clase."
+# CORREGIDO (revisión ML de F2): log_item_pos/log_item_neg añaden ", si las demás no cambian"
+# (el odds ratio de un coeficiente es el efecto con las demás características fijas).
+log_item_pos = """**{n}. {caracteristica}** {intensidad}
+- Coeficiente: `{coef:.4f}`
+- Odds Ratio: `{odds:.3f}`
+- **Impacto:** Cada unidad adicional **multiplica las odds por {odds:.2f}** (aumenta {cambio:+.1f}%), si las demás no cambian"""
+log_item_neg = """**{n}. {caracteristica}** {intensidad}
+- Coeficiente: `{coef:.4f}`
+- Odds Ratio: `{odds:.3f}`
+- **Impacto:** Cada unidad adicional **reduce las odds en {reduccion:.1f}%**, si las demás no cambian"""
+intensidad_fuerte = "🔥 **FUERTE**"      # logística +: OR > 3; −: OR < 0.33. Lineal: |coef| > cuantil 0.8
+intensidad_moderado = "🔶 **MODERADO**"  # logística +: OR > 1.5; −: OR < 0.67. Lineal: > cuantil 0.6
+intensidad_debil = "🔹 **DÉBIL**"
+log_sin_pos = "No hay características que aumenten significativamente la probabilidad."    # st.info
+log_sin_neg = "No hay características que disminuyan significativamente la probabilidad."
+resumen_titulo = "#### 📋 **Resumen Ejecutivo:**"
+log_impacto_pos = "multiplica las odds por {odds:.2f}"
+log_impacto_neg = "reduce las odds en {reduccion:.1f}%"
+log_resumen = """🎯 **Factor más determinante:** `{caracteristica}`
+
+Esta característica es la que mayor impacto tiene en las predicciones del modelo.
+Cada unidad adicional {impacto}."""                        # st.success
+log_todas_negativas = "⚠️ **Atención:** Todas las características reducen la probabilidad. Verifica que el modelo esté bien entrenado."   # st.warning
+log_todas_positivas = "⚠️ **Atención:** Todas las características aumentan la probabilidad. Verifica que el modelo esté bien entrenado."
+log_balance = "✅ **Balance:** {n_pos} características aumentan y {n_neg} disminuyen la probabilidad."   # st.info
+# Lineal
+lin_aumentan = "#### 📈 **Características que MÁS aumentan el valor predicho:**"
+lin_disminuyen = "#### 📉 **Características que MÁS disminuyen el valor predicho:**"
+lin_item_pos = """**{n}. {caracteristica}** {intensidad}
+- Coeficiente: `{coef:.4f}`
+- **Impacto:** Cada unidad adicional **aumenta la predicción en {coef:.3f} unidades**"""
+lin_item_neg = """**{n}. {caracteristica}** {intensidad}
+- Coeficiente: `{coef:.4f}`
+- **Impacto:** Cada unidad adicional **disminuye la predicción en {abs_coef:.3f} unidades**"""
+lin_sin_pos = "No hay características que aumenten significativamente el valor predicho."
+lin_sin_neg = "No hay características que disminuyan significativamente el valor predicho."
+lin_impacto_pos = "aumenta la predicción en {coef:.3f} unidades"
+lin_impacto_neg = "disminuye la predicción en {abs_coef:.3f} unidades"
+lin_resumen = """🎯 **Factor más determinante:** `{caracteristica}`
+
+Esta característica tiene el mayor impacto absoluto en las predicciones.
+Cada unidad adicional {impacto}."""
+# Ambos
+recomendaciones_titulo = "#### 💡 **Recomendaciones para la Acción:**"
+# Top 3 por |coef|; "{i}. " + texto. {accion} = Aumentar|Reducir; {verbo} = incrementar|decrementar.
+# CORREGIDO: Python escribía "{verbo} la {objetivo}" con objetivo "probabilidad positiva" | "valor
+# predicho" ("la valor predicho"). Ahora el artículo va en {objetivo}:
+recomendacion = "**{caracteristica}:** {accion} esta característica para {verbo} {objetivo}"
+objetivo_logistica = "la probabilidad de la clase **{clase}**"   # binaria: la positiva; multiclase: la elegida
+objetivo_lineal = "el valor predicho"
+# NUEVO: debajo de las recomendaciones (st.caption o st.info).
+recomendaciones_nota = "💡 Son asociaciones que el modelo ha aprendido de los datos, no relaciones de causa y efecto: cambiar una característica en la realidad no garantiza que cambie el resultado."
+extremos = """⚠️ **Atención - Coeficientes Extremos Detectados:**
+
+Las siguientes características tienen coeficientes muy altos: {lista}
+
+Esto podría indicar:
+- Overfitting del modelo
+- Escalas muy diferentes entre características
+- Multicolinealidad entre variables
+- Outliers en los datos
+
+**Recomendación:** Considera normalizar las características o revisar la calidad de los datos."""   # st.warning si |coef| > cuantil 0.95 (lista separada por ", ")
+sin_coeficientes = "El modelo no tiene coeficientes disponibles."
+
+[predicciones]
+header = "🔮 Predicciones con Nuevos Datos"                 # el formulario: content/componentes/mensajes.toml [prediccion]
+# NUEVO (D25): modelo lineal entrenado con un dataset de clasificación. La tarjeta muestra
+# "Valor: {valor:.4f}" (Python truncaba con int() y lo presentaba como una clase) y debajo este st.info.
+aviso_lineal_valor = "ℹ️ La regresión lineal predice un número, no una clase: {valor:.4f} no es una categoría. Para obtener la clase y su probabilidad, entrena 🏷️ Regresión Logística."
+
+[exportar]
+header = "Exportar Modelo"
+# Python: 2 columnas; a la izquierda "📄 Generar Código" (key generate_code_lr), a la derecha
+# "📥 Descargar Modelo (Pickle)" (key download_pickle_lr). Ver fase2-regresion.md §2.7 y D1.
+# Rust (D28): 3 columnas, "📄 Generar Código", "💾 Exportar a ONNX" y "📦 Paquete Python (.zip)".
+btn_codigo = "📄 Generar Código"
+btn_codigo_descarga = "📥 Descargar código"
+# NUEVO (D29): el código es content/code/regresion_entrenamiento.py.j2 (Python usaba
+# regresion_codigo.py.j2, que no se podía ejecutar).
+btn_codigo_help = "Script de Python que repite este entrenamiento con scikit-learn: mismos datos, mismo split, mismo modelo y mismas métricas."
+codigo_titulo = "Código para entrenar este modelo con scikit-learn"   # título de show_code_with_download
+codigo_archivo_lineal = "regresion_lineal.py"
+codigo_archivo_logistica = "regresion_logistica.py"
+# NUEVO (D28)
+intro = "Llévate el modelo fuera de MLTutor: el código para reentrenarlo, el modelo listo para usar en formato ONNX o un paquete que lo reconstruye en scikit-learn."
+btn_onnx = "💾 Exportar a ONNX"
+btn_onnx_help = "Guarda el modelo entrenado en formato ONNX, un estándar abierto que puedes usar desde Python (onnxruntime), C#, Java o JavaScript."
+archivo_onnx_lineal = "regresion_lineal.onnx"
+archivo_onnx_logistica = "regresion_logistica.onnx"
+btn_paquete = "📦 Paquete Python (.zip)"
+btn_paquete_help = "ZIP con los parámetros del modelo (modelo.json) y un script que reconstruye el objeto de scikit-learn sin reentrenar y lo guarda como .pkl."
+archivo_paquete = "modelo_regresion.zip"
+filtro_onnx = "Modelo ONNX (*.onnx)"                         # filtro del diálogo nativo de guardar
+filtro_zip = "Paquete Python (*.zip)"
+exito_guardado = "✅ Modelo guardado en **{archivo}**"        # st.success; {archivo} = nombre, sin la ruta
+error_guardado = "Error al exportar el modelo: {error}"     # st.error
+ayuda_expander = "ℹ️ ¿Qué formato elijo?"                    # cerrado; exportar.md
+# Python (D28 los retira en Rust: no hay pickle directo)
+btn_pickle = "📥 Descargar Modelo (Pickle)"
+btn_pickle_descarga = "Descargar modelo.pkl"                 # linear_regression_model.pkl (también en logística)

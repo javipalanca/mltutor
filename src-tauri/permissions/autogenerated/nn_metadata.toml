@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-nn-metadata"
+description = "Enables the nn_metadata command without any pre-configured scope."
+commands.allow = ["nn_metadata"]
+
+[[permission]]
+identifier = "deny-nn-metadata"
+description = "Denies the nn_metadata command without any pre-configured scope."
+commands.deny = ["nn_metadata"]

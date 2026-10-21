@@ -1,0 +1,419 @@
+{#- NUEVO (Fase 4, equivalente a la decisión D29 de F2 y al script de F3). Script de "📄 Código de
+    Entrenamiento" en 💾 Exportar de la lección 🔍 K-Nearest Neighbors. La versión Python solo
+    mostraba el fragmento de Regresión (regresion_codigo.py.j2: guarda un pickle de un `model` sin
+    definir). Reproduce lo que calcula MLTutor: misma carga del dataset, mismo split
+    (train_test_split con test_size y random_state=42, sin estratificar: D7), el mismo KNN
+    (n_neighbors, weights y metric; el resto por defecto: algorithm="auto", leaf_size=30, p=2; datos
+    SIN escalar), las mismas métricas, la matriz de distancias entre clases (📏, con el split del
+    modelo: D56), la importancia por permutación y la predicción de una muestra con sus K vecinos y
+    sus probabilidades (D58). Verificado ejecutándolo frente a tests/parity/knn/*.json
+    (tests/parity/code/knn_training.json).
+    CORREGIDO (revisión de contenido F4, 2026-10-15): la regla del motor decía "K es menor que la mitad
+    de las muestras" (sklearn: K < n_train // 2, que no es lo mismo con n_train impar); la exactitud en
+    entrenamiento con weights="distance" vale 1 con cualquier K, no solo con K=1; y el análisis de
+    distancias añade la distancia media dentro de cada clase y, con dos clases, el aviso de D67 en lugar
+    del veredicto por ratio (que con dos clases vale siempre 1).
+    CORREGIDO (revisión ML de F4, 2026-10-15): (1) threadpool_limits(1) antes de buscar vecinos: con varios
+    hilos, la fuerza bruta de scikit-learn fusiona montículos por hilo y sus empates cambian con el número de
+    núcleos (Dígitos K=20 manhattan: 104 de 540 filas con otros vecinos); (2) el veredicto del análisis de
+    distancias usa la separación min M[i,j] / max(W_i, W_j) (J2: ≥ 2 separadas, ≥ 1 moderadas, < 1 próximas,
+    también en binaria) y el ratio Max/Min queda como dato; (3) nota sobre la distancia 0 en la euclídea por
+    fuerza bruta (‖x‖² − 2x·y + ‖y‖² da ~1e-5 en lugar de 0).
+
+    Los bloques "import ... sklearn.datasets" y "1. Cargar los datos" son copia literal de
+    regresion_entrenamiento.py.j2 / arbol_entrenamiento.py.j2 (con `task == "classification"`);
+    tools/golden_knn.py comprueba que siguen siendo iguales. Si cambias uno, cambia los otros.
+
+    Se renderiza con minijinja (Rust) y con jinja2 (tools/export_golden.py). Filtros: `pyrepr`
+    (repr() de Python, para literales) y `pycomment` (texto del usuario dentro del docstring o de
+    comentarios #). Pasa SIEMPRE todas las variables, con null (None) las que no apliquen.
+
+    Variables:
+      dataset, dataset_label, csv_file, csv_target, csv_sep, csv_decimal, csv_encoding
+                     como en regresion_entrenamiento.py.j2.
+      task           str        "classification" (KNeighborsClassifier) o "regression"
+                                (KNeighborsRegressor): la tarea del dataset (la lección no tiene
+                                botón de tipo).
+      n_neighbors    int        K, 1..20.
+      weights        str        "uniform" o "distance".
+      metric         str        "minkowski", "euclidean" o "manhattan".
+      test_size      float      proporción de prueba, 0.1..0.5 (con pyrepr: 0.3, 0.25).
+      feature_names  list[str]  nombres legibles de las características, en el orden de las
+                                columnas de X.
+      class_names    list[str]|null  (classification) nombre de cada clase en el orden de sus
+                                códigos 0..k-1; null en regresión.
+      sample         list[float]|null  valores del formulario 🔮 Predicciones (ya convertidos a sus
+                                códigos), en el orden de las columnas de X. null = la primera fila
+                                de X_test.
+-#}
+"""
+MLTutor · 🔍 K-Nearest Neighbors — entrenamiento reproducible con scikit-learn
+
+Dataset: {{ dataset_label | pycomment }}
+Modelo:  {% if task == "classification" %}KNN de clasificación (KNeighborsClassifier{% else %}KNN de regresión (KNeighborsRegressor{% endif %}, n_neighbors={{ n_neighbors }}, weights={{ weights | pyrepr }}, metric={{ metric | pyrepr }})
+Prueba:  test_size={{ test_size | pyrepr }} (train_test_split con random_state=42, sin estratificar)
+
+Este script hace lo mismo que la app: carga los datos, los divide en entrenamiento y
+prueba, prepara el KNN, calcula las métricas de la pestaña 📈 Evaluación{% if task == "classification" %}, las
+distancias entre clases (📏 Análisis de Distancias){% endif %} y la importancia de las características
+(🔍 Características) y predice una muestra mostrando sus K vecinos (🔮 Predicciones).
+
+Uso:
+    pip install "scikit-learn>=1.6" pandas numpy{% if dataset in ["titanic", "tips", "penguins", "mpg", "diamonds"] %} seaborn{% endif %}
+{%- if dataset == "csv" %}
+    # Copia {{ csv_file | pycomment }} en la misma carpeta que este script
+{%- endif %}
+    python knn_entrenamiento.py
+"""
+import numpy as np
+import pandas as pd
+{%- if dataset in ["titanic", "tips", "penguins", "mpg", "diamonds"] %}
+import seaborn as sns
+{%- endif %}
+{%- if dataset == "iris" %}
+from sklearn.datasets import load_iris
+{%- elif dataset == "wine" %}
+from sklearn.datasets import load_wine
+{%- elif dataset == "breast_cancer" %}
+from sklearn.datasets import load_breast_cancer
+{%- elif dataset == "digits" %}
+from sklearn.datasets import load_digits
+{%- elif dataset == "diabetes" %}
+from sklearn.datasets import load_diabetes
+{%- elif dataset == "california_housing" %}
+from sklearn.datasets import fetch_california_housing
+{%- elif dataset == "moons" %}
+from sklearn.datasets import make_moons
+{%- endif %}
+from sklearn.inspection import permutation_importance
+{%- if task == "classification" %}
+from sklearn.metrics import (
+    accuracy_score,
+    auc as area_bajo_curva,
+    average_precision_score,
+    classification_report,
+    confusion_matrix,
+    precision_recall_fscore_support,
+    roc_auc_score,
+    roc_curve,
+)
+from sklearn.metrics.pairwise import pairwise_distances
+{%- else %}
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+{%- endif %}
+from sklearn.model_selection import train_test_split
+from sklearn.neighbors import {% if task == "classification" %}KNeighborsClassifier{% else %}KNeighborsRegressor{% endif %}
+{%- if dataset in ["titanic", "tips", "penguins", "mpg", "diamonds", "csv"] %}
+from sklearn.preprocessing import LabelEncoder
+{%- endif %}
+from threadpoolctl import threadpool_limits  # se instala con scikit-learn
+
+# ---------------------------------------------------------------------------
+# 1. Cargar los datos (igual que MLTutor)
+# ---------------------------------------------------------------------------
+{%- if dataset in ["iris", "wine", "breast_cancer", "digits", "diabetes"] %}
+datos = load_{{ dataset }}(as_frame=True)  # incluido en scikit-learn, sin descargas
+X = datos.data
+y = datos.target
+{%- elif dataset == "california_housing" %}
+# La primera vez se descarga (unos 400 KB) y queda guardado en ~/scikit_learn_data
+datos = fetch_california_housing(as_frame=True)
+X = datos.data
+y = datos.target
+{%- elif dataset == "moons" %}
+# MLTutor usa siempre la misma muestra de Moons: semilla 42
+X_array, y = make_moons(n_samples=500, noise=0.2, random_state=42)
+X = pd.DataFrame(X_array, columns=["x1", "x2"])
+y = pd.Series(y, name="label")
+{%- elif dataset == "titanic" %}
+df = sns.load_dataset("titanic")  # se descarga la primera vez
+# Valores que faltan: mediana para la edad y la tarifa, 'S' (Southampton) para el puerto
+df["age"] = df["age"].fillna(df["age"].median())
+df["embarked"] = df["embarked"].fillna("S")
+df["fare"] = df["fare"].fillna(df["fare"].median())
+# Texto -> números (LabelEncoder numera las categorías por orden alfabético)
+for columna in ["sex", "embarked", "class", "who"]:
+    df[columna + "_encoded"] = LabelEncoder().fit_transform(df[columna])
+columnas = ["pclass", "age", "sibsp", "parch", "fare", "sex_encoded", "embarked_encoded",
+            "class_encoded", "who_encoded", "adult_male", "alone"]
+X = df[columnas].astype(float)  # adult_male y alone son booleanos: True -> 1.0
+y = df["survived"]
+{%- elif dataset == "tips" %}
+df = sns.load_dataset("tips")  # se descarga la primera vez
+# Texto -> números (LabelEncoder numera las categorías por orden alfabético)
+for columna in ["sex", "smoker", "day", "time"]:
+    df[columna + "_encoded"] = LabelEncoder().fit_transform(df[columna].astype(str))
+X = df[["total_bill", "size", "sex_encoded", "smoker_encoded", "day_encoded", "time_encoded"]]
+y = df["tip"]
+{%- elif dataset == "penguins" %}
+df = sns.load_dataset("penguins").dropna()  # se descarga la primera vez; quita filas incompletas
+df = df.reset_index(drop=True)
+# Texto -> números (LabelEncoder numera las categorías por orden alfabético)
+df["island_encoded"] = LabelEncoder().fit_transform(df["island"])
+df["sex_encoded"] = LabelEncoder().fit_transform(df["sex"])
+X = df[["bill_length_mm", "bill_depth_mm", "flipper_length_mm", "body_mass_g",
+        "island_encoded", "sex_encoded"]]
+y = pd.Series(LabelEncoder().fit_transform(df["species"]), name="species")
+{%- elif dataset == "mpg" %}
+df = sns.load_dataset("mpg").dropna().reset_index(drop=True)  # se descarga la primera vez
+df["origin"] = LabelEncoder().fit_transform(df["origin"])  # europe=0, japan=1, usa=2
+# 'name' (el modelo de coche) no es una característica: 301 nombres distintos no aportan
+X = df[["cylinders", "displacement", "horsepower", "weight", "acceleration", "model_year",
+        "origin"]]
+y = df["mpg"]
+{%- elif dataset == "diamonds" %}
+df = sns.load_dataset("diamonds")  # se descarga la primera vez (54 000 diamantes)
+# Texto -> números (LabelEncoder numera las categorías por orden alfabético, no por calidad)
+for columna in ["cut", "color", "clarity"]:
+    df[columna] = LabelEncoder().fit_transform(df[columna].astype(str))
+df = df.sample(8000, random_state=42)  # MLTutor trabaja con una muestra de 8000
+X = df.drop(columns=["price"])
+y = df["price"]
+{%- elif dataset == "csv" %}
+df = pd.read_csv({{ csv_file | pyrepr }}
+{%- if csv_sep and csv_sep != "," %}, sep={{ csv_sep | pyrepr }}{% endif %}
+{%- if csv_decimal and csv_decimal != "." %}, decimal={{ csv_decimal | pyrepr }}{% endif %}
+{%- if csv_encoding and csv_encoding != "utf-8" %}, encoding={{ csv_encoding | pyrepr }}{% endif %})
+objetivo = {{ csv_target | pyrepr }}
+X = df.drop(columns=[objetivo])
+y = df[objetivo]
+# Columnas de texto -> números (LabelEncoder numera las categorías por orden alfabético)
+for columna in X.select_dtypes(include=["object"]).columns:
+    X[columna] = LabelEncoder().fit_transform(X[columna].astype(str))
+X = X.astype(float)  # las columnas booleanas pasan a 0.0/1.0
+{%- if task == "classification" %}
+if y.dtype == object:  # clases de texto -> 0, 1, 2... (en orden alfabético)
+    y = pd.Series(LabelEncoder().fit_transform(y.astype(str)), name=objetivo)
+{%- endif %}
+{%- endif %}
+
+nombres = {{ feature_names | pyrepr }}  # nombres que muestra MLTutor
+{%- if task == "classification" %}
+clases = {{ class_names | pyrepr }}
+# Código de cada clase (0, 1, 2... en orden) -> su nombre
+nombre_clase = dict(zip(sorted(pd.unique(y)), clases))
+{%- endif %}
+print(f"Datos: {X.shape[0]} muestras y {X.shape[1]} características")
+
+# ---------------------------------------------------------------------------
+# 2. Dividir en entrenamiento y prueba
+# ---------------------------------------------------------------------------
+# Sin estratificar y con random_state=42: son exactamente las filas que usa MLTutor
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size={{ test_size | pyrepr }}, random_state=42
+)
+print(f"Entrenamiento: {len(X_train)} muestras · Prueba: {len(X_test)} muestras")
+
+# ---------------------------------------------------------------------------
+# 3. Preparar el KNN
+# ---------------------------------------------------------------------------
+# Un KNN no aprende parámetros: fit() solo guarda las muestras de entrenamiento. Al predecir,
+# busca las {{ n_neighbors }} más cercanas y {% if task == "classification" %}vota su clase{% else %}promedia su valor{% endif %}{% if weights == "distance" %}, dando más peso a las más cercanas
+# (peso = 1/distancia; si alguna está a distancia 0, solo cuentan las que están a distancia 0){% endif %}.
+# {% if metric == "manhattan" %}metric="manhattan": la distancia es la suma de las diferencias absolutas.{% else %}metric={{ metric | pyrepr }}: la distancia euclídea{% if metric == "minkowski" %} (minkowski con p=2, el valor por defecto){% endif %}.{% endif %}
+# Los datos van SIN escalar, como en MLTutor: las características con valores grandes pesan más
+# en la distancia. Para escalarlas usarías un Pipeline con StandardScaler (MLTutor no lo hace).
+# Con algorithm="auto" (por defecto), scikit-learn busca los vecinos con un árbol k-d si hay
+# 15 características o menos y K < n_train // 2 (la mitad de las muestras de entrenamiento,
+# redondeada hacia abajo), y por fuerza bruta si no.
+# Si dos muestras están exactamente a la misma distancia y solo cabe una, cada método puede
+# quedarse con una distinta; MLTutor reproduce la elección de scikit-learn con UN hilo.
+# Un solo hilo: con varios núcleos, la fuerza bruta de scikit-learn reparte las muestras de
+# entrenamiento entre hilos y junta sus resultados, así que en los empates elegiría otros vecinos
+# según cuántos núcleos tenga el equipo. A partir de aquí, kneighbors(), predict(),
+# predict_proba() y permutation_importance() usan un hilo (el árbol k-d ya usaba uno).
+threadpool_limits(limits=1)
+modelo = {% if task == "classification" %}KNeighborsClassifier{% else %}KNeighborsRegressor{% endif %}(n_neighbors={{ n_neighbors }}, weights={{ weights | pyrepr }}, metric={{ metric | pyrepr }})
+modelo.fit(X_train, y_train)
+
+# ---------------------------------------------------------------------------
+# 4. Evaluar con el conjunto de prueba (pestaña 📈 Evaluación)
+# ---------------------------------------------------------------------------
+y_pred = modelo.predict(X_test)
+{%- if task == "classification" %}
+accuracy = accuracy_score(y_test, y_pred)
+# Las métricas usan TODAS las clases del dataset, como MLTutor, y no solo
+# modelo.classes_ (las vistas en entrenamiento). Si una clase no llega al train, el modelo
+# nunca la predice y sus muestras de prueba cuentan como fallos.
+todas = sorted(nombre_clase)
+precision, recall, f1, _ = precision_recall_fscore_support(
+    y_test, y_pred, labels=todas, average="weighted", zero_division=0
+)
+print(f"\nExactitud (Accuracy):          {accuracy:.4f}")
+print(f"Precisión media (ponderada):   {precision:.4f}")
+print(f"Exhaustividad media (Recall):  {recall:.4f}")
+print(f"F1-Score medio:                {f1:.4f}")
+# ¿Sobreajuste? Compara con la exactitud en los datos que el modelo ha guardado
+print(f"Exactitud en entrenamiento:    {modelo.score(X_train, y_train):.4f}  "
+{%- if weights == "distance" %}
+      "(con weights='distance' suele ser 1 con cualquier K: cada muestra está a distancia 0 de sí "
+      "misma y solo cuenta ella)")
+{%- else %}
+      "(con K=1 suele ser 1: cada muestra de entrenamiento es su propio vecino más cercano)")
+{%- endif %}
+print("\nInforme por clase:")
+print(classification_report(y_test, y_pred, labels=todas,
+                            target_names=[nombre_clase[c] for c in todas],
+                            digits=4, zero_division=0))
+print("Matriz de confusión (filas = real, columnas = predicción):")
+print(confusion_matrix(y_test, y_pred, labels=todas))
+
+# Curvas ROC y Precision-Recall (pestaña 📉 Visualización). La "probabilidad" de un KNN es la
+# proporción de cada clase entre los K vecinos{% if weights == "distance" %} (ponderada por 1/distancia){% endif %}: con K={{ n_neighbors }} hay muy pocos
+# valores distintos, así que las curvas tienen pocos escalones.
+proba = modelo.predict_proba(X_test)
+if len(modelo.classes_) == 2:
+    # Clase positiva = la de código 1 (la segunda de la lista)
+    y_positiva = (y_test == modelo.classes_[1])
+    auc = roc_auc_score(y_positiva, proba[:, 1])
+    ap = average_precision_score(y_positiva, proba[:, 1])
+    print(f"\nClase positiva: {nombre_clase[modelo.classes_[1]]}")
+    print(f"ROC AUC: {auc:.3f} · Average Precision: {ap:.3f} · Baseline: {y_positiva.mean():.3f}")
+else:
+    # Uno contra el resto: cada clase frente a todas las demás
+    Y_test = np.column_stack([(y_test == c).to_numpy() for c in modelo.classes_])
+    presentes = Y_test.any(axis=0)  # las clases sin muestras de prueba no tienen curva
+    print("\nClase                 ROC AUC   Average Precision")
+    for i, c in enumerate(modelo.classes_):
+        if presentes[i]:
+            auc_i = roc_auc_score(Y_test[:, i], proba[:, i])
+            ap_i = average_precision_score(Y_test[:, i], proba[:, i])
+            print(f"{nombre_clase[c]:<20}  {auc_i:7.3f}   {ap_i:7.3f}")
+    auc_micro = roc_auc_score(Y_test[:, presentes], proba[:, presentes], average="micro")
+    ap_micro = average_precision_score(Y_test[:, presentes], proba[:, presentes], average="micro")
+    ap_macro = np.mean([average_precision_score(Y_test[:, i], proba[:, i])
+                        for i in range(len(modelo.classes_)) if presentes[i]])
+    # Macro-promedio del ROC AUC como lo calcula MLTutor: se juntan las FPR de todas las
+    # curvas por clase, se interpola la TPR de cada clase en esos puntos (np.interp), se
+    # promedian y se mide el área de esa curva media. Puede salir algo mayor que
+    # roc_auc_score(average="macro"), que promedia las AUC de cada clase.
+    curvas = [roc_curve(Y_test[:, i], proba[:, i])
+              for i in range(len(modelo.classes_)) if presentes[i]]
+    fpr_todas = np.unique(np.concatenate([fpr for fpr, _, _ in curvas]))
+    tpr_media = np.mean([np.interp(fpr_todas, fpr, tpr) for fpr, tpr, _ in curvas], axis=0)
+    auc_macro = area_bajo_curva(fpr_todas, tpr_media)
+    print(f"Micro-promedio: ROC AUC {auc_micro:.3f} · AP {ap_micro:.3f}")
+    print(f"Macro-promedio: ROC AUC {auc_macro:.3f} · AP {ap_macro:.3f}")
+
+# ---------------------------------------------------------------------------
+# 5. Distancias entre clases (pestaña 📉 Visualización → 📏 Análisis de Distancias)
+# ---------------------------------------------------------------------------
+# Celda (i, j) = distancia media entre las muestras de entrenamiento de la clase i y las de la
+# clase j, con la métrica del modelo. La diagonal queda a 0 para calcular la mínima, la máxima y
+# el ratio; MLTutor dibuja en ella la distancia media DENTRO de cada clase (distancias_dentro).
+# Este script usa todas las muestras de entrenamiento; en clases muy numerosas MLTutor puede usar
+# una muestra de ellas, y entonces las cifras varían un poco.
+codigos = np.unique(y_train)
+X_tr, y_tr = X_train.to_numpy(dtype=float), y_train.to_numpy()
+distancias_clases = np.zeros((len(codigos), len(codigos)))
+for i, a in enumerate(codigos):
+    for j, b in enumerate(codigos):
+        if i != j:
+            distancias_clases[i, j] = pairwise_distances(
+                X_tr[y_tr == a], X_tr[y_tr == b], metric={{ metric | pyrepr }}).mean()
+# Distancia media entre las muestras DISTINTAS de una misma clase (cada par una vez)
+distancias_dentro = []
+for a in codigos:
+    X_a = X_tr[y_tr == a]
+    pares = np.triu_indices(len(X_a), k=1)
+    distancias_dentro.append(
+        pairwise_distances(X_a, metric={{ metric | pyrepr }})[pares].mean() if len(X_a) > 1 else np.nan)
+print("\nDistancias promedio entre clases:")
+print(pd.DataFrame(distancias_clases, index=[nombre_clase[c] for c in codigos],
+                   columns=[nombre_clase[c] for c in codigos]).round(2).to_string())
+print("Distancia media dentro de cada clase (la diagonal de MLTutor):")
+for c, d in zip(codigos, distancias_dentro):
+    print(f"  {nombre_clase[c]}: {d:.2f}")
+if len(codigos) > 1:
+    d_min = distancias_clases[distancias_clases > 0].min()
+    d_max = distancias_clases.max()
+    ratio = d_max / d_min
+    # El ratio Max/Min (el criterio de la versión original) solo es un dato: compara el par de
+    # clases más alejado con el más próximo, no si se solapan (con dos clases vale siempre 1).
+    print(f"Distancia mínima {d_min:.3f} · máxima {d_max:.3f} · ratio {ratio:.2f} (informativo)")
+    # Separación: para cada par de clases, su distancia media dividida por la dispersión de la más
+    # dispersa de las dos (distancia media dentro de la clase); se queda el par peor. np.fmax y
+    # np.nanmin ignoran las clases con una sola muestra (sin distancia interna).
+    separacion = np.nanmin([distancias_clases[i, j] / np.fmax(distancias_dentro[i], distancias_dentro[j])
+                            for i in range(len(codigos)) for j in range(len(codigos)) if i != j])
+    if separacion >= 2:
+        print(f"🟢 Las clases están separadas (separación {separacion:.2f} ≥ 2)")
+    elif separacion >= 1:
+        print(f"🟡 Separación moderada entre clases (separación {separacion:.2f}, entre 1 y 2)")
+    else:
+        print(f"🔴 Las clases están muy próximas (separación {separacion:.2f} < 1)")
+{%- else %}
+mse = mean_squared_error(y_test, y_pred)
+rmse = np.sqrt(mse)
+mae = mean_absolute_error(y_test, y_pred)
+r2 = r2_score(y_test, y_pred)
+print(f"\nError Cuadrático Medio (MSE): {mse:.4f}")
+print(f"RMSE:                         {rmse:.4f}")
+print(f"Error Absoluto Medio (MAE):   {mae:.4f}")
+print(f"R² Score:                     {r2:.4f}")
+# ¿Sobreajuste? Compara con el R² en los datos que el modelo ha guardado
+print(f"R² en entrenamiento:          {modelo.score(X_train, y_train):.4f}  "
+{%- if weights == "distance" %}
+      "(con weights='distance' suele ser 1 con cualquier K: cada muestra está a distancia 0 de sí "
+      "misma y solo cuenta ella)")
+{%- else %}
+      "(con K=1 suele ser 1: cada muestra de entrenamiento es su propio vecino más cercano)")
+{%- endif %}
+residuos = y_test - y_pred
+print(f"Residuos: media {residuos.mean():.3f}, desviación estándar {residuos.std():.3f}")
+{%- endif %}
+
+# ---------------------------------------------------------------------------
+# {% if task == "classification" %}6{% else %}5{% endif %}. Importancia de las características (pestaña 🔍 Características)
+# ---------------------------------------------------------------------------
+# Un KNN no tiene importancia "nativa". Por permutación: cuánto empeora la {% if task == "classification" %}exactitud{% else %}R²{% endif %} con los
+# datos de PRUEBA si se barajan los valores de esa característica (10 repeticiones,
+# random_state=42, como MLTutor).
+importancia_perm = permutation_importance(modelo, X_test, y_test, n_repeats=10, random_state=42)
+tabla = pd.DataFrame({"Característica": nombres,
+                      "Importancia": importancia_perm.importances_mean,
+                      "Desv. Estándar": importancia_perm.importances_std})
+tabla = tabla.sort_values("Importancia", ascending=False, kind="stable")
+print(tabla.round(4).to_string(index=False))
+
+# ---------------------------------------------------------------------------
+# {% if task == "classification" %}7{% else %}6{% endif %}. Predecir una muestra nueva y ver sus vecinos (pestaña 🔮 Predicciones)
+# ---------------------------------------------------------------------------
+{%- if sample %}
+# Los valores del formulario de MLTutor, en el orden de las columnas de X
+muestra = pd.DataFrame([{{ sample | pyrepr }}], columns=X.columns)
+{%- else %}
+# Una muestra de prueba; cambia sus valores para probar otros casos
+muestra = X_test.iloc[[0]]
+{%- endif %}
+prediccion = modelo.predict(muestra)[0]
+distancias, vecinos = modelo.kneighbors(muestra)  # posiciones dentro de X_train
+distancias, vecinos = distancias[0], vecinos[0]
+{%- if weights == "distance" %}
+# Pesos de los vecinos: 1/distancia, o solo los que están a distancia 0 si hay alguno
+{%- if metric != "manhattan" %}
+# (Con la distancia euclídea y fuerza bruta, scikit-learn calcula ‖x‖² − 2x·y + ‖y‖² y una muestra
+# idéntica a una de entrenamiento puede salir a ~1e-5 en lugar de 0; MLTutor calcula la distancia exacta.)
+{%- endif %}
+pesos = (distancias == 0).astype(float) if np.any(distancias == 0) else 1 / distancias
+{%- else %}
+pesos = np.ones_like(distancias)  # weights="uniform": todos los vecinos votan igual
+{%- endif %}
+print(f"\nLos {len(vecinos)} vecinos más cercanos:")
+for orden, (fila, d, w) in enumerate(zip(vecinos, distancias, pesos), start=1):
+{%- if task == "classification" %}
+    print(f"  {orden}. fila {X_train.index[fila]} · distancia {d:.4f} · peso {w:.4f} · "
+          f"{nombre_clase[y_train.iloc[fila]]}")
+{%- else %}
+    print(f"  {orden}. fila {X_train.index[fila]} · distancia {d:.4f} · peso {w:.4f} · "
+          f"valor {y_train.iloc[fila]:.4f}")
+{%- endif %}
+{%- if task == "classification" %}
+probabilidades = modelo.predict_proba(muestra)[0]
+print(f"\nClase predicha: {nombre_clase[prediccion]}")
+# Proporción de cada clase entre los vecinos{% if weights == "distance" %} (ponderada por sus pesos){% endif %}
+for c, p in zip(modelo.classes_, probabilidades):
+    print(f"  P({nombre_clase[c]}) = {p:.4f}")
+{%- else %}
+print(f"\nValor predicho: {prediccion:.4f} ({% if weights == "distance" %}media ponderada{% else %}media{% endif %} de los valores de los vecinos)")
+{%- endif %}

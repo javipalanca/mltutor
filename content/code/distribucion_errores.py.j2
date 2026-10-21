@@ -1,0 +1,16 @@
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+
+# Calcular los errores
+errors = y_test - y_pred
+
+# Crear el gráfico
+fig, ax = plt.subplots(figsize=(8, 6))
+sns.histplot(errors, kde=True, ax=ax)
+ax.axvline(x=0, color='r', linestyle='--')
+ax.set_title('Distribución de errores')
+ax.set_xlabel('Error (Real - Predicción)')
+
+plt.tight_layout()
+plt.show()

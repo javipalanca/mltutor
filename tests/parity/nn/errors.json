@@ -1,0 +1,4757 @@
+{
+  "meta": {
+    "format_version": 1,
+    "generator": "tools/export_golden.py",
+    "generated": "2026-10-15",
+    "versions": {
+      "python": "3.11.14",
+      "numpy": "1.26.4",
+      "pandas": "2.3.3",
+      "scipy": "1.16.3",
+      "scikit-learn": "1.7.2",
+      "seaborn": "0.13.2",
+      "platform": "Darwin-arm64"
+    },
+    "seed": 42,
+    "tolerance": {
+      "texts": "exact (TF messages may change with the TF version)"
+    },
+    "tolerance_rationale": "Output activations that Python lets the student choose but cannot train, and what the other tabs do afterwards (D71).",
+    "tensorflow": {
+      "tensorflow": "2.16.2",
+      "keras": "3.12.0",
+      "tf_devices": ["CPU"],
+      "op_determinism": true,
+      "intra_op_threads": 0,
+      "tensorflow-macos": "2.16.2",
+      "tensorflow-metal": "1.2.0",
+      "onnx": "1.17.0"
+    }
+  },
+  "input": {
+    "function": "run_neural_networks_app rendered headlessly"
+  },
+  "expected": {
+    "iris_salida_sigmoid": {
+      "spec": {
+        "dataset": "iris",
+        "out": "sigmoid",
+        "epochs": 10
+      },
+      "training_view": {
+        "kind": "page",
+        "children": [
+          {
+            "kind": "notice",
+            "text": "📊 **Dataset actual:** 🌸 Iris - Clasificación de flores",
+            "severity": "info"
+          },
+          {
+            "kind": "text",
+            "text": "---",
+            "html": false
+          },
+          {
+            "kind": "heading",
+            "text": "⚙️ Entrenamiento de la Red Neuronal",
+            "level": 1
+          },
+          {
+            "kind": "notice",
+            "text": "🎓 **Conceptos Clave del Entrenamiento:**\n- **Learning Rate**: Controla qué tan rápido aprende la red (muy alto = inestable, muy bajo = lento)\n- **Épocas**: Cuántas veces la red ve todos los datos (más épocas ≠ siempre mejor)\n- **Validación**: Datos separados para monitorear si la red está generalizando bien\n- **Early Stopping**: Para evitar sobreajuste, para cuando la validación no mejora",
+            "severity": "info"
+          },
+          {
+            "kind": "text",
+            "text": "### 🎛️ Parámetros de Entrenamiento",
+            "html": false
+          },
+          {
+            "kind": "row",
+            "weights": [1, 1, 1],
+            "children": [
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "text",
+                    "text": "#### 📈 **Learning Rate**",
+                    "html": false
+                  },
+                  {
+                    "kind": "select",
+                    "label": "Tasa de Aprendizaje",
+                    "key": null,
+                    "value": 0.001,
+                    "options": [0.001, 0.01, 0.1, 0.3],
+                    "display": ["0.001", "0.01", "0.1", "0.3"],
+                    "help": "💡 0.001 es seguro para empezar. Valores más altos pueden acelerar el entrenamiento pero causar inestabilidad"
+                  },
+                  {
+                    "kind": "caption",
+                    "text": "🟢 **Conservador**: Aprendizaje lento pero estable"
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "text",
+                    "text": "#### 🔄 **Épocas**",
+                    "html": false
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "Épocas",
+                    "key": null,
+                    "value": 10,
+                    "min_value": 10,
+                    "max_value": 500,
+                    "step": 10,
+                    "help": "💡 Sugerencia para tu dataset: ~50 épocas"
+                  },
+                  {
+                    "kind": "caption",
+                    "text": "🟡 **Pocas épocas**: Puede que no aprenda completamente"
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "text",
+                    "text": "#### 🎯 **Validación**",
+                    "html": false
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "% Datos de Validación",
+                    "key": null,
+                    "value": 20,
+                    "min_value": 10,
+                    "max_value": 40,
+                    "step": null,
+                    "help": "💡 20% es estándar. Más datos = mejor validación, menos datos para entrenar"
+                  },
+                  {
+                    "kind": "caption",
+                    "text": "📊 **Distribución**: Train=96, Val=30, Test=24"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "expander",
+            "label": "⚙️ Configuración Avanzada - Técnicas para Mejorar el Entrenamiento",
+            "expanded": false,
+            "children": [
+              {
+                "kind": "text",
+                "text": "#### 🛡️ Técnicas de Regularización y Optimización",
+                "html": false
+              },
+              {
+                "kind": "row",
+                "weights": [1, 1],
+                "children": [
+                  {
+                    "kind": "column",
+                    "children": [
+                      {
+                        "kind": "text",
+                        "text": "##### 🛑 Early Stopping",
+                        "html": false
+                      },
+                      {
+                        "kind": "checkbox",
+                        "label": "Activar Parada Temprana",
+                        "key": null,
+                        "value": true,
+                        "help": "💡 Recomendado: Evita sobreajuste parando cuando la validación no mejora"
+                      },
+                      {
+                        "kind": "notice",
+                        "text": "✅ **Early Stopping activado**: La red parará automáticamente cuando deje de mejorar",
+                        "severity": "success"
+                      },
+                      {
+                        "kind": "slider",
+                        "label": "Paciencia (épocas)",
+                        "key": null,
+                        "value": 10,
+                        "min_value": 5,
+                        "max_value": 50,
+                        "step": null,
+                        "help": "Épocas a esperar sin mejora antes de parar. Más paciencia = más oportunidades de mejorar"
+                      },
+                      {
+                        "kind": "caption",
+                        "text": "🟢 **Balanceado**: Buen equilibrio"
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "column",
+                    "children": [
+                      {
+                        "kind": "text",
+                        "text": "##### 📉 Learning Rate Scheduler",
+                        "html": false
+                      },
+                      {
+                        "kind": "checkbox",
+                        "label": "Reducir Learning Rate Automáticamente",
+                        "key": null,
+                        "value": true,
+                        "help": "💡 Recomendado: Reduce la tasa de aprendizaje cuando no mejora"
+                      },
+                      {
+                        "kind": "notice",
+                        "text": "✅ **Scheduler activado**: La tasa de aprendizaje se reducirá automáticamente",
+                        "severity": "success"
+                      },
+                      {
+                        "kind": "slider",
+                        "label": "Factor de Reducción",
+                        "key": null,
+                        "value": 0.5,
+                        "min_value": 0.1,
+                        "max_value": 0.9,
+                        "step": null,
+                        "help": "Factor por el que se multiplica la tasa. 0.5 = reduce a la mitad"
+                      },
+                      {
+                        "kind": "caption",
+                        "text": "🟢 **Reducción moderada**: Recomendado"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "kind": "text",
+                "text": "---",
+                "html": false
+              },
+              {
+                "kind": "text",
+                "text": "#### 📚 ¿Por qué usar estas técnicas?",
+                "html": false
+              },
+              {
+                "kind": "text",
+                "text": "- **Early Stopping**: Evita que la red memorice los datos (sobreajuste) parando cuando la performance en validación deja de mejorar\n- **Learning Rate Reduction**: Permite un ajuste fino hacia el final del entrenamiento cuando se está cerca del óptimo\n- **Combinadas**: Estas técnicas trabajan juntas para lograr el mejor modelo posible automáticamente",
+                "html": false
+              }
+            ]
+          },
+          {
+            "kind": "text",
+            "text": "### 🚀 Iniciar Entrenamiento",
+            "html": false
+          },
+          {
+            "kind": "text",
+            "text": "**¿Todo listo?** Tu red está configurada y lista para aprender de los datos.",
+            "html": false
+          },
+          {
+            "kind": "button",
+            "key": null,
+            "label": "🧠 Entrenar Red Neuronal",
+            "type": "primary",
+            "use_container_width": true
+          },
+          {
+            "kind": "column"
+          },
+          {
+            "kind": "notice",
+            "text": "Error durante el entrenamiento: Arguments `target` and `output` must have the same rank (ndim). Received: target.shape=(None,), output.shape=(None, 3)",
+            "severity": "error"
+          }
+        ]
+      },
+      "state_after": {
+        "model_trained_nn": true,
+        "nn_model_is_none": true
+      },
+      "tab_3": {
+        "exception": "AttributeError: 'NoneType' object has no attribute 'predict'"
+      },
+      "tab_4": {
+        "exception": "AttributeError: 'NoneType' object has no attribute 'history'"
+      },
+      "tab_5": {
+        "kind": "page",
+        "children": [
+          {
+            "kind": "notice",
+            "text": "📊 **Dataset actual:** 🌸 Iris - Clasificación de flores",
+            "severity": "info"
+          },
+          {
+            "kind": "text",
+            "text": "---",
+            "html": false
+          },
+          {
+            "kind": "heading",
+            "text": "🔮 Predicciones",
+            "level": 1
+          },
+          {
+            "kind": "text",
+            "text": "### Ingresa valores para predecir",
+            "html": false
+          },
+          {
+            "kind": "row",
+            "weights": [1, 1],
+            "children": [
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "slider",
+                    "label": "sepal length (cm)",
+                    "key": "feature_0",
+                    "value": 5.843333333333334,
+                    "min_value": 4.3,
+                    "max_value": 7.9,
+                    "step": 0.036000000000000004
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "sepal width (cm)",
+                    "key": "feature_1",
+                    "value": 3.0573333333333337,
+                    "min_value": 2.0,
+                    "max_value": 4.4,
+                    "step": 0.024000000000000004
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "slider",
+                    "label": "petal length (cm)",
+                    "key": "feature_2",
+                    "value": 3.7580000000000005,
+                    "min_value": 1.0,
+                    "max_value": 6.9,
+                    "step": 0.059000000000000004
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "petal width (cm)",
+                    "key": "feature_3",
+                    "value": 1.1993333333333336,
+                    "min_value": 0.1,
+                    "max_value": 2.5,
+                    "step": 0.024
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "button",
+            "key": null,
+            "label": "Realizar predicción",
+            "type": "primary"
+          }
+        ]
+      },
+      "tab_6": {
+        "kind": "page",
+        "children": [
+          {
+            "kind": "notice",
+            "text": "📊 **Dataset actual:** 🌸 Iris - Clasificación de flores",
+            "severity": "info"
+          },
+          {
+            "kind": "text",
+            "text": "---",
+            "html": false
+          },
+          {
+            "kind": "heading",
+            "text": "💾 Exportar Modelo",
+            "level": 1
+          },
+          {
+            "kind": "notice",
+            "text": "⚠️ Primero debes entrenar un modelo en la pestaña 'Entrenamiento'",
+            "severity": "warning"
+          }
+        ]
+      }
+    },
+    "iris_salida_linear": {
+      "spec": {
+        "dataset": "iris",
+        "out": "linear",
+        "epochs": 10
+      },
+      "training_view": {
+        "kind": "page",
+        "children": [
+          {
+            "kind": "notice",
+            "text": "📊 **Dataset actual:** 🌸 Iris - Clasificación de flores",
+            "severity": "info"
+          },
+          {
+            "kind": "text",
+            "text": "---",
+            "html": false
+          },
+          {
+            "kind": "heading",
+            "text": "⚙️ Entrenamiento de la Red Neuronal",
+            "level": 1
+          },
+          {
+            "kind": "notice",
+            "text": "🎓 **Conceptos Clave del Entrenamiento:**\n- **Learning Rate**: Controla qué tan rápido aprende la red (muy alto = inestable, muy bajo = lento)\n- **Épocas**: Cuántas veces la red ve todos los datos (más épocas ≠ siempre mejor)\n- **Validación**: Datos separados para monitorear si la red está generalizando bien\n- **Early Stopping**: Para evitar sobreajuste, para cuando la validación no mejora",
+            "severity": "info"
+          },
+          {
+            "kind": "text",
+            "text": "### 🎛️ Parámetros de Entrenamiento",
+            "html": false
+          },
+          {
+            "kind": "row",
+            "weights": [1, 1, 1],
+            "children": [
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "text",
+                    "text": "#### 📈 **Learning Rate**",
+                    "html": false
+                  },
+                  {
+                    "kind": "select",
+                    "label": "Tasa de Aprendizaje",
+                    "key": null,
+                    "value": 0.001,
+                    "options": [0.001, 0.01, 0.1, 0.3],
+                    "display": ["0.001", "0.01", "0.1", "0.3"],
+                    "help": "💡 0.001 es seguro para empezar. Valores más altos pueden acelerar el entrenamiento pero causar inestabilidad"
+                  },
+                  {
+                    "kind": "caption",
+                    "text": "🟢 **Conservador**: Aprendizaje lento pero estable"
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "text",
+                    "text": "#### 🔄 **Épocas**",
+                    "html": false
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "Épocas",
+                    "key": null,
+                    "value": 10,
+                    "min_value": 10,
+                    "max_value": 500,
+                    "step": 10,
+                    "help": "💡 Sugerencia para tu dataset: ~50 épocas"
+                  },
+                  {
+                    "kind": "caption",
+                    "text": "🟡 **Pocas épocas**: Puede que no aprenda completamente"
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "text",
+                    "text": "#### 🎯 **Validación**",
+                    "html": false
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "% Datos de Validación",
+                    "key": null,
+                    "value": 20,
+                    "min_value": 10,
+                    "max_value": 40,
+                    "step": null,
+                    "help": "💡 20% es estándar. Más datos = mejor validación, menos datos para entrenar"
+                  },
+                  {
+                    "kind": "caption",
+                    "text": "📊 **Distribución**: Train=96, Val=30, Test=24"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "expander",
+            "label": "⚙️ Configuración Avanzada - Técnicas para Mejorar el Entrenamiento",
+            "expanded": false,
+            "children": [
+              {
+                "kind": "text",
+                "text": "#### 🛡️ Técnicas de Regularización y Optimización",
+                "html": false
+              },
+              {
+                "kind": "row",
+                "weights": [1, 1],
+                "children": [
+                  {
+                    "kind": "column",
+                    "children": [
+                      {
+                        "kind": "text",
+                        "text": "##### 🛑 Early Stopping",
+                        "html": false
+                      },
+                      {
+                        "kind": "checkbox",
+                        "label": "Activar Parada Temprana",
+                        "key": null,
+                        "value": true,
+                        "help": "💡 Recomendado: Evita sobreajuste parando cuando la validación no mejora"
+                      },
+                      {
+                        "kind": "notice",
+                        "text": "✅ **Early Stopping activado**: La red parará automáticamente cuando deje de mejorar",
+                        "severity": "success"
+                      },
+                      {
+                        "kind": "slider",
+                        "label": "Paciencia (épocas)",
+                        "key": null,
+                        "value": 10,
+                        "min_value": 5,
+                        "max_value": 50,
+                        "step": null,
+                        "help": "Épocas a esperar sin mejora antes de parar. Más paciencia = más oportunidades de mejorar"
+                      },
+                      {
+                        "kind": "caption",
+                        "text": "🟢 **Balanceado**: Buen equilibrio"
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "column",
+                    "children": [
+                      {
+                        "kind": "text",
+                        "text": "##### 📉 Learning Rate Scheduler",
+                        "html": false
+                      },
+                      {
+                        "kind": "checkbox",
+                        "label": "Reducir Learning Rate Automáticamente",
+                        "key": null,
+                        "value": true,
+                        "help": "💡 Recomendado: Reduce la tasa de aprendizaje cuando no mejora"
+                      },
+                      {
+                        "kind": "notice",
+                        "text": "✅ **Scheduler activado**: La tasa de aprendizaje se reducirá automáticamente",
+                        "severity": "success"
+                      },
+                      {
+                        "kind": "slider",
+                        "label": "Factor de Reducción",
+                        "key": null,
+                        "value": 0.5,
+                        "min_value": 0.1,
+                        "max_value": 0.9,
+                        "step": null,
+                        "help": "Factor por el que se multiplica la tasa. 0.5 = reduce a la mitad"
+                      },
+                      {
+                        "kind": "caption",
+                        "text": "🟢 **Reducción moderada**: Recomendado"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "kind": "text",
+                "text": "---",
+                "html": false
+              },
+              {
+                "kind": "text",
+                "text": "#### 📚 ¿Por qué usar estas técnicas?",
+                "html": false
+              },
+              {
+                "kind": "text",
+                "text": "- **Early Stopping**: Evita que la red memorice los datos (sobreajuste) parando cuando la performance en validación deja de mejorar\n- **Learning Rate Reduction**: Permite un ajuste fino hacia el final del entrenamiento cuando se está cerca del óptimo\n- **Combinadas**: Estas técnicas trabajan juntas para lograr el mejor modelo posible automáticamente",
+                "html": false
+              }
+            ]
+          },
+          {
+            "kind": "text",
+            "text": "### 🚀 Iniciar Entrenamiento",
+            "html": false
+          },
+          {
+            "kind": "text",
+            "text": "**¿Todo listo?** Tu red está configurada y lista para aprender de los datos.",
+            "html": false
+          },
+          {
+            "kind": "button",
+            "key": null,
+            "label": "🧠 Entrenar Red Neuronal",
+            "type": "primary",
+            "use_container_width": true
+          },
+          {
+            "kind": "column"
+          },
+          {
+            "kind": "notice",
+            "text": "⚠️ Función linear detectada en clasificación. Rendimiento puede ser subóptimo.",
+            "severity": "warning"
+          },
+          {
+            "kind": "notice",
+            "text": "Error durante el entrenamiento: Argument `output` must have rank (ndim) `target.ndim - 1`. Received: target.shape=(None, 3), output.shape=(None, 3)",
+            "severity": "error"
+          }
+        ]
+      },
+      "state_after": {
+        "model_trained_nn": true,
+        "nn_model_is_none": true
+      },
+      "tab_3": {
+        "exception": "AttributeError: 'NoneType' object has no attribute 'predict'"
+      },
+      "tab_4": {
+        "exception": "AttributeError: 'NoneType' object has no attribute 'history'"
+      },
+      "tab_5": {
+        "kind": "page",
+        "children": [
+          {
+            "kind": "notice",
+            "text": "📊 **Dataset actual:** 🌸 Iris - Clasificación de flores",
+            "severity": "info"
+          },
+          {
+            "kind": "text",
+            "text": "---",
+            "html": false
+          },
+          {
+            "kind": "heading",
+            "text": "🔮 Predicciones",
+            "level": 1
+          },
+          {
+            "kind": "text",
+            "text": "### Ingresa valores para predecir",
+            "html": false
+          },
+          {
+            "kind": "row",
+            "weights": [1, 1],
+            "children": [
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "slider",
+                    "label": "sepal length (cm)",
+                    "key": "feature_0",
+                    "value": 5.843333333333334,
+                    "min_value": 4.3,
+                    "max_value": 7.9,
+                    "step": 0.036000000000000004
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "sepal width (cm)",
+                    "key": "feature_1",
+                    "value": 3.0573333333333337,
+                    "min_value": 2.0,
+                    "max_value": 4.4,
+                    "step": 0.024000000000000004
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "slider",
+                    "label": "petal length (cm)",
+                    "key": "feature_2",
+                    "value": 3.7580000000000005,
+                    "min_value": 1.0,
+                    "max_value": 6.9,
+                    "step": 0.059000000000000004
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "petal width (cm)",
+                    "key": "feature_3",
+                    "value": 1.1993333333333336,
+                    "min_value": 0.1,
+                    "max_value": 2.5,
+                    "step": 0.024
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "button",
+            "key": null,
+            "label": "Realizar predicción",
+            "type": "primary"
+          }
+        ]
+      },
+      "tab_6": {
+        "kind": "page",
+        "children": [
+          {
+            "kind": "notice",
+            "text": "📊 **Dataset actual:** 🌸 Iris - Clasificación de flores",
+            "severity": "info"
+          },
+          {
+            "kind": "text",
+            "text": "---",
+            "html": false
+          },
+          {
+            "kind": "heading",
+            "text": "💾 Exportar Modelo",
+            "level": 1
+          },
+          {
+            "kind": "notice",
+            "text": "⚠️ Primero debes entrenar un modelo en la pestaña 'Entrenamiento'",
+            "severity": "warning"
+          }
+        ]
+      }
+    },
+    "breast_cancer_salida_softmax": {
+      "spec": {
+        "dataset": "breast_cancer",
+        "out": "softmax",
+        "epochs": 10
+      },
+      "training_view": {
+        "kind": "page",
+        "children": [
+          {
+            "kind": "notice",
+            "text": "📊 **Dataset actual:** 🔬 Cáncer - Diagnóstico binario",
+            "severity": "info"
+          },
+          {
+            "kind": "text",
+            "text": "---",
+            "html": false
+          },
+          {
+            "kind": "heading",
+            "text": "⚙️ Entrenamiento de la Red Neuronal",
+            "level": 1
+          },
+          {
+            "kind": "notice",
+            "text": "🎓 **Conceptos Clave del Entrenamiento:**\n- **Learning Rate**: Controla qué tan rápido aprende la red (muy alto = inestable, muy bajo = lento)\n- **Épocas**: Cuántas veces la red ve todos los datos (más épocas ≠ siempre mejor)\n- **Validación**: Datos separados para monitorear si la red está generalizando bien\n- **Early Stopping**: Para evitar sobreajuste, para cuando la validación no mejora",
+            "severity": "info"
+          },
+          {
+            "kind": "text",
+            "text": "### 🎛️ Parámetros de Entrenamiento",
+            "html": false
+          },
+          {
+            "kind": "row",
+            "weights": [1, 1, 1],
+            "children": [
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "text",
+                    "text": "#### 📈 **Learning Rate**",
+                    "html": false
+                  },
+                  {
+                    "kind": "select",
+                    "label": "Tasa de Aprendizaje",
+                    "key": null,
+                    "value": 0.001,
+                    "options": [0.001, 0.01, 0.1, 0.3],
+                    "display": ["0.001", "0.01", "0.1", "0.3"],
+                    "help": "💡 0.001 es seguro para empezar. Valores más altos pueden acelerar el entrenamiento pero causar inestabilidad"
+                  },
+                  {
+                    "kind": "caption",
+                    "text": "🟢 **Conservador**: Aprendizaje lento pero estable"
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "text",
+                    "text": "#### 🔄 **Épocas**",
+                    "html": false
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "Épocas",
+                    "key": null,
+                    "value": 10,
+                    "min_value": 10,
+                    "max_value": 500,
+                    "step": 10,
+                    "help": "💡 Sugerencia para tu dataset: ~56 épocas"
+                  },
+                  {
+                    "kind": "caption",
+                    "text": "🟡 **Pocas épocas**: Puede que no aprenda completamente"
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "text",
+                    "text": "#### 🎯 **Validación**",
+                    "html": false
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "% Datos de Validación",
+                    "key": null,
+                    "value": 20,
+                    "min_value": 10,
+                    "max_value": 40,
+                    "step": null,
+                    "help": "💡 20% es estándar. Más datos = mejor validación, menos datos para entrenar"
+                  },
+                  {
+                    "kind": "caption",
+                    "text": "📊 **Distribución**: Train=364, Val=113, Test=92"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "expander",
+            "label": "⚙️ Configuración Avanzada - Técnicas para Mejorar el Entrenamiento",
+            "expanded": false,
+            "children": [
+              {
+                "kind": "text",
+                "text": "#### 🛡️ Técnicas de Regularización y Optimización",
+                "html": false
+              },
+              {
+                "kind": "row",
+                "weights": [1, 1],
+                "children": [
+                  {
+                    "kind": "column",
+                    "children": [
+                      {
+                        "kind": "text",
+                        "text": "##### 🛑 Early Stopping",
+                        "html": false
+                      },
+                      {
+                        "kind": "checkbox",
+                        "label": "Activar Parada Temprana",
+                        "key": null,
+                        "value": true,
+                        "help": "💡 Recomendado: Evita sobreajuste parando cuando la validación no mejora"
+                      },
+                      {
+                        "kind": "notice",
+                        "text": "✅ **Early Stopping activado**: La red parará automáticamente cuando deje de mejorar",
+                        "severity": "success"
+                      },
+                      {
+                        "kind": "slider",
+                        "label": "Paciencia (épocas)",
+                        "key": null,
+                        "value": 10,
+                        "min_value": 5,
+                        "max_value": 50,
+                        "step": null,
+                        "help": "Épocas a esperar sin mejora antes de parar. Más paciencia = más oportunidades de mejorar"
+                      },
+                      {
+                        "kind": "caption",
+                        "text": "🟢 **Balanceado**: Buen equilibrio"
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "column",
+                    "children": [
+                      {
+                        "kind": "text",
+                        "text": "##### 📉 Learning Rate Scheduler",
+                        "html": false
+                      },
+                      {
+                        "kind": "checkbox",
+                        "label": "Reducir Learning Rate Automáticamente",
+                        "key": null,
+                        "value": true,
+                        "help": "💡 Recomendado: Reduce la tasa de aprendizaje cuando no mejora"
+                      },
+                      {
+                        "kind": "notice",
+                        "text": "✅ **Scheduler activado**: La tasa de aprendizaje se reducirá automáticamente",
+                        "severity": "success"
+                      },
+                      {
+                        "kind": "slider",
+                        "label": "Factor de Reducción",
+                        "key": null,
+                        "value": 0.5,
+                        "min_value": 0.1,
+                        "max_value": 0.9,
+                        "step": null,
+                        "help": "Factor por el que se multiplica la tasa. 0.5 = reduce a la mitad"
+                      },
+                      {
+                        "kind": "caption",
+                        "text": "🟢 **Reducción moderada**: Recomendado"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "kind": "text",
+                "text": "---",
+                "html": false
+              },
+              {
+                "kind": "text",
+                "text": "#### 📚 ¿Por qué usar estas técnicas?",
+                "html": false
+              },
+              {
+                "kind": "text",
+                "text": "- **Early Stopping**: Evita que la red memorice los datos (sobreajuste) parando cuando la performance en validación deja de mejorar\n- **Learning Rate Reduction**: Permite un ajuste fino hacia el final del entrenamiento cuando se está cerca del óptimo\n- **Combinadas**: Estas técnicas trabajan juntas para lograr el mejor modelo posible automáticamente",
+                "html": false
+              }
+            ]
+          },
+          {
+            "kind": "text",
+            "text": "### 🚀 Iniciar Entrenamiento",
+            "html": false
+          },
+          {
+            "kind": "text",
+            "text": "**¿Todo listo?** Tu red está configurada y lista para aprender de los datos.",
+            "html": false
+          },
+          {
+            "kind": "button",
+            "key": null,
+            "label": "🧠 Entrenar Red Neuronal",
+            "type": "primary",
+            "use_container_width": true
+          },
+          {
+            "kind": "column"
+          },
+          {
+            "kind": "notice",
+            "text": "⚠️ Softmax con 1 neurona detectada. Puede causar problemas.",
+            "severity": "warning"
+          },
+          {
+            "kind": "notice",
+            "text": "Error durante el entrenamiento: Argument `output` must have rank (ndim) `target.ndim - 1`. Received: target.shape=(None, 2), output.shape=(None, 1)",
+            "severity": "error"
+          }
+        ]
+      },
+      "state_after": {
+        "model_trained_nn": true,
+        "nn_model_is_none": true
+      },
+      "tab_3": {
+        "exception": "AttributeError: 'NoneType' object has no attribute 'predict'"
+      },
+      "tab_4": {
+        "exception": "AttributeError: 'NoneType' object has no attribute 'history'"
+      },
+      "tab_5": {
+        "kind": "page",
+        "children": [
+          {
+            "kind": "notice",
+            "text": "📊 **Dataset actual:** 🔬 Cáncer - Diagnóstico binario",
+            "severity": "info"
+          },
+          {
+            "kind": "text",
+            "text": "---",
+            "html": false
+          },
+          {
+            "kind": "heading",
+            "text": "🔮 Predicciones",
+            "level": 1
+          },
+          {
+            "kind": "text",
+            "text": "### Ingresa valores para predecir",
+            "html": false
+          },
+          {
+            "kind": "row",
+            "weights": [1, 1],
+            "children": [
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "slider",
+                    "label": "**mean radius**\n\n*Radio promedio del núcleo celular*",
+                    "key": "feature_0",
+                    "value": 14.127291739894552,
+                    "min_value": 6.981,
+                    "max_value": 28.11,
+                    "step": 0.21128999999999998
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "**mean texture**\n\n*Textura promedio del núcleo*",
+                    "key": "feature_1",
+                    "value": 19.289648506151142,
+                    "min_value": 9.71,
+                    "max_value": 39.28,
+                    "step": 0.2957
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "**mean perimeter**\n\n*Perímetro promedio del núcleo*",
+                    "key": "feature_2",
+                    "value": 91.96903339191564,
+                    "min_value": 43.79,
+                    "max_value": 188.5,
+                    "step": 1.4471
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "**mean area**\n\n*Área promedio del núcleo*",
+                    "key": "feature_3",
+                    "value": 654.8891036906855,
+                    "min_value": 143.5,
+                    "max_value": 2501.0,
+                    "step": 23.575
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "**mean smoothness**\n\n*Suavidad promedio del núcleo*",
+                    "key": "feature_4",
+                    "value": 0.0963602811950791,
+                    "min_value": 0.05263,
+                    "max_value": 0.1634,
+                    "step": 0.0011076999999999999
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "mean compactness",
+                    "key": "feature_5",
+                    "value": 0.10434098418277679,
+                    "min_value": 0.01938,
+                    "max_value": 0.3454,
+                    "step": 0.0032601999999999996
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "mean concavity",
+                    "key": "feature_6",
+                    "value": 0.0887993158172232,
+                    "min_value": 0.0,
+                    "max_value": 0.4268,
+                    "step": 0.004268
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "mean concave points",
+                    "key": "feature_7",
+                    "value": 0.04891914586994728,
+                    "min_value": 0.0,
+                    "max_value": 0.2012,
+                    "step": 0.002012
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "mean symmetry",
+                    "key": "feature_8",
+                    "value": 0.18116186291739894,
+                    "min_value": 0.106,
+                    "max_value": 0.304,
+                    "step": 0.00198
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "mean fractal dimension",
+                    "key": "feature_9",
+                    "value": 0.06279760984182776,
+                    "min_value": 0.04996,
+                    "max_value": 0.09744,
+                    "step": 0.0004748
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "radius error",
+                    "key": "feature_10",
+                    "value": 0.40517205623901575,
+                    "min_value": 0.1115,
+                    "max_value": 2.873,
+                    "step": 0.027615000000000004
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "texture error",
+                    "key": "feature_11",
+                    "value": 1.2168534270650264,
+                    "min_value": 0.3602,
+                    "max_value": 4.885,
+                    "step": 0.045248
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "perimeter error",
+                    "key": "feature_12",
+                    "value": 2.8660592267135327,
+                    "min_value": 0.757,
+                    "max_value": 21.98,
+                    "step": 0.21223
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "area error",
+                    "key": "feature_13",
+                    "value": 40.337079086116,
+                    "min_value": 6.802,
+                    "max_value": 542.2,
+                    "step": 5.35398
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "smoothness error",
+                    "key": "feature_14",
+                    "value": 0.007040978910369069,
+                    "min_value": 0.001713,
+                    "max_value": 0.03113,
+                    "step": 0.00029417
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "slider",
+                    "label": "compactness error",
+                    "key": "feature_15",
+                    "value": 0.025478138840070295,
+                    "min_value": 0.002252,
+                    "max_value": 0.1354,
+                    "step": 0.00133148
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "concavity error",
+                    "key": "feature_16",
+                    "value": 0.03189371634446397,
+                    "min_value": 0.0,
+                    "max_value": 0.396,
+                    "step": 0.00396
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "concave points error",
+                    "key": "feature_17",
+                    "value": 0.011796137082601054,
+                    "min_value": 0.0,
+                    "max_value": 0.05279,
+                    "step": 0.0005279
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "symmetry error",
+                    "key": "feature_18",
+                    "value": 0.02054229876977153,
+                    "min_value": 0.007882,
+                    "max_value": 0.07895,
+                    "step": 0.0007106800000000001
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "fractal dimension error",
+                    "key": "feature_19",
+                    "value": 0.0037949038664323374,
+                    "min_value": 0.0008948,
+                    "max_value": 0.02984,
+                    "step": 0.000289452
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "worst radius",
+                    "key": "feature_20",
+                    "value": 16.269189806678387,
+                    "min_value": 7.93,
+                    "max_value": 36.04,
+                    "step": 0.2811
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "worst texture",
+                    "key": "feature_21",
+                    "value": 25.677223198594024,
+                    "min_value": 12.02,
+                    "max_value": 49.54,
+                    "step": 0.3752
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "worst perimeter",
+                    "key": "feature_22",
+                    "value": 107.26121265377857,
+                    "min_value": 50.41,
+                    "max_value": 251.2,
+                    "step": 2.0079
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "worst area",
+                    "key": "feature_23",
+                    "value": 880.5831282952548,
+                    "min_value": 185.2,
+                    "max_value": 4254.0,
+                    "step": 40.688
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "worst smoothness",
+                    "key": "feature_24",
+                    "value": 0.13236859402460457,
+                    "min_value": 0.07117,
+                    "max_value": 0.2226,
+                    "step": 0.0015143
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "worst compactness",
+                    "key": "feature_25",
+                    "value": 0.25426504393673116,
+                    "min_value": 0.02729,
+                    "max_value": 1.058,
+                    "step": 0.0103071
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "worst concavity",
+                    "key": "feature_26",
+                    "value": 0.27218848330404216,
+                    "min_value": 0.0,
+                    "max_value": 1.252,
+                    "step": 0.01252
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "worst concave points",
+                    "key": "feature_27",
+                    "value": 0.11460622319859401,
+                    "min_value": 0.0,
+                    "max_value": 0.291,
+                    "step": 0.00291
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "worst symmetry",
+                    "key": "feature_28",
+                    "value": 0.2900755711775044,
+                    "min_value": 0.1565,
+                    "max_value": 0.6638,
+                    "step": 0.005072999999999999
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "worst fractal dimension",
+                    "key": "feature_29",
+                    "value": 0.0839458172231986,
+                    "min_value": 0.05504,
+                    "max_value": 0.2075,
+                    "step": 0.0015245999999999999
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "button",
+            "key": null,
+            "label": "Realizar predicción",
+            "type": "primary"
+          }
+        ]
+      },
+      "tab_6": {
+        "kind": "page",
+        "children": [
+          {
+            "kind": "notice",
+            "text": "📊 **Dataset actual:** 🔬 Cáncer - Diagnóstico binario",
+            "severity": "info"
+          },
+          {
+            "kind": "text",
+            "text": "---",
+            "html": false
+          },
+          {
+            "kind": "heading",
+            "text": "💾 Exportar Modelo",
+            "level": 1
+          },
+          {
+            "kind": "notice",
+            "text": "⚠️ Primero debes entrenar un modelo en la pestaña 'Entrenamiento'",
+            "severity": "warning"
+          }
+        ]
+      }
+    },
+    "breast_cancer_salida_linear": {
+      "spec": {
+        "dataset": "breast_cancer",
+        "out": "linear",
+        "epochs": 10
+      },
+      "training_view": {
+        "kind": "page",
+        "children": [
+          {
+            "kind": "notice",
+            "text": "📊 **Dataset actual:** 🔬 Cáncer - Diagnóstico binario",
+            "severity": "info"
+          },
+          {
+            "kind": "text",
+            "text": "---",
+            "html": false
+          },
+          {
+            "kind": "heading",
+            "text": "⚙️ Entrenamiento de la Red Neuronal",
+            "level": 1
+          },
+          {
+            "kind": "notice",
+            "text": "🎓 **Conceptos Clave del Entrenamiento:**\n- **Learning Rate**: Controla qué tan rápido aprende la red (muy alto = inestable, muy bajo = lento)\n- **Épocas**: Cuántas veces la red ve todos los datos (más épocas ≠ siempre mejor)\n- **Validación**: Datos separados para monitorear si la red está generalizando bien\n- **Early Stopping**: Para evitar sobreajuste, para cuando la validación no mejora",
+            "severity": "info"
+          },
+          {
+            "kind": "text",
+            "text": "### 🎛️ Parámetros de Entrenamiento",
+            "html": false
+          },
+          {
+            "kind": "row",
+            "weights": [1, 1, 1],
+            "children": [
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "text",
+                    "text": "#### 📈 **Learning Rate**",
+                    "html": false
+                  },
+                  {
+                    "kind": "select",
+                    "label": "Tasa de Aprendizaje",
+                    "key": null,
+                    "value": 0.001,
+                    "options": [0.001, 0.01, 0.1, 0.3],
+                    "display": ["0.001", "0.01", "0.1", "0.3"],
+                    "help": "💡 0.001 es seguro para empezar. Valores más altos pueden acelerar el entrenamiento pero causar inestabilidad"
+                  },
+                  {
+                    "kind": "caption",
+                    "text": "🟢 **Conservador**: Aprendizaje lento pero estable"
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "text",
+                    "text": "#### 🔄 **Épocas**",
+                    "html": false
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "Épocas",
+                    "key": null,
+                    "value": 10,
+                    "min_value": 10,
+                    "max_value": 500,
+                    "step": 10,
+                    "help": "💡 Sugerencia para tu dataset: ~56 épocas"
+                  },
+                  {
+                    "kind": "caption",
+                    "text": "🟡 **Pocas épocas**: Puede que no aprenda completamente"
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "text",
+                    "text": "#### 🎯 **Validación**",
+                    "html": false
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "% Datos de Validación",
+                    "key": null,
+                    "value": 20,
+                    "min_value": 10,
+                    "max_value": 40,
+                    "step": null,
+                    "help": "💡 20% es estándar. Más datos = mejor validación, menos datos para entrenar"
+                  },
+                  {
+                    "kind": "caption",
+                    "text": "📊 **Distribución**: Train=364, Val=113, Test=92"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "expander",
+            "label": "⚙️ Configuración Avanzada - Técnicas para Mejorar el Entrenamiento",
+            "expanded": false,
+            "children": [
+              {
+                "kind": "text",
+                "text": "#### 🛡️ Técnicas de Regularización y Optimización",
+                "html": false
+              },
+              {
+                "kind": "row",
+                "weights": [1, 1],
+                "children": [
+                  {
+                    "kind": "column",
+                    "children": [
+                      {
+                        "kind": "text",
+                        "text": "##### 🛑 Early Stopping",
+                        "html": false
+                      },
+                      {
+                        "kind": "checkbox",
+                        "label": "Activar Parada Temprana",
+                        "key": null,
+                        "value": true,
+                        "help": "💡 Recomendado: Evita sobreajuste parando cuando la validación no mejora"
+                      },
+                      {
+                        "kind": "notice",
+                        "text": "✅ **Early Stopping activado**: La red parará automáticamente cuando deje de mejorar",
+                        "severity": "success"
+                      },
+                      {
+                        "kind": "slider",
+                        "label": "Paciencia (épocas)",
+                        "key": null,
+                        "value": 10,
+                        "min_value": 5,
+                        "max_value": 50,
+                        "step": null,
+                        "help": "Épocas a esperar sin mejora antes de parar. Más paciencia = más oportunidades de mejorar"
+                      },
+                      {
+                        "kind": "caption",
+                        "text": "🟢 **Balanceado**: Buen equilibrio"
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "column",
+                    "children": [
+                      {
+                        "kind": "text",
+                        "text": "##### 📉 Learning Rate Scheduler",
+                        "html": false
+                      },
+                      {
+                        "kind": "checkbox",
+                        "label": "Reducir Learning Rate Automáticamente",
+                        "key": null,
+                        "value": true,
+                        "help": "💡 Recomendado: Reduce la tasa de aprendizaje cuando no mejora"
+                      },
+                      {
+                        "kind": "notice",
+                        "text": "✅ **Scheduler activado**: La tasa de aprendizaje se reducirá automáticamente",
+                        "severity": "success"
+                      },
+                      {
+                        "kind": "slider",
+                        "label": "Factor de Reducción",
+                        "key": null,
+                        "value": 0.5,
+                        "min_value": 0.1,
+                        "max_value": 0.9,
+                        "step": null,
+                        "help": "Factor por el que se multiplica la tasa. 0.5 = reduce a la mitad"
+                      },
+                      {
+                        "kind": "caption",
+                        "text": "🟢 **Reducción moderada**: Recomendado"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "kind": "text",
+                "text": "---",
+                "html": false
+              },
+              {
+                "kind": "text",
+                "text": "#### 📚 ¿Por qué usar estas técnicas?",
+                "html": false
+              },
+              {
+                "kind": "text",
+                "text": "- **Early Stopping**: Evita que la red memorice los datos (sobreajuste) parando cuando la performance en validación deja de mejorar\n- **Learning Rate Reduction**: Permite un ajuste fino hacia el final del entrenamiento cuando se está cerca del óptimo\n- **Combinadas**: Estas técnicas trabajan juntas para lograr el mejor modelo posible automáticamente",
+                "html": false
+              }
+            ]
+          },
+          {
+            "kind": "text",
+            "text": "### 🚀 Iniciar Entrenamiento",
+            "html": false
+          },
+          {
+            "kind": "text",
+            "text": "**¿Todo listo?** Tu red está configurada y lista para aprender de los datos.",
+            "html": false
+          },
+          {
+            "kind": "button",
+            "key": null,
+            "label": "🧠 Entrenar Red Neuronal",
+            "type": "primary",
+            "use_container_width": true
+          },
+          {
+            "kind": "column"
+          },
+          {
+            "kind": "notice",
+            "text": "⚠️ Función linear detectada en clasificación. Rendimiento puede ser subóptimo.",
+            "severity": "warning"
+          },
+          {
+            "kind": "notice",
+            "text": "Error durante el entrenamiento: Graph execution error:\n<pila de llamadas>\nindices[0] = 1 is not in [0, 1)\n\t [[{{node compile_loss/sparse_categorical_crossentropy/SparseSoftmaxCrossEntropyWithLogits/GatherV2}}]] [Op:__inference_<n>]",
+            "severity": "error"
+          }
+        ]
+      },
+      "state_after": {
+        "model_trained_nn": true,
+        "nn_model_is_none": true
+      },
+      "tab_3": {
+        "exception": "AttributeError: 'NoneType' object has no attribute 'predict'"
+      },
+      "tab_4": {
+        "exception": "AttributeError: 'NoneType' object has no attribute 'history'"
+      },
+      "tab_5": {
+        "kind": "page",
+        "children": [
+          {
+            "kind": "notice",
+            "text": "📊 **Dataset actual:** 🔬 Cáncer - Diagnóstico binario",
+            "severity": "info"
+          },
+          {
+            "kind": "text",
+            "text": "---",
+            "html": false
+          },
+          {
+            "kind": "heading",
+            "text": "🔮 Predicciones",
+            "level": 1
+          },
+          {
+            "kind": "text",
+            "text": "### Ingresa valores para predecir",
+            "html": false
+          },
+          {
+            "kind": "row",
+            "weights": [1, 1],
+            "children": [
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "slider",
+                    "label": "**mean radius**\n\n*Radio promedio del núcleo celular*",
+                    "key": "feature_0",
+                    "value": 14.127291739894552,
+                    "min_value": 6.981,
+                    "max_value": 28.11,
+                    "step": 0.21128999999999998
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "**mean texture**\n\n*Textura promedio del núcleo*",
+                    "key": "feature_1",
+                    "value": 19.289648506151142,
+                    "min_value": 9.71,
+                    "max_value": 39.28,
+                    "step": 0.2957
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "**mean perimeter**\n\n*Perímetro promedio del núcleo*",
+                    "key": "feature_2",
+                    "value": 91.96903339191564,
+                    "min_value": 43.79,
+                    "max_value": 188.5,
+                    "step": 1.4471
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "**mean area**\n\n*Área promedio del núcleo*",
+                    "key": "feature_3",
+                    "value": 654.8891036906855,
+                    "min_value": 143.5,
+                    "max_value": 2501.0,
+                    "step": 23.575
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "**mean smoothness**\n\n*Suavidad promedio del núcleo*",
+                    "key": "feature_4",
+                    "value": 0.0963602811950791,
+                    "min_value": 0.05263,
+                    "max_value": 0.1634,
+                    "step": 0.0011076999999999999
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "mean compactness",
+                    "key": "feature_5",
+                    "value": 0.10434098418277679,
+                    "min_value": 0.01938,
+                    "max_value": 0.3454,
+                    "step": 0.0032601999999999996
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "mean concavity",
+                    "key": "feature_6",
+                    "value": 0.0887993158172232,
+                    "min_value": 0.0,
+                    "max_value": 0.4268,
+                    "step": 0.004268
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "mean concave points",
+                    "key": "feature_7",
+                    "value": 0.04891914586994728,
+                    "min_value": 0.0,
+                    "max_value": 0.2012,
+                    "step": 0.002012
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "mean symmetry",
+                    "key": "feature_8",
+                    "value": 0.18116186291739894,
+                    "min_value": 0.106,
+                    "max_value": 0.304,
+                    "step": 0.00198
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "mean fractal dimension",
+                    "key": "feature_9",
+                    "value": 0.06279760984182776,
+                    "min_value": 0.04996,
+                    "max_value": 0.09744,
+                    "step": 0.0004748
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "radius error",
+                    "key": "feature_10",
+                    "value": 0.40517205623901575,
+                    "min_value": 0.1115,
+                    "max_value": 2.873,
+                    "step": 0.027615000000000004
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "texture error",
+                    "key": "feature_11",
+                    "value": 1.2168534270650264,
+                    "min_value": 0.3602,
+                    "max_value": 4.885,
+                    "step": 0.045248
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "perimeter error",
+                    "key": "feature_12",
+                    "value": 2.8660592267135327,
+                    "min_value": 0.757,
+                    "max_value": 21.98,
+                    "step": 0.21223
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "area error",
+                    "key": "feature_13",
+                    "value": 40.337079086116,
+                    "min_value": 6.802,
+                    "max_value": 542.2,
+                    "step": 5.35398
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "smoothness error",
+                    "key": "feature_14",
+                    "value": 0.007040978910369069,
+                    "min_value": 0.001713,
+                    "max_value": 0.03113,
+                    "step": 0.00029417
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "slider",
+                    "label": "compactness error",
+                    "key": "feature_15",
+                    "value": 0.025478138840070295,
+                    "min_value": 0.002252,
+                    "max_value": 0.1354,
+                    "step": 0.00133148
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "concavity error",
+                    "key": "feature_16",
+                    "value": 0.03189371634446397,
+                    "min_value": 0.0,
+                    "max_value": 0.396,
+                    "step": 0.00396
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "concave points error",
+                    "key": "feature_17",
+                    "value": 0.011796137082601054,
+                    "min_value": 0.0,
+                    "max_value": 0.05279,
+                    "step": 0.0005279
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "symmetry error",
+                    "key": "feature_18",
+                    "value": 0.02054229876977153,
+                    "min_value": 0.007882,
+                    "max_value": 0.07895,
+                    "step": 0.0007106800000000001
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "fractal dimension error",
+                    "key": "feature_19",
+                    "value": 0.0037949038664323374,
+                    "min_value": 0.0008948,
+                    "max_value": 0.02984,
+                    "step": 0.000289452
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "worst radius",
+                    "key": "feature_20",
+                    "value": 16.269189806678387,
+                    "min_value": 7.93,
+                    "max_value": 36.04,
+                    "step": 0.2811
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "worst texture",
+                    "key": "feature_21",
+                    "value": 25.677223198594024,
+                    "min_value": 12.02,
+                    "max_value": 49.54,
+                    "step": 0.3752
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "worst perimeter",
+                    "key": "feature_22",
+                    "value": 107.26121265377857,
+                    "min_value": 50.41,
+                    "max_value": 251.2,
+                    "step": 2.0079
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "worst area",
+                    "key": "feature_23",
+                    "value": 880.5831282952548,
+                    "min_value": 185.2,
+                    "max_value": 4254.0,
+                    "step": 40.688
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "worst smoothness",
+                    "key": "feature_24",
+                    "value": 0.13236859402460457,
+                    "min_value": 0.07117,
+                    "max_value": 0.2226,
+                    "step": 0.0015143
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "worst compactness",
+                    "key": "feature_25",
+                    "value": 0.25426504393673116,
+                    "min_value": 0.02729,
+                    "max_value": 1.058,
+                    "step": 0.0103071
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "worst concavity",
+                    "key": "feature_26",
+                    "value": 0.27218848330404216,
+                    "min_value": 0.0,
+                    "max_value": 1.252,
+                    "step": 0.01252
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "worst concave points",
+                    "key": "feature_27",
+                    "value": 0.11460622319859401,
+                    "min_value": 0.0,
+                    "max_value": 0.291,
+                    "step": 0.00291
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "worst symmetry",
+                    "key": "feature_28",
+                    "value": 0.2900755711775044,
+                    "min_value": 0.1565,
+                    "max_value": 0.6638,
+                    "step": 0.005072999999999999
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "worst fractal dimension",
+                    "key": "feature_29",
+                    "value": 0.0839458172231986,
+                    "min_value": 0.05504,
+                    "max_value": 0.2075,
+                    "step": 0.0015245999999999999
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "button",
+            "key": null,
+            "label": "Realizar predicción",
+            "type": "primary"
+          }
+        ]
+      },
+      "tab_6": {
+        "kind": "page",
+        "children": [
+          {
+            "kind": "notice",
+            "text": "📊 **Dataset actual:** 🔬 Cáncer - Diagnóstico binario",
+            "severity": "info"
+          },
+          {
+            "kind": "text",
+            "text": "---",
+            "html": false
+          },
+          {
+            "kind": "heading",
+            "text": "💾 Exportar Modelo",
+            "level": 1
+          },
+          {
+            "kind": "notice",
+            "text": "⚠️ Primero debes entrenar un modelo en la pestaña 'Entrenamiento'",
+            "severity": "warning"
+          }
+        ]
+      }
+    },
+    "diabetes_salida_softmax": {
+      "spec": {
+        "dataset": "diabetes",
+        "out": "softmax",
+        "epochs": 10
+      },
+      "training_view": {
+        "kind": "page",
+        "children": [
+          {
+            "kind": "notice",
+            "text": "📊 **Dataset actual:** 🩺 Diabetes - Progresión (regresión)",
+            "severity": "info"
+          },
+          {
+            "kind": "text",
+            "text": "---",
+            "html": false
+          },
+          {
+            "kind": "heading",
+            "text": "⚙️ Entrenamiento de la Red Neuronal",
+            "level": 1
+          },
+          {
+            "kind": "notice",
+            "text": "🎓 **Conceptos Clave del Entrenamiento:**\n- **Learning Rate**: Controla qué tan rápido aprende la red (muy alto = inestable, muy bajo = lento)\n- **Épocas**: Cuántas veces la red ve todos los datos (más épocas ≠ siempre mejor)\n- **Validación**: Datos separados para monitorear si la red está generalizando bien\n- **Early Stopping**: Para evitar sobreajuste, para cuando la validación no mejora",
+            "severity": "info"
+          },
+          {
+            "kind": "text",
+            "text": "### 🎛️ Parámetros de Entrenamiento",
+            "html": false
+          },
+          {
+            "kind": "row",
+            "weights": [1, 1, 1],
+            "children": [
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "text",
+                    "text": "#### 📈 **Learning Rate**",
+                    "html": false
+                  },
+                  {
+                    "kind": "select",
+                    "label": "Tasa de Aprendizaje",
+                    "key": null,
+                    "value": 0.001,
+                    "options": [0.001, 0.01, 0.1, 0.3],
+                    "display": ["0.001", "0.01", "0.1", "0.3"],
+                    "help": "💡 0.001 es seguro para empezar. Valores más altos pueden acelerar el entrenamiento pero causar inestabilidad"
+                  },
+                  {
+                    "kind": "caption",
+                    "text": "🟢 **Conservador**: Aprendizaje lento pero estable"
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "text",
+                    "text": "#### 🔄 **Épocas**",
+                    "html": false
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "Épocas",
+                    "key": null,
+                    "value": 10,
+                    "min_value": 10,
+                    "max_value": 500,
+                    "step": 10,
+                    "help": "💡 Sugerencia para tu dataset: ~50 épocas"
+                  },
+                  {
+                    "kind": "caption",
+                    "text": "🟡 **Pocas épocas**: Puede que no aprenda completamente"
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "text",
+                    "text": "#### 🎯 **Validación**",
+                    "html": false
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "% Datos de Validación",
+                    "key": null,
+                    "value": 20,
+                    "min_value": 10,
+                    "max_value": 40,
+                    "step": null,
+                    "help": "💡 20% es estándar. Más datos = mejor validación, menos datos para entrenar"
+                  },
+                  {
+                    "kind": "caption",
+                    "text": "📊 **Distribución**: Train=282, Val=88, Test=72"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "expander",
+            "label": "⚙️ Configuración Avanzada - Técnicas para Mejorar el Entrenamiento",
+            "expanded": false,
+            "children": [
+              {
+                "kind": "text",
+                "text": "#### 🛡️ Técnicas de Regularización y Optimización",
+                "html": false
+              },
+              {
+                "kind": "row",
+                "weights": [1, 1],
+                "children": [
+                  {
+                    "kind": "column",
+                    "children": [
+                      {
+                        "kind": "text",
+                        "text": "##### 🛑 Early Stopping",
+                        "html": false
+                      },
+                      {
+                        "kind": "checkbox",
+                        "label": "Activar Parada Temprana",
+                        "key": null,
+                        "value": true,
+                        "help": "💡 Recomendado: Evita sobreajuste parando cuando la validación no mejora"
+                      },
+                      {
+                        "kind": "notice",
+                        "text": "✅ **Early Stopping activado**: La red parará automáticamente cuando deje de mejorar",
+                        "severity": "success"
+                      },
+                      {
+                        "kind": "slider",
+                        "label": "Paciencia (épocas)",
+                        "key": null,
+                        "value": 10,
+                        "min_value": 5,
+                        "max_value": 50,
+                        "step": null,
+                        "help": "Épocas a esperar sin mejora antes de parar. Más paciencia = más oportunidades de mejorar"
+                      },
+                      {
+                        "kind": "caption",
+                        "text": "🟢 **Balanceado**: Buen equilibrio"
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "column",
+                    "children": [
+                      {
+                        "kind": "text",
+                        "text": "##### 📉 Learning Rate Scheduler",
+                        "html": false
+                      },
+                      {
+                        "kind": "checkbox",
+                        "label": "Reducir Learning Rate Automáticamente",
+                        "key": null,
+                        "value": true,
+                        "help": "💡 Recomendado: Reduce la tasa de aprendizaje cuando no mejora"
+                      },
+                      {
+                        "kind": "notice",
+                        "text": "✅ **Scheduler activado**: La tasa de aprendizaje se reducirá automáticamente",
+                        "severity": "success"
+                      },
+                      {
+                        "kind": "slider",
+                        "label": "Factor de Reducción",
+                        "key": null,
+                        "value": 0.5,
+                        "min_value": 0.1,
+                        "max_value": 0.9,
+                        "step": null,
+                        "help": "Factor por el que se multiplica la tasa. 0.5 = reduce a la mitad"
+                      },
+                      {
+                        "kind": "caption",
+                        "text": "🟢 **Reducción moderada**: Recomendado"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "kind": "text",
+                "text": "---",
+                "html": false
+              },
+              {
+                "kind": "text",
+                "text": "#### 📚 ¿Por qué usar estas técnicas?",
+                "html": false
+              },
+              {
+                "kind": "text",
+                "text": "- **Early Stopping**: Evita que la red memorice los datos (sobreajuste) parando cuando la performance en validación deja de mejorar\n- **Learning Rate Reduction**: Permite un ajuste fino hacia el final del entrenamiento cuando se está cerca del óptimo\n- **Combinadas**: Estas técnicas trabajan juntas para lograr el mejor modelo posible automáticamente",
+                "html": false
+              }
+            ]
+          },
+          {
+            "kind": "text",
+            "text": "### 🚀 Iniciar Entrenamiento",
+            "html": false
+          },
+          {
+            "kind": "text",
+            "text": "**¿Todo listo?** Tu red está configurada y lista para aprender de los datos.",
+            "html": false
+          },
+          {
+            "kind": "button",
+            "key": null,
+            "label": "🧠 Entrenar Red Neuronal",
+            "type": "primary",
+            "use_container_width": true
+          },
+          {
+            "kind": "column",
+            "children": [
+              {
+                "kind": "notice",
+                "text": "✅ **¡Entrenamiento completado!** Red neuronal lista para usar",
+                "severity": "success"
+              }
+            ]
+          },
+          {
+            "kind": "notice",
+            "text": "⚠️ Softmax en regresión: las salidas sumarán 1. Esto raramente es lo deseado.",
+            "severity": "error"
+          },
+          {
+            "kind": "notice",
+            "text": "🎉 ¡Red neuronal entrenada exitosamente!",
+            "severity": "success"
+          }
+        ]
+      },
+      "state_after": {
+        "model_trained_nn": true,
+        "nn_model_is_none": false
+      },
+      "tab_3": {
+        "kind": "page",
+        "children": [
+          {
+            "kind": "notice",
+            "text": "📊 **Dataset actual:** 🩺 Diabetes - Progresión (regresión)",
+            "severity": "info"
+          },
+          {
+            "kind": "text",
+            "text": "---",
+            "html": false
+          },
+          {
+            "kind": "heading",
+            "text": "📈 Evaluación del Modelo",
+            "level": 1
+          },
+          {
+            "kind": "text",
+            "text": "#### 📊 Resultados del Entrenamiento",
+            "html": false
+          },
+          {
+            "kind": "metric",
+            "label": "📉 Error en Test",
+            "value": "26258.033",
+            "delta": null
+          },
+          {
+            "kind": "text",
+            "text": "### 📈 Progreso del Entrenamiento",
+            "html": false
+          },
+          {
+            "kind": "plotly",
+            "chart": {
+              "traces": [
+                {
+                  "type": "scatter",
+                  "name": "Entrenamiento",
+                  "xaxis": "x",
+                  "yaxis": "y",
+                  "line": {
+                    "color": "blue"
+                  },
+                  "y": {
+                    "n": 10,
+                    "values": [31212.869140625, 31212.869140625, 31212.869140625, 31212.869140625, 31212.869140625, 31212.869140625, 31212.869140625, 31212.869140625, 31212.869140625, 31212.869140625]
+                  }
+                },
+                {
+                  "type": "scatter",
+                  "name": "Validación",
+                  "xaxis": "x",
+                  "yaxis": "y",
+                  "line": {
+                    "color": "red"
+                  },
+                  "y": {
+                    "n": 10,
+                    "values": [22223.705078125, 22223.705078125, 22223.705078125, 22223.705078125, 22223.705078125, 22223.705078125, 22223.705078125, 22223.705078125, 22223.705078125, 22223.705078125]
+                  }
+                },
+                {
+                  "type": "scatter",
+                  "name": "Entrenamiento",
+                  "showlegend": false,
+                  "xaxis": "x2",
+                  "yaxis": "y2",
+                  "line": {
+                    "color": "blue"
+                  },
+                  "y": {
+                    "n": 10,
+                    "values": [157.67730712890625, 157.67730712890625, 157.67730712890625, 157.67730712890625, 157.67730712890625, 157.67730712890625, 157.67730712890625, 157.67730712890625, 157.67730712890625, 157.67730712890625]
+                  }
+                },
+                {
+                  "type": "scatter",
+                  "name": "Validación",
+                  "showlegend": false,
+                  "xaxis": "x2",
+                  "yaxis": "y2",
+                  "line": {
+                    "color": "red"
+                  },
+                  "y": {
+                    "n": 10,
+                    "values": [133.1126708984375, 133.1126708984375, 133.1126708984375, 133.1126708984375, 133.1126708984375, 133.1126708984375, 133.1126708984375, 133.1126708984375, 133.1126708984375, 133.1126708984375]
+                  }
+                }
+              ],
+              "layout": {
+                "xaxis": {
+                  "anchor": "y",
+                  "domain": [0.0, 0.45],
+                  "title": {
+                    "text": "Época"
+                  }
+                },
+                "yaxis": {
+                  "anchor": "x",
+                  "domain": [0.0, 1.0],
+                  "title": {
+                    "text": "MSE"
+                  }
+                },
+                "xaxis2": {
+                  "anchor": "y2",
+                  "domain": [0.55, 1.0],
+                  "title": {
+                    "text": "Época"
+                  }
+                },
+                "yaxis2": {
+                  "anchor": "x2",
+                  "domain": [0.0, 1.0],
+                  "title": {
+                    "text": "MAE"
+                  }
+                },
+                "annotations": [
+                  {
+                    "font": {
+                      "size": 16
+                    },
+                    "showarrow": false,
+                    "text": "Pérdida (MSE) durante el Entrenamiento",
+                    "x": 0.225,
+                    "xanchor": "center",
+                    "xref": "paper",
+                    "y": 1.0,
+                    "yanchor": "bottom",
+                    "yref": "paper"
+                  },
+                  {
+                    "font": {
+                      "size": 16
+                    },
+                    "showarrow": false,
+                    "text": "Error Absoluto Medio",
+                    "x": 0.775,
+                    "xanchor": "center",
+                    "xref": "paper",
+                    "y": 1.0,
+                    "yanchor": "bottom",
+                    "yref": "paper"
+                  }
+                ],
+                "height": 400,
+                "showlegend": true
+              }
+            }
+          },
+          {
+            "kind": "row",
+            "weights": [1, 1, 1, 1],
+            "children": [
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "metric",
+                    "label": "Error Cuadrático Medio (MSE)",
+                    "value": "26258.0337",
+                    "delta": null,
+                    "help": "Promedio de los errores al cuadrado. Penaliza más los errores grandes."
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "metric",
+                    "label": "RMSE",
+                    "value": "162.0433",
+                    "delta": null,
+                    "help": "Raíz cuadrada del MSE. En las mismas unidades que la variable objetivo."
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "metric",
+                    "label": "Error Absoluto Medio (MAE)",
+                    "value": "144.7753",
+                    "delta": null,
+                    "help": "Promedio de los errores absolutos. Menos sensible a valores atípicos."
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "metric",
+                    "label": "R² Score",
+                    "value": "-3.9561",
+                    "delta": null,
+                    "help": "Proporción de la varianza explicada por el modelo. 1 es predicción perfecta."
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "row",
+            "weights": [1, 3, 1],
+            "children": [
+              {
+                "kind": "column"
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "image",
+                    "figure": {
+                      "size_inches": [6.0, 5.0],
+                      "axes": [
+                        {
+                          "title": "Predicciones vs Valores reales",
+                          "xlabel": "Valores reales",
+                          "ylabel": "Predicciones",
+                          "xlim": [23.35, 323.65],
+                          "ylim": [-14.450000000000001, 325.45],
+                          "is_colorbar": false,
+                          "lines": [
+                            {
+                              "label": "_child1",
+                              "color": "#ff0000ff",
+                              "linestyle": "--",
+                              "linewidth": 1.5,
+                              "alpha": null,
+                              "xy": {
+                                "n": 2,
+                                "values": [
+                                  [37.0, 37.0],
+                                  [310.0, 310.0]
+                                ]
+                              }
+                            }
+                          ],
+                          "collections": [
+                            {
+                              "type": "scatter",
+                              "offsets": {
+                                "n": 89,
+                                "values": [
+                                  [219.0, 1.0],
+                                  [70.0, 1.0],
+                                  [202.0, 1.0],
+                                  [230.0, 1.0],
+                                  [111.0, 1.0],
+                                  [84.0, 1.0],
+                                  [242.0, 1.0],
+                                  [272.0, 1.0],
+                                  [94.0, 1.0],
+                                  [96.0, 1.0],
+                                  [94.0, 1.0],
+                                  [252.0, 1.0],
+                                  [99.0, 1.0],
+                                  [297.0, 1.0],
+                                  [135.0, 1.0],
+                                  [67.0, 1.0],
+                                  [295.0, 1.0],
+                                  [264.0, 1.0],
+                                  [170.0, 1.0],
+                                  [275.0, 1.0],
+                                  [310.0, 1.0],
+                                  [64.0, 1.0],
+                                  [128.0, 1.0],
+                                  [232.0, 1.0],
+                                  [129.0, 1.0],
+                                  [118.0, 1.0],
+                                  [263.0, 1.0],
+                                  [77.0, 1.0],
+                                  [48.0, 1.0],
+                                  [107.0, 1.0],
+                                  [140.0, 1.0],
+                                  [113.0, 1.0],
+                                  [90.0, 1.0],
+                                  [164.0, 1.0],
+                                  [180.0, 1.0],
+                                  [233.0, 1.0],
+                                  [42.0, 1.0],
+                                  [84.0, 1.0],
+                                  [172.0, 1.0],
+                                  [63.0, 1.0],
+                                  [48.0, 1.0],
+                                  [108.0, 1.0],
+                                  [156.0, 1.0],
+                                  [168.0, 1.0],
+                                  [90.0, 1.0],
+                                  [52.0, 1.0],
+                                  [200.0, 1.0],
+                                  [87.0, 1.0],
+                                  [90.0, 1.0],
+                                  [258.0, 1.0],
+                                  [136.0, 1.0],
+                                  [158.0, 1.0],
+                                  [69.0, 1.0],
+                                  [72.0, 1.0],
+                                  [171.0, 1.0],
+                                  [95.0, 1.0],
+                                  [72.0, 1.0],
+                                  [151.0, 1.0],
+                                  [168.0, 1.0],
+                                  [60.0, 1.0],
+                                  [122.0, 1.0],
+                                  [52.0, 1.0],
+                                  [187.0, 1.0],
+                                  [102.0, 1.0],
+                                  [214.0, 1.0],
+                                  [248.0, 1.0],
+                                  [181.0, 1.0],
+                                  [110.0, 1.0],
+                                  [140.0, 1.0],
+                                  [202.0, 1.0],
+                                  [101.0, 1.0],
+                                  [222.0, 1.0],
+                                  [281.0, 1.0],
+                                  [61.0, 1.0],
+                                  [89.0, 1.0],
+                                  [91.0, 1.0],
+                                  [186.0, 1.0],
+                                  [220.0, 1.0],
+                                  [237.0, 1.0],
+                                  [233.0, 1.0],
+                                  [68.0, 1.0],
+                                  [190.0, 1.0],
+                                  [96.0, 1.0],
+                                  [72.0, 1.0],
+                                  [153.0, 1.0],
+                                  [98.0, 1.0],
+                                  [37.0, 1.0],
+                                  [63.0, 1.0],
+                                  [184.0, 1.0]
+                                ]
+                              },
+                              "sizes": [36.0],
+                              "alpha": 0.5,
+                              "facecolors": [
+                                {
+                                  "color": "#35b77980",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#472a7a80",
+                                  "count": 2
+                                },
+                                {
+                                  "color": "#23a98380",
+                                  "count": 2
+                                },
+                                {
+                                  "color": "#46c06f80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#38588c80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#443b8480",
+                                  "count": 2
+                                },
+                                {
+                                  "color": "#5ec96280",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#a2da3780",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#40468880",
+                                  "count": 2
+                                },
+                                {
+                                  "color": "#3f488980",
+                                  "count": 2
+                                },
+                                {
+                                  "color": "#73d05680",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#3e4c8a80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#dfe31880",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#2e6e8e80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#48287880",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#dae31980",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#8ed64580",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#228d8d80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#aadc3280",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#fde72580",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#48247580",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#31688e80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#4ac16d80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#30698e80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#355e8d80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#8bd64680",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#46337f80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#47106380",
+                                  "count": 2
+                                },
+                                {
+                                  "color": "#3a538b80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#2c728e80",
+                                  "count": 2
+                                },
+                                {
+                                  "color": "#375a8c80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#42418680",
+                                  "count": 3
+                                },
+                                {
+                                  "color": "#23888e80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#1f968b80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#4cc26c80",
+                                  "count": 2
+                                },
+                                {
+                                  "color": "#46075a80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#218f8d80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#48237480",
+                                  "count": 2
+                                },
+                                {
+                                  "color": "#3a548c80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#26818e80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#228b8d80",
+                                  "count": 2
+                                },
+                                {
+                                  "color": "#48166880",
+                                  "count": 2
+                                },
+                                {
+                                  "color": "#22a78580",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#433e8580",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#81d34d80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#2e6f8e80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#26828e80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#472d7b80",
+                                  "count": 3
+                                },
+                                {
+                                  "color": "#218e8d80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#3f478880",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#287c8e80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#481f7080",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#33628d80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#1e9c8980",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#3d4e8a80",
+                                  "count": 2
+                                },
+                                {
+                                  "color": "#2eb37c80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#69cd5b80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#1f978b80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#39568c80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#3aba7680",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#b8de2980",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#48207180",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#42408680",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#41428780",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#1e9b8a80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#37b87880",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#54c56880",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#48297980",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#1f9f8880",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#277e8e80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#3e4a8980",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#44015480",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#1f998a80",
+                                  "count": 1
+                                }
+                              ],
+                              "edgecolors": [
+                                {
+                                  "color": "#35b77980",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#472a7a80",
+                                  "count": 2
+                                },
+                                {
+                                  "color": "#23a98380",
+                                  "count": 2
+                                },
+                                {
+                                  "color": "#46c06f80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#38588c80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#443b8480",
+                                  "count": 2
+                                },
+                                {
+                                  "color": "#5ec96280",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#a2da3780",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#40468880",
+                                  "count": 2
+                                },
+                                {
+                                  "color": "#3f488980",
+                                  "count": 2
+                                },
+                                {
+                                  "color": "#73d05680",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#3e4c8a80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#dfe31880",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#2e6e8e80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#48287880",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#dae31980",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#8ed64580",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#228d8d80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#aadc3280",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#fde72580",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#48247580",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#31688e80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#4ac16d80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#30698e80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#355e8d80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#8bd64680",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#46337f80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#47106380",
+                                  "count": 2
+                                },
+                                {
+                                  "color": "#3a538b80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#2c728e80",
+                                  "count": 2
+                                },
+                                {
+                                  "color": "#375a8c80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#42418680",
+                                  "count": 3
+                                },
+                                {
+                                  "color": "#23888e80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#1f968b80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#4cc26c80",
+                                  "count": 2
+                                },
+                                {
+                                  "color": "#46075a80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#218f8d80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#48237480",
+                                  "count": 2
+                                },
+                                {
+                                  "color": "#3a548c80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#26818e80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#228b8d80",
+                                  "count": 2
+                                },
+                                {
+                                  "color": "#48166880",
+                                  "count": 2
+                                },
+                                {
+                                  "color": "#22a78580",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#433e8580",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#81d34d80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#2e6f8e80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#26828e80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#472d7b80",
+                                  "count": 3
+                                },
+                                {
+                                  "color": "#218e8d80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#3f478880",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#287c8e80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#481f7080",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#33628d80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#1e9c8980",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#3d4e8a80",
+                                  "count": 2
+                                },
+                                {
+                                  "color": "#2eb37c80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#69cd5b80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#1f978b80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#39568c80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#3aba7680",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#b8de2980",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#48207180",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#42408680",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#41428780",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#1e9b8a80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#37b87880",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#54c56880",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#48297980",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#1f9f8880",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#277e8e80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#3e4a8980",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#44015480",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#1f998a80",
+                                  "count": 1
+                                }
+                              ],
+                              "c": {
+                                "n": 89,
+                                "values": [218.0, 69.0, 201.0, 229.0, 110.0, 83.0, 241.0, 271.0, 93.0, 95.0, 93.0, 251.0, 98.0, 296.0, 134.0, 66.0, 294.0, 263.0, 169.0, 274.0, 309.0, 63.0, 127.0, 231.0, 128.0, 117.0, 262.0, 76.0, 47.0, 106.0, 139.0, 112.0, 89.0, 163.0, 179.0, 232.0, 41.0, 83.0, 171.0, 62.0, 47.0, 107.0, 155.0, 167.0, 89.0, 51.0, 199.0, 86.0, 89.0, 257.0, 135.0, 157.0, 68.0, 71.0, 170.0, 94.0, 71.0, 150.0, 167.0, 59.0, 121.0, 51.0, 186.0, 101.0, 213.0, 247.0, 180.0, 109.0, 139.0, 201.0, 100.0, 221.0, 280.0, 60.0, 88.0, 90.0, 185.0, 219.0, 236.0, 232.0, 67.0, 189.0, 95.0, 71.0, 152.0, 97.0, 36.0, 62.0, 183.0]
+                              },
+                              "cmap": "viridis",
+                              "norm": [36.0, 309.0]
+                            }
+                          ]
+                        },
+                        {
+                          "title": "",
+                          "xlabel": "",
+                          "ylabel": "Error absoluto",
+                          "xlim": [0.0, 1.0],
+                          "ylim": [36.0, 309.0],
+                          "is_colorbar": true,
+                          "collections": [
+                            {
+                              "type": "heatmap",
+                              "cmap": "viridis",
+                              "norm": [36.0, 309.0],
+                              "values": [36.533203125, 37.599609375, 38.666015625, 39.732421875, 40.798828125, 41.865234375, 42.931640625, 43.998046875, 45.064453125, 46.130859375, 47.197265625, 48.263671875, 49.330078125, 50.396484375, 51.462890625, 52.529296875, 53.595703125, 54.662109375, 55.728515625, 56.794921875, 57.861328125, 58.927734375, 59.994140625, 61.060546875, 62.126953125, 63.193359375, 64.259765625, 65.326171875, 66.392578125, 67.458984375, 68.525390625, 69.591796875, 70.658203125, 71.724609375, 72.791015625, 73.857421875, 74.923828125, 75.990234375, 77.056640625, 78.123046875, 79.189453125, 80.255859375, 81.322265625, 82.388671875, 83.455078125, 84.521484375, 85.587890625, 86.654296875, 87.720703125, 88.787109375, 89.853515625, 90.919921875, 91.986328125, 93.052734375, 94.119140625, 95.185546875, 96.251953125, 97.318359375, 98.384765625, 99.451171875, 100.517578125, 101.583984375, 102.650390625, 103.716796875, 104.783203125, 105.849609375, 106.916015625, 107.982421875, 109.048828125, 110.115234375, 111.181640625, 112.248046875, 113.314453125, 114.380859375, 115.447265625, 116.513671875, 117.580078125, 118.646484375, 119.712890625, 120.779296875, 121.845703125, 122.912109375, 123.978515625, 125.044921875, 126.111328125, 127.177734375, 128.244140625, 129.310546875, 130.376953125, 131.443359375, 132.509765625, 133.576171875, 134.642578125, 135.708984375, 136.775390625, 137.841796875, 138.908203125, 139.974609375, 141.041015625, 142.107421875, 143.173828125, 144.240234375, 145.306640625, 146.373046875, 147.439453125, 148.505859375, 149.572265625, 150.638671875, 151.705078125, 152.771484375, 153.837890625, 154.904296875, 155.970703125, 157.037109375, 158.103515625, 159.169921875, 160.236328125, 161.302734375, 162.369140625, 163.435546875, 164.501953125, 165.568359375, 166.634765625, 167.701171875, 168.767578125, 169.833984375, 170.900390625, 171.966796875, 173.033203125, 174.099609375, 175.166015625, 176.232421875, 177.298828125, 178.365234375, 179.431640625, 180.498046875, 181.564453125, 182.630859375, 183.697265625, 184.763671875, 185.830078125, 186.896484375, 187.962890625, 189.029296875, 190.095703125, 191.162109375, 192.228515625, 193.294921875, 194.361328125, 195.427734375, 196.494140625, 197.560546875, 198.626953125, 199.693359375, 200.759765625, 201.826171875, 202.892578125, 203.958984375, 205.025390625, 206.091796875, 207.158203125, 208.224609375, 209.291015625, 210.357421875, 211.423828125, 212.490234375, 213.556640625, 214.623046875, 215.689453125, 216.755859375, 217.822265625, 218.888671875, 219.955078125, 221.021484375, 222.087890625, 223.154296875, 224.220703125, 225.287109375, 226.353515625, 227.419921875, 228.486328125, 229.552734375, 230.619140625, 231.685546875, 232.751953125, 233.818359375, 234.884765625, 235.951171875, 237.017578125, 238.083984375, 239.150390625, 240.216796875, 241.283203125, 242.349609375, 243.416015625, 244.482421875, 245.548828125, 246.615234375, 247.681640625, 248.748046875, 249.814453125, 250.880859375, 251.947265625, 253.013671875, 254.080078125, 255.146484375, 256.212890625, 257.279296875, 258.345703125, 259.412109375, 260.478515625, 261.544921875, 262.611328125, 263.677734375, 264.744140625, 265.810546875, 266.876953125, 267.943359375, 269.009765625, 270.076171875, 271.142578125, 272.208984375, 273.275390625, 274.341796875, 275.408203125, 276.474609375, 277.541015625, 278.607421875, 279.673828125, 280.740234375, 281.806640625, 282.873046875, 283.939453125, 285.005859375, 286.072265625, 287.138671875, 288.205078125, 289.271484375, 290.337890625, 291.404296875, 292.470703125, 293.537109375, 294.603515625, 295.669921875, 296.736328125, 297.802734375, 298.869140625, 299.935546875, 301.001953125, 302.068359375, 303.134765625, 304.201171875, 305.267578125, 306.333984375, 307.400390625, 308.466796875]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "column"
+              }
+            ]
+          },
+          {
+            "kind": "download_link",
+            "label": "📥 Descargar gráfico",
+            "file_name": "predicciones_vs_reales.png",
+            "mime": "file/png",
+            "note": "PNG generated by matplotlib at 300 dpi (savefig bbox_inches='tight')"
+          },
+          {
+            "kind": "text",
+            "text": "#### Código para generar este gráfico",
+            "html": false
+          },
+          {
+            "kind": "expander",
+            "label": "Ver código",
+            "expanded": false,
+            "children": [
+              {
+                "kind": "code",
+                "text": "\nimport matplotlib.pyplot as plt\nimport numpy as np\n\n# Crear el gráfico\nfig, ax = plt.subplots(figsize=(8, 6))\nscatter = ax.scatter(y_test, y_pred, alpha=0.5,\n                    c=np.abs(y_test - y_pred), cmap='viridis')\nax.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--')\nax.set_xlabel('Valores reales')\nax.set_ylabel('Predicciones')\nax.set_title('Predicciones vs Valores reales')\nplt.colorbar(scatter, ax=ax, label='Error absoluto')\n\nplt.tight_layout()\nplt.show()\n",
+                "language": "python"
+              },
+              {
+                "kind": "row",
+                "weights": [1, 1],
+                "children": [
+                  {
+                    "kind": "column",
+                    "children": [
+                      {
+                        "kind": "download_link",
+                        "label": "📥 Descargar código",
+                        "file_name": "predicciones_vs_reales.py",
+                        "mime": "text/plain",
+                        "text": "\nimport matplotlib.pyplot as plt\nimport numpy as np\n\n# Crear el gráfico\nfig, ax = plt.subplots(figsize=(8, 6))\nscatter = ax.scatter(y_test, y_pred, alpha=0.5,\n                    c=np.abs(y_test - y_pred), cmap='viridis')\nax.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--')\nax.set_xlabel('Valores reales')\nax.set_ylabel('Predicciones')\nax.set_title('Predicciones vs Valores reales')\nplt.colorbar(scatter, ax=ax, label='Error absoluto')\n\nplt.tight_layout()\nplt.show()\n"
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "column",
+                    "children": [
+                      {
+                        "kind": "notice",
+                        "text": "Usa el botón de copia en la esquina superior derecha del bloque de código para copiarlo",
+                        "severity": "info"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "row",
+            "weights": [1, 3, 1],
+            "children": [
+              {
+                "kind": "column"
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "image",
+                    "figure": {
+                      "size_inches": [6.0, 4.0],
+                      "axes": [
+                        {
+                          "title": "Distribución de errores",
+                          "xlabel": "Error (Real - Predicción)",
+                          "ylabel": "Count",
+                          "xlim": [-15.450000000000005, 324.45],
+                          "ylim": [0.0, 22.05],
+                          "is_colorbar": false,
+                          "lines": [
+                            {
+                              "label": "_child8",
+                              "color": "#1f77b4ff",
+                              "linestyle": "-",
+                              "linewidth": 1.5,
+                              "alpha": null,
+                              "xy": {
+                                "n": 200,
+                                "values": [
+                                  [36.0, 7.620560462662351],
+                                  [37.37185929648241, 7.954250428783781],
+                                  [38.743718592964825, 8.291379007626318],
+                                  [40.11557788944724, 8.631265737467167],
+                                  [41.48743718592965, 8.973202377528205],
+                                  [42.85929648241206, 9.316455655491904],
+                                  [44.231155778894475, 9.660270196668723],
+                                  [45.60301507537689, 10.003871617357305],
+                                  [46.9748743718593, 10.34646976427332],
+                                  [48.34673366834171, 10.687262081469958],
+                                  [49.718592964824126, 11.02543708591731],
+                                  [51.09045226130653, 11.360177932826714],
+                                  [52.462311557788944, 11.690666051873784],
+                                  [53.834170854271356, 12.016084835662262],
+                                  [55.20603015075377, 12.335623362047407],
+                                  [56.57788944723618, 12.648480132272592],
+                                  [57.949748743718594, 12.953866807232894],
+                                  [59.321608040201006, 13.251011924535906],
+                                  [60.69346733668342, 13.539164579355676],
+                                  [62.06532663316583, 13.817598052346348],
+                                  [63.437185929648244, 14.085613368081422],
+                                  [64.80904522613065, 14.34254276759807],
+                                  [66.18090452261306, 14.587753078648761],
+                                  [67.55276381909547, 14.820648967195748],
+                                  [68.92462311557789, 15.040676053533916],
+                                  [70.2964824120603, 15.247323876211595],
+                                  [71.66834170854271, 15.44012868665623],
+                                  [73.04020100502512, 15.618676057132175],
+                                  [74.41206030150754, 15.782603284393549],
+                                  [75.78391959798995, 15.931601571182863],
+                                  [77.15577889447236, 16.065417967608326],
+                                  [78.52763819095478, 16.183857054449422],
+                                  [79.89949748743719, 16.28678235063509],
+                                  [81.2713567839196, 16.374117427552196],
+                                  [82.64321608040201, 16.445846713511894],
+                                  [84.01507537688443, 16.502015972661084],
+                                  [85.38693467336684, 16.5427324439034],
+                                  [86.75879396984925, 16.568164627008674],
+                                  [88.13065326633166, 16.578541705054263],
+                                  [89.50251256281408, 16.574152594658216],
+                                  [90.87437185929649, 16.55534461812552],
+                                  [92.2462311557789, 16.522521794619575],
+                                  [93.6180904522613, 16.4761427507612],
+                                  [94.98994974874373, 16.416718254613503],
+                                  [96.36180904522612, 16.344808380784666],
+                                  [97.73366834170855, 16.26101931831824],
+                                  [99.10552763819095, 16.16599983708222],
+                                  [100.47738693467338, 16.060437432445088],
+                                  [101.84924623115577, 15.945054172070357],
+                                  [103.22110552763819, 15.820602272595577],
+                                  [104.5929648241206, 15.68785943771638],
+                                  [105.96482412060301, 15.547623992694565],
+                                  [107.33668341708542, 15.400709853486031],
+                                  [108.70854271356784, 15.247941371471295],
+                                  [110.08040201005025, 15.090148097111685],
+                                  [111.45226130653266, 14.928159507696744],
+                                  [112.82412060301507, 14.762799745650076],
+                                  [114.19597989949749, 14.594882414590217],
+                                  [115.5678391959799, 14.425205480477668],
+                                  [116.93969849246231, 14.254546324707288],
+                                  [118.31155778894473, 14.0836569949273],
+                                  [119.68341708542714, 13.913259697691743],
+                                  [121.05527638190955, 13.744042574802954],
+                                  [122.42713567839196, 13.576655802405394],
+                                  [123.79899497487438, 13.411708048590775],
+                                  [125.17085427135679, 13.249763321512775],
+                                  [126.5427135678392, 13.091338235844278],
+                                  [127.91457286432161, 12.936899720895656],
+                                  [129.28643216080403, 12.78686318891786],
+                                  [130.65829145728645, 12.641591177100052],
+                                  [132.03015075376885, 12.501392471610423],
+                                  [133.40201005025125, 12.366521716786853],
+                                  [134.77386934673368, 12.237179507329719],
+                                  [136.1457286432161, 12.113512956149311],
+                                  [137.5175879396985, 11.995616725438643],
+                                  [138.8894472361809, 11.883534503638879],
+                                  [140.26130653266333, 11.777260906297753],
+                                  [141.63316582914575, 11.676743774442123],
+                                  [143.00502512562815, 11.581886840042978],
+                                  [144.37688442211055, 11.492552724487721],
+                                  [145.74874371859298, 11.408566232727637],
+                                  [147.12060301507537, 11.329717902971636],
+                                  [148.4924623115578, 11.255767769476574],
+                                  [149.8643216080402, 11.186449294163507],
+                                  [151.2361809045226, 11.12147342148296],
+                                  [152.60804020100502, 11.060532710173696],
+                                  [153.97989949748745, 11.0033054953141],
+                                  [155.35175879396985, 10.949460034354333],
+                                  [156.72361809045225, 10.8986585916368],
+                                  [158.09547738693468, 10.850561417252777],
+                                  [159.4673366834171, 10.804830577929557],
+                                  [160.8391959798995, 10.761133599975103],
+                                  [162.2110552763819, 10.719146887101205],
+                                  [163.58291457286433, 10.67855887916963],
+                                  [164.95477386934675, 10.639072921524711],
+                                  [166.32663316582915, 10.60040981854678],
+                                  [167.69849246231155, 10.562310049340168],
+                                  [169.07035175879398, 10.524535628003754],
+                                  [170.44221105527637, 10.486871595668408],
+                                  [171.8140703517588, 10.44912713636239],
+                                  [173.1859296482412, 10.4111363137226],
+                                  [174.55778894472363, 10.37275843053906],
+                                  [175.92964824120602, 10.333878018036897],
+                                  [177.30150753768845, 10.294404466594873],
+                                  [178.67336683417085, 10.254271314205411],
+                                  [180.04522613065328, 10.21343521333051],
+                                  [181.41708542713567, 10.171874600837471],
+                                  [182.7889447236181, 10.129588099346728],
+                                  [184.1608040201005, 10.086592681535189],
+                                  [185.53266331658293, 10.042921631663843],
+                                  [186.90452261306532, 9.998622340792629],
+                                  [188.27638190954775, 9.953753973776552],
+                                  [189.64824120603015, 9.908385047176992],
+                                  [191.02010050251258, 9.862590957656243],
+                                  [192.39195979899498, 9.816451500244671],
+                                  [193.7638190954774, 9.770048415084318],
+                                  [195.1356783919598, 9.723462999875226],
+                                  [196.50753768844223, 9.676773823307016],
+                                  [197.87939698492463, 9.630054572286285],
+                                  [199.25125628140705, 9.583372062814208],
+                                  [200.62311557788945, 9.53678444098563],
+                                  [201.99497487437188, 9.490339596832236],
+                                  [203.36683417085428, 9.444073809688664],
+                                  [204.7386934673367, 9.398010639496002],
+                                  [206.1105527638191, 9.352160074051312],
+                                  [207.48241206030153, 9.306517937744403],
+                                  [208.85427135678393, 9.261065562876054],
+                                  [210.22613065326635, 9.215769720304824],
+                                  [211.59798994974875, 9.170582801999231],
+                                  [212.96984924623115, 9.125443244150919],
+                                  [214.34170854271358, 9.080276175899026],
+                                  [215.71356783919597, 9.034994275484415],
+                                  [217.0854271356784, 8.989498812845751],
+                                  [218.4572864321608, 8.94368085532774],
+                                  [219.82914572864323, 8.897422611325913],
+                                  [221.20100502512562, 8.850598885361375],
+                                  [222.57286432160805, 8.803078617271908],
+                                  [223.94472361809045, 8.754726477920306],
+                                  [225.31658291457288, 8.705404494043899],
+                                  [226.68844221105527, 8.654973675577756],
+                                  [228.0603015075377, 8.603295619946307],
+                                  [229.4321608040201, 8.550234069392797],
+                                  [230.80402010050253, 8.495656399356367],
+                                  [232.17587939698493, 8.43943501815822],
+                                  [233.54773869346735, 8.38144866076448],
+                                  [234.91959798994975, 8.321583562092178],
+                                  [236.29145728643218, 8.25973449815486],
+                                  [237.66331658291458, 8.195805686243148],
+                                  [239.035175879397, 8.129711538242288],
+                                  [240.4070351758794, 8.06137726404537],
+                                  [241.77889447236183, 7.9907393247736636],
+                                  [243.15075376884423, 7.917745738114908],
+                                  [244.52261306532665, 7.84235624049339],
+                                  [245.89447236180905, 7.7645423129557045],
+                                  [247.26633165829148, 7.684287079563005],
+                                  [248.63819095477388, 7.601585088702696],
+                                  [250.0100502512563, 7.516441989053993],
+                                  [251.3819095477387, 7.428874112955673],
+                                  [252.75376884422113, 7.338907980629179],
+                                  [254.12562814070353, 7.246579739112236],
+                                  [255.49748743718595, 7.151934549869136],
+                                  [256.86934673366835, 7.0550259388802194],
+                                  [258.24120603015075, 6.955915122597665],
+                                  [259.6130653266332, 6.854670322511177],
+                                  [260.9849246231156, 6.751366080225508],
+                                  [262.356783919598, 6.646082583940691],
+                                  [263.7286432160804, 6.538905016077561],
+                                  [265.1005025125628, 6.429922930537646],
+                                  [266.4723618090452, 6.319229666758301],
+                                  [267.84422110552765, 6.206921806353041],
+                                  [269.21608040201005, 6.0930986767412945],
+                                  [270.5879396984925, 5.977861904798893],
+                                  [271.9597989949749, 5.861315022225359],
+                                  [273.3316582914573, 5.743563123048342],
+                                  [274.7035175879397, 5.624712572488761],
+                                  [276.0753768844221, 5.504870765309186],
+                                  [277.4472361809045, 5.3841459307758],
+                                  [278.81909547738695, 5.262646980491709],
+                                  [280.19095477386935, 5.140483394614881],
+                                  [281.5628140703518, 5.017765141361796],
+                                  [282.9346733668342, 4.894602624222124],
+                                  [284.3065326633166, 4.771106650969696],
+                                  [285.678391959799, 4.647388418350265],
+                                  [287.0502512562814, 4.523559506252716],
+                                  [288.4221105527638, 4.399731875223532],
+                                  [289.79396984924625, 4.276017861356418],
+                                  [291.16582914572865, 4.152530162874013],
+                                  [292.53768844221105, 4.029381813105611],
+                                  [293.9095477386935, 3.9066861350455206],
+                                  [295.2814070351759, 3.7845566732388494],
+                                  [296.6532663316583, 3.663107099374138],
+                                  [298.0251256281407, 3.542451088653293],
+                                  [299.3969849246231, 3.4227021647450893],
+                                  [300.76884422110555, 3.303973511897021],
+                                  [302.14070351758795, 3.1863777535670783],
+                                  [303.51256281407035, 3.070026697729528],
+                                  [304.88442211055275, 2.9550310497927876],
+                                  [306.2562814070352, 2.8415000948301454],
+                                  [307.6281407035176, 2.7295413515525957],
+                                  [309.0, 2.619260201134677]
+                                ]
+                              }
+                            },
+                            {
+                              "label": "_child9",
+                              "color": "#ff0000ff",
+                              "linestyle": "--",
+                              "linewidth": 1.5,
+                              "alpha": null,
+                              "xy": {
+                                "n": 2,
+                                "values": [
+                                  [0.0, 0.0],
+                                  [0.0, 1.0]
+                                ]
+                              }
+                            }
+                          ],
+                          "bars": {
+                            "n": 8,
+                            "x": [36.0, 70.125, 104.25, 138.375, 172.5, 206.625, 240.75, 274.875],
+                            "y": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                            "width": [34.125, 34.125, 34.125, 34.125, 34.125, 34.125, 34.125, 34.125],
+                            "height": [15.0, 21.0, 11.0, 12.0, 9.0, 9.0, 8.0, 4.0],
+                            "facecolor": ["#1f77b480", "#1f77b480", "#1f77b480", "#1f77b480", "#1f77b480", "#1f77b480", "#1f77b480", "#1f77b480"],
+                            "edgecolor": ["#000000ff"]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "column"
+              }
+            ]
+          },
+          {
+            "kind": "download_link",
+            "label": "📥 Descargar gráfico",
+            "file_name": "distribucion_errores.png",
+            "mime": "file/png",
+            "note": "PNG generated by matplotlib at 300 dpi (savefig bbox_inches='tight')"
+          },
+          {
+            "kind": "text",
+            "text": "#### Código para generar este gráfico",
+            "html": false
+          },
+          {
+            "kind": "expander",
+            "label": "Ver código",
+            "expanded": false,
+            "children": [
+              {
+                "kind": "code",
+                "text": "\nimport matplotlib.pyplot as plt\nimport seaborn as sns\nimport numpy as np\n\n# Calcular los errores\nerrors = y_test - y_pred\n\n# Crear el gráfico\nfig, ax = plt.subplots(figsize=(8, 6))\nsns.histplot(errors, kde=True, ax=ax)\nax.axvline(x=0, color='r', linestyle='--')\nax.set_title('Distribución de errores')\nax.set_xlabel('Error (Real - Predicción)')\n\nplt.tight_layout()\nplt.show()\n",
+                "language": "python"
+              },
+              {
+                "kind": "row",
+                "weights": [1, 1],
+                "children": [
+                  {
+                    "kind": "column",
+                    "children": [
+                      {
+                        "kind": "download_link",
+                        "label": "📥 Descargar código",
+                        "file_name": "distribucion_errores.py",
+                        "mime": "text/plain",
+                        "text": "\nimport matplotlib.pyplot as plt\nimport seaborn as sns\nimport numpy as np\n\n# Calcular los errores\nerrors = y_test - y_pred\n\n# Crear el gráfico\nfig, ax = plt.subplots(figsize=(8, 6))\nsns.histplot(errors, kde=True, ax=ax)\nax.axvline(x=0, color='r', linestyle='--')\nax.set_title('Distribución de errores')\nax.set_xlabel('Error (Real - Predicción)')\n\nplt.tight_layout()\nplt.show()\n"
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "column",
+                    "children": [
+                      {
+                        "kind": "notice",
+                        "text": "Usa el botón de copia en la esquina superior derecha del bloque de código para copiarlo",
+                        "severity": "info"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "expander",
+            "label": "📊 Explicación de métricas de regresión",
+            "expanded": false,
+            "children": [
+              {
+                "kind": "text",
+                "text": "**R² Score (Coeficiente de Determinación):**\n- Mide qué tan bien el modelo explica la variabilidad de los datos\n- Indica qué proporción de la varianza en la variable dependiente es predecible. 1 es predicción perfecta, 0 significa que el modelo no es mejor que predecir la media.\n- Rango: 0 a 1 (valores negativos indican un modelo muy malo)\n- **Interpretación:**\n    - R² = 1.0: El modelo explica perfectamente toda la variabilidad\n    - R² = 0.8: El modelo explica el 80% de la variabilidad (muy bueno)\n    - R² = 0.5: El modelo explica el 50% de la variabilidad (moderado)\n    - R² = 0.0: El modelo no explica nada de la variabilidad\n\n**MAE (Error Absoluto Medio):**\n- Promedio de las diferencias absolutas entre valores reales y predichos\n- Se expresa en las mismas unidades que la variable objetivo\n- **Interpretación:** Valores más bajos = mejor modelo\n\n**RMSE (Raíz del Error Cuadrático Medio):**\n- Similar al MAE pero penaliza más los errores grandes\n- Se expresa en las mismas unidades que la variable objetivo\n- **Interpretación:** Valores más bajos = mejor modelo",
+                "html": false
+              }
+            ]
+          },
+          {
+            "kind": "text",
+            "text": "### 🔍 Interpretación de Resultados",
+            "html": false
+          },
+          {
+            "kind": "notice",
+            "text": "**Resumen del Modelo:**\n- Tu modelo de regresión lineal explica **-395.6%** de la variabilidad en los datos\n- En promedio, las predicciones se desvían **144.78 unidades** del valor real (MAE)\n- La raíz del error cuadrático medio es **162.04 unidades** (RMSE)",
+            "severity": "info"
+          },
+          {
+            "kind": "text",
+            "text": "### 🔍 Diagnóstico del Entrenamiento",
+            "html": false
+          },
+          {
+            "kind": "text",
+            "text": "### 🎯 Estado General",
+            "html": false
+          },
+          {
+            "kind": "row",
+            "weights": [1, 1],
+            "children": [
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "text",
+                    "text": "**📋 Checklist de Salud:**",
+                    "html": false
+                  },
+                  {
+                    "kind": "notice",
+                    "text": "❌ Modelo no convergió suficientemente",
+                    "severity": "error"
+                  },
+                  {
+                    "kind": "notice",
+                    "text": "✅ Sin signos de sobreajuste",
+                    "severity": "success"
+                  },
+                  {
+                    "kind": "notice",
+                    "text": "✅ Entrenamiento estable",
+                    "severity": "success"
+                  },
+                  {
+                    "kind": "notice",
+                    "text": "✅ Error de regresión aceptable",
+                    "severity": "success"
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "text",
+                    "text": "**🎯 Puntuación de Salud:**",
+                    "html": false
+                  },
+                  {
+                    "kind": "notice",
+                    "text": "👍 Bueno: 75%",
+                    "severity": "info"
+                  },
+                  {
+                    "kind": "notice",
+                    "text": "👍 Modelo con buen rendimiento",
+                    "severity": "info"
+                  },
+                  {
+                    "kind": "metric",
+                    "label": "📏 MAE Validación",
+                    "value": "133.1127",
+                    "delta": null,
+                    "help": "Error promedio en validación"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "text",
+            "text": "### 📊 Tendencias",
+            "html": false
+          },
+          {
+            "kind": "text",
+            "text": "### 📈 Análisis de Tendencias por Fase",
+            "html": false
+          },
+          {
+            "kind": "expander",
+            "label": "📚 ¿Qué significan las tendencias de pérdida?",
+            "expanded": false,
+            "children": [
+              {
+                "kind": "text",
+                "text": "### 🎯 **Interpretación de Tendencias por Fase:**\n\n**🟢 Fase Inicial (Primeras épocas):**\n- **Descendente rápido:** ✅ Excelente - El modelo está aprendiendo patrones básicos\n- **Descendente lento:** ⚠️ Learning rate muy bajo o datos complejos\n- **Ascendente:** 🚨 Learning rate muy alto o problema en los datos\n\n**🟡 Fase Media (Épocas intermedias):**\n- **Descendente sostenido:** ✅ Aprendizaje progresivo saludable\n- **Plateau temprano:** ⚠️ Posible saturación o learning rate muy bajo\n- **Fluctuaciones:** 📊 Normal, pero pueden indicar batch size pequeño\n\n**🔴 Fase Final (Últimas épocas):**\n- **Estabilizado:** 🎯 Ideal - Convergencia alcanzada\n- **Descendente:** 📈 Aún aprendiendo - Considera más épocas\n- **Ascendente:** 🚨 Sobreajuste - Detener entrenamiento antes\n\n### 📊 **Patrones de Calidad:**\n- **Curva logarítmica suave:** Patrón ideal de aprendizaje\n- **Escalones descendentes:** Learning rate scheduling efectivo\n- **Zigzag descendente:** Normal con batch gradient descent\n- **Valle en U:** Posible learning rate muy alto inicialmente",
+                "html": false
+              }
+            ]
+          },
+          {
+            "kind": "row",
+            "weights": [1, 1, 1],
+            "children": [
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "metric",
+                    "label": "🟢 Inicio (33%)",
+                    "value": "0.000000",
+                    "delta": "Ascendente - 🚨 Problema",
+                    "help": "Pérdida aumentando - revisar learning rate y datos"
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "metric",
+                    "label": "🟡 Medio (33%)",
+                    "value": "0.000000",
+                    "delta": "Ascendente - 🎯 Plateau",
+                    "help": "Posible convergencia temprana"
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "metric",
+                    "label": "🔴 Final (33%)",
+                    "value": "-0.000000",
+                    "delta": "Descendente - 🎯 Convergido",
+                    "help": "Excelente - modelo estabilizado"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "text",
+            "text": "### 🔄 Análisis Comparativo",
+            "html": false
+          },
+          {
+            "kind": "row",
+            "weights": [1, 1],
+            "children": [
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "text",
+                    "text": "**📊 Velocidad de Aprendizaje:**",
+                    "html": false
+                  },
+                  {
+                    "kind": "notice",
+                    "text": "🏃‍♂️ **Fase más activa:** Inicial",
+                    "severity": "info"
+                  },
+                  {
+                    "kind": "notice",
+                    "text": "📊 Patrón mixto de aprendizaje",
+                    "severity": "info"
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "text",
+                    "text": "**🎯 Consistencia:**",
+                    "html": false
+                  },
+                  {
+                    "kind": "notice",
+                    "text": "🎯 Alta consistencia - Aprendizaje estable",
+                    "severity": "success"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "text",
+            "text": "### 🔄 Patrones de Comportamiento Detectados",
+            "html": false
+          },
+          {
+            "kind": "row",
+            "weights": [1, 1],
+            "children": [
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "text",
+                    "text": "**🔍 Patrones Identificados:**",
+                    "html": false
+                  },
+                  {
+                    "kind": "text",
+                    "text": "• ❌ **Sin convergencia:** Modelo no está aprendiendo efectivamente",
+                    "html": false
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "text",
+                    "text": "**💡 Recomendaciones:**",
+                    "html": false
+                  },
+                  {
+                    "kind": "text",
+                    "text": "• 🚨 Revisar completamente configuración y datos",
+                    "html": false
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "expander",
+            "label": "🎓 Contexto Educativo: ¿Cómo interpretar estos números?",
+            "expanded": false,
+            "children": [
+              {
+                "kind": "text",
+                "text": "### 📐 **Entendiendo los Valores de Tendencia:**\n\n**Valores Negativos (Descendente):**\n- `-0.1` o menor: 🚀 Aprendizaje muy rápido\n- `-0.01` a `-0.1`: ✅ Aprendizaje saludable  \n- `-0.001` a `-0.01`: 📊 Aprendizaje gradual\n- `-0.0001` a `-0.001`: 🎯 Convergencia fina\n\n**Valores Cerca de Cero:**\n- `-0.0001` a `+0.0001`: 🎯 Convergencia ideal\n\n**Valores Positivos (Ascendente):**\n- `+0.0001` a `+0.001`: ⚠️ Ligero deterioro\n- `+0.001` a `+0.01`: 🚨 Problema moderado\n- `+0.01` o mayor: 💥 Problema grave\n\n### 🔬 **Factores que Afectan las Tendencias:**\n\n**Learning Rate:**\n- Muy alto → Oscilaciones o divergencia\n- Muy bajo → Convergencia lenta\n- Optimal → Descenso suave y rápido\n\n**Batch Size:**\n- Pequeño → Más ruido, convergencia irregular\n- Grande → Menos ruido, convergencia suave\n- Optimal → Balance entre velocidad y estabilidad\n\n**Arquitectura del Modelo:**\n- Muy simple → Plateau temprano (underfitting)\n- Muy compleja → Sobreajuste tardío\n- Apropiada → Convergencia saludable sin sobreajuste",
+                "html": false
+              }
+            ]
+          },
+          {
+            "kind": "text",
+            "text": "### ⚠️ Alertas",
+            "html": false
+          },
+          {
+            "kind": "notice",
+            "text": "🚨 **Modelo no convergió suficientemente**\n💡 Aumentar número de épocas o ajustar learning rate",
+            "severity": "error"
+          },
+          {
+            "kind": "text",
+            "text": "### 💡 Recomendaciones",
+            "html": false
+          },
+          {
+            "kind": "notice",
+            "text": "✅ Entrenamiento bueno con rendimiento satisfactorio.",
+            "severity": "info"
+          },
+          {
+            "kind": "expander",
+            "label": "🔧 Acciones Sugeridas",
+            "expanded": false,
+            "children": [
+              {
+                "kind": "text",
+                "text": "• 👍 Continuar con este enfoque",
+                "html": false
+              }
+            ]
+          }
+        ]
+      },
+      "tab_4": {
+        "kind": "page",
+        "children": [
+          {
+            "kind": "notice",
+            "text": "📊 **Dataset actual:** 🩺 Diabetes - Progresión (regresión)",
+            "severity": "info"
+          },
+          {
+            "kind": "text",
+            "text": "---",
+            "html": false
+          },
+          {
+            "kind": "heading",
+            "text": "🎯 Visualizaciones",
+            "level": 1
+          },
+          {
+            "kind": "notice",
+            "text": "🎓 **Visualizaciones de Redes Neuronales:**\n- **Historial**: Evolución del aprendizaje \n- **Pesos**: Lo que aprendió cada neurona\n- **Superficie**: Cómo separa las clases (2D) \n- **Capas**: Activaciones internas",
+            "severity": "info"
+          },
+          {
+            "kind": "row",
+            "weights": [1, 1, 1, 1],
+            "children": [
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "button",
+                    "key": "viz_history",
+                    "label": "📊 Historial",
+                    "type": "primary",
+                    "use_container_width": true
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "button",
+                    "key": "viz_weights",
+                    "label": "🧠 Análisis de Pesos",
+                    "type": "secondary",
+                    "use_container_width": true
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "button",
+                    "key": "viz_surface",
+                    "label": "🎯 Superficie de Decisión",
+                    "type": "secondary",
+                    "use_container_width": true
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "button",
+                    "key": "viz_activations",
+                    "label": "📉 Análisis de Activaciones",
+                    "type": "secondary",
+                    "use_container_width": true
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "heading",
+            "text": "📊 Historial de Entrenamiento",
+            "level": 2
+          },
+          {
+            "kind": "expander",
+            "label": "💡 Interpretación del Entrenamiento",
+            "expanded": false,
+            "children": [
+              {
+                "kind": "text",
+                "text": "📚 **Guía para Interpretar los Gráficos:**\n\n**🔴 Pérdida (Loss):**\n- **Bajando:** ✅ El modelo está aprendiendo correctamente\n- **Estable:** 🎯 El modelo ha convergido (terminó de aprender)\n- **Subiendo:** 🚨 Posible sobreajuste o learning rate muy alto\n\n**🟡 Validación vs Entrenamiento:**\n- **Líneas cercanas:** ✅ Generalización saludable\n- **Gap creciente:** 🚨 Sobreajuste (memorización vs aprendizaje)\n- **Validación mejor que entrenamiento:** 🤔 Posible error en datos\n\n**📈 Accuracy/Métricas:**\n- **Crecimiento sostenido:** ✅ Aprendizaje progresivo\n- **Plateau:** 🎯 Límite del modelo alcanzado\n- **Fluctuaciones grandes:** ⚠️ Batch size muy pequeño o datos ruidosos\n\n**🎯 Señales de Calidad:**\n- ✅ Loss decreciente y suave\n- ✅ Gap train/val menor al 10%\n- ✅ Métricas estables al final",
+                "html": false
+              }
+            ]
+          },
+          {
+            "kind": "plotly",
+            "chart": {
+              "traces": [
+                {
+                  "type": "scatter",
+                  "name": "Entrenamiento",
+                  "xaxis": "x",
+                  "yaxis": "y",
+                  "line": {
+                    "color": "blue"
+                  },
+                  "y": {
+                    "n": 10,
+                    "values": [31212.869140625, 31212.869140625, 31212.869140625, 31212.869140625, 31212.869140625, 31212.869140625, 31212.869140625, 31212.869140625, 31212.869140625, 31212.869140625]
+                  }
+                },
+                {
+                  "type": "scatter",
+                  "name": "Validación",
+                  "xaxis": "x",
+                  "yaxis": "y",
+                  "line": {
+                    "color": "red"
+                  },
+                  "y": {
+                    "n": 10,
+                    "values": [22223.705078125, 22223.705078125, 22223.705078125, 22223.705078125, 22223.705078125, 22223.705078125, 22223.705078125, 22223.705078125, 22223.705078125, 22223.705078125]
+                  }
+                },
+                {
+                  "type": "scatter",
+                  "name": "Entrenamiento",
+                  "showlegend": false,
+                  "xaxis": "x2",
+                  "yaxis": "y2",
+                  "line": {
+                    "color": "blue"
+                  },
+                  "y": {
+                    "n": 10,
+                    "values": [157.67730712890625, 157.67730712890625, 157.67730712890625, 157.67730712890625, 157.67730712890625, 157.67730712890625, 157.67730712890625, 157.67730712890625, 157.67730712890625, 157.67730712890625]
+                  }
+                },
+                {
+                  "type": "scatter",
+                  "name": "Validación",
+                  "showlegend": false,
+                  "xaxis": "x2",
+                  "yaxis": "y2",
+                  "line": {
+                    "color": "red"
+                  },
+                  "y": {
+                    "n": 10,
+                    "values": [133.1126708984375, 133.1126708984375, 133.1126708984375, 133.1126708984375, 133.1126708984375, 133.1126708984375, 133.1126708984375, 133.1126708984375, 133.1126708984375, 133.1126708984375]
+                  }
+                }
+              ],
+              "layout": {
+                "xaxis": {
+                  "anchor": "y",
+                  "domain": [0.0, 0.45],
+                  "title": {
+                    "text": "Época"
+                  }
+                },
+                "yaxis": {
+                  "anchor": "x",
+                  "domain": [0.0, 1.0],
+                  "title": {
+                    "text": "MSE"
+                  }
+                },
+                "xaxis2": {
+                  "anchor": "y2",
+                  "domain": [0.55, 1.0],
+                  "title": {
+                    "text": "Época"
+                  }
+                },
+                "yaxis2": {
+                  "anchor": "x2",
+                  "domain": [0.0, 1.0],
+                  "title": {
+                    "text": "MAE"
+                  }
+                },
+                "annotations": [
+                  {
+                    "font": {
+                      "size": 16
+                    },
+                    "showarrow": false,
+                    "text": "Pérdida (MSE) durante el Entrenamiento",
+                    "x": 0.225,
+                    "xanchor": "center",
+                    "xref": "paper",
+                    "y": 1.0,
+                    "yanchor": "bottom",
+                    "yref": "paper"
+                  },
+                  {
+                    "font": {
+                      "size": 16
+                    },
+                    "showarrow": false,
+                    "text": "Error Absoluto Medio",
+                    "x": 0.775,
+                    "xanchor": "center",
+                    "xref": "paper",
+                    "y": 1.0,
+                    "yanchor": "bottom",
+                    "yref": "paper"
+                  }
+                ],
+                "height": 400,
+                "showlegend": true
+              }
+            }
+          },
+          {
+            "kind": "row",
+            "weights": [1, 1, 1, 1],
+            "children": [
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "metric",
+                    "label": "🔴 Pérdida Final",
+                    "value": "31212.869141",
+                    "delta": "-0.0%",
+                    "help": "Pérdida en la última época vs primera época"
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "metric",
+                    "label": "🟡 Pérdida Validación",
+                    "value": "22223.705078",
+                    "delta": "Gap: -8989.164062 (-28.8%)",
+                    "delta_color": "inverse",
+                    "help": "Diferencia entre validación y entrenamiento indica sobreajuste"
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "metric",
+                    "label": "⏱️ Épocas",
+                    "value": "10",
+                    "delta": null,
+                    "help": "Número total de épocas de entrenamiento"
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "metric",
+                    "label": "🎯 Estabilidad",
+                    "value": "Estable",
+                    "delta": "0.0% CV",
+                    "help": "Variabilidad en las últimas épocas (menor = más estable)"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "tab_5": {
+        "kind": "page",
+        "children": [
+          {
+            "kind": "notice",
+            "text": "📊 **Dataset actual:** 🩺 Diabetes - Progresión (regresión)",
+            "severity": "info"
+          },
+          {
+            "kind": "text",
+            "text": "---",
+            "html": false
+          },
+          {
+            "kind": "heading",
+            "text": "🔮 Predicciones",
+            "level": 1
+          },
+          {
+            "kind": "text",
+            "text": "### Ingresa valores para predecir",
+            "html": false
+          },
+          {
+            "kind": "row",
+            "weights": [1, 1],
+            "children": [
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "slider",
+                    "label": "age",
+                    "key": "feature_0",
+                    "value": -2.511816797794472e-19,
+                    "min_value": -0.1072256316073538,
+                    "max_value": 0.11072667545381144,
+                    "step": 0.0021795230706116524
+                  },
+                  {
+                    "kind": "select",
+                    "label": "sex",
+                    "key": "feature_1",
+                    "value": -0.044641636506989144,
+                    "options": [-0.044641636506989144, 0.05068011873981862],
+                    "display": ["-0.044641636506989144", "0.05068011873981862"]
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "bmi",
+                    "key": "feature_2",
+                    "value": -2.2455642172282577e-16,
+                    "min_value": -0.09027529589850945,
+                    "max_value": 0.17055522598064407,
+                    "step": 0.0026083052187915352
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "bp",
+                    "key": "feature_3",
+                    "value": -4.7975700837874414e-17,
+                    "min_value": -0.11239880254408448,
+                    "max_value": 0.13204361674121307,
+                    "step": 0.0024444241928529755
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "s1",
+                    "key": "feature_4",
+                    "value": -1.3814992387869595e-17,
+                    "min_value": -0.12678066991651324,
+                    "max_value": 0.15391371315651542,
+                    "step": 0.0028069438307302863
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "slider",
+                    "label": "s2",
+                    "key": "feature_5",
+                    "value": 3.918434204559376e-17,
+                    "min_value": -0.11561306597939897,
+                    "max_value": 0.19878798965729408,
+                    "step": 0.003144010556366931
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "s3",
+                    "key": "feature_6",
+                    "value": -5.7771786349272854e-18,
+                    "min_value": -0.10230705051741597,
+                    "max_value": 0.18117906039727852,
+                    "step": 0.002834861109146945
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "s4",
+                    "key": "feature_7",
+                    "value": -9.042540472060099e-18,
+                    "min_value": -0.0763945037500033,
+                    "max_value": 0.18523444326019867,
+                    "step": 0.0026162894701020193
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "s5",
+                    "key": "feature_8",
+                    "value": 9.293722151839546e-17,
+                    "min_value": -0.12609712083330468,
+                    "max_value": 0.13359728192191356,
+                    "step": 0.0025969440275521827
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "s6",
+                    "key": "feature_9",
+                    "value": 1.1303175590075123e-17,
+                    "min_value": -0.13776722569000302,
+                    "max_value": 0.13561183068907107,
+                    "step": 0.0027337905637907414
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "button",
+            "key": null,
+            "label": "Realizar predicción",
+            "type": "primary"
+          }
+        ]
+      },
+      "tab_6": {
+        "kind": "page",
+        "children": [
+          {
+            "kind": "notice",
+            "text": "📊 **Dataset actual:** 🩺 Diabetes - Progresión (regresión)",
+            "severity": "info"
+          },
+          {
+            "kind": "text",
+            "text": "---",
+            "html": false
+          },
+          {
+            "kind": "heading",
+            "text": "💾 Exportar Modelo",
+            "level": 1
+          },
+          {
+            "kind": "heading",
+            "text": "ℹ️ Información del Modelo",
+            "level": 2
+          },
+          {
+            "kind": "row",
+            "weights": [1, 1],
+            "children": [
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "notice",
+                    "text": "**Arquitectura:**\n- Tipo: Regresión\n- Capas: 4\n- Neuronas: [10, 10, 10, 1]\n- Activación: relu\n- Optimizador: adam",
+                    "severity": "info"
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "notice",
+                    "text": "**Parámetros:**\n- Total: 231\n- Dropout: 0.2\n- Batch size: 64\n- Fecha entrenamiento: <fecha>",
+                    "severity": "info"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "heading",
+            "text": "📁 Opciones de Exportación",
+            "level": 2
+          },
+          {
+            "kind": "row",
+            "weights": [1, 1, 1, 1],
+            "children": [
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "button",
+                    "key": "viz_tf",
+                    "label": "🤖 Modelo TensorFlow",
+                    "type": "primary",
+                    "use_container_width": true
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "button",
+                    "key": "viz_complete",
+                    "label": "📊 Modelo Completo",
+                    "type": "secondary",
+                    "use_container_width": true
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "button",
+                    "key": "viz_python",
+                    "label": "📝 Código Python",
+                    "type": "secondary",
+                    "use_container_width": true
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "button",
+                    "key": "viz_metadata",
+                    "label": "📋 Metadatos",
+                    "type": "secondary",
+                    "use_container_width": true
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "text",
+            "text": "**Exportar solo el modelo de TensorFlow:**",
+            "html": false
+          },
+          {
+            "kind": "radio",
+            "label": "Formato:",
+            "key": "nn_export_format",
+            "value": "SavedModel (.pb)",
+            "options": ["SavedModel (.pb)", "HDF5 (.h5)", "TensorFlow Lite (.tflite)"],
+            "display": ["SavedModel (.pb)", "HDF5 (.h5)", "TensorFlow Lite (.tflite)"]
+          },
+          {
+            "kind": "checkbox",
+            "label": "Modo seguro (desactivar traces)",
+            "key": null,
+            "value": true,
+            "help": "Útil si hay capas Lambda / funciones personalizadas que impiden la serialización"
+          },
+          {
+            "kind": "button",
+            "key": null,
+            "label": "💾 Exportar Modelo TensorFlow",
+            "type": "primary"
+          },
+          {
+            "kind": "heading",
+            "text": "💡 Información Adicional",
+            "level": 2
+          },
+          {
+            "kind": "notice",
+            "text": "**Recomendaciones para el uso del modelo:**\n\n1. **Modelo TensorFlow**: Ideal para integrar en aplicaciones que ya usan TensorFlow\n2. **Modelo Completo**: Incluye preprocesadores, perfecto para producción\n3. **Código Python**: Para entender la implementación o crear versiones optimizadas\n4. **Metadatos**: Para documentación y seguimiento del modelo\n\n**Consideraciones de versión:**\n- TensorFlow versión utilizada en entrenamiento\n- Compatibilidad con versiones futuras\n- Dependencias del entorno de producción",
+            "severity": "info"
+          }
+        ]
+      }
+    },
+    "csv_una_muestra_por_clase": {
+      "spec": {
+        "csv": "one_class_per_row",
+        "epochs": 10
+      },
+      "training_view": {
+        "kind": "page",
+        "children": [
+          {
+            "kind": "notice",
+            "text": "📊 **Dataset actual:** 📄 one_class_per_row.csv",
+            "severity": "info"
+          },
+          {
+            "kind": "text",
+            "text": "---",
+            "html": false
+          },
+          {
+            "kind": "heading",
+            "text": "⚙️ Entrenamiento de la Red Neuronal",
+            "level": 1
+          },
+          {
+            "kind": "notice",
+            "text": "🎓 **Conceptos Clave del Entrenamiento:**\n- **Learning Rate**: Controla qué tan rápido aprende la red (muy alto = inestable, muy bajo = lento)\n- **Épocas**: Cuántas veces la red ve todos los datos (más épocas ≠ siempre mejor)\n- **Validación**: Datos separados para monitorear si la red está generalizando bien\n- **Early Stopping**: Para evitar sobreajuste, para cuando la validación no mejora",
+            "severity": "info"
+          },
+          {
+            "kind": "text",
+            "text": "### 🎛️ Parámetros de Entrenamiento",
+            "html": false
+          },
+          {
+            "kind": "row",
+            "weights": [1, 1, 1],
+            "children": [
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "text",
+                    "text": "#### 📈 **Learning Rate**",
+                    "html": false
+                  },
+                  {
+                    "kind": "select",
+                    "label": "Tasa de Aprendizaje",
+                    "key": null,
+                    "value": 0.001,
+                    "options": [0.001, 0.01, 0.1, 0.3],
+                    "display": ["0.001", "0.01", "0.1", "0.3"],
+                    "help": "💡 0.001 es seguro para empezar. Valores más altos pueden acelerar el entrenamiento pero causar inestabilidad"
+                  },
+                  {
+                    "kind": "caption",
+                    "text": "🟢 **Conservador**: Aprendizaje lento pero estable"
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "text",
+                    "text": "#### 🔄 **Épocas**",
+                    "html": false
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "Épocas",
+                    "key": null,
+                    "value": 10,
+                    "min_value": 10,
+                    "max_value": 500,
+                    "step": 10,
+                    "help": "💡 Sugerencia para tu dataset: ~50 épocas"
+                  },
+                  {
+                    "kind": "caption",
+                    "text": "🟡 **Pocas épocas**: Puede que no aprenda completamente"
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "text",
+                    "text": "#### 🎯 **Validación**",
+                    "html": false
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "% Datos de Validación",
+                    "key": null,
+                    "value": 20,
+                    "min_value": 10,
+                    "max_value": 40,
+                    "step": null,
+                    "help": "💡 20% es estándar. Más datos = mejor validación, menos datos para entrenar"
+                  },
+                  {
+                    "kind": "caption",
+                    "text": "📊 **Distribución**: Train=1, Val=0, Test=2"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "expander",
+            "label": "⚙️ Configuración Avanzada - Técnicas para Mejorar el Entrenamiento",
+            "expanded": false,
+            "children": [
+              {
+                "kind": "text",
+                "text": "#### 🛡️ Técnicas de Regularización y Optimización",
+                "html": false
+              },
+              {
+                "kind": "row",
+                "weights": [1, 1],
+                "children": [
+                  {
+                    "kind": "column",
+                    "children": [
+                      {
+                        "kind": "text",
+                        "text": "##### 🛑 Early Stopping",
+                        "html": false
+                      },
+                      {
+                        "kind": "checkbox",
+                        "label": "Activar Parada Temprana",
+                        "key": null,
+                        "value": true,
+                        "help": "💡 Recomendado: Evita sobreajuste parando cuando la validación no mejora"
+                      },
+                      {
+                        "kind": "notice",
+                        "text": "✅ **Early Stopping activado**: La red parará automáticamente cuando deje de mejorar",
+                        "severity": "success"
+                      },
+                      {
+                        "kind": "slider",
+                        "label": "Paciencia (épocas)",
+                        "key": null,
+                        "value": 10,
+                        "min_value": 5,
+                        "max_value": 50,
+                        "step": null,
+                        "help": "Épocas a esperar sin mejora antes de parar. Más paciencia = más oportunidades de mejorar"
+                      },
+                      {
+                        "kind": "caption",
+                        "text": "🟢 **Balanceado**: Buen equilibrio"
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "column",
+                    "children": [
+                      {
+                        "kind": "text",
+                        "text": "##### 📉 Learning Rate Scheduler",
+                        "html": false
+                      },
+                      {
+                        "kind": "checkbox",
+                        "label": "Reducir Learning Rate Automáticamente",
+                        "key": null,
+                        "value": true,
+                        "help": "💡 Recomendado: Reduce la tasa de aprendizaje cuando no mejora"
+                      },
+                      {
+                        "kind": "notice",
+                        "text": "✅ **Scheduler activado**: La tasa de aprendizaje se reducirá automáticamente",
+                        "severity": "success"
+                      },
+                      {
+                        "kind": "slider",
+                        "label": "Factor de Reducción",
+                        "key": null,
+                        "value": 0.5,
+                        "min_value": 0.1,
+                        "max_value": 0.9,
+                        "step": null,
+                        "help": "Factor por el que se multiplica la tasa. 0.5 = reduce a la mitad"
+                      },
+                      {
+                        "kind": "caption",
+                        "text": "🟢 **Reducción moderada**: Recomendado"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "kind": "text",
+                "text": "---",
+                "html": false
+              },
+              {
+                "kind": "text",
+                "text": "#### 📚 ¿Por qué usar estas técnicas?",
+                "html": false
+              },
+              {
+                "kind": "text",
+                "text": "- **Early Stopping**: Evita que la red memorice los datos (sobreajuste) parando cuando la performance en validación deja de mejorar\n- **Learning Rate Reduction**: Permite un ajuste fino hacia el final del entrenamiento cuando se está cerca del óptimo\n- **Combinadas**: Estas técnicas trabajan juntas para lograr el mejor modelo posible automáticamente",
+                "html": false
+              }
+            ]
+          },
+          {
+            "kind": "text",
+            "text": "### 🚀 Iniciar Entrenamiento",
+            "html": false
+          },
+          {
+            "kind": "text",
+            "text": "**¿Todo listo?** Tu red está configurada y lista para aprender de los datos.",
+            "html": false
+          },
+          {
+            "kind": "button",
+            "key": null,
+            "label": "🧠 Entrenar Red Neuronal",
+            "type": "primary",
+            "use_container_width": true
+          },
+          {
+            "kind": "column"
+          },
+          {
+            "kind": "notice",
+            "text": "Error durante el entrenamiento: The least populated class in y has only 1 member, which is too few. The minimum number of groups for any class cannot be less than 2.",
+            "severity": "error"
+          }
+        ]
+      },
+      "state_after": {
+        "model_trained_nn": true,
+        "nn_model_is_none": true
+      },
+      "tab_3": {
+        "exception": "AttributeError: 'NoneType' object has no attribute 'predict'"
+      },
+      "tab_4": {
+        "exception": "AttributeError: 'NoneType' object has no attribute 'history'"
+      },
+      "tab_5": {
+        "kind": "page",
+        "children": [
+          {
+            "kind": "notice",
+            "text": "📊 **Dataset actual:** 📄 one_class_per_row.csv",
+            "severity": "info"
+          },
+          {
+            "kind": "text",
+            "text": "---",
+            "html": false
+          },
+          {
+            "kind": "heading",
+            "text": "🔮 Predicciones",
+            "level": 1
+          },
+          {
+            "kind": "text",
+            "text": "### Ingresa valores para predecir",
+            "html": false
+          },
+          {
+            "kind": "row",
+            "weights": [1, 1],
+            "children": [
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "select",
+                    "label": "a",
+                    "key": "feature_0",
+                    "value": 3,
+                    "options": [1, 3, 5],
+                    "display": ["1", "3", "5"]
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "select",
+                    "label": "b",
+                    "key": "feature_1",
+                    "value": 4,
+                    "options": [2, 4, 6],
+                    "display": ["2", "4", "6"]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "button",
+            "key": null,
+            "label": "Realizar predicción",
+            "type": "primary"
+          }
+        ]
+      },
+      "tab_6": {
+        "kind": "page",
+        "children": [
+          {
+            "kind": "notice",
+            "text": "📊 **Dataset actual:** 📄 one_class_per_row.csv",
+            "severity": "info"
+          },
+          {
+            "kind": "text",
+            "text": "---",
+            "html": false
+          },
+          {
+            "kind": "heading",
+            "text": "💾 Exportar Modelo",
+            "level": 1
+          },
+          {
+            "kind": "notice",
+            "text": "⚠️ Primero debes entrenar un modelo en la pestaña 'Entrenamiento'",
+            "severity": "warning"
+          }
+        ]
+      }
+    }
+  }
+}

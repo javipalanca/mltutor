@@ -1,0 +1,97 @@
+{
+  "meta": {
+    "format_version": 1,
+    "generator": "tools/export_golden.py",
+    "generated": "2026-10-20",
+    "versions": {
+      "python": "3.11.14",
+      "numpy": "1.26.4",
+      "pandas": "2.3.3",
+      "scipy": "1.16.3",
+      "scikit-learn": "1.7.2",
+      "seaborn": "0.13.2",
+      "platform": "Darwin-arm64"
+    },
+    "seed": 42,
+    "tolerance": {
+      "text": "exact (ignoring leading/trailing newlines)"
+    },
+    "tolerance_rationale": "Templates are verbatim copies of the app's strings, except those with a 'changed' entry (a decision fixed the app's code; 'text' is then the expected render and 'python_text' the app's); the context uses Python repr() for lists (Rust needs a 'pyrepr' filter)."
+  },
+  "input": {
+    "engine": "jinja2 with keep_trailing_newline=True, filter pyrepr = repr()"
+  },
+  "expected": {
+    "matriz_confusion.py.j2": {
+      "source": "mltutor.algorithms.code_examples.CONFUSION_MATRIX_CODE",
+      "context": {},
+      "text": "import matplotlib.pyplot as plt\nimport seaborn as sns\nfrom sklearn.metrics import confusion_matrix\n\n# Todas las clases del dataset, en orden (nombre_clase es {valor de la clase: nombre}, del script\n# de entrenamiento): una clase que no aparezca en la prueba sale con su fila y su columna a cero\ntodas = sorted(nombre_clase)\nnombres_clases = [nombre_clase[c] for c in todas]\n\n# Calcular la matriz de confusión\ncm = confusion_matrix(y_test, y_pred, labels=todas)\n\n# Crear el gráfico\nfig, ax = plt.subplots(figsize=(8, 6))\nsns.heatmap(cm, annot=True, fmt=\"d\", cmap=\"Blues\", ax=ax,\n            xticklabels=nombres_clases, yticklabels=nombres_clases)\nax.set_xlabel('Predicción')\nax.set_ylabel('Real')\nax.set_title('Matriz de Confusión')\n\nplt.tight_layout()\nplt.show()\n",
+      "python_text": "\nimport matplotlib.pyplot as plt\nimport seaborn as sns\nfrom sklearn.metrics import confusion_matrix\n\n# Calcular la matriz de confusión\ncm = confusion_matrix(y_test, y_pred)\n\n# Crear el gráfico\nfig, ax = plt.subplots(figsize=(8, 6))\nsns.heatmap(cm, annot=True, fmt=\"d\", cmap=\"Blues\", ax=ax,\n            xticklabels=class_names, yticklabels=class_names)\nax.set_xlabel('Predicción')\nax.set_ylabel('Real')\nax.set_title('Matriz de Confusión')\n\nplt.tight_layout()\nplt.show()\n",
+      "python_context": null,
+      "changed": "F6 (verify_exports review): labels=sorted(nombre_clase) and the names from nombre_clase (defined by every training script): without labels= a class missing from y_test and y_pred shifted the tick labels",
+      "compare": "text == render(template, context)"
+    },
+    "precision_por_clase.py.j2": {
+      "source": "mltutor.algorithms.code_examples.PRECISION_CODE",
+      "context": {},
+      "text": "import matplotlib.pyplot as plt\nimport seaborn as sns\nfrom sklearn.metrics import classification_report\nimport pandas as pd\n\n# Todas las clases del dataset, en orden (nombre_clase es {valor de la clase: nombre}, del script\n# de entrenamiento)\ntodas = sorted(nombre_clase)\nnombres_clases = [nombre_clase[c] for c in todas]\n\n# Obtener el reporte de clasificación\nreport = classification_report(y_test, y_pred, labels=todas, target_names=nombres_clases,\n                               output_dict=True, zero_division=0)\n\n# Extraer precisión por clase\nprec_by_class = {\n    nombre: report[nombre]['precision'] for nombre in nombres_clases\n}\n\n# Crear el gráfico\nfig, ax = plt.subplots(figsize=(10, 5))\nsns.barplot(x=list(prec_by_class.keys()), y=list(prec_by_class.values()), ax=ax)\nax.set_ylim(0, 1)\nax.set_title('Precisión por clase')\nax.set_ylabel('Precisión')\nax.set_xlabel('Clase')\n\nplt.tight_layout()\nplt.show()\n",
+      "python_text": "\nimport matplotlib.pyplot as plt\nimport seaborn as sns\nfrom sklearn.metrics import classification_report\nimport pandas as pd\n\n# Obtener el reporte de clasificación\nreport = classification_report(y_test, y_pred, target_names=class_names, output_dict=True)\n\n# Extraer precisión por clase\nprec_by_class = {\n    class_name: report[class_name]['precision'] for class_name in class_names\n}\n\n# Crear el gráfico\nfig, ax = plt.subplots(figsize=(10, 5))\nsns.barplot(x=list(prec_by_class.keys()), y=list(prec_by_class.values()), ax=ax)\nax.set_ylim(0, 1)\nax.set_title('Precisión por clase')\nax.set_ylabel('Precisión')\nax.set_xlabel('Clase')\n\nplt.tight_layout()\nplt.show()\n",
+      "python_context": null,
+      "changed": "F6 (verify_exports review): labels=sorted(nombre_clase), target_names from nombre_clase and zero_division=0: without labels= a class missing from y_test and y_pred raised ValueError (more target_names than classes)",
+      "compare": "text == render(template, context)"
+    },
+    "predicciones_vs_reales.py.j2": {
+      "source": "mltutor.algorithms.code_examples.PRED_VS_REAL_CODE",
+      "context": {},
+      "text": "\nimport matplotlib.pyplot as plt\nimport numpy as np\n\n# Crear el gráfico\nfig, ax = plt.subplots(figsize=(8, 6))\nscatter = ax.scatter(y_test, y_pred, alpha=0.5,\n                    c=np.abs(y_test - y_pred), cmap='viridis')\nax.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--')\nax.set_xlabel('Valores reales')\nax.set_ylabel('Predicciones')\nax.set_title('Predicciones vs Valores reales')\nplt.colorbar(scatter, ax=ax, label='Error absoluto')\n\nplt.tight_layout()\nplt.show()\n",
+      "compare": "text.strip('\\n') == render(template, context).strip('\\n')"
+    },
+    "distribucion_errores.py.j2": {
+      "source": "mltutor.algorithms.code_examples.ERROR_DISTRIBUTION_CODE",
+      "context": {},
+      "text": "\nimport matplotlib.pyplot as plt\nimport seaborn as sns\nimport numpy as np\n\n# Calcular los errores\nerrors = y_test - y_pred\n\n# Crear el gráfico\nfig, ax = plt.subplots(figsize=(8, 6))\nsns.histplot(errors, kde=True, ax=ax)\nax.axvline(x=0, color='r', linestyle='--')\nax.set_title('Distribución de errores')\nax.set_xlabel('Error (Real - Predicción)')\n\nplt.tight_layout()\nplt.show()\n",
+      "compare": "text.strip('\\n') == render(template, context).strip('\\n')"
+    },
+    "regresion_codigo.py.j2": {
+      "source": "mltutor.algorithms.code_examples.generate_regression_code",
+      "context": {},
+      "text": "\nimport pickle\n\n# Guardar modelo\nwith open('modelo_regresion_logistica.pkl', 'wb') as f:\n    pickle.dump(model, f)\n\n# Cargar modelo guardado\nwith open('modelo_regresion_logistica.pkl', 'rb') as f:\n    modelo_cargado = pickle.load(f)\n\n# Ejemplo de uso para nuevas predicciones:\nnuevo_ejemplo = [valor1, valor2, valor3, ...]  # Reemplaza con tus valores\nnuevo_ejemplo = np.array(nuevo_ejemplo).reshape(1, -1)\nprediccion = modelo_cargado.predict(nuevo_ejemplo)\n",
+      "compare": "text.strip('\\n') == render(template, context).strip('\\n')"
+    },
+    "frontera_decision.py.j2": {
+      "source": "mltutor.algorithms.code_examples.generate_decision_boundary_code",
+      "context": {
+        "feature_indices": [
+          2,
+          3
+        ],
+        "feature_names": [
+          "petal length (cm)",
+          "petal width (cm)"
+        ],
+        "class_names": [
+          "setosa",
+          "versicolor",
+          "virginica"
+        ]
+      },
+      "text": "import numpy as np\nimport matplotlib.pyplot as plt\nfrom sklearn.base import clone\nfrom sklearn.inspection import DecisionBoundaryDisplay\n\n# Necesita X_train, y_train y modelo (el script de \"📄 Generar Código\")\n# Datos de entrenamiento: solo las 2 características elegidas\nX_2d = np.asarray(X_train, dtype=float)[:, [2, 3]]\n\n# Entrenar el modelo simplificado: mismo tipo e hiperparámetros (en la logística, también\n# solver=\"newton-cholesky\", como MLTutor), solo con esas 2 características\nmodel_2d = clone(modelo)\nmodel_2d.fit(X_2d, y_train)\n\n# Crear figura\nfig, ax = plt.subplots(figsize=(14, 10))\n\n# Visualizar frontera de decisión usando sklearn\ndisp = DecisionBoundaryDisplay.from_estimator(\n    model_2d,\n    X_2d,\n    response_method=\"predict\",\n    alpha=0.6,\n    ax=ax,\n    grid_resolution=200\n)\n\n# Añadir puntos de datos sobre la frontera\nscatter = ax.scatter(\n    X_2d[:, 0], \n    X_2d[:, 1], \n    c=y_train, \n    edgecolors='black', \n    s=60,\n    alpha=0.8\n)\n\n# Configurar etiquetas de los ejes\nfeature_names = ['petal length (cm)', 'petal width (cm)']\nif len(feature_names) >= 2:\n    ax.set_xlabel(feature_names[0])\n    ax.set_ylabel(feature_names[1])\nelse:\n    ax.set_xlabel(\"Característica 1\")\n    ax.set_ylabel(\"Característica 2\")\n\n# Leyenda: una entrada por cada clase que aparece en el gráfico, con el color de sus puntos y su\n# nombre (nombre_clase es {valor de la clase: nombre}, del script de entrenamiento)\nclases_presentes = np.unique(y_train)\nhandles = [plt.Line2D([], [], marker=\"o\", linestyle=\"\", markeredgecolor=\"black\",\n                      markerfacecolor=scatter.cmap(scatter.norm(c)))\n           for c in clases_presentes]\nax.legend(handles, [nombre_clase[c] for c in clases_presentes], title=\"Clases\", loc=\"best\")\n\nax.set_title(\"Frontera de Decisión\")\nplt.tight_layout()\nplt.show()\n\n# Para guardar a un archivo:\n# plt.savefig('frontera_decision.png', dpi=300, bbox_inches='tight')\n",
+      "python_text": "\nimport numpy as np\nimport matplotlib.pyplot as plt\nfrom sklearn.inspection import DecisionBoundaryDisplay\n\n# Datos de entrenamiento (solo las primeras 2 características)\nX_2d = X_train[:, [0, 1]]  # Usar las características seleccionadas\ny_train = y_train\n\n\n# Entrenar el modelo simplificado\nmodel_2d.fit(X_2d, y_train)\n\n# Crear figura\nfig, ax = plt.subplots(figsize=(14, 10))\n\n# Visualizar frontera de decisión usando sklearn\ndisp = DecisionBoundaryDisplay.from_estimator(\n    model_2d,\n    X_2d,\n    response_method=\"predict\",\n    alpha=0.6,\n    ax=ax,\n    grid_resolution=200\n)\n\n# Añadir puntos de datos sobre la frontera\nscatter = ax.scatter(\n    X_2d[:, 0], \n    X_2d[:, 1], \n    c=y_train, \n    edgecolors='black', \n    s=60,\n    alpha=0.8\n)\n\n# Configurar etiquetas de los ejes\nfeature_names = ['sepal length (cm)', 'sepal width (cm)', 'petal length (cm)', 'petal width (cm)']\nif len(feature_names) >= 2:\n    ax.set_xlabel(feature_names[0])\n    ax.set_ylabel(feature_names[1])\nelse:\n    ax.set_xlabel(\"Característica 1\")\n    ax.set_ylabel(\"Característica 2\")\n\n# Añadir leyenda de clases\nclass_names = ['setosa', 'versicolor', 'virginica']\nif class_names:\n    legend_labels = class_names\nelse:\n    legend_labels = [f\"Clase {i}\" for i in range(len(np.unique(y_train)))]\n\n# Crear leyenda para las clases\nhandles, _ = scatter.legend_elements()\nax.legend(handles, legend_labels, title=\"Clases\", loc=\"best\")\n\nax.set_title(\"Frontera de Decisión\")\nplt.tight_layout()\nplt.show()\n\n# Para guardar a un archivo:\n# plt.savefig('frontera_decision.png', dpi=300, bbox_inches='tight')\n",
+      "python_context": {
+        "feature_names_boundary": [
+          "sepal length (cm)",
+          "sepal width (cm)",
+          "petal length (cm)",
+          "petal width (cm)"
+        ],
+        "class_names": [
+          "setosa",
+          "versicolor",
+          "virginica"
+        ]
+      },
+      "changed": "D30: the pair chosen by the student (here petal length/width of Iris, indices 2 and 3) instead of always columns 0 and 1 with every feature name; model_2d = clone(modelo) so it runs after content/code/regresion_entrenamiento.py.j2. F6: the legend is built from np.unique(y) and nombre_clase (legend_elements() only has the classes present, and at most about 9)",
+      "compare": "text == render(template, context)"
+    }
+  }
+}

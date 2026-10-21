@@ -1,0 +1,184 @@
+{
+  "meta": {
+    "format_version": 1,
+    "generator": "tools/export_golden.py",
+    "generated": "2026-10-13",
+    "versions": {
+      "python": "3.11.14",
+      "numpy": "1.26.4",
+      "pandas": "2.3.3",
+      "scipy": "1.16.3",
+      "scikit-learn": "1.7.2",
+      "seaborn": "0.13.2",
+      "platform": "Darwin-arm64"
+    },
+    "seed": 42,
+    "tolerance": {
+      "data_abs": 0.0,
+      "hash": "exact"
+    },
+    "tolerance_rationale": "Static data: the embedded CSV must reproduce the matrix exactly. CSV floats use Python's shortest round-trip repr, so parsing them as f64 is lossless and data_sha256_f64 must match bit for bit."
+  },
+  "input": {
+    "app_label": "🩺 Diabetes - Progresión (regresión)",
+    "source": "sklearn.datasets.load_diabetes (bundled with scikit-learn)"
+  },
+  "expected": {
+    "csv": "data/diabetes.csv",
+    "csv_sha256": "37445ec452084294acd1ff6f306cc0dc44e533fb158d790fcdc546be880b6e06",
+    "csv_bytes": 95149,
+    "data_sha256_f64": "70a738b6c21727f63dd2fe855966a9518c3bb75058486a05620ab88117b56ab2",
+    "data_sha256_f64_definition": "sha256 of row-major little-endian f64 values, each row = feature columns in 'columns' order followed by the target",
+    "shape": [
+      442,
+      10
+    ],
+    "columns": [
+      "age",
+      "sex",
+      "bmi",
+      "bp",
+      "s1",
+      "s2",
+      "s3",
+      "s4",
+      "s5",
+      "s6"
+    ],
+    "label_columns": [],
+    "csv_columns": [
+      "age",
+      "sex",
+      "bmi",
+      "bp",
+      "s1",
+      "s2",
+      "s3",
+      "s4",
+      "s5",
+      "s6",
+      "disease_progression"
+    ],
+    "dtypes": {
+      "age": "float64",
+      "sex": "float64",
+      "bmi": "float64",
+      "bp": "float64",
+      "s1": "float64",
+      "s2": "float64",
+      "s3": "float64",
+      "s4": "float64",
+      "s5": "float64",
+      "s6": "float64"
+    },
+    "feature_names": [
+      "age",
+      "sex",
+      "bmi",
+      "bp",
+      "s1",
+      "s2",
+      "s3",
+      "s4",
+      "s5",
+      "s6"
+    ],
+    "target_name": "disease_progression",
+    "target_dtype": "float64",
+    "class_names": null,
+    "task_type": "Regresión",
+    "dataset_info": {
+      "description": "Diabetes: 442 muestras, 10 características; regresión de progresión de la enfermedad",
+      "target": "disease_progression",
+      "task_type": "Regresión",
+      "samples": 442,
+      "features": 10,
+      "classes": null
+    },
+    "target_summary": {
+      "min": 25.0,
+      "max": 346.0,
+      "mean": 152.13348416289594,
+      "std_ddof1": 77.09300453299109,
+      "median": 140.5
+    },
+    "index_is_range": true,
+    "head": [
+      {
+        "features": [
+          0.038075906433423026,
+          0.05068011873981862,
+          0.061696206518683294,
+          0.0218723855140367,
+          -0.04422349842444599,
+          -0.03482076283769895,
+          -0.04340084565202491,
+          -0.002592261998183278,
+          0.019907486170462722,
+          -0.01764612515980379
+        ],
+        "target": 151.0
+      },
+      {
+        "features": [
+          -0.0018820165277906047,
+          -0.044641636506989144,
+          -0.051474061238800654,
+          -0.02632752814785296,
+          -0.008448724111216851,
+          -0.019163339748222204,
+          0.07441156407875721,
+          -0.03949338287409329,
+          -0.0683315470939731,
+          -0.092204049626824
+        ],
+        "target": 75.0
+      },
+      {
+        "features": [
+          0.08529890629667548,
+          0.05068011873981862,
+          0.04445121333659049,
+          -0.00567042229275739,
+          -0.04559945128264711,
+          -0.03419446591411989,
+          -0.03235593223976409,
+          -0.002592261998183278,
+          0.002861309289833047,
+          -0.025930338989472702
+        ],
+        "target": 141.0
+      },
+      {
+        "features": [
+          -0.0890629393522567,
+          -0.044641636506989144,
+          -0.011595014505211082,
+          -0.03665608107540074,
+          0.01219056876179996,
+          0.02499059336410222,
+          -0.036037570043851025,
+          0.03430885887772673,
+          0.022687744966501246,
+          -0.009361911330134878
+        ],
+        "target": 206.0
+      },
+      {
+        "features": [
+          0.005383060374248237,
+          -0.044641636506989144,
+          -0.03638469220446948,
+          0.0218723855140367,
+          0.003934851612593237,
+          0.015596139510416171,
+          0.008142083605192267,
+          -0.002592261998183278,
+          -0.03198763948805312,
+          -0.04664087356364498
+        ],
+        "target": 135.0
+      }
+    ]
+  }
+}

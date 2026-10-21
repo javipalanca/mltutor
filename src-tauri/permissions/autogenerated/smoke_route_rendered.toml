@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-smoke-route-rendered"
+description = "Enables the smoke_route_rendered command without any pre-configured scope."
+commands.allow = ["smoke_route_rendered"]
+
+[[permission]]
+identifier = "deny-smoke-route-rendered"
+description = "Denies the smoke_route_rendered command without any pre-configured scope."
+commands.deny = ["smoke_route_rendered"]

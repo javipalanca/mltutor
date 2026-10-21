@@ -1,0 +1,372 @@
+{#- NUEVO (Fase 3, equivalente a la decisión D29 de F2). Script de "📄 Código de Entrenamiento" en
+    💾 Exportar de la lección 🌲 Árboles de Decisión. La versión Python no tenía nada parecido.
+    Reproduce lo que calcula MLTutor: misma carga del dataset, mismo split (train_test_split con
+    test_size y random_state=42, sin estratificar: D7), el mismo árbol (criterion, max_depth,
+    min_samples_split y random_state=42; el resto de hiperparámetros por defecto, datos sin escalar),
+    las mismas métricas, las reglas (📝 Texto, con nombres de clase: D40), la importancia nativa y
+    por permutación (D38) y la predicción de una muestra con su camino de decisión y las
+    probabilidades de la hoja (D46). Verificado ejecutándolo frente a tests/parity/trees/*.json
+    (tests/parity/code/trees_training.json).
+
+    Los bloques "import ... sklearn.datasets" y "1. Cargar los datos" son copia literal de
+    regresion_entrenamiento.py.j2 (con `task == "classification"` en lugar de `model == "logistic"`);
+    tools/golden_trees.py comprueba que siguen siendo iguales. Si cambias uno, cambia el otro.
+
+    Se renderiza con minijinja (Rust) y con jinja2 (tools/export_golden.py). Filtros: `pyrepr`
+    (repr() de Python, para literales) y `pycomment` (texto del usuario dentro del docstring o de
+    comentarios #). Pasa SIEMPRE todas las variables, con null (None) las que no apliquen.
+
+    Variables:
+      dataset, dataset_label, csv_file, csv_target, csv_sep, csv_decimal, csv_encoding
+                     como en regresion_entrenamiento.py.j2.
+      task           str        "classification" (DecisionTreeClassifier) o "regression"
+                                (DecisionTreeRegressor). La del modelo entrenado, no la del dataset:
+                                📈 Regresión sobre Iris es válido (D37 solo bloquea lo contrario).
+      criterion      str        "gini", "entropy", "squared_error", "friedman_mse" o "absolute_error".
+      max_depth      int        1..10 (el hiperparámetro).
+      min_samples_split int     2..10.
+      test_size      float      proporción de prueba, 0.1..0.5 (con pyrepr: 0.3, 0.25).
+      feature_names  list[str]  nombres legibles de las características, en el orden de las
+                                columnas de X.
+      class_names    list[str]|null  (classification) nombre de cada clase en el orden de sus
+                                códigos 0..k-1; null en regresión.
+      sample         list[float]|null  valores del formulario 🔮 Predicciones (ya convertidos a sus
+                                códigos), en el orden de las columnas de X. null = la primera fila
+                                de X_test.
+
+    Revisión ML de F3 (2026-10-15): las métricas (precision/recall/F1 ponderados, informe por clase
+    y matriz de confusión) usan labels=todas, TODAS las clases del dataset (las claves de
+    nombre_clase), como MLTutor, y no modelo.classes_ (solo las vistas en entrenamiento). Con una
+    clase ausente del train, y_test=[0,1,2,2] e y_pred=[0,0,2,2] daban 0.833/1.0/0.889 en lugar de
+    0.625/0.75/0.667 (los de la app). Las curvas ROC/PR siguen usando modelo.classes_, porque
+    predict_proba solo tiene columnas para ellas.
+-#}
+"""
+MLTutor · 🌲 Árboles de Decisión — entrenamiento reproducible con scikit-learn
+
+Dataset: {{ dataset_label | pycomment }}
+Modelo:  {% if task == "classification" %}Árbol de clasificación (DecisionTreeClassifier{% else %}Árbol de regresión (DecisionTreeRegressor{% endif %}, criterion={{ criterion | pyrepr }}, max_depth={{ max_depth }}, min_samples_split={{ min_samples_split }})
+Prueba:  test_size={{ test_size | pyrepr }} (train_test_split con random_state=42, sin estratificar)
+
+Este script hace lo mismo que la app: carga los datos, los divide en entrenamiento y
+prueba, entrena el árbol, calcula las métricas de la pestaña 📈 Evaluación, muestra las
+reglas del árbol (📝 Texto) y la importancia de las características (🔍 Características)
+y predice una muestra siguiendo su camino de decisión (🔮 Predicciones).
+
+Uso:
+    pip install "scikit-learn>=1.6" pandas numpy{% if dataset in ["titanic", "tips", "penguins", "mpg", "diamonds"] %} seaborn{% endif %}
+{%- if dataset == "csv" %}
+    # Copia {{ csv_file | pycomment }} en la misma carpeta que este script
+{%- endif %}
+    python arbol_decision_entrenamiento.py
+"""
+import numpy as np
+import pandas as pd
+{%- if dataset in ["titanic", "tips", "penguins", "mpg", "diamonds"] %}
+import seaborn as sns
+{%- endif %}
+{%- if dataset == "iris" %}
+from sklearn.datasets import load_iris
+{%- elif dataset == "wine" %}
+from sklearn.datasets import load_wine
+{%- elif dataset == "breast_cancer" %}
+from sklearn.datasets import load_breast_cancer
+{%- elif dataset == "digits" %}
+from sklearn.datasets import load_digits
+{%- elif dataset == "diabetes" %}
+from sklearn.datasets import load_diabetes
+{%- elif dataset == "california_housing" %}
+from sklearn.datasets import fetch_california_housing
+{%- elif dataset == "moons" %}
+from sklearn.datasets import make_moons
+{%- endif %}
+from sklearn.inspection import permutation_importance
+{%- if task == "classification" %}
+from sklearn.metrics import (
+    accuracy_score,
+    auc as area_bajo_curva,
+    average_precision_score,
+    classification_report,
+    confusion_matrix,
+    precision_recall_fscore_support,
+    roc_auc_score,
+    roc_curve,
+)
+{%- else %}
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+{%- endif %}
+from sklearn.model_selection import train_test_split
+{%- if dataset in ["titanic", "tips", "penguins", "mpg", "diamonds", "csv"] %}
+from sklearn.preprocessing import LabelEncoder
+{%- endif %}
+from sklearn.tree import {% if task == "classification" %}DecisionTreeClassifier{% else %}DecisionTreeRegressor{% endif %}, export_text
+
+# ---------------------------------------------------------------------------
+# 1. Cargar los datos (igual que MLTutor)
+# ---------------------------------------------------------------------------
+{%- if dataset in ["iris", "wine", "breast_cancer", "digits", "diabetes"] %}
+datos = load_{{ dataset }}(as_frame=True)  # incluido en scikit-learn, sin descargas
+X = datos.data
+y = datos.target
+{%- elif dataset == "california_housing" %}
+# La primera vez se descarga (unos 400 KB) y queda guardado en ~/scikit_learn_data
+datos = fetch_california_housing(as_frame=True)
+X = datos.data
+y = datos.target
+{%- elif dataset == "moons" %}
+# MLTutor usa siempre la misma muestra de Moons: semilla 42
+X_array, y = make_moons(n_samples=500, noise=0.2, random_state=42)
+X = pd.DataFrame(X_array, columns=["x1", "x2"])
+y = pd.Series(y, name="label")
+{%- elif dataset == "titanic" %}
+df = sns.load_dataset("titanic")  # se descarga la primera vez
+# Valores que faltan: mediana para la edad y la tarifa, 'S' (Southampton) para el puerto
+df["age"] = df["age"].fillna(df["age"].median())
+df["embarked"] = df["embarked"].fillna("S")
+df["fare"] = df["fare"].fillna(df["fare"].median())
+# Texto -> números (LabelEncoder numera las categorías por orden alfabético)
+for columna in ["sex", "embarked", "class", "who"]:
+    df[columna + "_encoded"] = LabelEncoder().fit_transform(df[columna])
+columnas = ["pclass", "age", "sibsp", "parch", "fare", "sex_encoded", "embarked_encoded",
+            "class_encoded", "who_encoded", "adult_male", "alone"]
+X = df[columnas].astype(float)  # adult_male y alone son booleanos: True -> 1.0
+y = df["survived"]
+{%- elif dataset == "tips" %}
+df = sns.load_dataset("tips")  # se descarga la primera vez
+# Texto -> números (LabelEncoder numera las categorías por orden alfabético)
+for columna in ["sex", "smoker", "day", "time"]:
+    df[columna + "_encoded"] = LabelEncoder().fit_transform(df[columna].astype(str))
+X = df[["total_bill", "size", "sex_encoded", "smoker_encoded", "day_encoded", "time_encoded"]]
+y = df["tip"]
+{%- elif dataset == "penguins" %}
+df = sns.load_dataset("penguins").dropna()  # se descarga la primera vez; quita filas incompletas
+df = df.reset_index(drop=True)
+# Texto -> números (LabelEncoder numera las categorías por orden alfabético)
+df["island_encoded"] = LabelEncoder().fit_transform(df["island"])
+df["sex_encoded"] = LabelEncoder().fit_transform(df["sex"])
+X = df[["bill_length_mm", "bill_depth_mm", "flipper_length_mm", "body_mass_g",
+        "island_encoded", "sex_encoded"]]
+y = pd.Series(LabelEncoder().fit_transform(df["species"]), name="species")
+{%- elif dataset == "mpg" %}
+df = sns.load_dataset("mpg").dropna().reset_index(drop=True)  # se descarga la primera vez
+df["origin"] = LabelEncoder().fit_transform(df["origin"])  # europe=0, japan=1, usa=2
+# 'name' (el modelo de coche) no es una característica: 301 nombres distintos no aportan
+X = df[["cylinders", "displacement", "horsepower", "weight", "acceleration", "model_year",
+        "origin"]]
+y = df["mpg"]
+{%- elif dataset == "diamonds" %}
+df = sns.load_dataset("diamonds")  # se descarga la primera vez (54 000 diamantes)
+# Texto -> números (LabelEncoder numera las categorías por orden alfabético, no por calidad)
+for columna in ["cut", "color", "clarity"]:
+    df[columna] = LabelEncoder().fit_transform(df[columna].astype(str))
+df = df.sample(8000, random_state=42)  # MLTutor trabaja con una muestra de 8000
+X = df.drop(columns=["price"])
+y = df["price"]
+{%- elif dataset == "csv" %}
+df = pd.read_csv({{ csv_file | pyrepr }}
+{%- if csv_sep and csv_sep != "," %}, sep={{ csv_sep | pyrepr }}{% endif %}
+{%- if csv_decimal and csv_decimal != "." %}, decimal={{ csv_decimal | pyrepr }}{% endif %}
+{%- if csv_encoding and csv_encoding != "utf-8" %}, encoding={{ csv_encoding | pyrepr }}{% endif %})
+objetivo = {{ csv_target | pyrepr }}
+X = df.drop(columns=[objetivo])
+y = df[objetivo]
+# Columnas de texto -> números (LabelEncoder numera las categorías por orden alfabético)
+for columna in X.select_dtypes(include=["object"]).columns:
+    X[columna] = LabelEncoder().fit_transform(X[columna].astype(str))
+X = X.astype(float)  # las columnas booleanas pasan a 0.0/1.0
+{%- if task == "classification" %}
+if y.dtype == object:  # clases de texto -> 0, 1, 2... (en orden alfabético)
+    y = pd.Series(LabelEncoder().fit_transform(y.astype(str)), name=objetivo)
+{%- endif %}
+{%- endif %}
+
+nombres = {{ feature_names | pyrepr }}  # nombres que muestra MLTutor
+{%- if task == "classification" %}
+clases = {{ class_names | pyrepr }}
+# Código de cada clase (0, 1, 2... en orden) -> su nombre
+nombre_clase = dict(zip(sorted(pd.unique(y)), clases))
+{%- else %}
+nombre_clase = None  # regresión: no hay clases (los fragmentos de las pestañas lo usan)
+{%- endif %}
+print(f"Datos: {X.shape[0]} muestras y {X.shape[1]} características")
+
+# ---------------------------------------------------------------------------
+# 2. Dividir en entrenamiento y prueba
+# ---------------------------------------------------------------------------
+# Sin estratificar y con random_state=42: son exactamente las filas que usa MLTutor
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size={{ test_size | pyrepr }}, random_state=42
+)
+print(f"Entrenamiento: {len(X_train)} muestras · Prueba: {len(X_test)} muestras")
+
+# ---------------------------------------------------------------------------
+# 3. Entrenar el árbol
+# ---------------------------------------------------------------------------
+# Los mismos hiperparámetros que MLTutor; el resto, los de scikit-learn por defecto
+# (min_samples_leaf=1, max_features=None, sin poda). Los datos van SIN escalar: un árbol
+# solo compara cada característica con un umbral, así que cambiar la escala no cambia el
+# árbol.
+# random_state=42 no es decorativo: en cada nodo scikit-learn prueba las características en
+# un orden aleatorio y, si dos empatan (dan la misma mejora), se queda con la primera que ha
+# probado. Los empates son frecuentes (en 🌸 Iris, la raíz puede cortar por el largo o por el
+# ancho del pétalo): con otra semilla puede salir otro árbol, igual de bueno pero distinto.
+modelo = {% if task == "classification" %}DecisionTreeClassifier{% else %}DecisionTreeRegressor{% endif %}(criterion={{ criterion | pyrepr }}, max_depth={{ max_depth }},
+{%- if task == "classification" %}
+                                min_samples_split={{ min_samples_split }}, random_state=42)
+{%- else %}
+                               min_samples_split={{ min_samples_split }}, random_state=42)
+{%- endif %}
+modelo.fit(X_train, y_train)
+print(f"\nÁrbol: {modelo.tree_.node_count} nodos, {modelo.get_n_leaves()} hojas, "
+      f"profundidad {modelo.get_depth()}")
+
+# ---------------------------------------------------------------------------
+# 4. Evaluar con el conjunto de prueba (pestaña 📈 Evaluación)
+# ---------------------------------------------------------------------------
+y_pred = modelo.predict(X_test)
+{%- if task == "classification" %}
+accuracy = accuracy_score(y_test, y_pred)
+# Las métricas usan TODAS las clases del dataset, como MLTutor, y no solo
+# modelo.classes_ (las vistas en entrenamiento). Si una clase no llega al train, el modelo
+# nunca la predice y sus muestras de prueba cuentan como fallos.
+todas = sorted(nombre_clase)
+precision, recall, f1, _ = precision_recall_fscore_support(
+    y_test, y_pred, labels=todas, average="weighted", zero_division=0
+)
+print(f"\nExactitud (Accuracy):          {accuracy:.4f}")
+print(f"Precisión media (ponderada):   {precision:.4f}")
+print(f"Exhaustividad media (Recall):  {recall:.4f}")
+print(f"F1-Score medio:                {f1:.4f}")
+# ¿Sobreajuste? Compara con la exactitud en los datos con los que ha aprendido
+print(f"Exactitud en entrenamiento:    {modelo.score(X_train, y_train):.4f}  "
+      "(si es mucho mayor que la de prueba, el árbol memoriza en lugar de generalizar)")
+print("\nInforme por clase:")
+print(classification_report(y_test, y_pred, labels=todas,
+                            target_names=[nombre_clase[c] for c in todas],
+                            digits=4, zero_division=0))
+print("Matriz de confusión (filas = real, columnas = predicción):")
+print(confusion_matrix(y_test, y_pred, labels=todas))
+
+# Curvas ROC y Precision-Recall (pestaña 📉 Visualización). La "probabilidad" de un árbol es
+# la proporción de cada clase en la hoja a la que llega la muestra: solo hay tantos valores
+# distintos como hojas, así que las curvas tienen pocos escalones.
+proba = modelo.predict_proba(X_test)
+if len(modelo.classes_) == 2:
+    # Clase positiva = la de código 1 (la segunda de la lista)
+    y_positiva = (y_test == modelo.classes_[1])
+    auc = roc_auc_score(y_positiva, proba[:, 1])
+    ap = average_precision_score(y_positiva, proba[:, 1])
+    print(f"\nClase positiva: {nombre_clase[modelo.classes_[1]]}")
+    print(f"ROC AUC: {auc:.3f} · Average Precision: {ap:.3f} · Baseline: {y_positiva.mean():.3f}")
+else:
+    # Uno contra el resto: cada clase frente a todas las demás
+    Y_test = np.column_stack([(y_test == c).to_numpy() for c in modelo.classes_])
+    presentes = Y_test.any(axis=0)  # las clases sin muestras de prueba no tienen curva
+    print("\nClase                 ROC AUC   Average Precision")
+    for i, c in enumerate(modelo.classes_):
+        if presentes[i]:
+            auc_i = roc_auc_score(Y_test[:, i], proba[:, i])
+            ap_i = average_precision_score(Y_test[:, i], proba[:, i])
+            print(f"{nombre_clase[c]:<20}  {auc_i:7.3f}   {ap_i:7.3f}")
+    auc_micro = roc_auc_score(Y_test[:, presentes], proba[:, presentes], average="micro")
+    ap_micro = average_precision_score(Y_test[:, presentes], proba[:, presentes], average="micro")
+    ap_macro = np.mean([average_precision_score(Y_test[:, i], proba[:, i])
+                        for i in range(len(modelo.classes_)) if presentes[i]])
+    # Macro-promedio del ROC AUC como lo calcula MLTutor: se juntan las FPR de todas las
+    # curvas por clase, se interpola la TPR de cada clase en esos puntos (np.interp), se
+    # promedian y se mide el área de esa curva media. Puede salir algo mayor que
+    # roc_auc_score(average="macro"), que promedia las AUC de cada clase.
+    curvas = [roc_curve(Y_test[:, i], proba[:, i])
+              for i in range(len(modelo.classes_)) if presentes[i]]
+    fpr_todas = np.unique(np.concatenate([fpr for fpr, _, _ in curvas]))
+    tpr_media = np.mean([np.interp(fpr_todas, fpr, tpr) for fpr, tpr, _ in curvas], axis=0)
+    auc_macro = area_bajo_curva(fpr_todas, tpr_media)
+    print(f"Micro-promedio: ROC AUC {auc_micro:.3f} · AP {ap_micro:.3f}")
+    print(f"Macro-promedio: ROC AUC {auc_macro:.3f} · AP {ap_macro:.3f}")
+{%- else %}
+mse = mean_squared_error(y_test, y_pred)
+rmse = np.sqrt(mse)
+mae = mean_absolute_error(y_test, y_pred)
+r2 = r2_score(y_test, y_pred)
+print(f"\nError Cuadrático Medio (MSE): {mse:.4f}")
+print(f"RMSE:                         {rmse:.4f}")
+print(f"Error Absoluto Medio (MAE):   {mae:.4f}")
+print(f"R² Score:                     {r2:.4f}")
+# ¿Sobreajuste? Compara con el R² en los datos con los que ha aprendido
+print(f"R² en entrenamiento:          {modelo.score(X_train, y_train):.4f}  "
+      "(si es mucho mayor que el de prueba, el árbol memoriza en lugar de generalizar)")
+residuos = y_test - y_pred
+print(f"Residuos: media {residuos.mean():.3f}, desviación estándar {residuos.std():.3f}")
+{%- endif %}
+
+# ---------------------------------------------------------------------------
+# 5. Las reglas del árbol (pestaña 📉 Visualización → 📝 Texto)
+# ---------------------------------------------------------------------------
+# Cada nivel de sangría es una pregunta; "<=" es la rama izquierda (True) y ">" la derecha.
+{%- if task == "classification" %}
+# weights = muestras de entrenamiento de cada clase que llegan a la hoja.
+print("\n" + export_text(modelo, feature_names=nombres,
+                         class_names=[str(nombre_clase[c]) for c in modelo.classes_],
+                         show_weights=True))
+{%- else %}
+# value = la predicción de la hoja ({% if criterion == "absolute_error" %}la mediana{% else %}la media{% endif %} de sus muestras de entrenamiento).
+print("\n" + export_text(modelo, feature_names=nombres, show_weights=True))
+{%- endif %}
+# Para dibujarlo (como 🌲 Árbol):
+#   import matplotlib.pyplot as plt
+#   from sklearn.tree import plot_tree
+#   plot_tree(modelo, feature_names=nombres{% if task == "classification" %}, class_names=[str(nombre_clase[c]) for c in modelo.classes_]{% endif %},
+#             filled=True, rounded=True, proportion=True, impurity=True)
+#   plt.show()
+
+# ---------------------------------------------------------------------------
+# 6. Importancia de las características (pestaña 🔍 Características)
+# ---------------------------------------------------------------------------
+# Nativa: cuánto reduce cada característica la impureza ({% if task == "classification" %}{{ criterion }}{% elif criterion == "absolute_error" %}error absoluto{% else %}error cuadrático{% endif %}) en los nodos donde
+# se usa, ponderado por las muestras de ENTRENAMIENTO que pasan por ellos; suman 1 (si el árbol
+# es una sola hoja, sin ninguna pregunta, todas valen 0).
+# Por permutación: cuánto empeora la {% if task == "classification" %}exactitud{% else %}R²{% endif %} con los datos de PRUEBA si se barajan los valores de
+# esa característica (10 repeticiones, random_state=42, como MLTutor).
+importancia_perm = permutation_importance(modelo, X_test, y_test, n_repeats=10, random_state=42)
+tabla = pd.DataFrame({"Característica": nombres,
+                      "Nativa": modelo.feature_importances_,
+                      "Permutación": importancia_perm.importances_mean,
+                      "Desv. Estándar": importancia_perm.importances_std})
+tabla = tabla.sort_values("Nativa", ascending=False, kind="stable")
+print(tabla.round(4).to_string(index=False))
+
+# ---------------------------------------------------------------------------
+# 7. Predecir una muestra nueva y seguir su camino (pestaña 🔮 Predicciones)
+# ---------------------------------------------------------------------------
+{%- if sample %}
+# Los valores del formulario de MLTutor, en el orden de las columnas de X
+muestra = pd.DataFrame([{{ sample | pyrepr }}], columns=X.columns)
+{%- else %}
+# Una muestra de prueba; cambia sus valores para probar otros casos
+muestra = X_test.iloc[[0]]
+{%- endif %}
+prediccion = modelo.predict(muestra)[0]
+arbol = modelo.tree_
+camino = modelo.decision_path(muestra).indices  # nodos visitados, de la raíz a la hoja
+# scikit-learn convierte los valores a float32 antes de compararlos con el umbral; la rama
+# se lee del propio camino (el nodo siguiente es el hijo izquierdo o el derecho).
+x32 = muestra.to_numpy(dtype=np.float32)[0]
+print("\nCamino de decisión:")
+for nodo, siguiente in zip(camino[:-1], camino[1:]):
+    f = arbol.feature[nodo]
+    signo = "≤" if siguiente == arbol.children_left[nodo] else ">"
+    print(f"- {nombres[f]} = {x32[f]:.4f} {signo} {arbol.threshold[nodo]:.4f}")
+hoja = camino[-1]
+{%- if task == "classification" %}
+probabilidades = modelo.predict_proba(muestra)[0]
+print(f"- 🍃 Hoja {hoja}: {nombre_clase[prediccion]} "
+      f"({arbol.n_node_samples[hoja]} muestras de entrenamiento)")
+print(f"\nClase predicha: {nombre_clase[prediccion]}")
+# Proporción de cada clase entre las muestras de entrenamiento de esa hoja
+for c, p in zip(modelo.classes_, probabilidades):
+    print(f"  P({nombre_clase[c]}) = {p:.4f}")
+{%- else %}
+print(f"- 🍃 Hoja {hoja}: {prediccion:.4f} "
+      f"({% if criterion == "absolute_error" %}mediana{% else %}media{% endif %} de {arbol.n_node_samples[hoja]} muestras de entrenamiento)")
+print(f"\nValor predicho: {prediccion:.4f}")
+{%- endif %}

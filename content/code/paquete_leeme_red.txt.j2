@@ -1,0 +1,87 @@
+{#- NUEVO (D1/D75, Fase 5): LEEME.txt del "📦 Paquete Keras (.zip)" de 🧠 Redes Neuronales, junto a modelo.json,
+    reconstruir_modelo.py (paquete_modelo_red.py.j2) y predecir_numpy.py (red_predictor_numpy.py.j2).
+    Texto plano, sin Markdown. Variables (pásalas todas):
+      dataset        str        nombre del dataset que ve el estudiante
+      task           str        "classification" o "regression"
+      architecture   list[int]; activation, output_activation str; dropout_rate float
+      n_params       int        pesos + sesgos
+      feature_names  list[str]  en el orden de la entrada de la red
+      classes        list[{value, name}]|null   código de la clase en MLTutor (la salida `label` del ONNX y el
+                                                 índice de la neurona de salida, o 0/1 en binaria) y nombre
+      n_train, n_test int
+    F6 (2026-10-20): con salida tanh en binaria se avisa de que p (y "probabilities" del ONNX) no es una
+    probabilidad.
+-#}
+RED NEURONAL EXPORTADA DESDE MLTUTOR
+====================================
+
+Dataset:      {{ dataset }}
+Arquitectura: {{ architecture | pyrepr }} ({{ n_params }} parámetros)
+Activaciones: {{ activation }} en las capas ocultas, {{ output_activation }} en la salida (dropout {{ dropout_rate | pyrepr }})
+Datos:        {{ n_train }} muestras de entrenamiento (incluida la validación) y {{ n_test }} de prueba
+
+Contenido del paquete
+---------------------
+- modelo.json            La arquitectura, los pesos de cada capa, la media y la desviación
+                         del escalador y unas filas de comprobación.
+- reconstruir_modelo.py  Construye la red en Keras con esos pesos, comprueba que da las
+                         mismas salidas que MLTutor y la guarda en .keras, .h5, SavedModel,
+                         .tflite y pickle (modelo_completo.pkl, scaler.pkl).
+- predecir_numpy.py      La misma red en 30 líneas de NumPy, sin TensorFlow: para ver qué
+                         calcula cada capa.
+- LEEME.txt              Este archivo.
+
+Cómo usarlo
+-----------
+1. Descomprime el ZIP en una carpeta.
+2. Instala las dependencias:   pip install tensorflow scikit-learn numpy
+3. Ejecuta:                    python reconstruir_modelo.py
+4. Carga el modelo en tu código:
+
+       import pickle, keras
+       modelo = keras.models.load_model("modelo_red.keras")
+       with open("scaler.pkl", "rb") as f:
+           scaler = pickle.load(f)
+       print(modelo.predict(scaler.transform([[...]])))   # una lista de valores por muestra
+
+La red espera los datos ESCALADOS (media 0 y desviación 1 con el escalador de MLTutor):
+aplica siempre scaler.transform antes de predecir.
+
+Orden de las características
+----------------------------
+{% for nombre in feature_names %}  {{ loop.index }}. {{ nombre }}
+{% endfor %}
+{%- if classes %}
+Clases (salida de la red)
+-------------------------
+{% for clase in classes %}  {{ clase.value }} = {{ clase.name }}
+{% endfor %}
+{%- if classes | length == 2 %}
+La red tiene una sola neurona de salida, p: predice la clase 1 si p > 0,5.
+{%- if output_activation == "tanh" %}
+Con la salida tanh, p va de -1 a 1 y NO es una probabilidad: MLTutor solo la compara con 0,5.
+{%- endif %}
+{%- else %}
+La red tiene una neurona por clase: predice la de la salida más alta.
+{%- endif %}
+{% endif %}
+Las columnas de texto del dataset original se convirtieron en números por orden
+alfabético (LabelEncoder). Codifica igual los datos nuevos.
+
+Si exportas también el ONNX (botón "💾 ONNX" de MLTutor)
+-------------------------------------------------------
+- Recibe los datos SIN escalar (el escalador va dentro) en la entrada "float_input".
+{%- if classes %}
+- "label" es el código de la clase de la lista de arriba.
+- "probabilities" tiene una columna por clase{% if classes | length == 2 %}: [1 - p, p]{% endif %}.
+{%- if classes | length == 2 and output_activation == "tanh" %}
+  Con la salida tanh, p está entre -1 y 1: esas dos columnas pueden ser negativas o pasar de 1.
+{%- endif %}
+{%- else %}
+- "variable" es la predicción.
+{%- endif %}
+- Calcula en float32 (unos 7 dígitos), también el escalado. Las columnas con valores
+  grandes y muy desplazados del 0 (años, timestamps) pierden precisión al restar la
+  media, así que sus salidas pueden diferir algo de las de MLTutor, que usa float64.
+
+Atención: abrir un archivo .pkl puede ejecutar código. Carga solo los que hayas generado tú.

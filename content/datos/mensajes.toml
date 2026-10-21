@@ -1,0 +1,106 @@
+# Textos cortos de la pestaña 📊 Datos (mltutor/dataset/dataset_tab.py), literales.
+# {llaves} = valores que se sustituyen; el formato numérico va indicado.
+
+[seleccion]
+header = "📊 Selección y Preparación de Datos"          # st.header, solo en las pestañas 0 y 1
+subheader = "### 🎯 Selección de Dataset"
+select_label = "Dataset:"
+select_help = "El dataset seleccionado se mantendrá entre las pestañas de Exploración y Entrenamiento"
+moons_info = "Dataset generado aleatoriamente."           # st.info, solo con Moons
+dataset_actual = "📊 **Dataset actual:** {dataset}"       # st.info en las pestañas >= 2 (y >= 1 en redes), seguido de "---"
+
+[info]
+seleccionado = "✅ Dataset seleccionado: **{dataset}**"   # st.success
+titulo = "### 📊 Información del Dataset"
+metric_filas = "📏 Filas"
+metric_filas_help = "Número total de ejemplos para entrenar"
+metric_columnas = "📊 Columnas"
+metric_columnas_help = "Características + variable objetivo"
+metric_objetivo = "🎯 Variable Objetivo"
+metric_objetivo_help = "Lo que la red va a predecir"
+metric_tarea = "{icon} Tipo de Tarea"                     # icon = "🏷️" si Clasificación, si no "📈"
+metric_tarea_help = "Clasificación o Regresión"
+error = "Error cargando dataset: {error}"
+error_info = "Por favor, selecciona un dataset válido."
+sin_dataset = "⚠️ Por favor, selecciona un dataset para continuar."
+
+[exploracion]
+header = "Exploración de Datos"                          # st.header
+vista_previa = "### 👀 Vista previa de datos"            # primeras 10 filas
+expander_que_significan = "💡 ¿Qué significan estos datos?"
+estadisticas = "### Estadísticas Descriptivas"
+distribucion = "### 🎯 Distribución del Objetivo"
+error = "Error al cargar el dataset: {error}"
+error_info = "Por favor, selecciona un dataset válido para continuar con la exploración."
+
+[distribucion]
+titulo_clases = "Distribución de Clases"
+eje_x_clases = "Clase"
+eje_y_clases = "Cantidad"
+desbalanceado = "⚠️ **Dataset desbalanceado**: La clase más frecuente tiene {ratio:.1f}x más ejemplos que la menos frecuente"   # st.warning si ratio > 3
+desbalanceado_info = "💡 Los modelos de IA funcionan mejor con clases balanceadas. Considera técnicas de balanceo si es necesario."  # st.info
+balanceado = "✅ **Dataset bien balanceado**: Las clases tienen cantidad similar de ejemplos"   # st.success
+titulo_regresion = "Distribución de Valores Objetivo"
+eje_x_regresion = "Valor"
+eje_y_regresion = "Frecuencia"
+expander_estadisticas = "📊 Estadísticas de la Variable Objetivo"
+metric_media = "🎯 Media"                # valores con {:.2f}
+metric_std = "📏 Desv. Estándar"
+metric_min = "📉 Mínimo"
+metric_max = "📈 Máximo"
+
+[analisis]
+titulo = "### 📊 Análisis Avanzado de Datos"
+elige = "#### Elige el tipo de análisis que quieres realizar:"
+boton_correlacion = "🔗 Matriz de Correlación"
+boton_correlacion_help = "Analiza las relaciones lineales entre características"
+boton_pairplot = "📈 Matriz de Dispersión (Pairplot)"
+boton_pairplot_help = "Visualiza relaciones entre todas las parejas de características"
+
+[correlacion]
+titulo = "#### Matriz de Correlación"
+titulo_grafico = "Matriz de Correlación de Características"
+descargar = "📥 Descargar matriz de correlación"          # PNG "matriz_correlacion.png"
+
+[pairplot]
+titulo = "#### Matriz de Dispersión (Pairplot)"
+opciones = "##### Opciones de visualización"
+diag_label = "Tipo de gráfico en la diagonal:"
+diag_opciones = ["Histograma", "KDE (Estimación de Densidad)"]   # índice por defecto 1 (KDE)
+pocas_caracteristicas = "Sólo hay {n} características disponibles; usando las {n} para el pairplot."  # st.info si n <= 2
+slider_label = "Número máximo de características:"
+slider_help = "Un número mayor de características puede hacer que el gráfico sea más difícil de interpretar."
+selecciona = "##### Selecciona las características para visualizar"
+multiselect_label = "Características a incluir en la matriz de dispersión:"
+multiselect_help = "Selecciona hasta {max} características para incluir en la visualización."
+ninguna = "No se seleccionaron características. Usando las primeras {max} por defecto."   # st.info
+cuidado = "⚠️ **Cuidado**: {n} características = {total} gráficos. Puede ser muy lento."    # st.warning si total > 25
+nota = "ℹ️ **Nota**: {n} características = {total} gráficos. Tiempo estimado: ~{t:.1f}s"   # st.info si total > 16; t = total·filas/50000
+boton_generar = "🚀 Generar Matriz de Dispersión"
+boton_reiniciar = "🛑 Reiniciar"
+boton_reiniciar_help = "Usa esto si la generación se queda colgada"
+haz_clic = "👆 Haz clic en el botón para generar la matriz de dispersión con las características seleccionadas."
+expander_consejos = "💡 Consejos para evitar que se cuelgue la generación"
+limite_seguridad = "⚠️ Aplicando límite de seguridad: {max} puntos máximo para evitar timeouts"   # inalcanzable en Python
+usando_puntos = "📊 Usando {n} puntos de {total} totales para optimizar velocidad"
+estado_inicio = "🔄 Iniciando generación de la matriz..."
+advertencia_tiempo = "⚠️ **Advertencia**: La generación puede tardar ~{t:.1f} segundos"     # t = n²·filas/10000 > 30
+sugerencia = "💡 **Sugerencia**: Reduce el número de características o el tamaño de muestra"
+estado_generando = "🔄 Generando matriz... ({puntos} puntos, {n} características)"
+estado_creando = "🎨 Creando gráficos..."
+estado_finalizando = "🎨 Finalizando visualización..."
+tardo = "⏱️ La generación tardó {t:.1f} segundos. Considera reducir el tamaño."             # > 60 s
+titulo_grafico = "Matriz de Dispersión de Características"
+titulo_muestra = " (Muestra: {n}/{total} puntos)"         # se añade al título si hubo muestreo
+exito = "✅ Matriz generada exitosamente en {t:.1f}s"
+descargar = "📥 Descargar matriz de dispersión"           # PNG "matriz_dispersion.png"
+error = "❌ Error generando la matriz: {error}"
+error_info = "💡 Intenta reducir el número de características o el tamaño de muestra"
+leyenda = "target"                                         # título de la leyenda (columna hue)
+
+[codigo]
+titulo = "#### Código para análisis exploratorio"          # utils.show_code_with_download
+expander = "Ver código"
+descargar = "📥 Descargar código"                           # "analisis_exploratorio.py"
+nota_copiar = "Usa el botón de copia en la esquina superior derecha del bloque de código para copiarlo"   # st.info
+plantilla = "content/code/analisis_exploratorio.py.j2"

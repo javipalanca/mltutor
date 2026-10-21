@@ -1,0 +1,43 @@
+# Dataset metadata for the 📊 Datos tab and the prediction form.
+# Generated from mltutor/dataset/{dataset_manager,additional_datasets,dataset_metadata}.py
+# and dataset_tab.py (2026-10-13). Ranges are over the full dataset; the form
+# computes them from X_train at runtime, as Python does.
+id = "moons"
+label = "🌙 Moons - Clasificación sintética"
+emoji = "🌙"
+name = "Moons"
+task = "classification"
+task_label = "Clasificación"
+target = "label"
+samples = 500
+description = "Moons sintético: 500 muestras, 2 características, 2 clases (no lineal)."
+selector_blurb = "🌙 **Moons**: Dataset sintético de dos lunas entrelazadas. Ideal para probar clasificadores en problemas no lineales y visualizar fronteras de decisión."
+selector_info = ""
+source = "sklearn.datasets.make_moons(n_samples=500, noise=0.2); the app seeds it with the current UNIX timestamp, the fixture uses random_state=42"
+fixture = "tests/parity/datasets/moons.json"
+classes = ["class_0", "class_1"]
+
+[generator]
+function = "make_moons"
+n_samples = 500
+noise = 0.2
+seed = 42
+# Python reseeds with the UNIX timestamp on every render of the selector.
+
+[[features]]
+column = "x1"
+display = "x1"
+kind = "continuous"
+categorical_in_metadata = false
+min = -1.4761269392401806
+max = 2.48480165010424
+mean = 0.5181450387823975
+
+[[features]]
+column = "x2"
+display = "x2"
+kind = "continuous"
+categorical_in_metadata = false
+min = -0.9885260706545681
+max = 1.5042788037105517
+mean = 0.2553665836254929

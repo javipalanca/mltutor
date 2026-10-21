@@ -1,0 +1,148 @@
+# Dataset metadata for the 📊 Datos tab and the prediction form.
+# Generated from mltutor/dataset/{dataset_manager,additional_datasets,dataset_metadata}.py
+# and dataset_tab.py (2026-10-13). Ranges are over the full dataset; the form
+# computes them from X_train at runtime, as Python does.
+id = "wine"
+label = "🍷 Vino - Clasificación de vinos"
+emoji = "🍷"
+name = "Vino"
+task = "classification"
+task_label = "Clasificación"
+target = "wine_type"
+samples = 178
+description = "Dataset Vino: 178 muestras, 13 características, 3 tipos de vino"
+selector_blurb = "🍷 **Vino**: Clasificación multiclase con 13 características químicas."
+selector_info = "178 muestras • 13 características • 3 clases de vino • Clasificación"
+source = "sklearn.datasets.load_wine (bundled with scikit-learn)"
+fixture = "tests/parity/datasets/wine.json"
+classes = ["class_0", "class_1", "class_2"]
+
+[[features]]
+column = "alcohol"
+display = "alcohol"
+description = "Contenido de alcohol"
+kind = "continuous"
+categorical_in_metadata = false
+min = 11.03
+max = 14.83
+mean = 13.00061797752809
+
+[[features]]
+column = "malic_acid"
+display = "malic_acid"
+description = "Ácido málico"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0.74
+max = 5.8
+mean = 2.3363483146067416
+
+[[features]]
+column = "ash"
+display = "ash"
+description = "Ceniza"
+kind = "continuous"
+categorical_in_metadata = false
+min = 1.36
+max = 3.23
+mean = 2.3665168539325845
+
+[[features]]
+column = "alcalinity_of_ash"
+display = "alcalinity_of_ash"
+description = "Alcalinidad de la ceniza"
+kind = "continuous"
+categorical_in_metadata = false
+min = 10.6
+max = 30
+mean = 19.49494382022472
+
+[[features]]
+column = "magnesium"
+display = "magnesium"
+description = "Magnesio"
+kind = "continuous"
+categorical_in_metadata = false
+min = 70
+max = 162
+mean = 99.74157303370787
+
+[[features]]
+column = "total_phenols"
+display = "total_phenols"
+description = "Fenoles totales"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0.98
+max = 3.88
+mean = 2.295112359550562
+
+[[features]]
+column = "flavanoids"
+display = "flavanoids"
+description = "Flavonoides"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0.34
+max = 5.08
+mean = 2.0292696629213487
+
+[[features]]
+column = "nonflavanoid_phenols"
+display = "nonflavanoid_phenols"
+description = "Fenoles no flavonoides"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0.13
+max = 0.66
+mean = 0.3618539325842696
+
+[[features]]
+column = "proanthocyanins"
+display = "proanthocyanins"
+description = "Proantocianinas"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0.41
+max = 3.58
+mean = 1.5908988764044945
+
+[[features]]
+column = "color_intensity"
+display = "color_intensity"
+description = "Intensidad del color"
+kind = "continuous"
+categorical_in_metadata = false
+min = 1.28
+max = 13
+mean = 5.058089882022472
+
+[[features]]
+column = "hue"
+display = "hue"
+description = "Tono"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0.48
+max = 1.71
+mean = 0.9574494382022471
+
+[[features]]
+column = "od280/od315_of_diluted_wines"
+display = "od280/od315_of_diluted_wines"
+description = "Ratio OD280/OD315 de vinos diluidos"
+kind = "continuous"
+categorical_in_metadata = false
+min = 1.27
+max = 4
+mean = 2.6116853932584267
+
+[[features]]
+column = "proline"
+display = "proline"
+description = "Prolina"
+kind = "continuous"
+categorical_in_metadata = false
+min = 278
+max = 1680
+mean = 746.8932584269663

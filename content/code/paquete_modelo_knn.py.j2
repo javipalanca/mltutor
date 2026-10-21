@@ -1,0 +1,97 @@
+{#- NUEVO (decisiones D1 y D57, Fase 4): no existe en la versión Python, que guardaba el objeto con
+    pickle (como "linear_regression_model.pkl"). Script del "📦 Paquete Python (.zip)" de la lección
+    🔍 K-Nearest Neighbors. Un KNN no aprende parámetros: "entrenar" es guardar los datos de
+    entrenamiento. Por eso el script vuelve a hacer fit con las MISMAS filas, en el MISMO orden
+    (el orden decide qué vecino gana cuando hay empates de distancia), comprueba que predice y elige
+    los mismos vecinos que MLTutor y guarda el modelo con pickle.
+    Variables (pásalas todas):
+      estimator   str   "sklearn.neighbors.KNeighborsClassifier" o "sklearn.neighbors.KNeighborsRegressor"
+      dataset     str   nombre del dataset (texto del usuario si es un CSV: va con pycomment)
+      classifier  bool
+      json_name   str   "modelo.json"
+      pkl_name    str   "modelo_knn.pkl"
+    CORREGIDO (revisión ML de F4, 2026-10-15): la comprobación se hace con threadpool_limits(1) (con varios
+    hilos, los empates de la fuerza bruta de scikit-learn cambian con el número de núcleos), compara el
+    CONJUNTO de vecinos de cada fila (scikit-learn puede ordenar de otra forma los vecinos a la misma
+    distancia sin que cambie la predicción) y el aviso ya no atribuye los empates solo a la plataforma o al
+    kd-tree.
+-#}
+"""
+Reconstruye el modelo K-Nearest Neighbors entrenado en MLTutor como un objeto de scikit-learn.
+
+Modelo: {{ estimator }}
+Dataset: {{ dataset | pycomment }}
+
+Uso (en la carpeta donde has descomprimido el ZIP):
+    pip install scikit-learn numpy
+    python reconstruir_modelo.py
+
+Genera '{{ pkl_name }}', que puedes cargar con pickle o joblib.
+"""
+import json
+import pickle
+
+import numpy as np
+from threadpoolctl import threadpool_limits  # se instala con scikit-learn
+{% if classifier %}from sklearn.neighbors import KNeighborsClassifier{% else %}from sklearn.neighbors import KNeighborsRegressor{% endif %}
+
+# 1. Leer los datos y los hiperparámetros del modelo de MLTutor
+with open("{{ json_name }}", encoding="utf-8") as f:
+    datos = json.load(f)
+
+# 2. Crear el modelo con los mismos hiperparámetros
+{% if classifier %}modelo = KNeighborsClassifier(**datos["params"])
+{% else %}modelo = KNeighborsRegressor(**datos["params"])
+{% endif %}
+# 3. "Entrenar": un KNN solo guarda los datos de entrenamiento. Se usan las mismas filas, en el
+#    mismo orden y sin escalar, como en MLTutor.
+X_train = np.array(datos["X_train"], dtype=float)
+y_train = np.array(datos["y_train"])
+modelo.fit(X_train, y_train)
+
+# 4. Comprobar que el modelo reconstruido elige los mismos vecinos y predice lo mismo.
+#    Si varias muestras de entrenamiento están a la MISMA distancia que el K-ésimo vecino, cuál
+#    entra depende de cómo busque scikit-learn: el kd-tree depende de la biblioteca de C++ con
+#    la que se compiló, y la fuerza bruta, del número de hilos (con varios núcleos reparte las
+#    muestras entre hilos y junta los resultados). MLTutor reproduce scikit-learn con UN hilo,
+#    así que la comprobación se hace con threadpool_limits(1). Haz lo mismo cuando uses el modelo
+#    si quieres los mismos vecinos que en la app. Se comparan siempre las distancias y, si aun
+#    así cambia algún vecino empatado, solo se avisa.
+X = np.array(datos["check"]["X"], dtype=float)
+with threadpool_limits(1):
+    distancias, vecinos = modelo.kneighbors(X)
+assert np.allclose(np.sort(distancias, axis=1), np.sort(np.array(datos["check"]["distances"]), axis=1),
+                   rtol=1e-9, atol=1e-12)
+# Se compara el CONJUNTO de vecinos de cada fila: entre vecinos a la misma distancia, el orden de
+# la lista puede cambiar sin que cambie la predicción.
+iguales = np.all(np.sort(vecinos, axis=1) == np.sort(np.array(datos["check"]["neighbours"]), axis=1),
+                 axis=1)
+if iguales.any():
+    with threadpool_limits(1):
+{% if classifier %}        assert np.array_equal(modelo.predict(X[iguales]), np.array(datos["check"]["prediction"])[iguales])
+        assert np.allclose(modelo.predict_proba(X[iguales]),
+                           np.array(datos["check"]["probabilities"])[iguales], atol=1e-12)
+{% else %}        assert np.allclose(modelo.predict(X[iguales]), np.array(datos["check"]["prediction"])[iguales],
+                           rtol=1e-12, atol=1e-12)
+{% endif %}if iguales.all():
+    print("✅ El modelo reconstruido elige los mismos vecinos y predice lo mismo que MLTutor")
+else:
+    print(f"⚠️ En {int((~iguales).sum())} de {len(X)} filas de comprobación hay un empate de distancia "
+          "en el K-ésimo vecino y este scikit-learn ha elegido otra muestra igual de cercana "
+          "(las distancias coinciden). Pasa con el kd-tree (depende de la biblioteca de C++ con la "
+          "que se compiló scikit-learn), con otra versión de scikit-learn o, con la distancia "
+          "euclídea, por redondeos del cálculo. Las predicciones de esas filas pueden variar; el "
+          "resto coincide con MLTutor.")
+
+# 5. Guardar el modelo en formato pickle
+with open("{{ pkl_name }}", "wb") as f:
+    pickle.dump(modelo, f)
+print("💾 Modelo guardado en '{{ pkl_name }}'")
+
+# Ejemplo de uso:
+# with open("{{ pkl_name }}", "rb") as f:
+#     modelo = pickle.load(f)
+# nuevo_ejemplo = np.array([[{% raw %}valor1, valor2, ...{% endraw %}]])  # en el orden de datos["feature_names_in"]
+# with threadpool_limits(1):  # mismos desempates que MLTutor
+#     print(modelo.predict(nuevo_ejemplo))
+#     distancias, vecinos = modelo.kneighbors(nuevo_ejemplo)  # los K vecinos (filas de X_train)

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-evaluate-model"
+description = "Enables the evaluate_model command without any pre-configured scope."
+commands.allow = ["evaluate_model"]
+
+[[permission]]
+identifier = "deny-evaluate-model"
+description = "Denies the evaluate_model command without any pre-configured scope."
+commands.deny = ["evaluate_model"]

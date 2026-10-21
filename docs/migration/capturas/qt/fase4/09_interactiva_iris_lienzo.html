@@ -1,0 +1,540 @@
+
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            .knn-container {
+                max-width: 100%;
+                margin: 0 auto;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            }
+            .canvas-container {
+                position: relative;
+                border: 2px solid #e0e0e0;
+                border-radius: 8px;
+                margin: 20px 0;
+                background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+                width: 100%;
+                overflow: hidden;
+            }
+            #knnCanvas {
+                display: block;
+                cursor: crosshair;
+                border-radius: 6px;
+                width: 100%;
+                height: auto;
+                max-width: 100%;
+            }
+            .controls {
+                display: flex;
+                gap: 15px;
+                margin-bottom: 15px;
+                flex-wrap: wrap;
+                align-items: center;
+                justify-content: center;
+            }
+            .control-group {
+                display: flex;
+                flex-direction: column;
+                gap: 5px;
+                min-width: 120px;
+            }
+            .control-group label {
+                font-weight: 600;
+                font-size: 12px;
+                color: #555;
+                text-align: center;
+            }
+            .control-group input, .control-group select {
+                padding: 5px 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 14px;
+            }
+            .legend {
+                display: flex;
+                gap: 15px;
+                margin-top: 15px;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            .legend-item {
+                display: flex;
+                align-items: center;
+                gap: 5px;
+                font-size: 14px;
+            }
+            .legend-color {
+                width: 16px;
+                height: 16px;
+                border-radius: 50%;
+                border: 2px solid #333;
+                flex-shrink: 0;
+            }
+            .stats {
+                background: #f8f9fa;
+                padding: 15px;
+                border-radius: 8px;
+                margin-top: 15px;
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                gap: 10px;
+            }
+            .stat-item {
+                text-align: center;
+                padding: 10px;
+                background: white;
+                border-radius: 6px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            .stat-value {
+                font-size: 24px;
+                font-weight: bold;
+                color: #2196F3;
+            }
+            .stat-label {
+                font-size: 12px;
+                color: #666;
+                margin-top: 5px;
+            }
+            .clear-btn {
+                background: #ff4444;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 600;
+                min-width: 140px;
+            }
+            .clear-btn:hover {
+                background: #cc3333;
+            }
+            .info-box {
+                background: #e3f2fd;
+                border-left: 4px solid #2196F3;
+                padding: 15px;
+                margin: 15px 0;
+                border-radius: 4px;
+            }
+            
+            /* Responsivo para móviles */
+            @media (max-width: 768px) {
+                .controls {
+                    gap: 10px;
+                }
+                .control-group {
+                    min-width: 100px;
+                }
+                .legend {
+                    gap: 10px;
+                }
+                .legend-item {
+                    font-size: 12px;
+                }
+                .stats {
+                    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+                    gap: 8px;
+                }
+                .stat-value {
+                    font-size: 20px;
+                }
+                .clear-btn {
+                    min-width: 120px;
+                    font-size: 12px;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="knn-container">
+            <div class="info-box">
+                <strong>🎯 Visualización Interactiva KNN</strong><br>
+                Haz click en cualquier parte del área gris para agregar puntos de prueba y ver cómo el algoritmo los clasifica.
+            </div>
+            
+            <div class="controls">
+                <div class="control-group">
+                    <label>Valor K:</label>
+                    <input type="range" id="kValue" min="1" max="15" value="5" onchange="updateK(this.value)">
+                    <span id="kDisplay">5</span>
+                </div>
+                <div class="control-group">
+                    <label>Métrica:</label>
+                    <select id="metric" onchange="updateMetric(this.value)">
+                        <option value="euclidean" >Euclidean</option>
+                        <option value="manhattan" >Manhattan</option>
+                        <option value="minkowski" selected>Minkowski</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>Pesos:</label>
+                    <select id="weights" onchange="updateWeights(this.value)">
+                        <option value="uniform" selected>Uniforme</option>
+                        <option value="distance" >Por distancia</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>Mostrar confianza:</label>
+                    <input type="checkbox" id="showConfidence" checked onchange="updateShowConfidence(this.checked)">
+                </div>
+                <div class="control-group">
+                    <label>Mostrar distancias:</label>
+                    <input type="checkbox" id="showDistances" checked onchange="updateShowDistances(this.checked)">
+                </div>
+                <button class="clear-btn" onclick="clearTestPoints()">🗑️ Limpiar Puntos</button>
+            </div>
+            
+            <div class="canvas-container">
+                <canvas id="knnCanvas"></canvas>
+            </div>
+            
+            <div class="legend">
+                <strong>Leyenda:</strong>
+                <div class="legend-item"><div class="legend-color" style="background-color: #FF6B6B"></div><span>setosa</span></div> <div class="legend-item"><div class="legend-color" style="background-color: #4ECDC4"></div><span>versicolor</span></div> <div class="legend-item"><div class="legend-color" style="background-color: #45B7D1"></div><span>virginica</span></div>
+                <div class="legend-item"><div class="legend-color" style="background-color: #FFD700; transform: rotate(45deg);"></div><span>Puntos de Prueba</span></div>
+            </div>
+            
+            <div class="stats" id="stats">
+                <div class="stat-item">
+                    <div class="stat-value" id="totalPoints">0</div>
+                    <div class="stat-label">Puntos de Prueba</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="avgConfidence">0%</div>
+                    <div class="stat-label">Confianza Promedio</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="currentK">5</div>
+                    <div class="stat-label">Valor K Actual</div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            // Configuración global
+            const canvas = document.getElementById('knnCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Función para redimensionar el canvas
+            function resizeCanvas() {
+                const container = document.querySelector('.canvas-container');
+                const containerWidth = container.clientWidth - 4; // Restar bordes
+                const aspectRatio = 3/2; // Relación de aspecto 3:2
+                const canvasHeight = Math.max(400, containerWidth / aspectRatio);
+                
+                canvas.width = containerWidth;
+                canvas.height = canvasHeight;
+                canvas.style.width = containerWidth + 'px';
+                canvas.style.height = canvasHeight + 'px';
+                
+                // Redibujar después de redimensionar
+                if (typeof draw === 'function') {
+                    draw();
+                }
+            }
+            
+            // Datos del modelo
+            const trainingData = [{"x": 5.1, "y": 3.5, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 4.9, "y": 3.0, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 4.7, "y": 3.2, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 4.6, "y": 3.1, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 5.0, "y": 3.6, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 5.4, "y": 3.9, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 4.6, "y": 3.4, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 5.0, "y": 3.4, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 4.4, "y": 2.9, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 4.9, "y": 3.1, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 5.4, "y": 3.7, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 4.8, "y": 3.4, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 4.8, "y": 3.0, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 4.3, "y": 3.0, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 5.8, "y": 4.0, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 5.7, "y": 4.4, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 5.4, "y": 3.9, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 5.1, "y": 3.5, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 5.7, "y": 3.8, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 5.1, "y": 3.8, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 5.4, "y": 3.4, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 5.1, "y": 3.7, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 4.6, "y": 3.6, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 5.1, "y": 3.3, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 4.8, "y": 3.4, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 5.0, "y": 3.0, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 5.0, "y": 3.4, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 5.2, "y": 3.5, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 5.2, "y": 3.4, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 4.7, "y": 3.2, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 4.8, "y": 3.1, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 5.4, "y": 3.4, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 5.2, "y": 4.1, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 5.5, "y": 4.2, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 4.9, "y": 3.1, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 5.0, "y": 3.2, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 5.5, "y": 3.5, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 4.9, "y": 3.6, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 4.4, "y": 3.0, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 5.1, "y": 3.4, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 5.0, "y": 3.5, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 4.5, "y": 2.3, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 4.4, "y": 3.2, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 5.0, "y": 3.5, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 5.1, "y": 3.8, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 4.8, "y": 3.0, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 5.1, "y": 3.8, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 4.6, "y": 3.2, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 5.3, "y": 3.7, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 5.0, "y": 3.3, "class": 0, "className": "setosa", "color": "#FF6B6B"}, {"x": 7.0, "y": 3.2, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 6.4, "y": 3.2, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 6.9, "y": 3.1, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 5.5, "y": 2.3, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 6.5, "y": 2.8, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 5.7, "y": 2.8, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 6.3, "y": 3.3, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 4.9, "y": 2.4, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 6.6, "y": 2.9, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 5.2, "y": 2.7, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 5.0, "y": 2.0, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 5.9, "y": 3.0, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 6.0, "y": 2.2, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 6.1, "y": 2.9, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 5.6, "y": 2.9, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 6.7, "y": 3.1, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 5.6, "y": 3.0, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 5.8, "y": 2.7, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 6.2, "y": 2.2, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 5.6, "y": 2.5, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 5.9, "y": 3.2, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 6.1, "y": 2.8, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 6.3, "y": 2.5, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 6.1, "y": 2.8, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 6.4, "y": 2.9, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 6.6, "y": 3.0, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 6.8, "y": 2.8, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 6.7, "y": 3.0, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 6.0, "y": 2.9, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 5.7, "y": 2.6, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 5.5, "y": 2.4, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 5.5, "y": 2.4, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 5.8, "y": 2.7, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 6.0, "y": 2.7, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 5.4, "y": 3.0, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 6.0, "y": 3.4, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 6.7, "y": 3.1, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 6.3, "y": 2.3, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 5.6, "y": 3.0, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 5.5, "y": 2.5, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 5.5, "y": 2.6, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 6.1, "y": 3.0, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 5.8, "y": 2.6, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 5.0, "y": 2.3, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 5.6, "y": 2.7, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 5.7, "y": 3.0, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 5.7, "y": 2.9, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 6.2, "y": 2.9, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 5.1, "y": 2.5, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 5.7, "y": 2.8, "class": 1, "className": "versicolor", "color": "#4ECDC4"}, {"x": 6.3, "y": 3.3, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 5.8, "y": 2.7, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 7.1, "y": 3.0, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 6.3, "y": 2.9, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 6.5, "y": 3.0, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 7.6, "y": 3.0, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 4.9, "y": 2.5, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 7.3, "y": 2.9, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 6.7, "y": 2.5, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 7.2, "y": 3.6, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 6.5, "y": 3.2, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 6.4, "y": 2.7, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 6.8, "y": 3.0, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 5.7, "y": 2.5, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 5.8, "y": 2.8, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 6.4, "y": 3.2, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 6.5, "y": 3.0, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 7.7, "y": 3.8, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 7.7, "y": 2.6, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 6.0, "y": 2.2, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 6.9, "y": 3.2, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 5.6, "y": 2.8, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 7.7, "y": 2.8, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 6.3, "y": 2.7, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 6.7, "y": 3.3, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 7.2, "y": 3.2, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 6.2, "y": 2.8, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 6.1, "y": 3.0, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 6.4, "y": 2.8, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 7.2, "y": 3.0, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 7.4, "y": 2.8, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 7.9, "y": 3.8, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 6.4, "y": 2.8, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 6.3, "y": 2.8, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 6.1, "y": 2.6, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 7.7, "y": 3.0, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 6.3, "y": 3.4, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 6.4, "y": 3.1, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 6.0, "y": 3.0, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 6.9, "y": 3.1, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 6.7, "y": 3.1, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 6.9, "y": 3.1, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 5.8, "y": 2.7, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 6.8, "y": 3.2, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 6.7, "y": 3.3, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 6.7, "y": 3.0, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 6.3, "y": 2.5, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 6.5, "y": 3.0, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 6.2, "y": 3.4, "class": 2, "className": "virginica", "color": "#45B7D1"}, {"x": 5.9, "y": 3.0, "class": 2, "className": "virginica", "color": "#45B7D1"}];
+            const classInfo = [{"id": 0, "name": "setosa", "color": "#FF6B6B"}, {"id": 1, "name": "versicolor", "color": "#4ECDC4"}, {"id": 2, "name": "virginica", "color": "#45B7D1"}];
+            const bounds = {
+                xMin: 3.3,
+                xMax: 8.9,
+                yMin: 1.0,
+                yMax: 5.4
+            };
+            
+            // Estado de la visualización
+            let currentK = 5;
+            let currentMetric = "minkowski";
+            let currentWeights = "uniform";
+            let showConfidence = true;
+            let showDistances = true;
+            let testPoints = [];
+            
+            // Funciones de conversión de coordenadas
+            function dataToCanvas(x, y) {
+                const margin = 20;
+                const canvasX = ((x - bounds.xMin) / (bounds.xMax - bounds.xMin)) * (canvas.width - 2 * margin) + margin;
+                const canvasY = canvas.height - (((y - bounds.yMin) / (bounds.yMax - bounds.yMin)) * (canvas.height - 2 * margin) + margin);
+                return {x: canvasX, y: canvasY};
+            }
+            
+            function canvasToData(canvasX, canvasY) {
+                const margin = 20;
+                const x = ((canvasX - margin) / (canvas.width - 2 * margin)) * (bounds.xMax - bounds.xMin) + bounds.xMin;
+                const y = bounds.yMax - (((canvasY - margin) / (canvas.height - 2 * margin)) * (bounds.yMax - bounds.yMin));
+                return {x: x, y: y};
+            }
+            
+            // Función de distancia
+            function calculateDistance(p1, p2, metric) {
+                if (metric === 'euclidean') {
+                    return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+                } else if (metric === 'manhattan') {
+                    return Math.abs(p1.x - p2.x) + Math.abs(p1.y - p2.y);
+                } else { // minkowski (p=2, equivalent to euclidean)
+                    return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+                }
+            }
+            
+            // Clasificación KNN
+            function classifyPoint(testPoint) {
+                const distances = trainingData.map(point => ({
+                    ...point,
+                    distance: calculateDistance(testPoint, point, currentMetric)
+                }));
+                
+                distances.sort((a, b) => a.distance - b.distance);
+                const neighbors = distances.slice(0, currentK);
+                
+                // Contar votos por clase
+                const votes = {};
+                const weights = {};
+                
+                neighbors.forEach(neighbor => {
+                    if (!votes[neighbor.class]) {
+                        votes[neighbor.class] = 0;
+                        weights[neighbor.class] = 0;
+                    }
+                    
+                    if (currentWeights === 'distance') {
+                        const weight = neighbor.distance === 0 ? 1 : 1 / neighbor.distance;
+                        weights[neighbor.class] += weight;
+                    } else {
+                        votes[neighbor.class] += 1;
+                    }
+                });
+                
+                // Encontrar la clase ganadora
+                let winningClass = null;
+                let maxScore = 0;
+                
+                if (currentWeights === 'distance') {
+                    for (const [cls, weight] of Object.entries(weights)) {
+                        if (weight > maxScore) {
+                            maxScore = weight;
+                            winningClass = parseInt(cls);
+                        }
+                    }
+                } else {
+                    for (const [cls, count] of Object.entries(votes)) {
+                        if (count > maxScore) {
+                            maxScore = count;
+                            winningClass = parseInt(cls);
+                        }
+                    }
+                }
+                
+                // Calcular confianza
+                const totalVotes = currentWeights === 'distance' ? 
+                    Object.values(weights).reduce((a, b) => a + b, 0) :
+                    Object.values(votes).reduce((a, b) => a + b, 0);
+                    
+                const confidence = totalVotes > 0 ? (maxScore / totalVotes) : 0;
+                
+                return {
+                    predictedClass: winningClass,
+                    confidence: confidence,
+                    neighbors: neighbors,
+                    className: classInfo.find(c => c.id === winningClass)?.name || `Clase ${winningClass}`
+                };
+            }
+            
+            // Dibujar la visualización
+            function draw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Calcular tamaño de puntos basado en el tamaño del canvas
+                const pointSize = Math.max(4, Math.min(8, canvas.width / 120));
+                const testPointSize = Math.max(6, Math.min(12, canvas.width / 80));
+                
+                // Dibujar puntos de entrenamiento
+                trainingData.forEach(point => {
+                    const pos = dataToCanvas(point.x, point.y);
+                    ctx.fillStyle = point.color;
+                    ctx.beginPath();
+                    ctx.arc(pos.x, pos.y, pointSize, 0, 2 * Math.PI);
+                    ctx.fill();
+                    ctx.strokeStyle = '#333';
+                    ctx.lineWidth = Math.max(1, pointSize / 3);
+                    ctx.stroke();
+                });
+                
+                // Dibujar puntos de prueba y sus clasificaciones
+                testPoints.forEach((testPoint, index) => {
+                    const pos = dataToCanvas(testPoint.x, testPoint.y);
+                    const classification = classifyPoint(testPoint);
+                    
+                    // Dibujar líneas a vecinos más cercanos
+                    if (showDistances && classification.neighbors) {
+                        ctx.strokeStyle = '#FF4444';
+                        ctx.lineWidth = Math.max(1, canvas.width / 400);
+                        ctx.setLineDash([5, 5]);
+                        
+                        classification.neighbors.forEach(neighbor => {
+                            const neighborPos = dataToCanvas(neighbor.x, neighbor.y);
+                            ctx.beginPath();
+                            ctx.moveTo(pos.x, pos.y);
+                            ctx.lineTo(neighborPos.x, neighborPos.y);
+                            ctx.stroke();
+                        });
+                        ctx.setLineDash([]);
+                    }
+                    
+                    // Dibujar punto de prueba
+                    const classColor = classInfo.find(c => c.id === classification.predictedClass)?.color || '#FFD700';
+                    ctx.fillStyle = classColor;
+                    ctx.beginPath();
+                    ctx.arc(pos.x, pos.y, testPointSize, 0, 2 * Math.PI);
+                    ctx.fill();
+                    ctx.strokeStyle = '#333';
+                    ctx.lineWidth = Math.max(2, testPointSize / 4);
+                    ctx.stroke();
+                    
+                    // Dibujar estrella en el centro
+                    ctx.fillStyle = '#FFD700';
+                    ctx.beginPath();
+                    const starSize = testPointSize * 0.6;
+                    for (let i = 0; i < 5; i++) {
+                        const angle = (i * 2 * Math.PI) / 5 - Math.PI / 2;
+                        const x = pos.x + Math.cos(angle) * starSize;
+                        const y = pos.y + Math.sin(angle) * starSize;
+                        if (i === 0) ctx.moveTo(x, y);
+                        else ctx.lineTo(x, y);
+                    }
+                    ctx.closePath();
+                    ctx.fill();
+                    
+                    // Mostrar confianza si está habilitado
+                    if (showConfidence) {
+                        const confidenceRadius = testPointSize + 8;
+                        const confidenceAngle = classification.confidence * 2 * Math.PI;
+                        
+                        ctx.strokeStyle = '#4CAF50';
+                        ctx.lineWidth = Math.max(2, canvas.width / 300);
+                        ctx.beginPath();
+                        ctx.arc(pos.x, pos.y, confidenceRadius, -Math.PI / 2, -Math.PI / 2 + confidenceAngle);
+                        ctx.stroke();
+                        
+                        // Texto de confianza (solo si hay espacio)
+                        if (canvas.width > 400) {
+                            ctx.fillStyle = '#333';
+                            ctx.font = `${Math.max(10, canvas.width / 60)}px Arial`;
+                            ctx.textAlign = 'center';
+                            ctx.fillText(`${Math.round(classification.confidence * 100)}%`, pos.x, pos.y + confidenceRadius + 15);
+                        }
+                    }
+                    
+                    // Etiqueta de clase (solo si hay espacio)
+                    if (canvas.width > 300) {
+                        ctx.fillStyle = '#333';
+                        ctx.font = `bold ${Math.max(10, canvas.width / 60)}px Arial`;
+                        ctx.textAlign = 'center';
+                        ctx.fillText(classification.className, pos.x, pos.y - testPointSize - 8);
+                    }
+                });
+                
+                // Actualizar estadísticas
+                updateStats();
+            }
+            
+            // Actualizar estadísticas
+            function updateStats() {
+                document.getElementById('totalPoints').textContent = testPoints.length;
+                document.getElementById('currentK').textContent = currentK;
+                
+                if (testPoints.length > 0) {
+                    const avgConf = testPoints.reduce((sum, point) => {
+                        const classification = classifyPoint(point);
+                        return sum + classification.confidence;
+                    }, 0) / testPoints.length;
+                    document.getElementById('avgConfidence').textContent = `${Math.round(avgConf * 100)}%`;
+                } else {
+                    document.getElementById('avgConfidence').textContent = '0%';
+                }
+            }
+            
+            // Event listeners
+            canvas.addEventListener('click', function(event) {
+                const rect = canvas.getBoundingClientRect();
+                const canvasX = event.clientX - rect.left;
+                const canvasY = event.clientY - rect.top;
+                
+                // Verificar que el click esté dentro del área de datos (con márgenes)
+                const margin = 20;
+                if (canvasX >= margin && canvasX <= canvas.width - margin && 
+                    canvasY >= margin && canvasY <= canvas.height - margin) {
+                    const dataPoint = canvasToData(canvasX, canvasY);
+                    testPoints.push(dataPoint);
+                    draw();
+                    
+                    // Sincronizar con Streamlit
+                    window.parent.postMessage({
+                        type: 'addTestPoint',
+                        point: [dataPoint.x, dataPoint.y]
+                    }, '*');
+                }
+            });
+            
+            // Redimensionar cuando cambie el tamaño de ventana
+            window.addEventListener('resize', function() {
+                setTimeout(resizeCanvas, 100);
+            });
+            
+            // Funciones de control
+            function updateK(value) {
+                currentK = parseInt(value);
+                document.getElementById('kDisplay').textContent = value;
+                draw();
+            }
+            
+            function updateMetric(value) {
+                currentMetric = value;
+                draw();
+            }
+            
+            function updateWeights(value) {
+                currentWeights = value;
+                draw();
+            }
+            
+            function updateShowConfidence(checked) {
+                showConfidence = checked;
+                draw();
+            }
+            
+            function updateShowDistances(checked) {
+                showDistances = checked;
+                draw();
+            }
+            
+            function clearTestPoints() {
+                testPoints = [];
+                draw();
+                window.parent.postMessage({type: 'clearTestPoints'}, '*');
+            }
+            
+            // Cargar puntos de prueba existentes
+            const existingTestPoints = [];
+            testPoints = existingTestPoints.map(point => ({x: point[0], y: point[1]}));
+            
+            // Inicialización
+            resizeCanvas();
+            
+            // Observer para detectar cambios en el tamaño del contenedor
+            if (window.ResizeObserver) {
+                const resizeObserver = new ResizeObserver(entries => {
+                    for (let entry of entries) {
+                        if (entry.target.querySelector('#knnCanvas')) {
+                            resizeCanvas();
+                        }
+                    }
+                });
+                resizeObserver.observe(document.querySelector('.canvas-container'));
+            }
+        </script>
+    </body>
+    </html>
+        

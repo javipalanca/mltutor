@@ -1,0 +1,179 @@
+{
+  "meta": {
+    "format_version": 1,
+    "generator": "tools/export_golden.py",
+    "generated": "2026-10-15",
+    "versions": {
+      "python": "3.11.14",
+      "numpy": "1.26.4",
+      "pandas": "2.3.3",
+      "scipy": "1.16.3",
+      "scikit-learn": "1.7.2",
+      "seaborn": "0.13.2",
+      "platform": "Darwin-arm64"
+    },
+    "seed": 42,
+    "tolerance": {
+      "rust_mean_over_5_seeds": "inside acceptance[metric] = [min − m, max + m], m = max(3·std, floor) (accuracy 0.03, r2 0.05, errors 10 % of the mean)",
+      "each_rust_seed": "inside [min − 2m, max + 2m]"
+    },
+    "tolerance_rationale": "Level (b) of D69: Keras and Rust draw different initial weights, dropout masks and batch orders, so only the distribution of the final metrics can match. The app sets no seed (every Python run differs); the fixture fixes keras.utils.set_random_seed(seed) to be reproducible on this machine.",
+    "tensorflow": {
+      "tensorflow": "2.16.2",
+      "keras": "3.12.0",
+      "tf_devices": ["CPU"],
+      "op_determinism": true,
+      "intra_op_threads": 0,
+      "tensorflow-macos": "2.16.2",
+      "tensorflow-metal": "1.2.0",
+      "onnx": "1.17.0"
+    }
+  },
+  "input": {
+    "dataset": "datasets/moons.json",
+    "app_label": "🌙 Moons - Clasificación sintética",
+    "nn_config": {
+      "architecture": [2, 10, 10, 1],
+      "activation": "relu",
+      "output_activation": "sigmoid",
+      "dropout_rate": 0.2,
+      "batch_size": 64,
+      "optimizer": "adam",
+      "task_type": "Clasificación",
+      "input_size": 2,
+      "output_size": 1
+    },
+    "lr": 0.001,
+    "epochs": 50,
+    "validation_split": 0.2,
+    "early_stopping": true,
+    "patience": 10,
+    "reduce_lr": true,
+    "lr_factor": 0.5,
+    "seeds": [0, 1, 2, 3, 4],
+    "shuffle": true
+  },
+  "expected": {
+    "runs": [
+      {
+        "seed": 0,
+        "epochs_trained": 50,
+        "final": {
+          "accuracy": 0.824999988079071,
+          "loss": 0.36446744203567505,
+          "val_accuracy": 0.875,
+          "val_loss": 0.3038733899593353,
+          "learning_rate": 0.0010000000474974513
+        },
+        "best_val_loss": 0.3038733899593353,
+        "best_epoch": 49,
+        "test": {
+          "accuracy": 0.85,
+          "test_loss": 0.3286222517490387
+        }
+      },
+      {
+        "seed": 1,
+        "epochs_trained": 50,
+        "final": {
+          "accuracy": 0.84375,
+          "loss": 0.3380841612815857,
+          "val_accuracy": 0.887499988079071,
+          "val_loss": 0.28053590655326843,
+          "learning_rate": 0.0010000000474974513
+        },
+        "best_val_loss": 0.28053590655326843,
+        "best_epoch": 49,
+        "test": {
+          "accuracy": 0.87,
+          "test_loss": 0.28665560483932495
+        }
+      },
+      {
+        "seed": 2,
+        "epochs_trained": 50,
+        "final": {
+          "accuracy": 0.846875011920929,
+          "loss": 0.341899573802948,
+          "val_accuracy": 0.875,
+          "val_loss": 0.2961742579936981,
+          "learning_rate": 0.0010000000474974513
+        },
+        "best_val_loss": 0.2961742579936981,
+        "best_epoch": 49,
+        "test": {
+          "accuracy": 0.87,
+          "test_loss": 0.3106081485748291
+        }
+      },
+      {
+        "seed": 3,
+        "epochs_trained": 50,
+        "final": {
+          "accuracy": 0.8656250238418579,
+          "loss": 0.37703102827072144,
+          "val_accuracy": 0.887499988079071,
+          "val_loss": 0.3564198613166809,
+          "learning_rate": 0.0010000000474974513
+        },
+        "best_val_loss": 0.3564198613166809,
+        "best_epoch": 49,
+        "test": {
+          "accuracy": 0.86,
+          "test_loss": 0.38155505061149597
+        }
+      },
+      {
+        "seed": 4,
+        "epochs_trained": 50,
+        "final": {
+          "accuracy": 0.846875011920929,
+          "loss": 0.34574875235557556,
+          "val_accuracy": 0.875,
+          "val_loss": 0.3149236738681793,
+          "learning_rate": 0.0010000000474974513
+        },
+        "best_val_loss": 0.3149236738681793,
+        "best_epoch": 49,
+        "test": {
+          "accuracy": 0.87,
+          "test_loss": 0.31667560338974
+        }
+      }
+    ],
+    "bands": {
+      "accuracy": {
+        "min": 0.85,
+        "max": 0.87,
+        "mean": 0.8639999999999999,
+        "std": 0.008944271909999166
+      },
+      "test_loss": {
+        "min": 0.28665560483932495,
+        "max": 0.38155505061149597,
+        "mean": 0.32482333183288575,
+        "std": 0.03520707317359336
+      },
+      "epochs_trained": {
+        "min": 50.0,
+        "max": 50.0,
+        "mean": 50.0,
+        "std": 0.0
+      }
+    },
+    "acceptance": {
+      "accuracy": {
+        "lo": 0.82,
+        "hi": 0.9
+      },
+      "test_loss": {
+        "lo": 0.18103438531854488,
+        "hi": 0.48717627013227605
+      },
+      "epochs_trained": {
+        "lo": 25,
+        "hi": 50
+      }
+    }
+  }
+}

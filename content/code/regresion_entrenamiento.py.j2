@@ -1,0 +1,348 @@
+{#- NUEVO (decisión D29, Fase 2). Script de "📄 Generar Código" en 💾 Exportar de la lección
+    📊 Regresión. Sustituye al literal de Python (regresion_codigo.py.j2), que no se podía ejecutar.
+    Reproduce lo que calcula MLTutor: misma carga del dataset, mismo split (train_test_split con
+    test_size y random_state=42, sin estratificar: D7), mismo modelo e hiperparámetros, mismas
+    métricas y la predicción de una muestra.
+
+    Se renderiza con minijinja (Rust) y con jinja2 (tools/export_golden.py). Solo usa if/elif/else,
+    for, comparaciones y los filtros `pyrepr` (repr() de Python, para literales) y `pycomment`
+    (quita "\n", "\r" y comillas triples, para el texto del usuario dentro del docstring o de
+    comentarios #). Pasa SIEMPRE todas las variables, con null (None) las que no apliquen.
+
+    Variables:
+      dataset        str        slug del dataset incluido: "iris", "wine", "breast_cancer", "digits",
+                                "diabetes", "diamonds", "mpg", "moons", "titanic", "tips",
+                                "california_housing", "penguins"; o "csv" si es un CSV del estudiante.
+      dataset_label  str        nombre que ve el estudiante ("🌸 Iris - Clasificación de flores",
+                                "📄 ventas.csv").
+      csv_file       str|null   (csv) nombre del archivo, sin ruta ("ventas.csv").
+      csv_target     str|null   (csv) columna objetivo.
+      csv_sep        str|null   (csv) separador que detectó la app: ",", ";" o "\t".
+      csv_decimal    str|null   (csv) "," si la app leyó coma decimal (solo con sep ";"); si no ".".
+      csv_encoding   str|null   (csv) "utf-8" o "cp1252" (la app cayó a Windows-1252).
+      model          str        "linear" (LinearRegression) o "logistic" (LogisticRegression).
+      max_iter       int|null   (logistic) máximo de iteraciones, 100..2000.
+      test_size      float      proporción de prueba, 0.1..0.5 (con pyrepr: 0.3, 0.25).
+      feature_names  list[str]  nombres legibles de las características, en el orden de las
+                                columnas de X (los de la app: "Edad", "Tarifa", "p0"...).
+      class_names    list[str]|null  (logistic) nombre de cada clase en el orden de sus códigos
+                                0..k-1; null con model "linear".
+      sample         list[float]|null  valores de la muestra que se predice al final, en el orden
+                                de las columnas de X (los del formulario 🔮 Predicciones, ya
+                                convertidos a sus códigos). null = la primera fila de X_test.
+
+    Revisión ML de F3 (2026-10-15): las métricas (precision/recall/F1 ponderados, informe por clase
+    y matriz de confusión) usan labels=todas, TODAS las clases del dataset (las claves de
+    nombre_clase), como MLTutor, y no modelo.classes_ (solo las vistas en entrenamiento). Con una
+    clase ausente del train, y_test=[0,1,2,2] e y_pred=[0,0,2,2] daban 0.833/1.0/0.889 en lugar de
+    0.625/0.75/0.667 (los de la app). Las curvas ROC/PR siguen usando modelo.classes_, porque
+    predict_proba solo tiene columnas para ellas.
+-#}
+"""
+MLTutor · 📊 Regresión — entrenamiento reproducible con scikit-learn
+
+Dataset: {{ dataset_label | pycomment }}
+Modelo:  {% if model == "logistic" %}Regresión logística (LogisticRegression, max_iter={{ max_iter }}){% else %}Regresión lineal (LinearRegression){% endif %}
+Prueba:  test_size={{ test_size | pyrepr }} (train_test_split con random_state=42, sin estratificar)
+
+Este script hace lo mismo que la app: carga los datos, los divide en entrenamiento y
+prueba, entrena el modelo, calcula las métricas de la pestaña 📈 Evaluación, muestra los
+coeficientes y predice una muestra.
+
+Uso:
+    pip install "scikit-learn>=1.6" pandas numpy{% if dataset in ["titanic", "tips", "penguins", "mpg", "diamonds"] %} seaborn{% endif %}
+{%- if dataset == "csv" %}
+    # Copia {{ csv_file | pycomment }} en la misma carpeta que este script
+{%- endif %}
+    python {% if model == "logistic" %}regresion_logistica{% else %}regresion_lineal{% endif %}.py
+"""
+import numpy as np
+import pandas as pd
+{%- if dataset in ["titanic", "tips", "penguins", "mpg", "diamonds"] %}
+import seaborn as sns
+{%- endif %}
+{%- if dataset == "iris" %}
+from sklearn.datasets import load_iris
+{%- elif dataset == "wine" %}
+from sklearn.datasets import load_wine
+{%- elif dataset == "breast_cancer" %}
+from sklearn.datasets import load_breast_cancer
+{%- elif dataset == "digits" %}
+from sklearn.datasets import load_digits
+{%- elif dataset == "diabetes" %}
+from sklearn.datasets import load_diabetes
+{%- elif dataset == "california_housing" %}
+from sklearn.datasets import fetch_california_housing
+{%- elif dataset == "moons" %}
+from sklearn.datasets import make_moons
+{%- endif %}
+{%- if model == "logistic" %}
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import (
+    accuracy_score,
+    auc as area_bajo_curva,
+    average_precision_score,
+    classification_report,
+    confusion_matrix,
+    precision_recall_fscore_support,
+    roc_auc_score,
+    roc_curve,
+)
+{%- else %}
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+{%- endif %}
+from sklearn.model_selection import train_test_split
+{%- if dataset in ["titanic", "tips", "penguins", "mpg", "diamonds", "csv"] %}
+from sklearn.preprocessing import LabelEncoder
+{%- endif %}
+
+# ---------------------------------------------------------------------------
+# 1. Cargar los datos (igual que MLTutor)
+# ---------------------------------------------------------------------------
+{%- if dataset in ["iris", "wine", "breast_cancer", "digits", "diabetes"] %}
+datos = load_{{ dataset }}(as_frame=True)  # incluido en scikit-learn, sin descargas
+X = datos.data
+y = datos.target
+{%- elif dataset == "california_housing" %}
+# La primera vez se descarga (unos 400 KB) y queda guardado en ~/scikit_learn_data
+datos = fetch_california_housing(as_frame=True)
+X = datos.data
+y = datos.target
+{%- elif dataset == "moons" %}
+# MLTutor usa siempre la misma muestra de Moons: semilla 42
+X_array, y = make_moons(n_samples=500, noise=0.2, random_state=42)
+X = pd.DataFrame(X_array, columns=["x1", "x2"])
+y = pd.Series(y, name="label")
+{%- elif dataset == "titanic" %}
+df = sns.load_dataset("titanic")  # se descarga la primera vez
+# Valores que faltan: mediana para la edad y la tarifa, 'S' (Southampton) para el puerto
+df["age"] = df["age"].fillna(df["age"].median())
+df["embarked"] = df["embarked"].fillna("S")
+df["fare"] = df["fare"].fillna(df["fare"].median())
+# Texto -> números (LabelEncoder numera las categorías por orden alfabético)
+for columna in ["sex", "embarked", "class", "who"]:
+    df[columna + "_encoded"] = LabelEncoder().fit_transform(df[columna])
+columnas = ["pclass", "age", "sibsp", "parch", "fare", "sex_encoded", "embarked_encoded",
+            "class_encoded", "who_encoded", "adult_male", "alone"]
+X = df[columnas].astype(float)  # adult_male y alone son booleanos: True -> 1.0
+y = df["survived"]
+{%- elif dataset == "tips" %}
+df = sns.load_dataset("tips")  # se descarga la primera vez
+# Texto -> números (LabelEncoder numera las categorías por orden alfabético)
+for columna in ["sex", "smoker", "day", "time"]:
+    df[columna + "_encoded"] = LabelEncoder().fit_transform(df[columna].astype(str))
+X = df[["total_bill", "size", "sex_encoded", "smoker_encoded", "day_encoded", "time_encoded"]]
+y = df["tip"]
+{%- elif dataset == "penguins" %}
+df = sns.load_dataset("penguins").dropna()  # se descarga la primera vez; quita filas incompletas
+df = df.reset_index(drop=True)
+# Texto -> números (LabelEncoder numera las categorías por orden alfabético)
+df["island_encoded"] = LabelEncoder().fit_transform(df["island"])
+df["sex_encoded"] = LabelEncoder().fit_transform(df["sex"])
+X = df[["bill_length_mm", "bill_depth_mm", "flipper_length_mm", "body_mass_g",
+        "island_encoded", "sex_encoded"]]
+y = pd.Series(LabelEncoder().fit_transform(df["species"]), name="species")
+{%- elif dataset == "mpg" %}
+df = sns.load_dataset("mpg").dropna().reset_index(drop=True)  # se descarga la primera vez
+df["origin"] = LabelEncoder().fit_transform(df["origin"])  # europe=0, japan=1, usa=2
+# 'name' (el modelo de coche) no es una característica: 301 nombres distintos no aportan
+X = df[["cylinders", "displacement", "horsepower", "weight", "acceleration", "model_year",
+        "origin"]]
+y = df["mpg"]
+{%- elif dataset == "diamonds" %}
+df = sns.load_dataset("diamonds")  # se descarga la primera vez (54 000 diamantes)
+# Texto -> números (LabelEncoder numera las categorías por orden alfabético, no por calidad)
+for columna in ["cut", "color", "clarity"]:
+    df[columna] = LabelEncoder().fit_transform(df[columna].astype(str))
+df = df.sample(8000, random_state=42)  # MLTutor trabaja con una muestra de 8000
+X = df.drop(columns=["price"])
+y = df["price"]
+{%- elif dataset == "csv" %}
+df = pd.read_csv({{ csv_file | pyrepr }}
+{%- if csv_sep and csv_sep != "," %}, sep={{ csv_sep | pyrepr }}{% endif %}
+{%- if csv_decimal and csv_decimal != "." %}, decimal={{ csv_decimal | pyrepr }}{% endif %}
+{%- if csv_encoding and csv_encoding != "utf-8" %}, encoding={{ csv_encoding | pyrepr }}{% endif %})
+objetivo = {{ csv_target | pyrepr }}
+X = df.drop(columns=[objetivo])
+y = df[objetivo]
+# Columnas de texto -> números (LabelEncoder numera las categorías por orden alfabético)
+for columna in X.select_dtypes(include=["object"]).columns:
+    X[columna] = LabelEncoder().fit_transform(X[columna].astype(str))
+X = X.astype(float)  # las columnas booleanas pasan a 0.0/1.0
+{%- if model == "logistic" %}
+if y.dtype == object:  # clases de texto -> 0, 1, 2... (en orden alfabético)
+    y = pd.Series(LabelEncoder().fit_transform(y.astype(str)), name=objetivo)
+{%- endif %}
+{%- endif %}
+
+nombres = {{ feature_names | pyrepr }}  # nombres que muestra MLTutor
+{%- if model == "logistic" %}
+clases = {{ class_names | pyrepr }}
+# Código de cada clase (0, 1, 2... en orden) -> su nombre
+nombre_clase = dict(zip(sorted(pd.unique(y)), clases))
+{%- endif %}
+print(f"Datos: {X.shape[0]} muestras y {X.shape[1]} características")
+
+# ---------------------------------------------------------------------------
+# 2. Dividir en entrenamiento y prueba
+# ---------------------------------------------------------------------------
+# Sin estratificar y con random_state=42: son exactamente las filas que usa MLTutor
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size={{ test_size | pyrepr }}, random_state=42
+)
+print(f"Entrenamiento: {len(X_train)} muestras · Prueba: {len(X_test)} muestras")
+
+# ---------------------------------------------------------------------------
+# 3. Entrenar el modelo
+# ---------------------------------------------------------------------------
+{%- if model == "logistic" %}
+# Los mismos hiperparámetros que MLTutor: C=1.0 (regularización L2 de los coeficientes; el
+# intercepto no se penaliza) y los datos SIN escalar.
+# MLTutor busca el mínimo exacto de la pérdida con un método de segundo orden (Newton, que
+# usa la curvatura de la pérdida). En scikit-learn el equivalente es solver="newton-cholesky"
+# (multiclase desde la versión 1.6): llega al mismo modelo en pocas iteraciones aunque las
+# características tengan escalas muy distintas. El solver por defecto, 'lbfgs', con datos sin
+# escalar puede agotar max_iter lejos del óptimo (en 🔬 Cáncer, las probabilidades difieren
+# hasta 0,2 de las de MLTutor). tol=1e-8 hace que siga hasta que la pendiente (el gradiente)
+# es prácticamente cero, como MLTutor; con el valor por defecto (tol=1e-4) se detiene un poco
+# antes y las probabilidades pueden diferir en la cuarta o quinta cifra decimal.
+modelo = LogisticRegression(solver="newton-cholesky", tol=1e-8, max_iter={{ max_iter }},
+                            random_state=42)
+modelo.fit(X_train, y_train)
+if modelo.n_iter_.max() >= modelo.max_iter:
+    print(f"⚠️ El optimizador no ha convergido en {modelo.max_iter} iteraciones.")
+    print("   Sube max_iter. Sin converger, tus números pueden diferir de los de MLTutor.")
+# ¿Y si escalo las características con StandardScaler? Es buena práctica (los coeficientes
+# pasan a medir el efecto de una desviación estándar y son comparables), pero da OTRO modelo,
+# no el de MLTutor: la penalización L2 actúa entonces sobre los coeficientes de las
+# características estandarizadas y el óptimo cambia. Si lo haces, ajusta el escalador solo
+# con X_train (un Pipeline lo hace por ti) para no filtrar información de la prueba:
+#   from sklearn.pipeline import make_pipeline
+#   from sklearn.preprocessing import StandardScaler
+#   modelo = make_pipeline(StandardScaler(), LogisticRegression(solver="newton-cholesky"))
+{%- else %}
+modelo = LinearRegression()  # mínimos cuadrados ordinarios, sin hiperparámetros que ajustar
+modelo.fit(X_train, y_train)
+{%- endif %}
+
+# ---------------------------------------------------------------------------
+# 4. Evaluar con el conjunto de prueba (pestaña 📈 Evaluación)
+# ---------------------------------------------------------------------------
+y_pred = modelo.predict(X_test)
+{%- if model == "logistic" %}
+accuracy = accuracy_score(y_test, y_pred)
+# Las métricas usan TODAS las clases del dataset, como MLTutor, y no solo
+# modelo.classes_ (las vistas en entrenamiento). Si una clase no llega al train, el modelo
+# nunca la predice y sus muestras de prueba cuentan como fallos.
+todas = sorted(nombre_clase)
+precision, recall, f1, _ = precision_recall_fscore_support(
+    y_test, y_pred, labels=todas, average="weighted", zero_division=0
+)
+print(f"\nExactitud (Accuracy):          {accuracy:.4f}")
+print(f"Precisión media (ponderada):   {precision:.4f}")
+print(f"Exhaustividad media (Recall):  {recall:.4f}")
+print(f"F1-Score medio:                {f1:.4f}")
+print("\nInforme por clase:")
+print(classification_report(y_test, y_pred, labels=todas,
+                            target_names=[nombre_clase[c] for c in todas],
+                            digits=4, zero_division=0))
+print("Matriz de confusión (filas = real, columnas = predicción):")
+print(confusion_matrix(y_test, y_pred, labels=todas))
+
+# Curvas ROC y Precision-Recall (pestaña 📉 Visualización): se usan las probabilidades
+proba = modelo.predict_proba(X_test)
+if len(modelo.classes_) == 2:
+    # Clase positiva = la de código 1 (la segunda de la lista)
+    y_positiva = (y_test == modelo.classes_[1])
+    auc = roc_auc_score(y_positiva, proba[:, 1])
+    ap = average_precision_score(y_positiva, proba[:, 1])
+    print(f"\nClase positiva: {nombre_clase[modelo.classes_[1]]}")
+    print(f"ROC AUC: {auc:.3f} · Average Precision: {ap:.3f} · Baseline: {y_positiva.mean():.3f}")
+else:
+    # Uno contra el resto: cada clase frente a todas las demás
+    Y_test = np.column_stack([(y_test == c).to_numpy() for c in modelo.classes_])
+    presentes = Y_test.any(axis=0)  # las clases sin muestras de prueba no tienen curva
+    print("\nClase                 ROC AUC   Average Precision")
+    for i, c in enumerate(modelo.classes_):
+        if presentes[i]:
+            auc_i = roc_auc_score(Y_test[:, i], proba[:, i])
+            ap_i = average_precision_score(Y_test[:, i], proba[:, i])
+            print(f"{nombre_clase[c]:<20}  {auc_i:7.3f}   {ap_i:7.3f}")
+    auc_micro = roc_auc_score(Y_test[:, presentes], proba[:, presentes], average="micro")
+    ap_micro = average_precision_score(Y_test[:, presentes], proba[:, presentes], average="micro")
+    ap_macro = np.mean([average_precision_score(Y_test[:, i], proba[:, i])
+                        for i in range(len(modelo.classes_)) if presentes[i]])
+    # Macro-promedio del ROC AUC como lo calcula MLTutor: se juntan las FPR de todas las
+    # curvas por clase, se interpola la TPR de cada clase en esos puntos (np.interp), se
+    # promedian y se mide el área de esa curva media. Puede salir mayor que
+    # roc_auc_score(average="macro"), que promedia las AUC de cada clase: cada curva ROC es una
+    # escalera, y en sus saltos verticales np.interp se queda con el valor de arriba y une esos
+    # puntos con rectas, así que la curva media «recorta las esquinas» por encima. Con pocas
+    # muestras de prueba la diferencia se nota (en un CSV pequeño, 0,561 frente a 0,502).
+    curvas = [roc_curve(Y_test[:, i], proba[:, i])
+              for i in range(len(modelo.classes_)) if presentes[i]]
+    fpr_todas = np.unique(np.concatenate([fpr for fpr, _, _ in curvas]))
+    tpr_media = np.mean([np.interp(fpr_todas, fpr, tpr) for fpr, tpr, _ in curvas], axis=0)
+    auc_macro = area_bajo_curva(fpr_todas, tpr_media)
+    print(f"Micro-promedio: ROC AUC {auc_micro:.3f} · AP {ap_micro:.3f}")
+    print(f"Macro-promedio: ROC AUC {auc_macro:.3f} · AP {ap_macro:.3f}")
+{%- else %}
+mse = mean_squared_error(y_test, y_pred)
+rmse = np.sqrt(mse)
+mae = mean_absolute_error(y_test, y_pred)
+r2 = r2_score(y_test, y_pred)
+print(f"\nError Cuadrático Medio (MSE): {mse:.4f}")
+print(f"RMSE:                         {rmse:.4f}")
+print(f"Error Absoluto Medio (MAE):   {mae:.4f}")
+print(f"R² Score:                     {r2:.4f}")
+residuos = y_test - y_pred
+print(f"Residuos: media {residuos.mean():.3f}, desviación estándar {residuos.std():.3f}")
+{%- endif %}
+
+# ---------------------------------------------------------------------------
+# 5. Coeficientes (pestaña 🔍 Coeficientes), ordenados por |coeficiente|
+# ---------------------------------------------------------------------------
+{%- if model == "logistic" %}
+if len(modelo.classes_) == 2:
+    # Binaria: un solo vector. e^coef = odds ratio de la clase positiva por unidad
+    tabla = pd.DataFrame({"Característica": nombres, "Coeficiente": modelo.coef_[0]})
+    tabla["Odds Ratio"] = np.exp(tabla["Coeficiente"])
+    tabla["Cambio en Odds (%)"] = (tabla["Odds Ratio"] - 1) * 100
+    tabla = tabla.reindex(tabla["Coeficiente"].abs().sort_values(ascending=False).index)
+    print("\n" + tabla.round(4).to_string(index=False))
+    print(f"Intercepto: {modelo.intercept_[0]:.4f}")
+else:
+    # Multiclase (softmax): un vector de coeficientes y un intercepto por clase
+    tabla = pd.DataFrame(modelo.coef_.T, index=nombres,
+                         columns=[nombre_clase[c] for c in modelo.classes_])
+    print("\nCoeficientes por clase:")
+    print(tabla.round(4).to_string())
+    for c, b0 in zip(modelo.classes_, modelo.intercept_):
+        print(f"Intercepto de {nombre_clase[c]}: {b0:.4f}")
+{%- else %}
+tabla = pd.DataFrame({"Característica": nombres, "Coeficiente": modelo.coef_})
+tabla = tabla.reindex(tabla["Coeficiente"].abs().sort_values(ascending=False).index)
+print("\n" + tabla.round(4).to_string(index=False))
+print(f"Intercepto: {modelo.intercept_:.4f}")
+{%- endif %}
+
+# ---------------------------------------------------------------------------
+# 6. Predecir una muestra nueva (pestaña 🔮 Predicciones)
+# ---------------------------------------------------------------------------
+{%- if sample %}
+# Los valores del formulario de MLTutor, en el orden de las columnas de X
+muestra = pd.DataFrame([{{ sample | pyrepr }}], columns=X.columns)
+{%- else %}
+# Una muestra de prueba; cambia sus valores para probar otros casos
+muestra = X_test.iloc[[0]]
+{%- endif %}
+{%- if model == "logistic" %}
+prediccion = modelo.predict(muestra)[0]
+print(f"\nClase predicha: {nombre_clase[prediccion]}")
+for c, p in zip(modelo.classes_, modelo.predict_proba(muestra)[0]):
+    print(f"  P({nombre_clase[c]}) = {p:.4f}")
+{%- else %}
+prediccion = modelo.predict(muestra)[0]
+print(f"\nValor predicho: {prediccion:.4f}")
+{%- endif %}

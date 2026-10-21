@@ -1,0 +1,159 @@
+{
+  "meta": {
+    "format_version": 1,
+    "generator": "tools/export_golden.py",
+    "generated": "2026-10-13",
+    "versions": {
+      "python": "3.11.14",
+      "numpy": "1.26.4",
+      "pandas": "2.3.3",
+      "scipy": "1.16.3",
+      "scikit-learn": "1.7.2",
+      "seaborn": "0.13.2",
+      "platform": "Darwin-arm64"
+    },
+    "seed": 42,
+    "tolerance": {
+      "data_abs": 0.0,
+      "hash": "exact"
+    },
+    "tolerance_rationale": "Static data: the embedded CSV must reproduce the matrix exactly. CSV floats use Python's shortest round-trip repr, so parsing them as f64 is lossless and data_sha256_f64 must match bit for bit."
+  },
+  "input": {
+    "app_label": "🏠 Viviendas California - Precios",
+    "source": "sklearn.datasets.fetch_california_housing -- NETWORK (cached in ~/scikit_learn_data)"
+  },
+  "expected": {
+    "csv": "data/california_housing.csv",
+    "csv_sha256": "ffb66fae418eb8845e6ad1331a469223f396758a0cffb91b36d5e48f90d36246",
+    "csv_bytes": 1895148,
+    "data_sha256_f64": "9b9082ab86651a01d663a8e4a70ea14c0b41d0b2bd693bccd3221dcd111e15ca",
+    "data_sha256_f64_definition": "sha256 of row-major little-endian f64 values, each row = feature columns in 'columns' order followed by the target",
+    "shape": [
+      20640,
+      8
+    ],
+    "columns": [
+      "MedInc",
+      "HouseAge",
+      "AveRooms",
+      "AveBedrms",
+      "Population",
+      "AveOccup",
+      "Latitude",
+      "Longitude"
+    ],
+    "label_columns": [],
+    "csv_columns": [
+      "MedInc",
+      "HouseAge",
+      "AveRooms",
+      "AveBedrms",
+      "Population",
+      "AveOccup",
+      "Latitude",
+      "Longitude",
+      "price"
+    ],
+    "dtypes": {
+      "MedInc": "float64",
+      "HouseAge": "float64",
+      "AveRooms": "float64",
+      "AveBedrms": "float64",
+      "Population": "float64",
+      "AveOccup": "float64",
+      "Latitude": "float64",
+      "Longitude": "float64"
+    },
+    "feature_names": [
+      "Ingresos_Medios",
+      "Edad_Casa",
+      "Habitaciones_Promedio",
+      "Dormitorios_Promedio",
+      "Población",
+      "Ocupación_Promedio",
+      "Latitud",
+      "Longitud"
+    ],
+    "target_name": "price",
+    "target_dtype": "float64",
+    "class_names": null,
+    "task_type": "Regresión",
+    "dataset_info": "Dataset Viviendas California: 20640 distritos, 8 características, precio medio (regresión)",
+    "target_summary": {
+      "min": 0.14999,
+      "max": 5.00001,
+      "mean": 2.068558169089147,
+      "std_ddof1": 1.1539561587441387,
+      "median": 1.797
+    },
+    "index_is_range": true,
+    "head": [
+      {
+        "features": [
+          8.3252,
+          41.0,
+          6.984126984126984,
+          1.0238095238095237,
+          322.0,
+          2.5555555555555554,
+          37.88,
+          -122.23
+        ],
+        "target": 4.526
+      },
+      {
+        "features": [
+          8.3014,
+          21.0,
+          6.238137082601054,
+          0.9718804920913884,
+          2401.0,
+          2.109841827768014,
+          37.86,
+          -122.22
+        ],
+        "target": 3.585
+      },
+      {
+        "features": [
+          7.2574,
+          52.0,
+          8.288135593220339,
+          1.073446327683616,
+          496.0,
+          2.8022598870056497,
+          37.85,
+          -122.24
+        ],
+        "target": 3.521
+      },
+      {
+        "features": [
+          5.6431,
+          52.0,
+          5.8173515981735155,
+          1.0730593607305936,
+          558.0,
+          2.547945205479452,
+          37.85,
+          -122.25
+        ],
+        "target": 3.413
+      },
+      {
+        "features": [
+          3.8462,
+          52.0,
+          6.281853281853282,
+          1.0810810810810811,
+          565.0,
+          2.1814671814671813,
+          37.85,
+          -122.25
+        ],
+        "target": 3.422
+      }
+    ]
+  }
+}

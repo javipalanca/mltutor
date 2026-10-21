@@ -1,0 +1,44 @@
+[package]
+name = "mltutor-export"
+description = "ONNX and Python-package exports for MLTutor models."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+mltutor-core.workspace = true
+mltutor-nn.workspace = true
+ndarray = "0.16"
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+# ONNX protobuf: the onnx.proto messages are written by hand with prost-derive (no protoc).
+prost = { version = "0.14", default-features = false, features = ["derive", "std"] }
+# Python package (.zip): deflate in pure Rust.
+zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+
+[dev-dependencies]
+approx = "0.5"
+# Benchmarks only (benches/, docs/migration/benchmarks.md); never in the app binary.
+# 0.7: the last release whose MSRV (1.80) is below the workspace's 1.85.
+criterion = { version = "0.7", default-features = false, features = ["cargo_bench_support"] }
+# Tree fixtures of user CSVs (base64 in tests/parity/csv).
+base64 = "0.22"
+# KNN fixtures: hashes of the large training sets.
+sha2 = "0.10"
+
+# `cargo bench -- --save-baseline x` passes criterion's flags to every bench target:
+# the lib's libtest harness would reject them.
+[lib]
+bench = false
+
+[[bench]]
+name = "onnx"
+harness = false
+
+[lints]
+workspace = true

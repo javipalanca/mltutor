@@ -1,0 +1,75 @@
+{#- Literal de mltutor/algorithms/code_examples.py::generate_tree_model_export_code(feature_names)
+    (sin el salto de línea inicial). Pestaña 💾 Exportar, al final: show_code_with_download(código,
+    "Código para Usar el Modelo", "usar_modelo.py"). Carga 'decision_tree_model.pkl' (el pickle
+    de "📦 Exportar como Pickle"), que Rust no genera (D1): el paquete Python lo crea con este formato (D43).
+    Variables: feature_names (list[str], nombres legibles; Python los imprime con str(list) = repr).
+    Van dentro del docstring: `pyrepr | pycomment` (pycomment quita las comillas triples de un nombre
+    de columna de un CSV, que cerrarían el docstring; con nombres normales no cambia nada).
+    CORREGIDO (F6, 2026-10-20, tools/verify_exports.py): Python hacía class_names[prediction], pero
+    model.predict devuelve el VALOR de la clase (uno de model.classes_) y class_names va en el orden de
+    model.classes_ (como predict_proba). Con un CSV de clases 1, 2, 3 daba el nombre de la clase
+    siguiente o IndexError, y también fallaba si una clase no llegaba al entrenamiento. Ahora el
+    nombre se busca por la posición de la predicción en model.classes_. Diferencias con el literal
+    (tests/parity/code/trees.json, python_text): las dos expresiones class_names[prediction] ->
+    class_names[list(model.classes_).index(prediction)], con un comentario encima de la primera, y
+    f"Clase {i}" (posición) -> f"Clase {model.classes_[i]}" (el valor, como f"Clase {prediction}"). -#}
+# Código para usar el modelo de árbol de decisión
+import pickle
+import numpy as np
+
+# Cargar el modelo
+with open('decision_tree_model.pkl', 'rb') as f:
+    model_data = pickle.load(f)
+
+model = model_data['model']
+feature_names = model_data['feature_names']
+class_names = model_data['class_names']
+task_type = model_data['task_type']
+
+# Función para hacer predicciones
+def predecir(valores_caracteristicas):
+    """
+    Hace una predicción con el modelo de árbol de decisión.
+    
+    Args:
+        valores_caracteristicas (list): Lista con valores para cada característica
+                                      en el orden: {{ feature_names | pyrepr | pycomment }}
+    
+    Returns:
+        Predicción del modelo
+    """
+    # Convertir a array numpy
+    X = np.array(valores_caracteristicas).reshape(1, -1)
+    
+    # Hacer predicción
+    prediction = model.predict(X)[0]
+    
+    if task_type == "Clasificación":
+        if class_names:
+            # class_names va en el orden de model.classes_ (los valores de la clase)
+            return class_names[list(model.classes_).index(prediction)]
+        else:
+            return f"Clase {prediction}"
+    else:
+        return prediction
+
+# Ejemplo de uso:
+# resultado = predecir([valor1, valor2, valor3, ...])
+# print(f"Predicción: {resultado}")
+
+# Para obtener probabilidades (solo clasificación):
+if task_type == "Clasificación" and hasattr(model, 'predict_proba'):
+    def predecir_con_probabilidades(valores_caracteristicas):
+        X = np.array(valores_caracteristicas).reshape(1, -1)
+        prediction = model.predict(X)[0]
+        probabilities = model.predict_proba(X)[0]
+        
+        resultado = {
+            'prediccion': class_names[list(model.classes_).index(prediction)] if class_names else f"Clase {prediction}",
+            'probabilidades': {
+                (class_names[i] if class_names else f"Clase {model.classes_[i]}"): prob 
+                for i, prob in enumerate(probabilities)
+            }
+        }
+        
+        return resultado

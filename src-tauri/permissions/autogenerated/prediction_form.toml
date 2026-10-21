@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-prediction-form"
+description = "Enables the prediction_form command without any pre-configured scope."
+commands.allow = ["prediction_form"]
+
+[[permission]]
+identifier = "deny-prediction-form"
+description = "Denies the prediction_form command without any pre-configured scope."
+commands.deny = ["prediction_form"]

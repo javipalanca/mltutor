@@ -1,0 +1,72 @@
+{#- NUEVO (D1/D57, Fase 4): LEEME.txt del "📦 Paquete Python (.zip)" de 🔍 K-Nearest Neighbors, junto
+    a modelo.json y reconstruir_modelo.py (paquete_modelo_knn.py.j2). Texto plano, sin Markdown. Es
+    paquete_leeme.txt.j2 (Fase 2) adaptado: un KNN guarda los datos de entrenamiento, no coeficientes.
+    Variables (pásalas todas):
+      estimator      str        "sklearn.neighbors.KNeighborsClassifier" o "...KNeighborsRegressor"
+      dataset        str        nombre del dataset que ve el estudiante
+      feature_names  list[str]  nombres legibles, en el orden de las columnas del modelo
+      classes        list[{value, name}]|null  una entrada por clase, en el orden de classes_
+                                (`value` = lo que devuelve predict; null en regresión)
+      n_train, n_test int; test_size float
+      n_neighbors    int        K
+      weights        str        "uniform" o "distance"
+      metric         str        "minkowski", "euclidean" o "manhattan"
+      pkl_name       str        "modelo_knn.pkl"
+    F6 (2026-10-20): sección sobre el ONNX (entrada float32: la distancia 0 y los empates).
+-#}
+MODELO EXPORTADO DESDE MLTUTOR
+==============================
+
+Modelo:  {{ estimator }}
+Dataset: {{ dataset }}
+Datos:   {{ n_train }} muestras de entrenamiento y {{ n_test }} de prueba (test_size={{ test_size | pyrepr }}, random_state=42)
+Vecinos: K={{ n_neighbors }}, weights={{ weights | pyrepr }}, metric={{ metric | pyrepr }} (datos sin escalar)
+
+Contenido del paquete
+---------------------
+- modelo.json            Las {{ n_train }} muestras de entrenamiento (un KNN no aprende parámetros:
+                         predice comparando con ellas) y los hiperparámetros del modelo.
+- reconstruir_modelo.py  Crea el objeto de scikit-learn con esas muestras, comprueba que elige
+                         los mismos vecinos y predice lo mismo que MLTutor y lo guarda en
+                         {{ pkl_name }}.
+- LEEME.txt              Este archivo.
+
+Cómo usarlo
+-----------
+1. Descomprime el ZIP en una carpeta.
+2. Instala las dependencias:   pip install scikit-learn numpy
+3. Ejecuta:                    python reconstruir_modelo.py
+4. Carga el modelo en tu código:
+
+       import pickle
+       with open("{{ pkl_name }}", "rb") as f:
+           modelo = pickle.load(f)
+       print(modelo.predict([[...]]))      # una lista de valores por muestra
+       print(modelo.kneighbors([[...]]))   # distancias y posiciones de los K vecinos
+
+Orden de las características
+----------------------------
+Cada muestra debe tener estos valores, en este orden y en las mismas unidades (sin escalar):
+{% for nombre in feature_names %}  {{ loop.index }}. {{ nombre }}
+{% endfor %}
+{%- if classes %}
+Clases (lo que devuelve predict)
+--------------------------------
+{% for clase in classes %}  {{ clase.value }} = {{ clase.name }}
+{% endfor %}
+{%- endif %}
+Las columnas de texto del dataset original se convirtieron en números por orden
+alfabético (LabelEncoder). Codifica igual los datos nuevos.
+
+Si exportas también el ONNX (botón "💾 ONNX" de MLTutor)
+-------------------------------------------------------
+- Recibe las muestras en float32 (la entrada "float_input") y calcula las distancias en
+  float64 con las muestras de entrenamiento originales. Redondear a float32 cambia un poco
+  las distancias: una muestra idéntica a una de entrenamiento ya no queda a distancia 0
+  (salvo que sus valores sean exactos en float32, como los enteros pequeños){% if weights == "distance" %}, así
+  que la regla de scikit-learn "si hay vecinos a distancia 0, solo cuentan ellos" no se aplica
+  y sus probabilidades pueden diferir ligeramente de las de MLTutor{% endif %}.
+- Si varias muestras empatan en la distancia del K-ésimo vecino, el ONNX elige la de menor
+  posición en el entrenamiento; scikit-learn y MLTutor pueden elegir otra igual de cercana.
+
+Atención: abrir un archivo .pkl puede ejecutar código. Carga solo los que hayas generado tú.

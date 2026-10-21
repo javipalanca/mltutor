@@ -1,0 +1,84 @@
+# Dataset metadata for the 📊 Datos tab and the prediction form.
+# Generated from mltutor/dataset/{dataset_manager,additional_datasets,dataset_metadata}.py
+# and dataset_tab.py (2026-10-13). Ranges are over the full dataset; the form
+# computes them from X_train at runtime, as Python does.
+id = "mpg"
+label = "⛽ MPG - Consumo combustible (regresión)"
+emoji = "⛽"
+name = "MPG"
+task = "regression"
+task_label = "Regresión"
+target = "mpg"
+samples = 392
+description = "MPG: 392 muestras limpias, 7 características, consumo de combustible (regresión)"
+selector_blurb = ""
+selector_info = "392 muestras (limpias) • ~7-8 características • MPG • Regresión"
+source = "seaborn.load_dataset('mpg').dropna() -- NETWORK (cached in seaborn.get_data_home(), ~/Library/Caches/seaborn on macOS); the bundled mpg.csv / load_mpg_dataset() is NOT used by this path"
+fixture = "tests/parity/datasets/mpg.json"
+label_columns = ["name"]
+# D8: label columns are shown in previews and tooltips, never used as features.
+
+[[features]]
+column = "cylinders"
+display = "cylinders"
+kind = "categorical"
+categorical_in_metadata = false
+min = 3
+max = 8
+mean = 5.471938775510204
+levels = [3, 4, 5, 6, 8]
+
+[[features]]
+column = "displacement"
+display = "displacement"
+kind = "continuous"
+categorical_in_metadata = false
+min = 68
+max = 455
+mean = 194.41198979591837
+
+[[features]]
+column = "horsepower"
+display = "horsepower"
+kind = "continuous"
+categorical_in_metadata = false
+min = 46
+max = 230
+mean = 104.46938775510205
+
+[[features]]
+column = "weight"
+display = "weight"
+kind = "continuous"
+categorical_in_metadata = false
+min = 1613
+max = 5140
+mean = 2977.5841836734694
+
+[[features]]
+column = "acceleration"
+display = "acceleration"
+kind = "continuous"
+categorical_in_metadata = false
+min = 8
+max = 24.8
+mean = 15.541326530612244
+
+[[features]]
+column = "model_year"
+display = "model_year"
+kind = "continuous"
+categorical_in_metadata = false
+min = 70
+max = 82
+mean = 75.9795918367347
+
+[[features]]
+column = "origin"
+display = "origin"
+kind = "categorical"
+categorical_in_metadata = false
+min = 0
+max = 2
+mean = 1.4515306122448979
+levels = [0, 1, 2]

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-generate-code"
+description = "Enables the generate_code command without any pre-configured scope."
+commands.allow = ["generate_code"]
+
+[[permission]]
+identifier = "deny-generate-code"
+description = "Denies the generate_code command without any pre-configured scope."
+commands.deny = ["generate_code"]

@@ -1,0 +1,84 @@
+# Dataset metadata for the 📊 Datos tab and the prediction form.
+# Generated from mltutor/dataset/{dataset_manager,additional_datasets,dataset_metadata}.py
+# and dataset_tab.py (2026-10-13). Ranges are over the full dataset; the form
+# computes them from X_train at runtime, as Python does.
+id = "tips"
+label = "💰 Propinas - Predicción de propinas"
+emoji = "💰"
+name = "Propinas"
+task = "regression"
+task_label = "Regresión"
+target = "tip"
+samples = 244
+description = "Dataset Propinas: 244 comidas, 6 características, predicción de propina (regresión)"
+selector_blurb = "💰 **Propinas**: Regresión para predecir cantidad de propina."
+selector_info = "244 cuentas • 6 características • Propina • Regresión"
+source = "mltutor/dataset/data/sample_datasets/tips.csv via load_tips_dataset()"
+fixture = "tests/parity/datasets/tips.json"
+
+[[features]]
+column = "total_bill"
+display = "Cuenta_Total"
+description = "Total de la cuenta en dólares"
+kind = "continuous"
+categorical_in_metadata = false
+min = 3.07
+max = 50.81
+mean = 19.78594262295082
+
+[[features]]
+column = "size"
+display = "Tamaño_Grupo"
+description = "Número de personas en la mesa"
+kind = "categorical"
+categorical_in_metadata = false
+min = 1
+max = 6
+mean = 2.569672131147541
+levels = [1, 2, 3, 4, 5, 6]
+
+[[features]]
+column = "sex_encoded"
+display = "Sexo"
+description = "Sexo del cliente que paga"
+kind = "binary"
+categorical_in_metadata = true
+min = 0
+max = 1
+mean = 0.6434426229508197
+values = { "0" = "Mujer", "1" = "Hombre" }
+
+[[features]]
+column = "smoker_encoded"
+display = "Fumador"
+description = "Si el cliente fuma"
+kind = "binary"
+categorical_in_metadata = true
+min = 0
+max = 1
+mean = 0.38114754098360654
+values = { "0" = "No Fumador", "1" = "Fumador" }
+
+[[features]]
+column = "day_encoded"
+display = "Día_Semana"
+description = "Día de la semana"
+kind = "categorical"
+categorical_in_metadata = true
+min = 0
+max = 3
+mean = 1.7418032786885247
+# Corrected: dataset_metadata.py had 0=Jueves..3=Domingo, but LabelEncoder
+# sorts Fri, Sat, Sun, Thur.
+values = { "0" = "Viernes", "1" = "Sábado", "2" = "Domingo", "3" = "Jueves" }
+
+[[features]]
+column = "time_encoded"
+display = "Comida"
+description = "Momento del día (almuerzo/cena)"
+kind = "binary"
+categorical_in_metadata = true
+min = 0
+max = 1
+mean = 0.2786885245901639
+values = { "0" = "Cena", "1" = "Almuerzo" }

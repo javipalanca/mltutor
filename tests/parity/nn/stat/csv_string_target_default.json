@@ -1,0 +1,181 @@
+{
+  "meta": {
+    "format_version": 1,
+    "generator": "tools/export_golden.py",
+    "generated": "2026-10-15",
+    "versions": {
+      "python": "3.11.14",
+      "numpy": "1.26.4",
+      "pandas": "2.3.3",
+      "scipy": "1.16.3",
+      "scikit-learn": "1.7.2",
+      "seaborn": "0.13.2",
+      "platform": "Darwin-arm64"
+    },
+    "seed": 42,
+    "tolerance": {
+      "rust_mean_over_5_seeds": "inside acceptance[metric] = [min − m, max + m], m = max(3·std, floor) (accuracy 0.03, r2 0.05, errors 10 % of the mean)",
+      "each_rust_seed": "inside [min − 2m, max + 2m]"
+    },
+    "tolerance_rationale": "Level (b) of D69: Keras and Rust draw different initial weights, dropout masks and batch orders, so only the distribution of the final metrics can match. The app sets no seed (every Python run differs); the fixture fixes keras.utils.set_random_seed(seed) to be reproducible on this machine.",
+    "tensorflow": {
+      "tensorflow": "2.16.2",
+      "keras": "3.12.0",
+      "tf_devices": ["CPU"],
+      "op_determinism": true,
+      "intra_op_threads": 0,
+      "tensorflow-macos": "2.16.2",
+      "tensorflow-metal": "1.2.0",
+      "onnx": "1.17.0"
+    }
+  },
+  "input": {
+    "csv_fixture": "csv/string_target.json",
+    "target": "especie",
+    "task": "auto",
+    "app_label": "📄 string_target.csv",
+    "nn_config": {
+      "architecture": [2, 10, 10, 3],
+      "activation": "relu",
+      "output_activation": "softmax",
+      "dropout_rate": 0.2,
+      "batch_size": 64,
+      "optimizer": "adam",
+      "task_type": "Clasificación",
+      "input_size": 2,
+      "output_size": 3
+    },
+    "lr": 0.001,
+    "epochs": 50,
+    "validation_split": 0.2,
+    "early_stopping": true,
+    "patience": 10,
+    "reduce_lr": true,
+    "lr_factor": 0.5,
+    "seeds": [0, 1, 2, 3, 4],
+    "shuffle": true
+  },
+  "expected": {
+    "runs": [
+      {
+        "seed": 0,
+        "epochs_trained": 27,
+        "final": {
+          "accuracy": 0.31578946113586426,
+          "loss": 1.2539211511611938,
+          "val_accuracy": 0.0,
+          "val_loss": 1.184924840927124,
+          "learning_rate": 0.0005000000237487257
+        },
+        "best_val_loss": 1.1836601495742798,
+        "best_epoch": 16,
+        "test": {
+          "accuracy": 0.3333333333333333,
+          "test_loss": 1.2870832681655884
+        }
+      },
+      {
+        "seed": 1,
+        "epochs_trained": 11,
+        "final": {
+          "accuracy": 0.3684210479259491,
+          "loss": 1.0787535905838013,
+          "val_accuracy": 0.0,
+          "val_loss": 1.2307010889053345,
+          "learning_rate": 0.0005000000237487257
+        },
+        "best_val_loss": 1.1803853511810303,
+        "best_epoch": 0,
+        "test": {
+          "accuracy": 0.16666666666666666,
+          "test_loss": 0.9896119236946106
+        }
+      },
+      {
+        "seed": 2,
+        "epochs_trained": 11,
+        "final": {
+          "accuracy": 0.3684210479259491,
+          "loss": 1.0952609777450562,
+          "val_accuracy": 0.4000000059604645,
+          "val_loss": 0.9199711084365845,
+          "learning_rate": 0.0005000000237487257
+        },
+        "best_val_loss": 0.8622163534164429,
+        "best_epoch": 0,
+        "test": {
+          "accuracy": 0.5,
+          "test_loss": 1.0526522397994995
+        }
+      },
+      {
+        "seed": 3,
+        "epochs_trained": 50,
+        "final": {
+          "accuracy": 0.5789473652839661,
+          "loss": 1.0063049793243408,
+          "val_accuracy": 0.0,
+          "val_loss": 1.309292197227478,
+          "learning_rate": 0.0005000000237487257
+        },
+        "best_val_loss": 1.308654546737671,
+        "best_epoch": 44,
+        "test": {
+          "accuracy": 0.5,
+          "test_loss": 1.1127922534942627
+        }
+      },
+      {
+        "seed": 4,
+        "epochs_trained": 11,
+        "final": {
+          "accuracy": 0.5263158082962036,
+          "loss": 1.0437138080596924,
+          "val_accuracy": 0.6000000238418579,
+          "val_loss": 0.9972178339958191,
+          "learning_rate": 0.0005000000237487257
+        },
+        "best_val_loss": 0.9627645611763,
+        "best_epoch": 0,
+        "test": {
+          "accuracy": 0.5,
+          "test_loss": 1.1341896057128906
+        }
+      }
+    ],
+    "bands": {
+      "accuracy": {
+        "min": 0.16666666666666666,
+        "max": 0.5,
+        "mean": 0.4,
+        "std": 0.14907119849998599
+      },
+      "test_loss": {
+        "min": 0.9896119236946106,
+        "max": 1.2870832681655884,
+        "mean": 1.1152658581733703,
+        "std": 0.1113494788642308
+      },
+      "epochs_trained": {
+        "min": 11.0,
+        "max": 50.0,
+        "mean": 22.0,
+        "std": 17.11724276862369
+      }
+    },
+    "acceptance": {
+      "accuracy": {
+        "lo": -0.28054692883329135,
+        "hi": 0.947213595499958
+      },
+      "test_loss": {
+        "lo": 0.6555634871019183,
+        "hi": 1.6211317047582807
+      },
+      "epochs_trained": {
+        "lo": 5,
+        "hi": 50
+      }
+    }
+  }
+}

@@ -1,5 +1,5 @@
 import matplotlib.pyplot as plt
-import streamlit as st
+from mltutor.desktop import ui as st
 
 
 def plot_predictions(y_true, y_pred):

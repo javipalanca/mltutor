@@ -1,0 +1,175 @@
+{
+  "meta": {
+    "format_version": 1,
+    "generator": "tools/export_golden.py",
+    "generated": "2026-10-13",
+    "versions": {
+      "python": "3.11.14",
+      "numpy": "1.26.4",
+      "pandas": "2.3.3",
+      "scipy": "1.16.3",
+      "scikit-learn": "1.7.2",
+      "seaborn": "0.13.2",
+      "platform": "Darwin-arm64"
+    },
+    "seed": 42,
+    "tolerance": {
+      "values": "exact"
+    },
+    "tolerance_rationale": "Parsing and encoding are discrete; numeric values round-trip exactly."
+  },
+  "input": {
+    "function": "pandas.read_csv(uploaded) + create_dataset_selector validations + load_dataset_from_file(path, target, task) for each task option",
+    "csv_text": "﻿a,b,c\n1,2,3\n4,5,6\n",
+    "csv_base64": "77u/YSxiLGMKMSwyLDMKNCw1LDYK"
+  },
+  "expected": {
+    "shape": [
+      2,
+      3
+    ],
+    "columns": [
+      "a",
+      "b",
+      "c"
+    ],
+    "dtypes": {
+      "a": "int64",
+      "b": "int64",
+      "c": "int64"
+    },
+    "missing_values": 0,
+    "default_target": "c",
+    "target_nunique": 2,
+    "target_dtype": "int64",
+    "target_value_counts": {
+      "3": 1,
+      "6": 1
+    },
+    "suggested_task": "Regresión",
+    "describe": {
+      "columns": [
+        "a",
+        "b",
+        "c"
+      ],
+      "index": [
+        "count",
+        "mean",
+        "std",
+        "min",
+        "25%",
+        "50%",
+        "75%",
+        "max"
+      ],
+      "shape": [
+        8,
+        3
+      ],
+      "values": [
+        2.0,
+        2.0,
+        2.0,
+        2.5,
+        3.5,
+        4.5,
+        2.1213203435596424,
+        2.1213203435596424,
+        2.1213203435596424,
+        1.0,
+        2.0,
+        3.0,
+        1.75,
+        2.75,
+        3.75,
+        2.5,
+        3.5,
+        4.5,
+        3.25,
+        4.25,
+        5.25,
+        4.0,
+        5.0,
+        6.0
+      ]
+    },
+    "load_dataset_from_file": {
+      "auto": {
+        "task_type": "Clasificación",
+        "feature_names": [
+          "a",
+          "b"
+        ],
+        "class_names": [
+          "Clase 3",
+          "Clase 6"
+        ],
+        "dataset_info": "Dataset personalizado: 2 muestras, 2 características, 2 clases",
+        "X_dtypes": {
+          "a": "int64",
+          "b": "int64"
+        },
+        "X": [
+          1.0,
+          2.0,
+          4.0,
+          5.0
+        ],
+        "y": [
+          3.0,
+          6.0
+        ]
+      },
+      "Clasificación": {
+        "task_type": "Clasificación",
+        "feature_names": [
+          "a",
+          "b"
+        ],
+        "class_names": [
+          "Clase 3",
+          "Clase 6"
+        ],
+        "dataset_info": "Dataset personalizado: 2 muestras, 2 características, 2 clases",
+        "X_dtypes": {
+          "a": "int64",
+          "b": "int64"
+        },
+        "X": [
+          1.0,
+          2.0,
+          4.0,
+          5.0
+        ],
+        "y": [
+          3.0,
+          6.0
+        ]
+      },
+      "Regresión": {
+        "task_type": "Regresión",
+        "feature_names": [
+          "a",
+          "b"
+        ],
+        "class_names": null,
+        "dataset_info": "Dataset personalizado: 2 muestras, 2 características, regresión",
+        "X_dtypes": {
+          "a": "int64",
+          "b": "int64"
+        },
+        "X": [
+          1.0,
+          2.0,
+          4.0,
+          5.0
+        ],
+        "y": [
+          3.0,
+          6.0
+        ]
+      }
+    }
+  }
+}

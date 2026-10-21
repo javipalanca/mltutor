@@ -1,0 +1,141 @@
+{
+  "meta": {
+    "format_version": 1,
+    "generator": "tools/export_golden.py",
+    "generated": "2026-10-13",
+    "versions": {
+      "python": "3.11.14",
+      "numpy": "1.26.4",
+      "pandas": "2.3.3",
+      "scipy": "1.16.3",
+      "scikit-learn": "1.7.2",
+      "seaborn": "0.13.2",
+      "platform": "Darwin-arm64"
+    },
+    "seed": 42,
+    "tolerance": {
+      "data_abs": 0.0,
+      "hash": "exact"
+    },
+    "tolerance_rationale": "Static data: the embedded CSV must reproduce the matrix exactly. CSV floats use Python's shortest round-trip repr, so parsing them as f64 is lossless and data_sha256_f64 must match bit for bit."
+  },
+  "input": {
+    "app_label": "💰 Propinas - Predicción de propinas",
+    "source": "mltutor/dataset/data/sample_datasets/tips.csv via load_tips_dataset()"
+  },
+  "expected": {
+    "csv": "data/tips.csv",
+    "csv_sha256": "159baf4a6bb96aa9d4c293c6955cfa42f4dcfe50f964afa5509781e393925969",
+    "csv_bytes": 5030,
+    "data_sha256_f64": "600048da99799364bc60e5fb6e0c357bef3674c72c158a121ce8ff893e37c4a4",
+    "data_sha256_f64_definition": "sha256 of row-major little-endian f64 values, each row = feature columns in 'columns' order followed by the target",
+    "shape": [
+      244,
+      6
+    ],
+    "columns": [
+      "total_bill",
+      "size",
+      "sex_encoded",
+      "smoker_encoded",
+      "day_encoded",
+      "time_encoded"
+    ],
+    "label_columns": [],
+    "csv_columns": [
+      "total_bill",
+      "size",
+      "sex_encoded",
+      "smoker_encoded",
+      "day_encoded",
+      "time_encoded",
+      "tip"
+    ],
+    "dtypes": {
+      "total_bill": "float64",
+      "size": "int64",
+      "sex_encoded": "int64",
+      "smoker_encoded": "int64",
+      "day_encoded": "int64",
+      "time_encoded": "int64"
+    },
+    "feature_names": [
+      "Cuenta_Total",
+      "Tamaño_Grupo",
+      "Sexo",
+      "Fumador",
+      "Día_Semana",
+      "Comida"
+    ],
+    "target_name": "tip",
+    "target_dtype": "float64",
+    "class_names": null,
+    "task_type": "Regresión",
+    "dataset_info": "Dataset Propinas: 244 comidas, 6 características, predicción de propina (regresión)",
+    "target_summary": {
+      "min": 1.0,
+      "max": 10.0,
+      "mean": 2.99827868852459,
+      "std_ddof1": 1.3836381890011822,
+      "median": 2.9
+    },
+    "index_is_range": true,
+    "head": [
+      {
+        "features": [
+          16.99,
+          2,
+          0,
+          0,
+          2,
+          0
+        ],
+        "target": 1.01
+      },
+      {
+        "features": [
+          10.34,
+          3,
+          1,
+          0,
+          2,
+          0
+        ],
+        "target": 1.66
+      },
+      {
+        "features": [
+          21.01,
+          3,
+          1,
+          0,
+          2,
+          0
+        ],
+        "target": 3.5
+      },
+      {
+        "features": [
+          23.68,
+          2,
+          1,
+          0,
+          2,
+          0
+        ],
+        "target": 3.31
+      },
+      {
+        "features": [
+          24.59,
+          4,
+          0,
+          0,
+          2,
+          0
+        ],
+        "target": 3.61
+      }
+    ]
+  }
+}

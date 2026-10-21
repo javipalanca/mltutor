@@ -1,0 +1,4 @@
+# `unwrap_used`/`expect_used` are warnings in production code (AGENTS.md rule 3),
+# but tests may unwrap freely.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true

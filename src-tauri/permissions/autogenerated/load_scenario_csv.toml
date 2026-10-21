@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-load-scenario-csv"
+description = "Enables the load_scenario_csv command without any pre-configured scope."
+commands.allow = ["load_scenario_csv"]
+
+[[permission]]
+identifier = "deny-load-scenario-csv"
+description = "Denies the load_scenario_csv command without any pre-configured scope."
+commands.deny = ["load_scenario_csv"]

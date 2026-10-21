@@ -1,0 +1,97 @@
+# Dataset metadata for the 📊 Datos tab and the prediction form.
+# Generated from mltutor/dataset/{dataset_manager,additional_datasets,dataset_metadata}.py
+# and dataset_tab.py (2026-10-13). Ranges are over the full dataset; the form
+# computes them from X_train at runtime, as Python does.
+id = "california_housing"
+label = "🏠 Viviendas California - Precios"
+emoji = "🏠"
+name = "Viviendas California"
+task = "regression"
+task_label = "Regresión"
+target = "price"
+samples = 20640
+description = "Dataset Viviendas California: 20640 distritos, 8 características, precio medio (regresión)"
+selector_blurb = "🏠 **Viviendas**: Regresión para predecir precios de casas."
+selector_info = "20,640 distritos • 8 características • Precio vivienda • Regresión"
+source = "sklearn.datasets.fetch_california_housing -- NETWORK (cached in ~/scikit_learn_data)"
+fixture = "tests/parity/datasets/california_housing.json"
+
+[[features]]
+column = "MedInc"
+display = "Ingresos_Medios"
+description = "Ingresos medios del distrito en decenas de miles de dólares"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0.4999
+max = 15.0001
+mean = 3.8706710029069766
+
+[[features]]
+column = "HouseAge"
+display = "Edad_Casa"
+description = "Edad media de las casas en años"
+kind = "continuous"
+categorical_in_metadata = false
+min = 1
+max = 52
+mean = 28.639486434108527
+
+[[features]]
+column = "AveRooms"
+display = "Habitaciones_Promedio"
+description = "Número promedio de habitaciones por hogar"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0.8461538461538461
+max = 141.9090909090909
+mean = 5.428999742190376
+
+[[features]]
+column = "AveBedrms"
+display = "Dormitorios_Promedio"
+description = "Número promedio de dormitorios por hogar"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0.3333333333333333
+max = 34.06666666666667
+mean = 1.096675149606208
+
+[[features]]
+column = "Population"
+display = "Población"
+description = "Población del distrito"
+kind = "continuous"
+categorical_in_metadata = false
+min = 3
+max = 35682
+mean = 1425.4767441860465
+
+[[features]]
+column = "AveOccup"
+display = "Ocupación_Promedio"
+description = "Ocupación promedio (personas por hogar)"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0.6923076923076923
+max = 1243.3333333333333
+mean = 3.0706551594363742
+
+[[features]]
+column = "Latitude"
+display = "Latitud"
+description = "Latitud del distrito"
+kind = "continuous"
+categorical_in_metadata = false
+min = 32.54
+max = 41.95
+mean = 35.63186143410853
+
+[[features]]
+column = "Longitude"
+display = "Longitud"
+description = "Longitud del distrito"
+kind = "continuous"
+categorical_in_metadata = false
+min = -124.35
+max = -114.31
+mean = -119.56970445736432

@@ -1,0 +1,2797 @@
+{
+  "meta": {
+    "format_version": 1,
+    "generator": "tools/export_golden.py",
+    "generated": "2026-10-14",
+    "versions": {
+      "python": "3.11.14",
+      "numpy": "1.26.4",
+      "pandas": "2.3.3",
+      "scipy": "1.16.3",
+      "scikit-learn": "1.7.2",
+      "seaborn": "0.13.2",
+      "platform": "Darwin-arm64"
+    },
+    "seed": 42,
+    "tolerance": {
+      "texts": "exact"
+    },
+    "tolerance_rationale": "Documents what the app does when the model type does not match the task (warnings, errors, int() truncation)."
+  },
+  "input": {
+    "dataset": "datasets/iris.json",
+    "app_label": "🌸 Iris - Clasificación de flores",
+    "model_type": "Linear",
+    "test_size": 0.3,
+    "random_state": 42,
+    "max_iter": null
+  },
+  "expected": {
+    "trained": true,
+    "task_type": "Clasificación",
+    "feature_columns": [
+      "sepal length (cm)",
+      "sepal width (cm)",
+      "petal length (cm)",
+      "petal width (cm)"
+    ],
+    "feature_names": [
+      "sepal length (cm)",
+      "sepal width (cm)",
+      "petal length (cm)",
+      "petal width (cm)"
+    ],
+    "class_names": [
+      "setosa",
+      "versicolor",
+      "virginica"
+    ],
+    "train_indices": [
+      81,
+      133,
+      137,
+      75,
+      109,
+      96,
+      105,
+      66,
+      0,
+      122,
+      67,
+      28,
+      40,
+      44,
+      60,
+      123,
+      24,
+      25,
+      23,
+      94,
+      39,
+      95,
+      117,
+      47,
+      97,
+      113,
+      33,
+      138,
+      101,
+      62,
+      84,
+      148,
+      53,
+      5,
+      93,
+      111,
+      49,
+      35,
+      80,
+      77,
+      34,
+      114,
+      7,
+      43,
+      70,
+      98,
+      120,
+      83,
+      134,
+      135,
+      89,
+      8,
+      13,
+      119,
+      125,
+      3,
+      17,
+      38,
+      72,
+      136,
+      6,
+      112,
+      100,
+      2,
+      63,
+      54,
+      126,
+      50,
+      115,
+      46,
+      139,
+      61,
+      147,
+      79,
+      59,
+      91,
+      41,
+      58,
+      90,
+      48,
+      88,
+      107,
+      124,
+      21,
+      57,
+      144,
+      129,
+      37,
+      140,
+      1,
+      52,
+      130,
+      103,
+      99,
+      116,
+      87,
+      74,
+      121,
+      149,
+      20,
+      71,
+      106,
+      14,
+      92,
+      102
+    ],
+    "test_indices": [
+      73,
+      18,
+      118,
+      78,
+      76,
+      31,
+      64,
+      141,
+      68,
+      82,
+      110,
+      12,
+      36,
+      9,
+      19,
+      56,
+      104,
+      69,
+      55,
+      132,
+      29,
+      127,
+      26,
+      128,
+      131,
+      145,
+      108,
+      143,
+      45,
+      30,
+      22,
+      15,
+      65,
+      11,
+      42,
+      146,
+      51,
+      27,
+      4,
+      32,
+      142,
+      85,
+      86,
+      16,
+      10
+    ],
+    "y_test": [
+      1,
+      0,
+      2,
+      1,
+      1,
+      0,
+      1,
+      2,
+      1,
+      1,
+      2,
+      0,
+      0,
+      0,
+      0,
+      1,
+      2,
+      1,
+      1,
+      2,
+      0,
+      2,
+      0,
+      2,
+      2,
+      2,
+      2,
+      2,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      2,
+      1,
+      0,
+      0,
+      0,
+      2,
+      1,
+      1,
+      0,
+      0
+    ],
+    "y_pred": [
+      1.240690972977347,
+      -0.04537609353878802,
+      2.2450108264071056,
+      1.3514366605981283,
+      1.2977508289726871,
+      0.01024240723565556,
+      1.0503117284021437,
+      1.8252539928479776,
+      1.3708441319411921,
+      1.0669918614937455,
+      1.703634845373704,
+      -0.0871206655263484,
+      -0.16516599590462383,
+      -0.07724352861029726,
+      -0.03380619437725357,
+      1.401676991006723,
+      2.006512516541052,
+      1.047259311318986,
+      1.2836832749269353,
+      1.976004736307217,
+      0.017823543102470918,
+      1.599528753162029,
+      0.07973200246701706,
+      1.9230753207156979,
+      1.862198603027165,
+      1.8790815015825206,
+      1.8025124729047453,
+      2.04196712993851,
+      0.018738165656689704,
+      0.01291496300738526,
+      -0.1536560734689692,
+      -0.08046737503601259,
+      1.185067277956756,
+      -0.004619815912555725,
+      -0.029342646565623465,
+      1.6866513571077486,
+      1.2908878560712567,
+      -0.07995433745056424,
+      -0.09076782057817678,
+      -0.1679533108819654,
+      1.7552046061275486,
+      1.3751414446564123,
+      1.3174234024215674,
+      -0.07193336354644109,
+      -0.11315120286732366
+    ],
+    "fit_warnings": [],
+    "model": {
+      "coef_shape": [
+        4
+      ],
+      "classes": null,
+      "n_classes": 0
+    },
+    "prediction_form": {
+      "controls": [
+        {
+          "index": 0,
+          "kind": "slider",
+          "value": 5.8428571428571425,
+          "label": "sepal length (cm)",
+          "min_value": 4.3,
+          "max_value": 7.7,
+          "step": 0.034
+        },
+        {
+          "index": 1,
+          "kind": "slider",
+          "value": 3.0095238095238095,
+          "label": "sepal width (cm)",
+          "min_value": 2.0,
+          "max_value": 4.2,
+          "step": 0.022000000000000002
+        },
+        {
+          "index": 2,
+          "kind": "slider",
+          "value": 3.8704761904761904,
+          "label": "petal length (cm)",
+          "min_value": 1.1,
+          "max_value": 6.7,
+          "step": 0.055999999999999994
+        },
+        {
+          "index": 3,
+          "kind": "slider",
+          "value": 1.239047619047619,
+          "label": "petal width (cm)",
+          "min_value": 0.1,
+          "max_value": 2.5,
+          "step": 0.024
+        }
+      ],
+      "custom_choice": "sliders at max_value, selects at their last option, checkboxes on",
+      "custom_controls": [
+        7.7,
+        4.2,
+        6.7,
+        2.5
+      ],
+      "default": {
+        "input_float32": [
+          5.842857360839844,
+          3.009523868560791,
+          3.870476245880127,
+          1.239047646522522
+        ],
+        "predict": 1.0571428594622185
+      },
+      "custom": {
+        "input_float32": [
+          7.699999809265137,
+          4.199999809265137,
+          6.699999809265137,
+          2.5
+        ],
+        "predict": 2.2043996785957862
+      },
+      "note": "The app builds np.array(values, dtype=np.float32) and calls model.predict on it, so inputs are rounded to f32 before the f64 dot product. In classification it shows class_names[int(predict)]; LogisticRegression adds a predict_proba table."
+    },
+    "views": {
+      "train": {
+        "kind": "page",
+        "children": [
+          {
+            "kind": "heading",
+            "text": "📊 Selección y Preparación de Datos",
+            "level": 1
+          },
+          {
+            "kind": "text",
+            "text": "### 🎯 Selección de Dataset",
+            "html": false
+          },
+          {
+            "kind": "select",
+            "label": "Dataset:",
+            "key": "unified_dataset_selector",
+            "value": "🌸 Iris - Clasificación de flores",
+            "options": [
+              "🌸 Iris - Clasificación de flores",
+              "🍷 Vino - Clasificación de vinos",
+              "🔬 Cáncer - Diagnóstico binario",
+              "🔢 Dígitos - Clasificación de dígitos",
+              "🩺 Diabetes - Progresión (regresión)",
+              "💎 Diamantes - Precio (regresión)",
+              "⛽ MPG - Consumo combustible (regresión)",
+              "🌙 Moons - Clasificación sintética",
+              "🚢 Titanic - Supervivencia",
+              "💰 Propinas - Predicción de propinas",
+              "🏠 Viviendas California - Precios",
+              "🐧 Pingüinos - Clasificación de especies"
+            ],
+            "display": [
+              "🌸 Iris - Clasificación de flores",
+              "🍷 Vino - Clasificación de vinos",
+              "🔬 Cáncer - Diagnóstico binario",
+              "🔢 Dígitos - Clasificación de dígitos",
+              "🩺 Diabetes - Progresión (regresión)",
+              "💎 Diamantes - Precio (regresión)",
+              "⛽ MPG - Consumo combustible (regresión)",
+              "🌙 Moons - Clasificación sintética",
+              "🚢 Titanic - Supervivencia",
+              "💰 Propinas - Predicción de propinas",
+              "🏠 Viviendas California - Precios",
+              "🐧 Pingüinos - Clasificación de especies"
+            ],
+            "help": "El dataset seleccionado se mantendrá entre las pestañas de Exploración y Entrenamiento"
+          },
+          {
+            "kind": "text",
+            "text": "🌸 **Iris**: Perfecto para empezar. 3 clases de flores, 4 características simples.",
+            "html": false
+          },
+          {
+            "kind": "text",
+            "text": "---",
+            "html": false
+          },
+          {
+            "kind": "heading",
+            "text": "Configuración del Modelo",
+            "level": 1
+          },
+          {
+            "kind": "text",
+            "text": "### Información del Dataset",
+            "html": false
+          },
+          {
+            "kind": "text",
+            "text": "<div class=\"info-box\">Dataset Iris: 150 muestras, 4 características, 3 clases de flores</div>",
+            "html": true
+          },
+          {
+            "kind": "text",
+            "text": "### Tipo de Modelo Lineal",
+            "html": false
+          },
+          {
+            "kind": "row",
+            "weights": [
+              1,
+              1
+            ],
+            "children": [
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "button",
+                    "key": "btn_linear",
+                    "label": "📈 Regresión Lineal",
+                    "type": "primary",
+                    "use_container_width": true,
+                    "help": "Para predecir valores numéricos continuos"
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "button",
+                    "key": "btn_logistic",
+                    "label": "🏷️ Regresión Logística",
+                    "type": "secondary",
+                    "use_container_width": true,
+                    "help": "Para predecir categorías o clases"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "notice",
+            "text": "Este dataset parece ser más adecuado para Regresión Logística. La selección actual podría no ofrecer resultados óptimos.",
+            "severity": "warning"
+          },
+          {
+            "kind": "text",
+            "text": "### Parámetros del Modelo",
+            "html": false
+          },
+          {
+            "kind": "row",
+            "weights": [
+              1,
+              1
+            ],
+            "children": [
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "notice",
+                    "text": "La regresión lineal no requiere configuración adicional de iteraciones.",
+                    "severity": "info"
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "slider",
+                    "label": "Tamaño del Conjunto de Prueba:",
+                    "key": null,
+                    "value": 0.3,
+                    "min_value": 0.1,
+                    "max_value": 0.5,
+                    "step": 0.05,
+                    "help": "Proporción de datos que se usará para evaluar el modelo."
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "button",
+            "key": "train_lr_button",
+            "label": "🚀 Entrenar Modelo",
+            "type": "primary"
+          },
+          {
+            "kind": "notice",
+            "text": "¡Modelo entrenado exitosamente!",
+            "severity": "success"
+          }
+        ]
+      },
+      "evaluation": {
+        "kind": "page",
+        "children": [
+          {
+            "kind": "notice",
+            "text": "📊 **Dataset actual:** 🌸 Iris - Clasificación de flores",
+            "severity": "info"
+          },
+          {
+            "kind": "text",
+            "text": "---",
+            "html": false
+          },
+          {
+            "kind": "heading",
+            "text": "Evaluación del Modelo",
+            "level": 1
+          },
+          {
+            "kind": "row",
+            "weights": [
+              1,
+              1,
+              1,
+              1
+            ],
+            "children": [
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "metric",
+                    "label": "Error Cuadrático Medio (MSE)",
+                    "value": "0.0387",
+                    "delta": null,
+                    "help": "Promedio de los errores al cuadrado. Penaliza más los errores grandes."
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "metric",
+                    "label": "RMSE",
+                    "value": "0.1966",
+                    "delta": null,
+                    "help": "Raíz cuadrada del MSE. En las mismas unidades que la variable objetivo."
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "metric",
+                    "label": "Error Absoluto Medio (MAE)",
+                    "value": "0.1533",
+                    "delta": null,
+                    "help": "Promedio de los errores absolutos. Menos sensible a valores atípicos."
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "metric",
+                    "label": "R² Score",
+                    "value": "0.9442",
+                    "delta": null,
+                    "help": "Proporción de la varianza explicada por el modelo. 1 es predicción perfecta."
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "row",
+            "weights": [
+              1,
+              3,
+              1
+            ],
+            "children": [
+              {
+                "kind": "column"
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "image",
+                    "figure": {
+                      "size_inches": [
+                        6.0,
+                        5.0
+                      ],
+                      "axes": [
+                        {
+                          "title": "Predicciones vs Valores reales",
+                          "xlabel": "Valores reales",
+                          "ylabel": "Predicciones",
+                          "xlim": [
+                            -0.1,
+                            2.1
+                          ],
+                          "ylim": [
+                            -0.28860151774641896,
+                            2.3656590332715592
+                          ],
+                          "is_colorbar": false,
+                          "lines": [
+                            {
+                              "label": "_child1",
+                              "color": "#ff0000ff",
+                              "linestyle": "--",
+                              "linewidth": 1.5,
+                              "alpha": null,
+                              "xy": {
+                                "n": 2,
+                                "values": [
+                                  [
+                                    0.0,
+                                    0.0
+                                  ],
+                                  [
+                                    2.0,
+                                    2.0
+                                  ]
+                                ]
+                              }
+                            }
+                          ],
+                          "collections": [
+                            {
+                              "type": "scatter",
+                              "offsets": {
+                                "n": 45,
+                                "values": [
+                                  [
+                                    1.0,
+                                    1.240690972977347
+                                  ],
+                                  [
+                                    0.0,
+                                    -0.04537609353878802
+                                  ],
+                                  [
+                                    2.0,
+                                    2.2450108264071056
+                                  ],
+                                  [
+                                    1.0,
+                                    1.3514366605981283
+                                  ],
+                                  [
+                                    1.0,
+                                    1.2977508289726871
+                                  ],
+                                  [
+                                    0.0,
+                                    0.01024240723565556
+                                  ],
+                                  [
+                                    1.0,
+                                    1.0503117284021437
+                                  ],
+                                  [
+                                    2.0,
+                                    1.8252539928479776
+                                  ],
+                                  [
+                                    1.0,
+                                    1.3708441319411921
+                                  ],
+                                  [
+                                    1.0,
+                                    1.0669918614937455
+                                  ],
+                                  [
+                                    2.0,
+                                    1.703634845373704
+                                  ],
+                                  [
+                                    0.0,
+                                    -0.0871206655263484
+                                  ],
+                                  [
+                                    0.0,
+                                    -0.16516599590462383
+                                  ],
+                                  [
+                                    0.0,
+                                    -0.07724352861029726
+                                  ],
+                                  [
+                                    0.0,
+                                    -0.03380619437725357
+                                  ],
+                                  [
+                                    1.0,
+                                    1.401676991006723
+                                  ],
+                                  [
+                                    2.0,
+                                    2.006512516541052
+                                  ],
+                                  [
+                                    1.0,
+                                    1.047259311318986
+                                  ],
+                                  [
+                                    1.0,
+                                    1.2836832749269353
+                                  ],
+                                  [
+                                    2.0,
+                                    1.976004736307217
+                                  ],
+                                  [
+                                    0.0,
+                                    0.017823543102470918
+                                  ],
+                                  [
+                                    2.0,
+                                    1.599528753162029
+                                  ],
+                                  [
+                                    0.0,
+                                    0.07973200246701706
+                                  ],
+                                  [
+                                    2.0,
+                                    1.9230753207156979
+                                  ],
+                                  [
+                                    2.0,
+                                    1.862198603027165
+                                  ],
+                                  [
+                                    2.0,
+                                    1.8790815015825206
+                                  ],
+                                  [
+                                    2.0,
+                                    1.8025124729047453
+                                  ],
+                                  [
+                                    2.0,
+                                    2.04196712993851
+                                  ],
+                                  [
+                                    0.0,
+                                    0.018738165656689704
+                                  ],
+                                  [
+                                    0.0,
+                                    0.01291496300738526
+                                  ],
+                                  [
+                                    0.0,
+                                    -0.1536560734689692
+                                  ],
+                                  [
+                                    0.0,
+                                    -0.08046737503601259
+                                  ],
+                                  [
+                                    1.0,
+                                    1.185067277956756
+                                  ],
+                                  [
+                                    0.0,
+                                    -0.004619815912555725
+                                  ],
+                                  [
+                                    0.0,
+                                    -0.029342646565623465
+                                  ],
+                                  [
+                                    2.0,
+                                    1.6866513571077486
+                                  ],
+                                  [
+                                    1.0,
+                                    1.2908878560712567
+                                  ],
+                                  [
+                                    0.0,
+                                    -0.07995433745056424
+                                  ],
+                                  [
+                                    0.0,
+                                    -0.09076782057817678
+                                  ],
+                                  [
+                                    0.0,
+                                    -0.1679533108819654
+                                  ],
+                                  [
+                                    2.0,
+                                    1.7552046061275486
+                                  ],
+                                  [
+                                    1.0,
+                                    1.3751414446564123
+                                  ],
+                                  [
+                                    1.0,
+                                    1.3174234024215674
+                                  ],
+                                  [
+                                    0.0,
+                                    -0.07193336354644109
+                                  ],
+                                  [
+                                    0.0,
+                                    -0.11315120286732366
+                                  ]
+                                ]
+                              },
+                              "sizes": [
+                                36.0
+                              ],
+                              "alpha": 0.5,
+                              "facecolors": [
+                                {
+                                  "color": "#22a78580",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#48257680",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#23a98380",
+                                  "count": 2
+                                },
+                                {
+                                  "color": "#aadc3280",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#56c66780",
+                                  "count": 2
+                                },
+                                {
+                                  "color": "#45055980",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#48297980",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#277f8e80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#cde11d80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#45378180",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#40468880",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#29798e80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#433e8580",
+                                  "count": 2
+                                },
+                                {
+                                  "color": "#481b6d80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#fde72580",
+                                  "count": 2
+                                },
+                                {
+                                  "color": "#44025680",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#48267780",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#44bf7080",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#47136580",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#470d6080",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#42408680",
+                                  "count": 3
+                                },
+                                {
+                                  "color": "#31688e80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#365d8d80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#228d8d80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#48237480",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#470e6180",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#46085c80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#2c728e80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#25858e80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#44015480",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#48176980",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#6ece5880",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#4ec36b80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#3f488980",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#297b8e80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#d2e21b80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#73d05680",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#443a8380",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#38588c80",
+                                  "count": 1
+                                }
+                              ],
+                              "edgecolors": [
+                                {
+                                  "color": "#22a78580",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#48257680",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#23a98380",
+                                  "count": 2
+                                },
+                                {
+                                  "color": "#aadc3280",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#56c66780",
+                                  "count": 2
+                                },
+                                {
+                                  "color": "#45055980",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#48297980",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#277f8e80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#cde11d80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#45378180",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#40468880",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#29798e80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#433e8580",
+                                  "count": 2
+                                },
+                                {
+                                  "color": "#481b6d80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#fde72580",
+                                  "count": 2
+                                },
+                                {
+                                  "color": "#44025680",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#48267780",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#44bf7080",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#47136580",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#470d6080",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#42408680",
+                                  "count": 3
+                                },
+                                {
+                                  "color": "#31688e80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#365d8d80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#228d8d80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#48237480",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#470e6180",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#46085c80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#2c728e80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#25858e80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#44015480",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#48176980",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#6ece5880",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#4ec36b80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#3f488980",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#297b8e80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#d2e21b80",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#73d05680",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#443a8380",
+                                  "count": 1
+                                },
+                                {
+                                  "color": "#38588c80",
+                                  "count": 1
+                                }
+                              ],
+                              "c": {
+                                "n": 45,
+                                "values": [
+                                  0.24069097297734698,
+                                  0.04537609353878802,
+                                  0.2450108264071056,
+                                  0.3514366605981283,
+                                  0.2977508289726871,
+                                  0.01024240723565556,
+                                  0.05031172840214371,
+                                  0.17474600715202238,
+                                  0.37084413194119215,
+                                  0.06699186149374547,
+                                  0.296365154626296,
+                                  0.0871206655263484,
+                                  0.16516599590462383,
+                                  0.07724352861029726,
+                                  0.03380619437725357,
+                                  0.40167699100672305,
+                                  0.006512516541052005,
+                                  0.047259311318986086,
+                                  0.28368327492693535,
+                                  0.02399526369278293,
+                                  0.017823543102470918,
+                                  0.400471246837971,
+                                  0.07973200246701706,
+                                  0.07692467928430213,
+                                  0.1378013969728351,
+                                  0.12091849841747937,
+                                  0.19748752709525474,
+                                  0.04196712993850982,
+                                  0.018738165656689704,
+                                  0.01291496300738526,
+                                  0.1536560734689692,
+                                  0.08046737503601259,
+                                  0.18506727795675593,
+                                  0.004619815912555725,
+                                  0.029342646565623465,
+                                  0.3133486428922514,
+                                  0.29088785607125667,
+                                  0.07995433745056424,
+                                  0.09076782057817678,
+                                  0.1679533108819654,
+                                  0.24479539387245142,
+                                  0.3751414446564123,
+                                  0.3174234024215674,
+                                  0.07193336354644109,
+                                  0.11315120286732366
+                                ]
+                              },
+                              "cmap": "viridis",
+                              "norm": [
+                                0.004619815912555725,
+                                0.40167699100672305
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "title": "",
+                          "xlabel": "",
+                          "ylabel": "Error absoluto",
+                          "xlim": [
+                            0.0,
+                            1.0
+                          ],
+                          "ylim": [
+                            0.004619815912555725,
+                            0.40167699100672305
+                          ],
+                          "is_colorbar": true,
+                          "collections": [
+                            {
+                              "type": "heatmap",
+                              "cmap": "viridis",
+                              "norm": [
+                                0.004619815912555725,
+                                0.40167699100672305
+                              ],
+                              "values": [
+                                0.00539531820766152,
+                                0.006946322797873112,
+                                0.008497327388084702,
+                                0.010048331978296294,
+                                0.011599336568507885,
+                                0.013150341158719474,
+                                0.014701345748931068,
+                                0.016252350339142657,
+                                0.01780335492935425,
+                                0.01935435951956584,
+                                0.020905364109777433,
+                                0.022456368699989022,
+                                0.024007373290200612,
+                                0.025558377880412205,
+                                0.027109382470623798,
+                                0.028660387060835388,
+                                0.030211391651046977,
+                                0.03176239624125857,
+                                0.033313400831470164,
+                                0.034864405421681746,
+                                0.03641541001189334,
+                                0.03796641460210494,
+                                0.03951741919231652,
+                                0.04106842378252812,
+                                0.0426194283727397,
+                                0.0441704329629513,
+                                0.045721437553162894,
+                                0.04727244214337448,
+                                0.04882344673358607,
+                                0.05037445132379766,
+                                0.05192545591400925,
+                                0.05347646050422085,
+                                0.05502746509443243,
+                                0.05657846968464403,
+                                0.05812947427485562,
+                                0.05968047886506721,
+                                0.061231483455278804,
+                                0.06278248804549039,
+                                0.06433349263570198,
+                                0.06588449722591358,
+                                0.06743550181612516,
+                                0.06898650640633676,
+                                0.07053751099654834,
+                                0.07208851558675994,
+                                0.07363952017697153,
+                                0.07519052476718312,
+                                0.07674152935739471,
+                                0.0782925339476063,
+                                0.07984353853781789,
+                                0.08139454312802949,
+                                0.08294554771824107,
+                                0.08449655230845267,
+                                0.08604755689866425,
+                                0.08759856148887585,
+                                0.08914956607908744,
+                                0.09070057066929904,
+                                0.09225157525951062,
+                                0.0938025798497222,
+                                0.0953535844399338,
+                                0.0969045890301454,
+                                0.098455593620357,
+                                0.10000659821056858,
+                                0.10155760280078016,
+                                0.10310860739099176,
+                                0.10465961198120335,
+                                0.10621061657141495,
+                                0.10776162116162653,
+                                0.10931262575183812,
+                                0.11086363034204971,
+                                0.11241463493226131,
+                                0.1139656395224729,
+                                0.11551664411268449,
+                                0.11706764870289607,
+                                0.11861865329310767,
+                                0.12016965788331926,
+                                0.12172066247353086,
+                                0.12327166706374244,
+                                0.12482267165395404,
+                                0.12637367624416562,
+                                0.12792468083437722,
+                                0.12947568542458882,
+                                0.13102669001480038,
+                                0.132577694605012,
+                                0.13412869919522358,
+                                0.13567970378543517,
+                                0.13723070837564677,
+                                0.13878171296585834,
+                                0.14033271755606996,
+                                0.14188372214628153,
+                                0.14343472673649313,
+                                0.14498573132670473,
+                                0.1465367359169163,
+                                0.14808774050712792,
+                                0.1496387450973395,
+                                0.15118974968755108,
+                                0.15274075427776268,
+                                0.15429175886797425,
+                                0.15584276345818587,
+                                0.15739376804839744,
+                                0.15894477263860904,
+                                0.16049577722882064,
+                                0.1620467818190322,
+                                0.16359778640924383,
+                                0.1651487909994554,
+                                0.166699795589667,
+                                0.1682508001798786,
+                                0.16980180477009016,
+                                0.17135280936030178,
+                                0.17290381395051335,
+                                0.17445481854072498,
+                                0.17600582313093655,
+                                0.1775568277211481,
+                                0.17910783231135974,
+                                0.1806588369015713,
+                                0.18220984149178293,
+                                0.1837608460819945,
+                                0.18531185067220607,
+                                0.1868628552624177,
+                                0.18841385985262926,
+                                0.1899648644428409,
+                                0.19151586903305245,
+                                0.19306687362326402,
+                                0.19461787821347565,
+                                0.19616888280368722,
+                                0.19771988739389884,
+                                0.1992708919841104,
+                                0.20082189657432198,
+                                0.2023729011645336,
+                                0.20392390575474517,
+                                0.2054749103449568,
+                                0.20702591493516836,
+                                0.20857691952537993,
+                                0.21012792411559156,
+                                0.21167892870580313,
+                                0.21322993329601475,
+                                0.21478093788622632,
+                                0.2163319424764379,
+                                0.2178829470666495,
+                                0.21943395165686108,
+                                0.2209849562470727,
+                                0.22253596083728427,
+                                0.22408696542749584,
+                                0.22563797001770747,
+                                0.22718897460791904,
+                                0.22873997919813066,
+                                0.23029098378834223,
+                                0.2318419883785538,
+                                0.23339299296876542,
+                                0.234943997558977,
+                                0.23649500214918862,
+                                0.23804600673940018,
+                                0.23959701132961178,
+                                0.24114801591982338,
+                                0.24269902051003495,
+                                0.24425002510024657,
+                                0.24580102969045814,
+                                0.24735203428066974,
+                                0.24890303887088133,
+                                0.2504540434610929,
+                                0.2520050480513045,
+                                0.25355605264151615,
+                                0.25510705723172766,
+                                0.2566580618219393,
+                                0.2582090664121509,
+                                0.2597600710023624,
+                                0.26131107559257405,
+                                0.2628620801827857,
+                                0.26441308477299724,
+                                0.2659640893632088,
+                                0.26751509395342044,
+                                0.269066098543632,
+                                0.2706171031338436,
+                                0.2721681077240552,
+                                0.2737191123142668,
+                                0.27527011690447833,
+                                0.27682112149468996,
+                                0.2783721260849016,
+                                0.27992313067511315,
+                                0.2814741352653247,
+                                0.28302513985553635,
+                                0.2845761444457479,
+                                0.2861271490359595,
+                                0.2876781536261711,
+                                0.28922915821638273,
+                                0.29078016280659424,
+                                0.29233116739680587,
+                                0.2938821719870175,
+                                0.29543317657722906,
+                                0.29698418116744063,
+                                0.29853518575765225,
+                                0.3000861903478638,
+                                0.3016371949380754,
+                                0.303188199528287,
+                                0.30473920411849864,
+                                0.30629020870871015,
+                                0.3078412132989218,
+                                0.3093922178891334,
+                                0.31094322247934497,
+                                0.31249422706955654,
+                                0.31404523165976816,
+                                0.31559623624997973,
+                                0.3171472408401913,
+                                0.3186982454304029,
+                                0.32024925002061455,
+                                0.32180025461082606,
+                                0.3233512592010377,
+                                0.3249022637912493,
+                                0.3264532683814609,
+                                0.32800427297167245,
+                                0.3295552775618841,
+                                0.33110628215209564,
+                                0.3326572867423072,
+                                0.33420829133251884,
+                                0.33575929592273046,
+                                0.33731030051294203,
+                                0.3388613051031536,
+                                0.3404123096933652,
+                                0.3419633142835768,
+                                0.34351431887378836,
+                                0.345065323464,
+                                0.3466163280542116,
+                                0.3481673326444231,
+                                0.34971833723463475,
+                                0.35126934182484637,
+                                0.35282034641505794,
+                                0.3543713510052695,
+                                0.35592235559548113,
+                                0.3574733601856927,
+                                0.35902436477590427,
+                                0.3605753693661159,
+                                0.3621263739563275,
+                                0.36367737854653903,
+                                0.36522838313675066,
+                                0.3667793877269623,
+                                0.36833039231717385,
+                                0.3698813969073854,
+                                0.37143240149759704,
+                                0.3729834060878086,
+                                0.3745344106780202,
+                                0.3760854152682318,
+                                0.37763641985844343,
+                                0.37918742444865494,
+                                0.38073842903886657,
+                                0.3822894336290782,
+                                0.38384043821928976,
+                                0.38539144280950133,
+                                0.38694244739971295,
+                                0.3884934519899245,
+                                0.3900444565801361,
+                                0.3915954611703477,
+                                0.39314646576055934,
+                                0.39469747035077085,
+                                0.3962484749409825,
+                                0.3977994795311941,
+                                0.39935048412140567,
+                                0.40090148871161724
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "column"
+              }
+            ]
+          },
+          {
+            "kind": "download_link",
+            "label": "📥 Descargar gráfico",
+            "file_name": "predicciones_vs_reales.png",
+            "mime": "file/png",
+            "note": "PNG generated by matplotlib at 300 dpi (savefig bbox_inches='tight')"
+          },
+          {
+            "kind": "text",
+            "text": "#### Código para generar este gráfico",
+            "html": false
+          },
+          {
+            "kind": "expander",
+            "label": "Ver código",
+            "expanded": false,
+            "children": [
+              {
+                "kind": "code",
+                "text": "\nimport matplotlib.pyplot as plt\nimport numpy as np\n\n# Crear el gráfico\nfig, ax = plt.subplots(figsize=(8, 6))\nscatter = ax.scatter(y_test, y_pred, alpha=0.5,\n                    c=np.abs(y_test - y_pred), cmap='viridis')\nax.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--')\nax.set_xlabel('Valores reales')\nax.set_ylabel('Predicciones')\nax.set_title('Predicciones vs Valores reales')\nplt.colorbar(scatter, ax=ax, label='Error absoluto')\n\nplt.tight_layout()\nplt.show()\n",
+                "language": "python"
+              },
+              {
+                "kind": "row",
+                "weights": [
+                  1,
+                  1
+                ],
+                "children": [
+                  {
+                    "kind": "column",
+                    "children": [
+                      {
+                        "kind": "download_link",
+                        "label": "📥 Descargar código",
+                        "file_name": "predicciones_vs_reales.py",
+                        "mime": "text/plain",
+                        "text": "\nimport matplotlib.pyplot as plt\nimport numpy as np\n\n# Crear el gráfico\nfig, ax = plt.subplots(figsize=(8, 6))\nscatter = ax.scatter(y_test, y_pred, alpha=0.5,\n                    c=np.abs(y_test - y_pred), cmap='viridis')\nax.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--')\nax.set_xlabel('Valores reales')\nax.set_ylabel('Predicciones')\nax.set_title('Predicciones vs Valores reales')\nplt.colorbar(scatter, ax=ax, label='Error absoluto')\n\nplt.tight_layout()\nplt.show()\n"
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "column",
+                    "children": [
+                      {
+                        "kind": "notice",
+                        "text": "Usa el botón de copia en la esquina superior derecha del bloque de código para copiarlo",
+                        "severity": "info"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "row",
+            "weights": [
+              1,
+              3,
+              1
+            ],
+            "children": [
+              {
+                "kind": "column"
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "image",
+                    "figure": {
+                      "size_inches": [
+                        6.0,
+                        4.0
+                      ],
+                      "axes": [
+                        {
+                          "title": "Distribución de errores",
+                          "xlabel": "Error (Real - Predicción)",
+                          "ylabel": "Count",
+                          "xlim": [
+                            -0.44178440289895776,
+                            0.4405786587302057
+                          ],
+                          "ylim": [
+                            0.0,
+                            12.6
+                          ],
+                          "is_colorbar": false,
+                          "lines": [
+                            {
+                              "label": "_child8",
+                              "color": "#1f77b4ff",
+                              "linestyle": "-",
+                              "linewidth": 1.5,
+                              "alpha": null,
+                              "xy": {
+                                "n": 200,
+                                "values": [
+                                  [
+                                    -0.40167699100672305,
+                                    2.775438401646395
+                                  ],
+                                  [
+                                    -0.3976460953391618,
+                                    2.8568467949223986
+                                  ],
+                                  [
+                                    -0.3936151996716005,
+                                    2.936759041398764
+                                  ],
+                                  [
+                                    -0.3895843040040392,
+                                    3.0149506990102704
+                                  ],
+                                  [
+                                    -0.38555340833647794,
+                                    3.091201211667181
+                                  ],
+                                  [
+                                    -0.3815225126689167,
+                                    3.1652952194262456
+                                  ],
+                                  [
+                                    -0.37749161700135536,
+                                    3.237023866689054
+                                  ],
+                                  [
+                                    -0.3734607213337941,
+                                    3.3061861007280813
+                                  ],
+                                  [
+                                    -0.36942982566623284,
+                                    3.3725899529739394
+                                  ],
+                                  [
+                                    -0.3653989299986716,
+                                    3.4360537956701096
+                                  ],
+                                  [
+                                    -0.3613680343311103,
+                                    3.496407566706995
+                                  ],
+                                  [
+                                    -0.357337138663549,
+                                    3.5534939556785106
+                                  ],
+                                  [
+                                    -0.35330624299598773,
+                                    3.607169544454955
+                                  ],
+                                  [
+                                    -0.34927534732842647,
+                                    3.6573058958295523
+                                  ],
+                                  [
+                                    -0.34524445166086515,
+                                    3.7037905840669647
+                                  ],
+                                  [
+                                    -0.3412135559933039,
+                                    3.7465281614557617
+                                  ],
+                                  [
+                                    -0.3371826603257426,
+                                    3.785441055239222
+                                  ],
+                                  [
+                                    -0.33315176465818136,
+                                    3.8204703895669563
+                                  ],
+                                  [
+                                    -0.3291208689906201,
+                                    3.85157672737223
+                                  ],
+                                  [
+                                    -0.3250899733230588,
+                                    3.878740727335328
+                                  ],
+                                  [
+                                    -0.3210590776554975,
+                                    3.901963711342873
+                                  ],
+                                  [
+                                    -0.31702818198793625,
+                                    3.9212681380975347
+                                  ],
+                                  [
+                                    -0.31299728632037493,
+                                    3.9366979787753755
+                                  ],
+                                  [
+                                    -0.30896639065281367,
+                                    3.9483189908718948
+                                  ],
+                                  [
+                                    -0.3049354949852524,
+                                    3.9562188866277372
+                                  ],
+                                  [
+                                    -0.30090459931769115,
+                                    3.9605073926854537
+                                  ],
+                                  [
+                                    -0.2968737036501299,
+                                    3.96131619790562
+                                  ],
+                                  [
+                                    -0.29284280798256856,
+                                    3.9587987865697603
+                                  ],
+                                  [
+                                    -0.2888119123150073,
+                                    3.953130154524914
+                                  ],
+                                  [
+                                    -0.28478101664744604,
+                                    3.944506406186618
+                                  ],
+                                  [
+                                    -0.2807501209798847,
+                                    3.93314423071894
+                                  ],
+                                  [
+                                    -0.27671922531232346,
+                                    3.9192802561578457
+                                  ],
+                                  [
+                                    -0.2726883296447622,
+                                    3.9031702807417905
+                                  ],
+                                  [
+                                    -0.26865743397720093,
+                                    3.8850883812654162
+                                  ],
+                                  [
+                                    -0.26462653830963967,
+                                    3.8653258988809363
+                                  ],
+                                  [
+                                    -0.26059564264207835,
+                                    3.844190303439466
+                                  ],
+                                  [
+                                    -0.2565647469745171,
+                                    3.822003938191128
+                                  ],
+                                  [
+                                    -0.2525338513069558,
+                                    3.799102647447552
+                                  ],
+                                  [
+                                    -0.24850295563939453,
+                                    3.775834290650635
+                                  ],
+                                  [
+                                    -0.24447205997183324,
+                                    3.752557147183191
+                                  ],
+                                  [
+                                    -0.24044116430427198,
+                                    3.7296382171944216
+                                  ],
+                                  [
+                                    -0.23641026863671072,
+                                    3.707451424688879
+                                  ],
+                                  [
+                                    -0.23237937296914943,
+                                    3.686375730132506
+                                  ],
+                                  [
+                                    -0.22834847730158814,
+                                    3.6667931608530617
+                                  ],
+                                  [
+                                    -0.22431758163402687,
+                                    3.6490867685428183
+                                  ],
+                                  [
+                                    -0.2202866859664656,
+                                    3.6336385241953373
+                                  ],
+                                  [
+                                    -0.21625579029890432,
+                                    3.620827161811135
+                                  ],
+                                  [
+                                    -0.21222489463134303,
+                                    3.611025983173573
+                                  ],
+                                  [
+                                    -0.20819399896378177,
+                                    3.6046006369101327
+                                  ],
+                                  [
+                                    -0.2041631032962205,
+                                    3.6019068858987113
+                                  ],
+                                  [
+                                    -0.20013220762865921,
+                                    3.603288377836747
+                                  ],
+                                  [
+                                    -0.19610131196109792,
+                                    3.6090744344460295
+                                  ],
+                                  [
+                                    -0.19207041629353666,
+                                    3.6195778753214785
+                                  ],
+                                  [
+                                    -0.1880395206259754,
+                                    3.6350928928323967
+                                  ],
+                                  [
+                                    -0.1840086249584141,
+                                    3.6558929947349372
+                                  ],
+                                  [
+                                    -0.17997772929085282,
+                                    3.682229031241794
+                                  ],
+                                  [
+                                    -0.17594683362329155,
+                                    3.7143273232076903
+                                  ],
+                                  [
+                                    -0.1719159379557303,
+                                    3.752387907818118
+                                  ],
+                                  [
+                                    -0.167885042288169,
+                                    3.7965829177066945
+                                  ],
+                                  [
+                                    -0.1638541466206077,
+                                    3.84705510876933
+                                  ],
+                                  [
+                                    -0.15982325095304645,
+                                    3.903916551089864
+                                  ],
+                                  [
+                                    -0.15579235528548518,
+                                    3.9672474963433704
+                                  ],
+                                  [
+                                    -0.1517614596179239,
+                                    4.037095433805295
+                                  ],
+                                  [
+                                    -0.1477305639503626,
+                                    4.1134743456750735
+                                  ],
+                                  [
+                                    -0.14369966828280134,
+                                    4.196364170833726
+                                  ],
+                                  [
+                                    -0.13966877261524008,
+                                    4.285710484411022
+                                  ],
+                                  [
+                                    -0.13563787694767881,
+                                    4.38142439865761
+                                  ],
+                                  [
+                                    -0.1316069812801175,
+                                    4.483382688622078
+                                  ],
+                                  [
+                                    -0.12757608561255623,
+                                    4.591428144046288
+                                  ],
+                                  [
+                                    -0.12354518994499497,
+                                    4.7053701467411955
+                                  ],
+                                  [
+                                    -0.11951429427743365,
+                                    4.824985470517739
+                                  ],
+                                  [
+                                    -0.11548339860987239,
+                                    4.950019298553866
+                                  ],
+                                  [
+                                    -0.11145250294231113,
+                                    5.080186450909995
+                                  ],
+                                  [
+                                    -0.10742160727474986,
+                                    5.21517281279302
+                                  ],
+                                  [
+                                    -0.1033907116071886,
+                                    5.354636952144933
+                                  ],
+                                  [
+                                    -0.09935981593962728,
+                                    5.498211913226884
+                                  ],
+                                  [
+                                    -0.09532892027206602,
+                                    5.645507171112759
+                                  ],
+                                  [
+                                    -0.09129802460450476,
+                                    5.796110730425637
+                                  ],
+                                  [
+                                    -0.08726712893694344,
+                                    5.949591350270908
+                                  ],
+                                  [
+                                    -0.08323623326938218,
+                                    6.105500876163517
+                                  ],
+                                  [
+                                    -0.07920533760182091,
+                                    6.263376658832337
+                                  ],
+                                  [
+                                    -0.07517444193425965,
+                                    6.422744039126329
+                                  ],
+                                  [
+                                    -0.07114354626669839,
+                                    6.583118877855822
+                                  ],
+                                  [
+                                    -0.06711265059913707,
+                                    6.744010109282686
+                                  ],
+                                  [
+                                    -0.0630817549315758,
+                                    6.904922297127381
+                                  ],
+                                  [
+                                    -0.059050859264014544,
+                                    7.065358172383818
+                                  ],
+                                  [
+                                    -0.055019963596453225,
+                                    7.224821132916935
+                                  ],
+                                  [
+                                    -0.05098906792889196,
+                                    7.38281768574889
+                                  ],
+                                  [
+                                    -0.0469581722613307,
+                                    7.538859814100433
+                                  ],
+                                  [
+                                    -0.04292727659376944,
+                                    7.692467252622209
+                                  ],
+                                  [
+                                    -0.038896380926208174,
+                                    7.843169655801579
+                                  ],
+                                  [
+                                    -0.034865485258646856,
+                                    7.99050864623495
+                                  ],
+                                  [
+                                    -0.030834589591085593,
+                                    8.1340397312831
+                                  ],
+                                  [
+                                    -0.02680369392352433,
+                                    8.273334078544364
+                                  ],
+                                  [
+                                    -0.02277279825596301,
+                                    8.407980142554004
+                                  ],
+                                  [
+                                    -0.01874190258840175,
+                                    8.537585137113252
+                                  ],
+                                  [
+                                    -0.014711006920840486,
+                                    8.661776349633806
+                                  ],
+                                  [
+                                    -0.010680111253279223,
+                                    8.780202295820402
+                                  ],
+                                  [
+                                    -0.00664921558571796,
+                                    8.892533714873146
+                                  ],
+                                  [
+                                    -0.002618319918156642,
+                                    8.998464407144196
+                                  ],
+                                  [
+                                    0.001412575749404621,
+                                    9.097711917802675
+                                  ],
+                                  [
+                                    0.005443471416965884,
+                                    9.190018071525522
+                                  ],
+                                  [
+                                    0.009474367084527202,
+                                    9.27514936451994
+                                  ],
+                                  [
+                                    0.013505262752088465,
+                                    9.352897221280923
+                                  ],
+                                  [
+                                    0.017536158419649728,
+                                    9.423078124383693
+                                  ],
+                                  [
+                                    0.02156705408721099,
+                                    9.485533626299564
+                                  ],
+                                  [
+                                    0.025597949754772253,
+                                    9.54013025270311
+                                  ],
+                                  [
+                                    0.029628845422333572,
+                                    9.586759307010505
+                                  ],
+                                  [
+                                    0.033659741089894835,
+                                    9.625336585960861
+                                  ],
+                                  [
+                                    0.0376906367574561,
+                                    9.655802015934508
+                                  ],
+                                  [
+                                    0.041721532425017416,
+                                    9.67811921940913
+                                  ],
+                                  [
+                                    0.04575242809257868,
+                                    9.692275020502993
+                                  ],
+                                  [
+                                    0.04978332376013994,
+                                    9.698278897965762
+                                  ],
+                                  [
+                                    0.053814219427701204,
+                                    9.696162393271848
+                                  ],
+                                  [
+                                    0.05784511509526247,
+                                    9.68597848067453
+                                  ],
+                                  [
+                                    0.061876010762823785,
+                                    9.66780090521457
+                                  ],
+                                  [
+                                    0.06590690643038505,
+                                    9.64172349377069
+                                  ],
+                                  [
+                                    0.06993780209794631,
+                                    9.607859443316038
+                                  ],
+                                  [
+                                    0.07396869776550763,
+                                    9.566340589628277
+                                  ],
+                                  [
+                                    0.07799959343306889,
+                                    9.517316658815762
+                                  ],
+                                  [
+                                    0.08203048910063016,
+                                    9.460954503187978
+                                  ],
+                                  [
+                                    0.08606138476819142,
+                                    9.397437322236163
+                                  ],
+                                  [
+                                    0.09009228043575268,
+                                    9.326963868815353
+                                  ],
+                                  [
+                                    0.094123176103314,
+                                    9.249747640047165
+                                  ],
+                                  [
+                                    0.09815407177087526,
+                                    9.166016052003894
+                                  ],
+                                  [
+                                    0.10218496743843652,
+                                    9.076009596897977
+                                  ],
+                                  [
+                                    0.10621586310599784,
+                                    8.97998098129073
+                                  ],
+                                  [
+                                    0.11024675877355905,
+                                    8.878194243753141
+                                  ],
+                                  [
+                                    0.11427765444112037,
+                                    8.770923850457654
+                                  ],
+                                  [
+                                    0.11830855010868169,
+                                    8.658453767349423
+                                  ],
+                                  [
+                                    0.1223394457762429,
+                                    8.541076507831372
+                                  ],
+                                  [
+                                    0.1263703414438042,
+                                    8.41909215529015
+                                  ],
+                                  [
+                                    0.13040123711136542,
+                                    8.292807360277823
+                                  ],
+                                  [
+                                    0.13443213277892674,
+                                    8.162534312733278
+                                  ],
+                                  [
+                                    0.13846302844648806,
+                                    8.028589690262441
+                                  ],
+                                  [
+                                    0.14249392411404926,
+                                    7.891293584180664
+                                  ],
+                                  [
+                                    0.14652481978161058,
+                                    7.750968405737044
+                                  ],
+                                  [
+                                    0.1505557154491719,
+                                    7.607937775670295
+                                  ],
+                                  [
+                                    0.1545866111167331,
+                                    7.462525400971299
+                                  ],
+                                  [
+                                    0.15861750678429443,
+                                    7.3150539434309
+                                  ],
+                                  [
+                                    0.16264840245185574,
+                                    7.16584388521496
+                                  ],
+                                  [
+                                    0.16667929811941695,
+                                    7.015212397316311
+                                  ],
+                                  [
+                                    0.17071019378697827,
+                                    6.8634722172695914
+                                  ],
+                                  [
+                                    0.17474108945453948,
+                                    6.710930542966622
+                                  ],
+                                  [
+                                    0.1787719851221008,
+                                    6.557887949764888
+                                  ],
+                                  [
+                                    0.18280288078966211,
+                                    6.404637338330397
+                                  ],
+                                  [
+                                    0.18683377645722332,
+                                    6.251462920790716
+                                  ],
+                                  [
+                                    0.19086467212478464,
+                                    6.098639252789113
+                                  ],
+                                  [
+                                    0.19489556779234585,
+                                    5.946430318923877
+                                  ],
+                                  [
+                                    0.19892646345990717,
+                                    5.795088678826634
+                                  ],
+                                  [
+                                    0.20295735912746848,
+                                    5.644854680783109
+                                  ],
+                                  [
+                                    0.2069882547950297,
+                                    5.495955749332108
+                                  ],
+                                  [
+                                    0.211019150462591,
+                                    5.348605752701351
+                                  ],
+                                  [
+                                    0.21505004613015233,
+                                    5.203004455260075
+                                  ],
+                                  [
+                                    0.21908094179771354,
+                                    5.059337059399026
+                                  ],
+                                  [
+                                    0.22311183746527485,
+                                    4.917773840400902
+                                  ],
+                                  [
+                                    0.22714273313283617,
+                                    4.778469876952507
+                                  ],
+                                  [
+                                    0.23117362880039738,
+                                    4.641564878988258
+                                  ],
+                                  [
+                                    0.2352045244679587,
+                                    4.507183113560258
+                                  ],
+                                  [
+                                    0.2392354201355199,
+                                    4.375433428418349
+                                  ],
+                                  [
+                                    0.24326631580308122,
+                                    4.24640937197146
+                                  ],
+                                  [
+                                    0.24729721147064254,
+                                    4.120189407306322
+                                  ],
+                                  [
+                                    0.25132810713820375,
+                                    3.9968372169762567
+                                  ],
+                                  [
+                                    0.25535900280576507,
+                                    3.876402094357784
+                                  ],
+                                  [
+                                    0.2593898984733263,
+                                    3.7589194165198223
+                                  ],
+                                  [
+                                    0.2634207941408876,
+                                    3.6444111927724205
+                                  ],
+                                  [
+                                    0.2674516898084489,
+                                    3.532886682370985
+                                  ],
+                                  [
+                                    0.2714825854760101,
+                                    3.4243430742567673
+                                  ],
+                                  [
+                                    0.27551348114357144,
+                                    3.3187662212234184
+                                  ],
+                                  [
+                                    0.27954437681113276,
+                                    3.2161314205174856
+                                  ],
+                                  [
+                                    0.28357527247869396,
+                                    3.116404232611743
+                                  ],
+                                  [
+                                    0.2876061681462553,
+                                    3.0195413297353015
+                                  ],
+                                  [
+                                    0.2916370638138166,
+                                    2.9254913657026114
+                                  ],
+                                  [
+                                    0.2956679594813778,
+                                    2.834195858651833
+                                  ],
+                                  [
+                                    0.2996988551489391,
+                                    2.745590078476865
+                                  ],
+                                  [
+                                    0.30372975081650033,
+                                    2.659603931009771
+                                  ],
+                                  [
+                                    0.30776064648406165,
+                                    2.576162831373343
+                                  ],
+                                  [
+                                    0.31179154215162297,
+                                    2.4951885593676786
+                                  ],
+                                  [
+                                    0.3158224378191842,
+                                    2.416600090269038
+                                  ],
+                                  [
+                                    0.3198533334867455,
+                                    2.3403143949928955
+                                  ],
+                                  [
+                                    0.3238842291543067,
+                                    2.2662472041938178
+                                  ],
+                                  [
+                                    0.327915124821868,
+                                    2.194313731530557
+                                  ],
+                                  [
+                                    0.33194602048942934,
+                                    2.124429352003575
+                                  ],
+                                  [
+                                    0.33597691615699055,
+                                    2.056510231962122
+                                  ],
+                                  [
+                                    0.34000781182455186,
+                                    1.9904739080679439
+                                  ],
+                                  [
+                                    0.3440387074921132,
+                                    1.9262398131822198
+                                  ],
+                                  [
+                                    0.3480696031596744,
+                                    1.8637297478016592
+                                  ],
+                                  [
+                                    0.3521004988272357,
+                                    1.8028682963008698
+                                  ],
+                                  [
+                                    0.356131394494797,
+                                    1.7435831878334587
+                                  ],
+                                  [
+                                    0.36016229016235823,
+                                    1.6858056022981684
+                                  ],
+                                  [
+                                    0.36419318582991955,
+                                    1.629470422284066
+                                  ],
+                                  [
+                                    0.36822408149748076,
+                                    1.5745164323669691
+                                  ],
+                                  [
+                                    0.3722549771650421,
+                                    1.5208864675358542
+                                  ],
+                                  [
+                                    0.3762858728326034,
+                                    1.4685275128823123
+                                  ],
+                                  [
+                                    0.3803167685001646,
+                                    1.4173907569881024
+                                  ],
+                                  [
+                                    0.3843476641677259,
+                                    1.3674316016970665
+                                  ],
+                                  [
+                                    0.38837855983528713,
+                                    1.3186096311599416
+                                  ],
+                                  [
+                                    0.39240945550284845,
+                                    1.2708885431967178
+                                  ],
+                                  [
+                                    0.39644035117040977,
+                                    1.2242360461346171
+                                  ],
+                                  [
+                                    0.400471246837971,
+                                    1.1786237243538276
+                                  ]
+                                ]
+                              }
+                            },
+                            {
+                              "label": "_child9",
+                              "color": "#ff0000ff",
+                              "linestyle": "--",
+                              "linewidth": 1.5,
+                              "alpha": null,
+                              "xy": {
+                                "n": 2,
+                                "values": [
+                                  [
+                                    0.0,
+                                    0.0
+                                  ],
+                                  [
+                                    0.0,
+                                    1.0
+                                  ]
+                                ]
+                              }
+                            }
+                          ],
+                          "bars": {
+                            "n": 8,
+                            "x": [
+                              -0.40167699100672305,
+                              -0.3014084612761363,
+                              -0.20113993154554954,
+                              -0.10087140181496279,
+                              -0.0006028720843760382,
+                              0.09966565764621071,
+                              0.19993418737679747,
+                              0.3002027171073842
+                            ],
+                            "y": [
+                              0.0,
+                              0.0,
+                              0.0,
+                              0.0,
+                              0.0,
+                              0.0,
+                              0.0,
+                              0.0
+                            ],
+                            "width": [
+                              0.10026852973058675,
+                              0.10026852973058675,
+                              0.10026852973058675,
+                              0.10026852973058675,
+                              0.10026852973058675,
+                              0.10026852973058675,
+                              0.10026852973058675,
+                              0.10026852973058675
+                            ],
+                            "height": [
+                              5.0,
+                              5.0,
+                              1.0,
+                              10.0,
+                              12.0,
+                              8.0,
+                              2.0,
+                              2.0
+                            ],
+                            "facecolor": [
+                              "#1f77b480",
+                              "#1f77b480",
+                              "#1f77b480",
+                              "#1f77b480",
+                              "#1f77b480",
+                              "#1f77b480",
+                              "#1f77b480",
+                              "#1f77b480"
+                            ],
+                            "edgecolor": [
+                              "#000000ff"
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "column"
+              }
+            ]
+          },
+          {
+            "kind": "download_link",
+            "label": "📥 Descargar gráfico",
+            "file_name": "distribucion_errores.png",
+            "mime": "file/png",
+            "note": "PNG generated by matplotlib at 300 dpi (savefig bbox_inches='tight')"
+          },
+          {
+            "kind": "text",
+            "text": "#### Código para generar este gráfico",
+            "html": false
+          },
+          {
+            "kind": "expander",
+            "label": "Ver código",
+            "expanded": false,
+            "children": [
+              {
+                "kind": "code",
+                "text": "\nimport matplotlib.pyplot as plt\nimport seaborn as sns\nimport numpy as np\n\n# Calcular los errores\nerrors = y_test - y_pred\n\n# Crear el gráfico\nfig, ax = plt.subplots(figsize=(8, 6))\nsns.histplot(errors, kde=True, ax=ax)\nax.axvline(x=0, color='r', linestyle='--')\nax.set_title('Distribución de errores')\nax.set_xlabel('Error (Real - Predicción)')\n\nplt.tight_layout()\nplt.show()\n",
+                "language": "python"
+              },
+              {
+                "kind": "row",
+                "weights": [
+                  1,
+                  1
+                ],
+                "children": [
+                  {
+                    "kind": "column",
+                    "children": [
+                      {
+                        "kind": "download_link",
+                        "label": "📥 Descargar código",
+                        "file_name": "distribucion_errores.py",
+                        "mime": "text/plain",
+                        "text": "\nimport matplotlib.pyplot as plt\nimport seaborn as sns\nimport numpy as np\n\n# Calcular los errores\nerrors = y_test - y_pred\n\n# Crear el gráfico\nfig, ax = plt.subplots(figsize=(8, 6))\nsns.histplot(errors, kde=True, ax=ax)\nax.axvline(x=0, color='r', linestyle='--')\nax.set_title('Distribución de errores')\nax.set_xlabel('Error (Real - Predicción)')\n\nplt.tight_layout()\nplt.show()\n"
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "column",
+                    "children": [
+                      {
+                        "kind": "notice",
+                        "text": "Usa el botón de copia en la esquina superior derecha del bloque de código para copiarlo",
+                        "severity": "info"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "expander",
+            "label": "📊 Explicación de métricas de regresión",
+            "expanded": false,
+            "children": [
+              {
+                "kind": "text",
+                "text": "**R² Score (Coeficiente de Determinación):**\n- Mide qué tan bien el modelo explica la variabilidad de los datos\n- Indica qué proporción de la varianza en la variable dependiente es predecible. 1 es predicción perfecta, 0 significa que el modelo no es mejor que predecir la media.\n- Rango: 0 a 1 (valores negativos indican un modelo muy malo)\n- **Interpretación:**\n    - R² = 1.0: El modelo explica perfectamente toda la variabilidad\n    - R² = 0.8: El modelo explica el 80% de la variabilidad (muy bueno)\n    - R² = 0.5: El modelo explica el 50% de la variabilidad (moderado)\n    - R² = 0.0: El modelo no explica nada de la variabilidad\n\n**MAE (Error Absoluto Medio):**\n- Promedio de las diferencias absolutas entre valores reales y predichos\n- Se expresa en las mismas unidades que la variable objetivo\n- **Interpretación:** Valores más bajos = mejor modelo\n\n**RMSE (Raíz del Error Cuadrático Medio):**\n- Similar al MAE pero penaliza más los errores grandes\n- Se expresa en las mismas unidades que la variable objetivo\n- **Interpretación:** Valores más bajos = mejor modelo",
+                "html": false
+              }
+            ]
+          },
+          {
+            "kind": "text",
+            "text": "### 🔍 Interpretación de Resultados",
+            "html": false
+          },
+          {
+            "kind": "notice",
+            "text": "**Resumen del Modelo:**\n- Tu modelo de regresión lineal explica **94.4%** de la variabilidad en los datos\n- En promedio, las predicciones se desvían **0.15 unidades** del valor real (MAE)\n- La raíz del error cuadrático medio es **0.20 unidades** (RMSE)",
+            "severity": "info"
+          }
+        ]
+      },
+      "prediction_default": {
+        "kind": "page",
+        "children": [
+          {
+            "kind": "notice",
+            "text": "📊 **Dataset actual:** 🌸 Iris - Clasificación de flores",
+            "severity": "info"
+          },
+          {
+            "kind": "text",
+            "text": "---",
+            "html": false
+          },
+          {
+            "kind": "heading",
+            "text": "🔮 Predicciones con Nuevos Datos",
+            "level": 1
+          },
+          {
+            "kind": "text",
+            "text": "### Ingresa valores para predecir",
+            "html": false
+          },
+          {
+            "kind": "row",
+            "weights": [
+              1,
+              1
+            ],
+            "children": [
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "slider",
+                    "label": "sepal length (cm)",
+                    "key": "feature_0",
+                    "value": 5.8428571428571425,
+                    "min_value": 4.3,
+                    "max_value": 7.7,
+                    "step": 0.034
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "sepal width (cm)",
+                    "key": "feature_1",
+                    "value": 3.0095238095238095,
+                    "min_value": 2.0,
+                    "max_value": 4.2,
+                    "step": 0.022000000000000002
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "slider",
+                    "label": "petal length (cm)",
+                    "key": "feature_2",
+                    "value": 3.8704761904761904,
+                    "min_value": 1.1,
+                    "max_value": 6.7,
+                    "step": 0.055999999999999994
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "petal width (cm)",
+                    "key": "feature_3",
+                    "value": 1.239047619047619,
+                    "min_value": 0.1,
+                    "max_value": 2.5,
+                    "step": 0.024
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "button",
+            "key": null,
+            "label": "Realizar predicción",
+            "type": "primary"
+          },
+          {
+            "kind": "text",
+            "text": "<div style=\"background-color: #E8F5E9; padding: 20px; border-radius: 10px; text-align: center; margin: 20px 0;\">\n    <h3>Resultado de la predicción</h3>\n    <p style=\"font-size: 24px; font-weight: bold; color: #2E7D32;\">Clase: versicolor</p>\n</div>",
+            "html": true
+          }
+        ]
+      },
+      "prediction_custom": {
+        "kind": "page",
+        "children": [
+          {
+            "kind": "notice",
+            "text": "📊 **Dataset actual:** 🌸 Iris - Clasificación de flores",
+            "severity": "info"
+          },
+          {
+            "kind": "text",
+            "text": "---",
+            "html": false
+          },
+          {
+            "kind": "heading",
+            "text": "🔮 Predicciones con Nuevos Datos",
+            "level": 1
+          },
+          {
+            "kind": "text",
+            "text": "### Ingresa valores para predecir",
+            "html": false
+          },
+          {
+            "kind": "row",
+            "weights": [
+              1,
+              1
+            ],
+            "children": [
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "slider",
+                    "label": "sepal length (cm)",
+                    "key": "feature_0",
+                    "value": 7.7,
+                    "min_value": 4.3,
+                    "max_value": 7.7,
+                    "step": 0.034
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "sepal width (cm)",
+                    "key": "feature_1",
+                    "value": 4.2,
+                    "min_value": 2.0,
+                    "max_value": 4.2,
+                    "step": 0.022000000000000002
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "slider",
+                    "label": "petal length (cm)",
+                    "key": "feature_2",
+                    "value": 6.7,
+                    "min_value": 1.1,
+                    "max_value": 6.7,
+                    "step": 0.055999999999999994
+                  },
+                  {
+                    "kind": "slider",
+                    "label": "petal width (cm)",
+                    "key": "feature_3",
+                    "value": 2.5,
+                    "min_value": 0.1,
+                    "max_value": 2.5,
+                    "step": 0.024
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "button",
+            "key": null,
+            "label": "Realizar predicción",
+            "type": "primary"
+          },
+          {
+            "kind": "text",
+            "text": "<div style=\"background-color: #E8F5E9; padding: 20px; border-radius: 10px; text-align: center; margin: 20px 0;\">\n    <h3>Resultado de la predicción</h3>\n    <p style=\"font-size: 24px; font-weight: bold; color: #2E7D32;\">Clase: virginica</p>\n</div>",
+            "html": true
+          }
+        ]
+      }
+    },
+    "views_omitted": [
+      "coefficients",
+      "export",
+      "export_code",
+      "export_pickle",
+      "prediction_form",
+      "viz_residuals",
+      "viz_surface_default"
+    ]
+  }
+}

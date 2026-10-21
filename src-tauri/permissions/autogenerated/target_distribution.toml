@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-target-distribution"
+description = "Enables the target_distribution command without any pre-configured scope."
+commands.allow = ["target_distribution"]
+
+[[permission]]
+identifier = "deny-target-distribution"
+description = "Denies the target_distribution command without any pre-configured scope."
+commands.deny = ["target_distribution"]

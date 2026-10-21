@@ -1,0 +1,37 @@
+{#- Literal de mltutor/algorithms/export.py::export_tree_as_python_code(model, feature_names): la
+    función "if/else" que se ve en 💾 Exportar ("👀 Vista Previa del Código Python") y se descarga
+    con "🐍 Exportar como Código Python" (arbol_decision.py). Reproduce el texto de Python byte a
+    byte, con sus errores: con nombres como "sepal length (cm)" no es Python válido y devuelve el
+    código de la clase ("0"), no su nombre. Lo que se usa por defecto es arbol_python_corregido.py.j2 (D44).
+    Variables (pásalas todas):
+      function_name  str        "predecir_clase" (clasificación) o "predecir_valor"
+      params         list[str]  nombres legibles de las características, tal cual
+      classifier     bool
+      n_features     int
+      max_depth      int        tree_.max_depth (la real, no el hiperparámetro)
+      node_count     int
+      body           str        el árbol como if/else (lo genera Rust; ver fase3-arboles.md §3 C15):
+                                4 espacios por nivel; "if {nombre} <= {umbral:.6f}:" / "else:";
+                                hoja de clasificación "return \"{classes_[k]}\"  # Probabilidad: {p:.3f}",
+                                de regresión "return {valor:.6f}"; sin salto de línea final
+-#}
+def {{ function_name }}({{ params | join(", ") }}):
+    """
+    Función generada automáticamente que implementa el árbol de decisión entrenado.
+
+    Parameters:
+    {% for p in params %}{% if not loop.first %}
+{% endif %}	{{ p }}: float - {{ p }}{% endfor %}
+
+    Returns:
+    {% if classifier %}    str - La clase predicha{% else %}    float - El valor predicho{% endif %}
+
+    Árbol entrenado para {% if classifier %}clasificación{% else %}regresión{% endif %} con {{ n_features }} características.
+    Profundidad máxima: {{ max_depth }}
+    Número de nodos: {{ node_count }}
+    """
+{{ body }}
+
+# Ejemplo de uso:
+# resultado = {{ function_name }}({% for p in params %}{{ p }}=valor_{{ loop.index }}{% if not loop.last %}, {% endif %}{% endfor %})
+# print(f"Predicción: {resultado}")

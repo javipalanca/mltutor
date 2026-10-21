@@ -1,0 +1,66 @@
+# Textos cortos de 📁 Cargar CSV Personalizado (app.py::run_csv_loader_app y
+# dataset_manager.py::create_dataset_selector(show_predefined=False)), literales.
+
+[pagina]
+header = "📁 Cargar CSV Personalizado"
+subtitulo = "Carga tu propio dataset en formato CSV para análisis personalizado"
+expander_ayuda = "ℹ️ ¿Cómo usar esta herramienta?"       # abierto; cuerpo en ayuda.md
+
+[selector]
+subheader = "📊 Selección de Dataset"                     # st.subheader
+info = "💡 En esta sección puedes cargar tu propio archivo CSV para análisis personalizado"
+titulo = "### 📁 Cargar Archivo CSV"
+file_label = "Selecciona un archivo CSV:"
+file_help = "El archivo debe estar en formato CSV con encabezados"
+file_boton = "Seleccionar archivo CSV…"                   # texto del botón Qt sin archivo
+file_quitar = "Quitar archivo"                             # botón Qt con archivo
+dialogo_filtro = "Archivos (*.csv)"
+sin_archivo = "👆 Por favor, carga un archivo CSV para continuar"   # st.info
+vacio = "❌ El archivo está vacío"
+pocas_columnas = "❌ El archivo debe tener al menos 2 columnas (características + objetivo)"
+cargado = "✅ Archivo cargado exitosamente: {filas} filas, {columnas} columnas"
+expander_vista_previa = "👀 Vista previa del dataset"      # abierto; df.head() (5 filas)
+metric_filas = "Filas"
+metric_columnas = "Columnas"
+metric_faltantes = "Valores faltantes"
+configuracion = "### ⚙️ Configuración"
+objetivo_label = "Columna objetivo:"
+objetivo_help = "Selecciona la columna que contiene la variable a predecir"
+tarea_label = "Tipo de tarea:"
+tarea_opciones = ["auto", "Clasificación", "Regresión"]
+tarea_help = "'auto' detecta automáticamente, o selecciona manualmente"
+info_objetivo = "### 🎯 Información de la Variable Objetivo"
+columna = "**Columna:** {col}"
+valores_unicos = "**Valores únicos:** {n}"
+tipo_datos = "**Tipo de datos:** {dtype}"                  # dtype de pandas: int64, float64, object, bool
+distribucion_valores = "**Distribución de valores:**"      # solo si nunique <= 10
+valor_linea = "• {valor}: {n} ({pct:.1f}%)"                # orden de value_counts (frecuencia descendente)
+anadido = "✅ Dataset '{nombre}' añadido a la lista de datasets disponibles"
+error = "❌ Error al procesar el archivo: {error}"
+
+[resultado]
+exito = "✅ ¡Dataset CSV cargado exitosamente!"             # precedido de "---"
+titulo = "### 📊 Información del Dataset Cargado:"
+metric_filas = "📏 Filas"
+metric_columnas = "📊 Columnas"
+metric_objetivo = "🎯 Variable Objetivo"
+metric_tarea = "{icon} Tipo de Tarea"                        # icon "🏷️" si Clasificación, si no "📈" (también con "auto")
+expander_estadisticas = "📈 Estadísticas Descriptivas"     # cerrado; df.describe() del CSV crudo
+expander_distribucion = "🎯 Distribución de la Variable Objetivo"   # cerrado
+tabla_cantidad = "Cantidad"                                 # columna de value_counts().to_frame("Cantidad")
+titulo_grafico = "Distribución de {col}"
+eje_y_barras = "Cantidad"
+eje_y_hist = "Frecuencia"
+estadisticas = "**Estadísticas:**"
+minimo = "• Mínimo: {v:.4f}"
+maximo = "• Máximo: {v:.4f}"
+media = "• Media: {v:.4f}"
+mediana = "• Mediana: {v:.4f}"
+std = "• Desv. Estándar: {v:.4f}"
+error_estadisticas = "No se pudieron cargar las estadísticas adicionales: {error}"   # st.warning
+nombre_dataset = "📄 {archivo}"                              # nombre con el que aparece en el selector de las lecciones
+
+[dataset_info]
+clasificacion = "Dataset personalizado: {n} muestras, {f} características, {k} clases"
+regresion = "Dataset personalizado: {n} muestras, {f} características, regresión"
+clase_generica = "Clase {i}"
