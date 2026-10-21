@@ -214,11 +214,9 @@ Normas para contribuir y para agentes de código: [AGENTS.md](AGENTS.md).
 
 ## 📄 Licencia
 
-> **TODO (autor):** el repositorio todavía no tiene archivo `LICENSE`. Hay que
-> elegir una licencia y añadirla. Si ha de ser una licencia aprobada por la OSI,
-> es además un requisito para firmar el ejecutable de Windows con SignPath
-> Foundation. Mientras tanto, no se concede ninguna licencia de uso más allá de lo
-> que permita la ley.
+MLTutor se distribuye bajo la [licencia MIT](LICENSE): puedes usarlo, copiarlo,
+modificarlo y redistribuirlo libremente, también en clase, siempre que conserves el aviso
+de copyright.
 
 ---
 

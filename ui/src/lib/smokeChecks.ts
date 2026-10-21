@@ -148,6 +148,11 @@ async function playgroundLatency(): Promise<void> {
   }
 }
 
+/** Overall limit of the canvas drag check, far above its usual ~1 s. */
+const DRAG_LIMIT_MS = 20_000;
+/** A 4 ms timer that takes longer than this means WebKit is throttling the page. */
+const THROTTLED_TIMER_MS = 500;
+
 /**
  * Drags the first test point of the canvas with real pointer events (down, 20 moves, up)
  * and checks that it moved; logs the time from each move to the next Plotly redraw.
@@ -169,18 +174,37 @@ async function playgroundDrag(): Promise<void> {
     plot.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 41, button: 0, clientX: start.clientX + dx, clientY: start.clientY - dx / 2 }));
   };
   // Timers, not frames: the smoke-test window may be hidden (no requestAnimationFrame).
-  const frame = (): Promise<void> => new Promise((done) => setTimeout(done, 4));
+  // WebKit stretches page timers to a second or more when the screen is locked, and the
+  // stretch keeps growing, so the drag has an overall limit and reports throttling
+  // instead of waiting for the 180 s watchdog.
+  const overall = performance.now() + DRAG_LIMIT_MS;
+  const frame = async (): Promise<void> => {
+    const asked = performance.now();
+    await new Promise((done) => setTimeout(done, 4));
+    const waited = performance.now() - asked;
+    if (waited > THROTTLED_TIMER_MS) {
+      throw new Error(`los temporizadores de la página van ralentizados (${waited.toFixed(0)} ms para uno de 4 ms): ¿pantalla bloqueada o ventana en segundo plano?`);
+    }
+    if (performance.now() > overall) {
+      throw new Error(`el arrastre en el lienzo no ha terminado en ${DRAG_LIMIT_MS / 1000} s`);
+    }
+  };
   fire("pointerdown", 0);
   const cycles: number[] = [];
-  for (let i = 1; i <= 20; i += 1) {
-    const before = plot.dataset["renderedAt"];
-    const sent = performance.now();
-    fire("pointermove", i * 6);
-    const deadline = sent + 2000;
-    while (plot.dataset["renderedAt"] === before && performance.now() < deadline) {
-      await frame();
+  try {
+    for (let i = 1; i <= 20; i += 1) {
+      const before = plot.dataset["renderedAt"];
+      const sent = performance.now();
+      fire("pointermove", i * 6);
+      const deadline = sent + 2000;
+      while (plot.dataset["renderedAt"] === before && performance.now() < deadline) {
+        await frame();
+      }
+      cycles.push(performance.now() - sent);
     }
-    cycles.push(performance.now() - sent);
+  } catch (error) {
+    fire("pointerup", 0);
+    throw error;
   }
   fire("pointerup", 120);
   await waitForIdle(() => busy.active, 10000);

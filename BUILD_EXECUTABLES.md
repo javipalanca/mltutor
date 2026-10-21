@@ -295,8 +295,8 @@ prerelease y no pasan a ser la última versión.
   notarización, a falta de credenciales.
 - **Windows:** el `.exe` no está firmado y SmartScreen avisa la primera vez.
   **Pendiente:** firma con SignPath Foundation (gratis para proyectos de código
-  abierto). Requiere una licencia aprobada por la OSI, que el repositorio aún no
-  tiene, y la solicitud en signpath.org. Después, en CI: firmar `mltutor.exe` antes
+  abierto). La licencia MIT del repositorio cumple el requisito de licencia OSI;
+  falta la solicitud en signpath.org. Después, en CI: firmar `mltutor.exe` antes
   de empaquetarlo y comprobarlo con `signtool verify`.
 - **Linux:** el AppImage no se firma.
 
