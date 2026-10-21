@@ -1,5 +1,5 @@
-// Animated bars and counters for "Por qué la nueva versión". The numbers live in the HTML
-// (data-python / data-rust, taken from README.md and benchmarks.md); this only animates them.
+// Animated counters of "Hecho en Rust" (and any [data-count]). The numbers live in the HTML,
+// taken from README.md and benchmarks.md; this only animates them.
 import { reducedMotion } from "./motion.js";
 
 function formatNumber(value, decimals) {

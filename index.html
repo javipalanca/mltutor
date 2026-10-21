@@ -6,7 +6,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src https://api.github.com; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <title>MLTutor · Aprende Machine Learning experimentando</title>
-  <meta name="description" content="MLTutor es una aplicación de escritorio en español para aprender Machine Learning experimentando: árboles de decisión, regresión, KNN y redes neuronales, con gráficos interactivos y el código Python equivalente. Sin conexión, sin instalador y sin permisos de administrador.">
+  <meta name="description" content="MLTutor es una aplicación de escritorio en español, hecha en Rust, para aprender Machine Learning experimentando: árboles de decisión, regresión, KNN y redes neuronales, con gráficos interactivos y el código equivalente en scikit-learn y Keras. Sin conexión, sin instalador y sin permisos de administrador.">
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#f6f8fc" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#0b1220" media="(prefers-color-scheme: dark)">
@@ -48,7 +48,7 @@
         <ul>
           <li><a href="#lecciones">Lecciones</a></li>
           <li><a href="#galeria">Capturas</a></li>
-          <li><a href="#novedades">Por qué</a></li>
+          <li><a href="#rust">Rust</a></li>
           <li><a href="#funciones">Funciones</a></li>
           <li><a class="nav-cta" href="#descargar">Descargar</a></li>
         </ul>
@@ -252,86 +252,40 @@
       </dialog>
     </section>
 
-    <!-- ======================= Por qué ======================= -->
-    <section id="novedades" class="section" aria-labelledby="novedades-title">
+    <!-- ======================= Hecho en Rust ======================= -->
+    <section id="rust" class="section" aria-labelledby="rust-title">
       <div class="wrap">
         <header class="section-head">
-          <p class="eyebrow">🔄 La nueva versión, en Rust</p>
-          <h2 id="novedades-title">Por qué la nueva versión</h2>
-          <p>Las lecciones, las pestañas, las explicaciones, los colores y los emojis son los mismos, y los resultados coinciden con los de scikit-learn y Keras (se comprueba automáticamente). Lo que cambia es todo lo demás.</p>
+          <p class="eyebrow">🦀 Hecho en Rust</p>
+          <h2 id="rust-title">Rápido, ligero y fiable</h2>
+          <p>MLTutor está escrito en Rust: los árboles de decisión, la regresión, KNN y las redes neuronales se calculan en código nativo, sin intérpretes ni dependencias que instalar. Los resultados coinciden con los de scikit-learn y Keras, y se comprueba automáticamente en cada cambio.</p>
         </header>
 
         <div class="why-grid">
-          <article class="panel" aria-labelledby="size-title">
-            <h3 id="size-title">📉 Descargas mucho más pequeñas</h3>
-            <p class="panel-sub">La versión Python incluía Python, Qt y TensorFlow.</p>
-            <div class="bars" data-bars="size">
-              <div class="bar-row" data-python="676" data-rust="22" data-max="881">
-                <p class="bar-label">🪟 Windows <strong class="factor" data-factor></strong></p>
-                <div class="bar-pair">
-                  <div class="bar bar-py"><span class="bar-fill"></span><span class="bar-val">Python/Qt <b data-count="676">676</b> MB</span></div>
-                  <div class="bar bar-rs"><span class="bar-fill"></span><span class="bar-val">Rust <b data-count="22">22</b> MB</span></div>
-                </div>
-              </div>
-              <div class="bar-row" data-python="477" data-rust="8.7" data-max="881">
-                <p class="bar-label">🍎 macOS (zip) <strong class="factor" data-factor></strong></p>
-                <div class="bar-pair">
-                  <div class="bar bar-py"><span class="bar-fill"></span><span class="bar-val">Python/Qt <b data-count="477">477</b> MB</span></div>
-                  <div class="bar bar-rs"><span class="bar-fill"></span><span class="bar-val">Rust <b data-count="8.7" data-decimals="1">8,7</b> MB</span></div>
-                </div>
-              </div>
-              <div class="bar-row" data-python="881" data-rust="86" data-max="881">
-                <p class="bar-label">🐧 Linux <strong class="factor" data-factor></strong></p>
-                <div class="bar-pair">
-                  <div class="bar bar-py"><span class="bar-fill"></span><span class="bar-val">Python/Qt <b data-count="881">881</b> MB</span></div>
-                  <div class="bar bar-rs"><span class="bar-fill"></span><span class="bar-val">Rust <b data-count="86">86</b> MB</span></div>
-                </div>
-              </div>
-            </div>
-            <p class="fine">Tamaños de las descargas publicadas de la <code>v0.3.0-rc.4</code> (Python/Qt) y de las compilaciones de prueba de la versión Rust del 2026-10-20.</p>
+          <article class="panel" aria-labelledby="speed-title">
+            <h3 id="speed-title">⚡ Muy rápido</h3>
+            <p class="panel-sub">Entrenas, cambias un parámetro y ves el resultado al instante.</p>
+            <ul class="stat-grid">
+              <li class="stat"><span class="stat-value"><b data-count="0.6" data-decimals="1">0,6</b> s</span><span class="stat-label">en abrir la app</span></li>
+              <li class="stat"><span class="stat-value"><b data-count="7.5" data-decimals="1">7,5</b> ms</span><span class="stat-label">100 épocas de una red neuronal con Iris</span></li>
+              <li class="stat"><span class="stat-value"><b data-count="0.66" data-decimals="2">0,66</b> s</span><span class="stat-label">100 épocas de la red por defecto con 20 640 viviendas de California</span></li>
+              <li class="stat"><span class="stat-value"><b data-count="0.93" data-decimals="2">0,93</b> ms</span><span class="stat-label">regresión logística de Cáncer, hasta converger</span></li>
+              <li class="stat"><span class="stat-value"><b data-count="1.6" data-decimals="1">1,6</b> ms</span><span class="stat-label">KNN: predecir todo el conjunto de prueba de California</span></li>
+              <li class="stat"><span class="stat-value"><b data-count="51">51</b> ms</span><span class="stat-label">árbol de profundidad 10 con California</span></li>
+            </ul>
+            <p class="fine">Medido en un Mac con Apple Silicon. Más detalles en <a href="https://github.com/javipalanca/mltutor/blob/feature/rust-migration/docs/migration/benchmarks.md">benchmarks.md</a>.</p>
           </article>
 
-          <article class="panel" aria-labelledby="speed-title">
-            <h3 id="speed-title">⚡ Más rápida</h3>
-            <p class="panel-sub">Arranca en unos <strong><span data-count="0.6" data-decimals="1">0,6</span> s</strong> (Mac con Apple Silicon) y los cálculos interactivos tardan milisegundos.</p>
-            <div class="bars" data-bars="speed">
-              <div class="bar-row" data-python="30000" data-rust="660">
-                <p class="bar-label">Red neuronal por defecto, Viviendas California, 100 épocas <strong class="factor" data-factor></strong></p>
-                <div class="bar-pair">
-                  <div class="bar bar-py"><span class="bar-fill"></span><span class="bar-val">Python ~30 s (en la app)</span></div>
-                  <div class="bar bar-rs"><span class="bar-fill"></span><span class="bar-val">Rust 0,66 s</span></div>
-                </div>
-              </div>
-              <div class="bar-row" data-python="2400" data-rust="7.5">
-                <p class="bar-label">Red 10×10, Iris, 100 épocas <strong class="factor" data-factor></strong></p>
-                <div class="bar-pair">
-                  <div class="bar bar-py"><span class="bar-fill"></span><span class="bar-val">Keras 2,4 s (solo <code>fit</code>)</span></div>
-                  <div class="bar bar-rs"><span class="bar-fill"></span><span class="bar-val">Rust 7,5 ms</span></div>
-                </div>
-              </div>
-              <div class="bar-row" data-python="484" data-rust="0.93">
-                <p class="bar-label">Regresión logística, Cáncer <strong class="factor" data-factor></strong></p>
-                <div class="bar-pair">
-                  <div class="bar bar-py"><span class="bar-fill"></span><span class="bar-val">scikit-learn 484 ms (sin converger)</span></div>
-                  <div class="bar bar-rs"><span class="bar-fill"></span><span class="bar-val">Rust 0,93 ms (converge en 9 iteraciones)</span></div>
-                </div>
-              </div>
-              <div class="bar-row" data-python="9.9" data-rust="1.6">
-                <p class="bar-label">KNN: predecir el conjunto de prueba de Viviendas California <strong class="factor" data-factor></strong></p>
-                <div class="bar-pair">
-                  <div class="bar bar-py"><span class="bar-fill"></span><span class="bar-val">scikit-learn 9,9 ms</span></div>
-                  <div class="bar bar-rs"><span class="bar-fill"></span><span class="bar-val">Rust 1,6 ms</span></div>
-                </div>
-              </div>
-              <div class="bar-row" data-python="58" data-rust="51">
-                <p class="bar-label">Árbol de profundidad 10, Viviendas California <strong class="factor" data-factor></strong></p>
-                <div class="bar-pair">
-                  <div class="bar bar-py"><span class="bar-fill"></span><span class="bar-val">scikit-learn 58 ms</span></div>
-                  <div class="bar bar-rs"><span class="bar-fill"></span><span class="bar-val">Rust 51 ms</span></div>
-                </div>
-              </div>
-            </div>
-            <p class="fine">Medido en el mismo Mac con Apple Silicon (2026-10-20). Las barras son proporcionales al tiempo de Python en cada fila. Más detalles en <a href="https://github.com/javipalanca/mltutor/blob/feature/rust-migration/docs/migration/benchmarks.md">benchmarks.md</a>.</p>
+          <article class="panel" aria-labelledby="size-title">
+            <h3 id="size-title">🪶 Ligero y portable</h3>
+            <p class="panel-sub">Un único archivo por sistema, que se abre sin instalar nada y sin permisos de administrador.</p>
+            <ul class="stat-grid">
+              <li class="stat"><span class="stat-value"><b data-count="8.7" data-decimals="1">8,7</b> MB</span><span class="stat-label">🍎 macOS (zip)</span></li>
+              <li class="stat"><span class="stat-value">~<b data-count="20">20</b> MB</span><span class="stat-label">🪟 Windows (<code>.exe</code> portable)</span></li>
+              <li class="stat"><span class="stat-value"><b data-count="86">86</b> MB</span><span class="stat-label">🐧 Linux (AppImage, incluye el motor web)</span></li>
+            </ul>
+            <h3 class="panel-h">🐍 Y lo que aprendes, en Python</h3>
+            <p>Lo que se calcula en Rust se enseña en Python: cada paso muestra el script en <strong>scikit-learn</strong> o <strong>Keras</strong> que repite el entrenamiento con los mismos datos, y puedes exportar el modelo a <strong>ONNX</strong> o a un paquete que lo reconstruye en scikit-learn o Keras (<code>.pkl</code>, <code>.keras</code>, <code>.h5</code>, SavedModel, <code>.tflite</code>).</p>
           </article>
         </div>
       </div>
@@ -348,7 +302,7 @@
           <li class="feature">
             <span class="feature-icon" aria-hidden="true">📴</span>
             <h3>Sin conexión de verdad</h3>
-            <p>No hace falta instalar Python, TensorFlow ni nada más, ni tener Internet: los datos, los gráficos y las fórmulas van dentro de la app. Viviendas California y Diamantes ya no se descargan.</p>
+            <p>No hace falta instalar nada ni tener Internet: los doce conjuntos de datos, los gráficos y las fórmulas van dentro de la app.</p>
           </li>
           <li class="feature">
             <span class="feature-icon" aria-hidden="true">💻</span>
@@ -368,7 +322,7 @@
           <li class="feature">
             <span class="feature-icon" aria-hidden="true">🐍</span>
             <h3>Código en scikit-learn y Keras</h3>
-            <p>Se calcula en Rust y se enseña Python: cada paso muestra el script que repite el entrenamiento con los mismos datos y el mismo reparto entrenamiento/prueba.</p>
+            <p>Cada paso muestra el script que repite el entrenamiento con los mismos datos y el mismo reparto entrenamiento/prueba.</p>
           </li>
           <li class="feature">
             <span class="feature-icon" aria-hidden="true">♿</span>
@@ -433,7 +387,7 @@
             <span class="dl-action" data-action>Ver releases</span>
           </a>
         </div>
-        <p class="fine center" id="release-extra">Todas las versiones y las sumas de comprobación (<code>SHA256SUMS.txt</code>) están en la página de <a href="https://github.com/javipalanca/mltutor/releases">Releases de GitHub</a>. Las releases <code>v0.3.x</code> y anteriores son de la versión Python; la versión Rust empieza en la <code>v0.4.0</code>.</p>
+        <p class="fine center" id="release-extra">Todas las versiones y las sumas de comprobación (<code>SHA256SUMS.txt</code>) están en la página de <a href="https://github.com/javipalanca/mltutor/releases">Releases de GitHub</a>.</p>
 
         <div class="firstrun" aria-labelledby="firstrun-title">
           <h3 id="firstrun-title">🚀 La primera vez</h3>

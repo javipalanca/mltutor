@@ -1,7 +1,7 @@
 // Downloads: detects the visitor's OS, asks the GitHub REST API for the releases and points
 // each button at the matching asset of the newest release that has the Rust downloads.
 //
-// States: loading → ready (a Rust release exists) | soon (only Python releases) | error.
+// States: loading → ready (a v0.4.0+ release exists) | soon (no such release yet) | error.
 // For local checks, `?releases=none|rust|error|ratelimit|offline` replaces the API call.
 
 const REPO = "javipalanca/mltutor";
@@ -211,7 +211,7 @@ export function initDownloads({ cards, status, heroButton, heroLabel, osNote, ta
     .then((releases) => {
       const release = pickRustRelease(releases);
       if (release) showReady(release);
-      else showSoon(releases.find((r) => !r.draft) || null);
+      else showSoon();
     })
     .catch((error) => showError(error instanceof ReleaseError ? error : new ReleaseError("http", String(error))));
 
@@ -247,15 +247,12 @@ export function initDownloads({ cards, status, heroButton, heroLabel, osNote, ta
     }
   }
 
-  function showSoon(latest) {
+  function showSoon() {
     const content = [
       "🚧 ",
       el("strong", { textContent: "Próximamente." }),
-      " La versión Rust (a partir de la v0.4.0) todavía no se ha publicado.",
+      " La versión 0.4.0 de MLTutor está a punto de publicarse.",
     ];
-    if (latest) {
-      content.push(" La última release es ", link(latest.html_url, latest.tag_name), ", de la versión Python/Qt anterior.");
-    }
     content.push(" ", link(RELEASES_PAGE, "Ver todas las releases"));
     setStatus(status, "soon", ...content);
     for (const [key, card] of Object.entries(byOs)) {
