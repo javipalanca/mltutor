@@ -2193,7 +2193,7 @@ dependencies = [
 
 [[package]]
 name = "mltutor"
-version = "0.4.0-rc.1"
+version = "1.0.0"
 dependencies = [
  "base64 0.22.1",
  "block2",
@@ -2228,7 +2228,7 @@ dependencies = [
 
 [[package]]
 name = "mltutor-core"
-version = "0.4.0-rc.1"
+version = "1.0.0"
 dependencies = [
  "approx",
  "argmin",
@@ -2259,7 +2259,7 @@ dependencies = [
 
 [[package]]
 name = "mltutor-export"
-version = "0.4.0-rc.1"
+version = "1.0.0"
 dependencies = [
  "approx",
  "base64 0.22.1",
@@ -2277,7 +2277,7 @@ dependencies = [
 
 [[package]]
 name = "mltutor-nn"
-version = "0.4.0-rc.1"
+version = "1.0.0"
 dependencies = [
  "approx",
  "base64 0.22.1",
