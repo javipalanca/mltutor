@@ -2,8 +2,7 @@ name: Rust app
 
 # Builds, tests and packages the Rust/Tauri version of MLTutor on the three platforms.
 # A `v*` tag also publishes the GitHub release (prerelease when the tag has a `-`, e.g.
-# v1.1.0-rc.1). This is the only workflow that publishes releases; the legacy Python
-# workflow (build-executables.yml) no longer reacts to tags.
+# v1.1.0-rc.1). This is the only workflow (the legacy Python one was removed after v1.0.0).
 
 on:
   push:
