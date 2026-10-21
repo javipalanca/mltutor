@@ -2,15 +2,14 @@ name: Rust app
 
 # Builds, tests and packages the Rust/Tauri version of MLTutor on the three platforms.
 # A `v*` tag also publishes the GitHub release (prerelease when the tag has a `-`, e.g.
-# v0.4.0-rc.1). This is the only workflow that publishes releases on this branch; the
-# legacy Python workflow (build-executables.yml) no longer reacts to tags.
+# v1.1.0-rc.1). This is the only workflow that publishes releases; the legacy Python
+# workflow (build-executables.yml) no longer reacts to tags.
 
 on:
   push:
     tags: ["v*"]
-    # CI on every push while the migration branch is not on the default branch
-    # (workflow_dispatch only works for workflows present on the default branch).
-    branches: ["feature/rust-migration"]
+    # Gitflow: CI on every push to the long-lived, release and feature branches.
+    branches: ["main", "develop", "release/**", "hotfix/**", "feature/**"]
   workflow_dispatch:
   pull_request:
     paths:

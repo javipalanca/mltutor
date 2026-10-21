@@ -219,6 +219,11 @@ mod tests {
 
     #[test]
     fn version_matches_workspace() {
-        assert!(VERSION.starts_with("0.4.0"));
+        // The first `version = "…"` of the workspace manifest is `[workspace.package]`'s.
+        let manifest = include_str!("../../../Cargo.toml");
+        let workspace = manifest
+            .lines()
+            .find_map(|l| l.strip_prefix("version = \"")?.strip_suffix('"'));
+        assert_eq!(Some(VERSION), workspace);
     }
 }

@@ -1,6 +1,6 @@
 # Plan de migración de MLTutor a Rust
 
-Rama: `feature/rust-migration` · Inicio: 2026-10-13 · Estado: **Fases 0 y 1 completadas (2026-10-14, revisadas por rust-reviewer), Fases 0–4 completadas (F4: 2026-10-15, revisada por rust-reviewer y ml-correctness-reviewer), Fase 5 completada (2026-10-16, F5a–F5d revisadas por rust-reviewer y ml-correctness-reviewer), Fase 6 completada (2026-10-20, revisada por rust-reviewer y ml-correctness-reviewer), Fase 7 en curso**
+Rama: `feature/rust-migration` · Inicio: 2026-10-13 · Estado: **Fases 0 y 1 completadas (2026-10-14, revisadas por rust-reviewer), Fases 0–4 completadas (F4: 2026-10-15, revisada por rust-reviewer y ml-correctness-reviewer), Fase 5 completada (2026-10-16, F5a–F5d revisadas por rust-reviewer y ml-correctness-reviewer), Fase 6 completada (2026-10-20, revisada por rust-reviewer y ml-correctness-reviewer), Fase 7 completada y validada por el usuario en los 3 sistemas; Fase 8: v1.0.0 publicada desde `main` con gitflow (2026-10-21)**
 
 ## Objetivo
 

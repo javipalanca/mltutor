@@ -2,7 +2,7 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "MLTutor",
   "mainBinaryName": "mltutor",
-  "version": "0.4.0-rc.1",
+  "version": "1.0.0",
   "identifier": "es.upv.mltutor",
   "build": {
     "beforeDevCommand": "npm run dev",
