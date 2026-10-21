@@ -1,8 +1,8 @@
 # Sitio web de MLTutor (`site/`)
 
 Página de presentación del proyecto en español: HTML, CSS y JavaScript (módulos ES) sin
-dependencias ni paso de compilación. Se publicará como *project site* de GitHub Pages de
-`javipalanca/mltutor`; con el dominio propio de la cuenta (`spadeagents.eu`) quedará en
+dependencias ni paso de compilación. Está publicada (desde el 2026-10-21) como *project site* de
+GitHub Pages de `javipalanca/mltutor`; con el dominio propio de la cuenta (`spadeagents.eu`) queda en
 **https://spadeagents.eu/mltutor/**. Por eso **todas las rutas son relativas** (nada de `/…`) y
 no hay `CNAME`: el dominio lo pone el sitio de usuario `javipalanca.github.io`.
 
@@ -47,12 +47,19 @@ python3 -m http.server 8765 --bind 127.0.0.1 --directory "$tmp"
 
 ## Publicar (solo con permiso explícito)
 
-1. En GitHub: *Settings → Pages → Build and deployment → Source:* **GitHub Actions**.
-2. *Actions → Pages → Run workflow*, eligiendo la rama que contiene `site/`.
-   (`.github/workflows/pages.yml` solo tiene `workflow_dispatch`: nunca se ejecuta solo.)
-3. La primera vez, si el entorno `github-pages` restringe ramas, añade la rama en
-   *Settings → Environments → github-pages*.
-4. Comprueba https://spadeagents.eu/mltutor/ (y https://spadeagents.eu/mltutor/no-existe para el 404).
+Pages sirve la rama **`gh-pages`** (fuente *Deploy from a branch*, carpeta `/`), que contiene solo
+el contenido de `site/`. Así no hace falta tocar `main` ni ningún workflow. Para actualizar la web
+después de cambiar `site/` en la rama de trabajo:
+
+```sh
+git subtree split --prefix site -b gh-pages-nuevo
+git push origin gh-pages-nuevo:gh-pages   # Pages vuelve a publicar en 1–5 minutos
+git branch -D gh-pages-nuevo
+```
+
+Si el push se rechaza por historia distinta, se puede forzar (`--force`): la rama solo contiene la
+web generada. Comprueba después https://spadeagents.eu/mltutor/ y
+https://spadeagents.eu/mltutor/no-existe (404).
 
 `og:image` es relativa; algunas redes sociales solo aceptan URL absolutas. Si las vistas previas al
 compartir salen sin imagen, cambia `og:image` y `twitter:image` a

@@ -108,7 +108,7 @@ uv run python tools/capture_qt.py         # capturas de referencia Qt
 
 # Sitio web (site/, HTML+CSS+JS sin compilar; ver site/README.md). Vista previa bajo /mltutor/:
 tmp=$(mktemp -d) && ln -s "$PWD/site" "$tmp/mltutor" && python3 -m http.server 8765 --directory "$tmp"
-#   http://127.0.0.1:8765/mltutor/ (?releases=none|rust|error|ratelimit simula la API). Publicar: pages.yml, manual y con permiso
+#   http://127.0.0.1:8765/mltutor/ (?releases=none|rust|error|ratelimit simula la API). Publicar (con permiso): subtree split de site/ a la rama gh-pages (site/README.md)
 ```
 
 No ejecutes `release.sh`, no crees tags ni hagas push sin permiso explícito.
