@@ -197,14 +197,12 @@ automáticamente). Lo que cambia:
 
 ## Versiones anteriores
 
-- **Python/Qt** (PySide6 + scikit-learn + TensorFlow), releases `v0.3.0-rc.N`:
-  rama [`codex/desktop-migration-study`](https://github.com/javipalanca/mltutor/tree/codex/desktop-migration-study).
-- **Streamlit** (versión web original y su despliegue con Docker), releases
-  `v0.2.x`: rama [`main`](https://github.com/javipalanca/mltutor/tree/main), hasta
-  que se publique la versión Rust estable.
+El código de las versiones anteriores ya no está en el árbol principal; se conserva en
+el tag [`v1.0.0`](https://github.com/javipalanca/mltutor/tree/v1.0.0) y en la rama
+[`codex/desktop-migration-study`](https://github.com/javipalanca/mltutor/tree/codex/desktop-migration-study):
 
-Cuando la versión Rust pase a `main`, la última versión Python quedará guardada en
-el tag `python-final`.
+- **Python/Qt** (PySide6 + scikit-learn + TensorFlow), releases `v0.3.0-rc.N`.
+- **Streamlit** (versión web original y su despliegue con Docker), releases `v0.2.x`.
 
 ## 🛠️ Desarrollo
 

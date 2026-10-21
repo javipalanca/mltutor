@@ -1,6 +1,6 @@
 """Executable specification of what the 🧠 Redes Neuronales lesson computes (fase5-redes.md §3, C21–C25).
 
-Pure NumPy, no TensorFlow. ``tools/golden_nn.py`` checks every function here against the
+Pure NumPy, no TensorFlow. ``v1.0.0:tools/golden_nn.py`` checks every function here against the
 reference app (scikit-learn 1.7.2, Keras 3.12 on TensorFlow 2.16 CPU) and stores the result
 of that check in the fixtures, so ``crates/mltutor-nn`` can follow this file line by line:
 

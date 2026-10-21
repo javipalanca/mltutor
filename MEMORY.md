@@ -6,6 +6,29 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
 
 ## Migración a Rust (desde 2026-10-13)
 
+- **Código Python retirado del árbol (2026-10-21, rama `feature/remove-python`):** tras la v1.0.0 se
+  quitaron la app Python/Qt/Streamlit (`mltutor/`), launchers, PyInstaller, `pyproject.toml`/`uv.lock`,
+  el instalador, el despliegue web (Docker/Swarm/nginx), los tests pytest, `build-executables.yml`, el
+  agente `qt-desktop-engineer` y los generadores de fixtures (`export_golden.py`, `golden_*.py`,
+  `capture_qt.py`). Todo sigue en el tag `v1.0.0` y en la rama `codex/desktop-migration-study` (aún no
+  hay tag `python-final`). Consecuencias:
+  - `tests/parity/` está **congelado**; regenerarlo exige un checkout de `v1.0.0` (tests/parity/README.md).
+  - Los textos de plantillas en los fixtures (`code/*.json`, `python_code.*`, `export_package.script`/
+    `leeme`/`numpy_script`) se reescriben con `MLTUTOR_BLESS=1 cargo test --workspace --all-targets`
+    (`crates/mltutor-testkit`, solo dev). Sustituye la cadena JSON en su sitio con la codificación de
+    `json.dumps(ensure_ascii=False)`, que es la de `serde_json::to_string`, y no toca nada más. Una pasada
+    puede fallar en `real_trees_match_the_fixture_facade` si ese test (bin `mltutor`) corre antes que
+    `parity_trees` reescriba `trees/*.json`: se repite. Lo que garantiza que las plantillas aún funcionan
+    es `tools/verify_exports.py` (job `exports`).
+  - La comprobación de que los bloques de datos de los cuatro scripts de entrenamiento son copias
+    literales (antes en `golden_*._training_shared_blocks`) es ahora el test
+    `training_templates_share_the_dataset_blocks` (parity_codegen.rs).
+  - Los CSV de seaborn para ejecutar los scripts sin red se movieron a `tools/data/seaborn/`.
+  - Las rutas `mltutor/…` de los comentarios de `content/` y de los fixtures se refieren a `v1.0.0`; en el
+    código, `v1.0.0:tools/golden_nn.py` = `git show v1.0.0:tools/golden_nn.py`.
+  - En este Mac, `uv run --no-project --python 3.11` ya resuelve a un CPython arm64 gestionado por uv
+    (verificado 2026-10-21), así que `.venv/bin/python` (creado desde el `pyproject.toml` retirado) ya no
+    hace falta.
 - **Decisión: migrar a Rust con Tauri 2 + Svelte + linfa + burn.** Objetivo:
   velocidad, estabilidad y descargas mucho más pequeñas que con TensorFlow empaquetado.
   Se eligió Tauri en lugar de egui o Slint porque conserva las ventajas visuales de la
@@ -409,8 +432,9 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
     En este Mac: `uv run --no-project --python .venv/bin/python --with-requirements
     tools/verify_exports.lock.txt python tools/verify_exports.py <corpus>`; ~398 comprobaciones en unos 50 s
     con 4 procesos. Cada script corre con `python -I -X utf8` en una carpeta nueva, sockets bloqueados,
-    `SEABORN_DATA` en una copia de `mltutor/dataset/data/sample_datasets` y `SCIKIT_LEARN_DATA` vacío
-    (California no carga sin red: solo su ONNX y su paquete; Diamantes no está en `sample_datasets`).
+    `SEABORN_DATA` en una copia de `tools/data/seaborn` (antes `mltutor/dataset/data/sample_datasets`) y
+    `SCIKIT_LEARN_DATA` vacío (California no carga sin red: solo su ONNX y su paquete; Diamantes no está
+    en `tools/data/seaborn`).
     `python -I` no ve `PYTHON*`, pero sí `MPLBACKEND`, `SEABORN_DATA` y `OMP_NUM_THREADS`.
   - Nada pasa en vacío: 0 filas, otro número de filas que Rust o una fila sin nada comparado es FAIL;
     `label_gap ≤ 2·proba` y una etiqueta tolerada sigue comparando probabilidades.
@@ -784,7 +808,8 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
   datos de `regresion_entrenamiento.py.j2`, y `golden_trees._training_shared_blocks` falla si divergen.
   El camino de decisión en Python se lee de `children_left` y no comparando `np.float32(x) <= umbral`:
   con NEP 50 (numpy ≥ 2) esa comparación se hace en float32 y contradice a sklearn.
-- **Verificar scripts sin red:** `sns.load_dataset("titanic", data_home="mltutor/dataset/data/sample_datasets")`.
+- **Verificar scripts sin red:** `sns.load_dataset("titanic", data_home="tools/data/seaborn")` (hasta la
+  v1.0.0, `mltutor/dataset/data/sample_datasets`).
   minijinja de Python: `uv run --with minijinja python …` con `undefined_behavior="strict"` y
   `keep_trailing_newline=True` reproduce `codegen.rs`.
 - **permutation_importance (sklearn ≥ 1.5):** usa UNA sola semilla `randint(2^31)` para todas las

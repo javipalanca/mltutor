@@ -1,5 +1,5 @@
 //! ONNX of the 🧠 network (C28, D75): the graph of
-//! `tools/golden_nn.py::onnx_proposal_model`, node for node.
+//! `v1.0.0:tools/golden_nn.py::onnx_proposal_model`, node for node.
 //!
 //! `float_input` [N, F] float32 in **original units** → `Sub(scaler_mean)` →
 //! `Div(scaler_scale)` → per layer `Gemm(W{i}, B{i})` + `Relu | Tanh | Sigmoid |

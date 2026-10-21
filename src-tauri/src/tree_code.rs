@@ -121,7 +121,7 @@ mod tests {
         serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
     }
 
-    /// The training script is exactly the one verified by `tools/export_golden.py`.
+    /// The training script is exactly the one verified by `v1.0.0:tools/export_golden.py`.
     #[test]
     fn training_script_matches_the_golden_text() {
         let golden = fixture();
@@ -155,10 +155,10 @@ mod tests {
                 class_names: (!classes.is_empty()).then_some(classes.as_slice()),
             };
             let text = render(CodeTemplate::TreeTraining, &input).unwrap();
-            assert_eq!(
-                text.trim_matches('\n'),
-                case["text"].as_str().unwrap().trim_matches('\n'),
-                "{name}"
+            mltutor_testkit::assert_template_text_trimmed(
+                "code/trees_training.json",
+                &format!("/expected/{name}/text"),
+                &text,
             );
             checked += 1;
         }

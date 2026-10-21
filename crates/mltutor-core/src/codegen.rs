@@ -1,6 +1,6 @@
 //! Python code shown to the student (fase2-regresion.md C12): the templates of
 //! `content/code/*.j2`, embedded at build time (`build.rs`, loaded by file name)
-//! and rendered with minijinja exactly like jinja2 in `tools/export_golden.py`:
+//! and rendered with minijinja exactly like jinja2 in `v1.0.0:tools/export_golden.py`:
 //! `keep_trailing_newline`, strict undefined variables, a `pyrepr` filter that
 //! reproduces Python's `repr()` (`'texto'`, `[1, 2.5, None]`, `0.3`, `2.5e-07`)
 //! and a `pycomment` filter ([`py_comment`]) for user text inside a `#` comment or
@@ -493,7 +493,7 @@ pub fn py_repr(value: &Value) -> String {
 }
 
 /// `json.dumps(v, ensure_ascii=False)` (the `tojson_compact` filter of
-/// `export_golden.py`).
+/// `v1.0.0:tools/export_golden.py`).
 fn py_json(value: &Value) -> String {
     match value.kind() {
         ValueKind::Undefined | ValueKind::None => "null".to_owned(),

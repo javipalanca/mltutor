@@ -1,4 +1,4 @@
-//! ONNX of a KNN (D57, fase4-knn.md §5): the graph `tools/golden_knn.py::
+//! ONNX of a KNN (D57, fase4-knn.md §5): the graph `v1.0.0:tools/golden_knn.py::
 //! _onnx_proposal_model` builds, checked with `onnx.checker`, `onnx.reference` and
 //! onnxruntime.
 //!

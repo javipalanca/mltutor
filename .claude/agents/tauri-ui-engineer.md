@@ -27,7 +27,7 @@ Frontend (ui/):
 - Svelte 5 (runes) + TypeScript estricto + Vite. Plotly.js (bundle parcial),
   KaTeX y las fuentes importados desde npm y empaquetados: nunca por CDN.
 - Mismo orden de navegación, pestañas, emojis, colores y explicaciones que la versión
-  Python (usa capturas de la app Qt como referencia visual). El texto viene de
+  Python (usa las capturas Qt de `docs/migration/capturas/qt/` como referencia visual). El texto viene de
   `content/*.md` renderizado con Markdown + KaTeX.
 - Controles con estado por lección que se conserva al navegar; los cambios
   disparan el recálculo con debounce, y las tareas antiguas se cancelan.
@@ -37,7 +37,7 @@ Frontend (ui/):
 Verificación:
 - `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`,
   `npm --prefix ui run check` y `npm --prefix ui run test`.
-- Abre la app con `npm --prefix ui run tauri dev` y compárala con la versión Qt; describe las
+- Abre la app con `npm --prefix ui run tauri dev` y compárala con las capturas Qt; describe las
   diferencias visuales que queden.
 
 Entrega: cambios, cómo se ha verificado y cualquier diferencia de comportamiento con la

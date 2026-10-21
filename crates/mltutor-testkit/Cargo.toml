@@ -1,0 +1,17 @@
+[package]
+name = "mltutor-testkit"
+description = "Test helpers for MLTutor: blessing the template texts of the frozen parity fixtures."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+# Dev-dependency only: never linked into the app.
+[dependencies]
+serde_json = "1"
+
+[lints]
+workspace = true

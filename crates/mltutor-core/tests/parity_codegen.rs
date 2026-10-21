@@ -1,27 +1,26 @@
 //! C12: `content/code/*.j2` rendered with minijinja equals jinja2's output
 //! (`tests/parity/code/regression.json`, `regression_training.json`).
+//! The texts were generated with the Python app (tag v1.0.0); after a deliberate
+//! template change, `MLTUTOR_BLESS=1` rewrites them (`mltutor-testkit`).
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod common;
 
 use common::fixture;
 use mltutor_core::codegen::{self, CodeTemplate, RegressionTrainingContext};
+use mltutor_testkit::{assert_template_text, assert_template_text_trimmed};
 
 #[test]
 fn regression_templates_match_jinja2() {
     let fx = fixture("code/regression.json");
     let mut n = 0;
     for (name, case) in fx["expected"].as_object().unwrap() {
-        let text = case["text"].as_str().unwrap();
         let rendered = codegen::render_named(name, &case["context"]).unwrap();
+        let pointer = format!("/expected/{name}/text");
         if case["compare"].as_str().unwrap().contains("strip") {
-            assert_eq!(
-                rendered.trim_matches('\n'),
-                text.trim_matches('\n'),
-                "{name}"
-            );
+            assert_template_text_trimmed("code/regression.json", &pointer, &rendered);
         } else {
-            assert_eq!(rendered, text, "{name}");
+            assert_template_text("code/regression.json", &pointer, &rendered);
         }
         n += 1;
     }
@@ -35,7 +34,11 @@ fn training_script_matches_jinja2_exactly() {
         // Through the typed context: every key, nulls included (strict mode).
         let ctx: RegressionTrainingContext = serde_json::from_value(v["context"].clone()).unwrap();
         let rendered = codegen::render(CodeTemplate::RegressionTraining, &ctx).unwrap();
-        assert_eq!(rendered, v["text"].as_str().unwrap(), "{case}");
+        assert_template_text(
+            "code/regression_training.json",
+            &format!("/expected/{case}/text"),
+            &rendered,
+        );
     }
 }
 
@@ -66,7 +69,11 @@ fn tree_training_script_matches_jinja2_exactly() {
     for (case, v) in fx["expected"].as_object().unwrap() {
         let ctx: TreeTrainingContext = serde_json::from_value(v["context"].clone()).unwrap();
         let rendered = codegen::render(CodeTemplate::TreeTraining, &ctx).unwrap();
-        assert_eq!(rendered, v["text"].as_str().unwrap(), "{case}");
+        assert_template_text(
+            "code/trees_training.json",
+            &format!("/expected/{case}/text"),
+            &rendered,
+        );
         n += 1;
     }
     assert_eq!(n, 16);
@@ -101,7 +108,7 @@ fn knn_templates_are_embedded() {
 }
 
 /// F4: `knn_entrenamiento.py.j2` rendered from the typed context gives exactly the
-/// script that `tools/golden_knn.py` executed and checked against the fixtures.
+/// script that `v1.0.0:tools/golden_knn.py` executed and checked against the fixtures.
 #[test]
 fn knn_training_script_matches_jinja2_exactly() {
     use mltutor_core::codegen::KnnTrainingContext;
@@ -112,14 +119,18 @@ fn knn_training_script_matches_jinja2_exactly() {
         // Round trip: every key is sent (strict templates).
         assert_eq!(serde_json::to_value(&ctx).unwrap(), v["context"], "{case}");
         let rendered = codegen::render(CodeTemplate::KnnTraining, &ctx).unwrap();
-        assert_eq!(rendered, v["text"].as_str().unwrap(), "{case}");
+        assert_template_text(
+            "code/knn_training.json",
+            &format!("/expected/{case}/text"),
+            &rendered,
+        );
         n += 1;
     }
     assert_eq!(n, 19);
 }
 
 /// D63: `frontera_decision.py.j2` with `datos = "todos"` (🔍 KNN), executed after the
-/// KNN training script in `tools/golden_knn.py`; without `datos` the text is F2/F3's.
+/// KNN training script in `v1.0.0:tools/golden_knn.py`; without `datos` the text is F2/F3's.
 #[test]
 fn knn_boundary_all_rows_matches_jinja2() {
     use mltutor_core::codegen::DecisionBoundaryContext;
@@ -132,14 +143,22 @@ fn knn_boundary_all_rows_matches_jinja2() {
             Some(DecisionBoundaryContext::ALL_ROWS)
         );
         let rendered = codegen::render(CodeTemplate::DecisionBoundary, &ctx).unwrap();
-        assert_eq!(rendered, v["text"].as_str().unwrap(), "{case}");
+        assert_template_text(
+            "code/knn_boundary.json",
+            &format!("/expected/{case}/text"),
+            &rendered,
+        );
         let plain = DecisionBoundaryContext::new(
             ctx.feature_indices,
             ctx.feature_names.clone(),
             ctx.class_names.clone(),
         );
         let rendered = codegen::render(CodeTemplate::DecisionBoundary, &plain).unwrap();
-        assert_eq!(rendered, v["default_text"].as_str().unwrap(), "{case}");
+        assert_template_text(
+            "code/knn_boundary.json",
+            &format!("/expected/{case}/default_text"),
+            &rendered,
+        );
         let again = plain.clone().all_rows();
         assert_eq!(again, ctx);
         n += 1;
@@ -148,7 +167,7 @@ fn knn_boundary_all_rows_matches_jinja2() {
 }
 
 /// 🧠 D74: `red_entrenamiento.py.j2` with the typed context built from the lesson's
-/// configuration equals the script `export_golden.py` executed (`code/nn_training.json`).
+/// configuration equals the script `v1.0.0:tools/export_golden.py` executed (`code/nn_training.json`).
 #[test]
 fn nn_training_script_matches_exactly() {
     use mltutor_core::codegen::{NnTrainingContext, ScriptDataset};
@@ -220,7 +239,11 @@ fn nn_training_script_matches_exactly() {
         let ctx = NnTrainingContext::new(data, task, n_classes, &arch, &training).unwrap();
         assert_eq!(&serde_json::to_value(&ctx).unwrap(), c, "{case}: context");
         let rendered = codegen::render(CodeTemplate::NnTraining, &ctx).unwrap();
-        assert_eq!(rendered, v["script"].as_str().unwrap(), "{case}: script");
+        assert_template_text(
+            "code/nn_training.json",
+            &format!("/expected/{case}/script"),
+            &rendered,
+        );
         n += 1;
     }
     assert_eq!(n, 8);
@@ -264,4 +287,42 @@ fn nn_training_script_uses_the_seed() {
     let script = codegen::render(CodeTemplate::NnTraining, &ctx).unwrap();
     assert!(script.contains("keras.utils.set_random_seed(1234)"));
     assert!(!script.contains("set_random_seed(42)"));
+}
+
+/// The dataset blocks ("import … make_moons" and "1. Cargar los datos") of the four
+/// training scripts are literal copies of each other (only the regression script says
+/// `model == "logistic"` where the others say `task == "classification"`). Ported from
+/// the `_training_shared_blocks` checks of the removed `tools/golden_{trees,knn,nn}.py`.
+#[test]
+fn training_templates_share_the_dataset_blocks() {
+    fn block<'a>(text: &'a str, start: &str, end: &str, name: &str) -> &'a str {
+        let i = text
+            .find(start)
+            .unwrap_or_else(|| panic!("{name}: no {start:?}"));
+        let j = text[i..]
+            .find(end)
+            .unwrap_or_else(|| panic!("{name}: no {end:?} after {start:?}"));
+        &text[i..i + j + end.len()]
+    }
+    let source = |name: &str| codegen::template_source(name).unwrap();
+    let regression = source("regresion_entrenamiento.py.j2");
+    for (start, end) in [
+        ("import numpy as np\n", "make_moons\n{%- endif %}\n"),
+        ("# 1. Cargar los datos", "{%- endif %}\n{%- endif %}\n"),
+    ] {
+        let reference = block(regression, start, end, "regresion_entrenamiento.py.j2")
+            .replace(r#"model == "logistic""#, r#"task == "classification""#);
+        for name in [
+            "arbol_entrenamiento.py.j2",
+            "knn_entrenamiento.py.j2",
+            "red_entrenamiento.py.j2",
+        ] {
+            assert_eq!(
+                block(source(name), start, end, name),
+                reference,
+                "{name}: the block {:?} differs from regresion_entrenamiento.py.j2",
+                start.trim()
+            );
+        }
+    }
 }

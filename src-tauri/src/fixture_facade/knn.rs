@@ -905,15 +905,10 @@ mod tests {
     fn training_script_matches_the_fixture() {
         let (w, m) = DEFAULT;
         let model = trained(DatasetId::Iris, knn(5, w, m), 0.3);
-        let path =
-            Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/parity/code/knn_training.json");
-        let code: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
-        let expected = code["expected"]["iris_k5_uniform_minkowski"]["text"]
-            .as_str()
-            .unwrap();
-        assert_eq!(
-            model.code(CodeTemplate::KnnTraining, None).unwrap(),
-            expected
+        mltutor_testkit::assert_template_text(
+            "code/knn_training.json",
+            "/expected/iris_k5_uniform_minkowski/text",
+            &model.code(CodeTemplate::KnnTraining, None).unwrap(),
         );
     }
 }

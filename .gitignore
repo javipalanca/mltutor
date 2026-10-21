@@ -1,62 +1,19 @@
-# Byte-compiled / optimized / DLL files
+# Python (tools/*.py, the export verifier)
 __pycache__/
 *.py[cod]
 *$py.class
-
-# C extensions
-*.so
-
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-.hypothesis/
 .pytest_cache/
-
-# Jupyter Notebook
+.ruff_cache/
+.mypy_cache/
 .ipynb_checkpoints
-
-# pyenv
 .python-version
 
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre type checker
-.pyre/
+# Old PyInstaller outputs (the Python app was removed after v1.0.0)
+build/
+dist/
 
 # VS Code
 .vscode/
-
 
 # Environment variables
 .env
@@ -69,6 +26,7 @@ env/
 .venv/
 .ENV/
 .envrc
+.venv-qt/
 
 # MacOS
 .DS_Store
@@ -79,13 +37,9 @@ env/
 # Logs
 *.log
 olds/
-# Isolated desktop migration environment
-.venv-qt/
 
 # Rust / Tauri / frontend build outputs
 target/
 ui/node_modules/
 ui/dist/
 src-tauri/gen/
-# The Python "lib/" rule above would hide the frontend sources
-!ui/src/lib/

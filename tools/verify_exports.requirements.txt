@@ -2,8 +2,8 @@
 #   uv pip compile --universal --generate-hashes --python-version 3.11 \
 #       tools/verify_exports.requirements.txt -o tools/verify_exports.lock.txt
 # Python environment of tools/verify_exports.py (Phase 6: exports and code templates).
-# Same versions as uv.lock (the Python reference app), plus onnxruntime, which the app does not
-# need. onnx < 1.18 because TF 2.16 needs ml-dtypes 0.3 (MEMORY.md). TensorFlow: the CPU wheel
+# Same versions as the uv.lock of the Python reference app (tag v1.0.0), plus onnxruntime, which
+# that app did not need. onnx < 1.18 because TF 2.16 needs ml-dtypes 0.3 (MEMORY.md). TensorFlow: the CPU wheel
 # on Linux (the CI), tensorflow-macos on Apple Silicon; Keras 3.12 like the fixtures (D69).
 numpy==1.26.4
 pandas==2.3.3

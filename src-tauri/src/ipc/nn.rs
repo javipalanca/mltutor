@@ -346,7 +346,7 @@ pub enum NnSeverity {
 }
 
 /// A view built in the core with its texts already resolved (C23, the history cards):
-/// the shape `tools/golden_render.py` records from the Python lessons. The UI renders it
+/// the shape `v1.0.0:tools/golden_render.py` records from the Python lessons. The UI renders it
 /// as it comes.
 #[derive(Debug, Clone, PartialEq, Serialize, TS)]
 #[serde(tag = "kind", rename_all = "snake_case")]

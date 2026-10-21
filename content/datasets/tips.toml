@@ -13,7 +13,7 @@ samples = 244
 description = "Dataset Propinas: 244 comidas, 6 características, predicción de propina (regresión)"
 selector_blurb = "💰 **Propinas**: Regresión para predecir cantidad de propina."
 selector_info = "244 cuentas • 6 características • Propina • Regresión"
-source = "mltutor/dataset/data/sample_datasets/tips.csv via load_tips_dataset()"
+source = "seaborn-data tips.csv (copy in tools/data/seaborn/tips.csv), loaded by the Python app (v1.0.0) via load_tips_dataset()"
 fixture = "tests/parity/datasets/tips.json"
 
 [[features]]

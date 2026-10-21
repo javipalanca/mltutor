@@ -1,2 +1,0 @@
-# Instala las dependencias declaradas en pyproject.toml (fuente única).
-.

@@ -27,7 +27,7 @@ monotonic constraints):
 
 ``fit`` returns the tree arrays (as ``sklearn.tree._tree.Tree``) plus a per-node
 ``trace``: features in the order they were drawn, best proxy improvement and
-threshold of each, and the exact ties with the chosen split. ``tools/export_golden.py``
+threshold of each, and the exact ties with the chosen split. ``v1.0.0:tools/export_golden.py``
 checks that the arrays equal scikit-learn's bit for bit and stores the trace in the
 fixtures (``trees/*.json`` → ``expected.reference_impl``).
 

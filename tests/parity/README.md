@@ -1,14 +1,53 @@
 # Fixtures golden de paridad
 
 Resultados de referencia generados con la versión Python/Qt de MLTutor. Los tests de
-Rust los comparan con lo que calcula `mltutor-core`. Los genera
-`tools/export_golden.py`, que llama a las funciones de la app
-(`load_builtin_dataset`, `preprocess_data`, `train_linear_model`,
+Rust los comparan con lo que calcula `mltutor-core`. Los generó `tools/export_golden.py`
+(con `golden_render.py`, `golden_trees.py`, `golden_knn.py` y `golden_nn.py`), que llamaba
+a las funciones de la app (`load_builtin_dataset`, `preprocess_data`, `train_linear_model`,
 `evaluate_*_model`…) y no a reimplementaciones.
 
-## Regenerar
+## Fixtures congelados (desde 2026-10-21)
+
+La app Python y esos generadores **ya no están en el árbol**: viven en el tag `v1.0.0` y en
+la rama `codex/desktop-migration-study`. Estos archivos son referencias congeladas: no se
+editan a mano y ningún test los reescribe, salvo los textos de plantillas (abajo). Las
+rutas `mltutor/…` que aparecen en ellos (y en los comentarios de `content/`) se refieren
+al código de `v1.0.0`.
+
+### Textos de plantillas: `MLTUTOR_BLESS=1`
+
+Algunos tests comparan el texto exacto de una plantilla `content/code/*.j2` renderizada en
+Rust con el texto que generó jinja2 en Python: `code/*.json` (`text`, `default_text`,
+`script`), `trees/*.json` (`python_code.app_text`, `python_code.corrected_text`,
+`export_package.script`), `knn/*.json` y `linear_models/*.json` (`export_package.script`,
+`export_package.leeme`) y `nn/exact/*.json` (`export_package.script`, `numpy_script`,
+`leeme`). Si cambias una plantilla a propósito:
 
 ```sh
+MLTUTOR_BLESS=1 cargo test --workspace --all-targets   # reescribe solo esos textos
+git diff tests/parity                                  # revisa el cambio
+cargo test --workspace --all-targets                   # sin BLESS, en verde
+```
+
+Lo hace `crates/mltutor-testkit` (`assert_template_text`): sustituye solo la cadena JSON del
+campo comparado, con la codificación de `json.dumps(ensure_ascii=False)`, y deja el resto del
+archivo byte a byte. Sin cambios en las plantillas, el modo bless no toca nada. Si un test que
+lee esos textos (p. ej. `real_trees_match_the_fixture_facade`) se ejecuta antes que el que los
+reescribe, falla en esa pasada: repite el comando. Los fixtures numéricos (datos, modelos,
+métricas, vistas) nunca se reescriben.
+
+El modo bless solo garantiza que el texto coincide con lo que genera Rust. Que los scripts
+sigan ejecutándose y reproduzcan los resultados de scikit-learn/Keras lo comprueba
+`tools/verify_exports.py` en el job `exports` del CI (BUILD_EXECUTABLES.md).
+
+### Regenerar los fixtures numéricos
+
+Hace falta la app Python. Desde un checkout del tag `v1.0.0` (o de la rama
+`codex/desktop-migration-study`), por ejemplo en un worktree aparte:
+
+```sh
+git worktree add ../mltutor-v1 v1.0.0
+cd ../mltutor-v1
 uv sync --locked --extra dev
 uv run python tools/export_golden.py                    # todos los casos
 uv run python tools/export_golden.py --only datasets    # un módulo
@@ -17,11 +56,11 @@ uv run python tools/export_golden.py --check            # no escribe; falla si a
 uv run python tools/export_golden.py --list
 ```
 
-La salida es determinista. Si el contenido de un fixture no cambia, el archivo no se
-toca, ni siquiera su fecha. California (`fetch_california_housing`), Diamantes y MPG
-(`seaborn.load_dataset`) necesitan red la primera vez y luego quedan en la caché de
-sklearn y seaborn. Si cambias versiones de sklearn o numpy, regenera los fixtures,
-revisa el diff y explica en MEMORY.md cualquier diferencia que no sea trivial.
+y copia después a este árbol los archivos de `tests/parity/` que cambien. Si alguna plantilla
+cambió desde la v1.0.0, cópiala antes a ese checkout. La salida es determinista. California
+(`fetch_california_housing`), Diamantes y MPG (`seaborn.load_dataset`) necesitan red la
+primera vez. Si cambias versiones de sklearn o numpy, revisa el diff y explica en MEMORY.md
+cualquier diferencia que no sea trivial.
 
 ## Formato
 

@@ -1,10 +1,11 @@
 # AGENTS.md — Guía para agentes de código en MLTutor
 
 MLTutor es una aplicación educativa de escritorio para aprender Machine Learning
-en español. **El proyecto está en migración de Python/Qt a Rust.** La versión
-Python (PySide6 + scikit-learn + TensorFlow) es la referencia funcional y visual;
-la versión Rust debe igualarla en contenido, resultados y aspecto, y superarla en
-velocidad, tamaño y estabilidad.
+en español, escrita en Rust (Tauri 2 + Svelte) desde la v1.0.0. La versión anterior en
+Python (PySide6 + scikit-learn + TensorFlow) fue la referencia funcional y visual de la
+migración; **ya no está en el árbol** (2026-10-21): se conserva en el tag `v1.0.0` y en la
+rama `codex/desktop-migration-study`. Sus resultados siguen aquí como fixtures congelados
+en `tests/parity/`.
 
 > **Plan de migración:** [docs/migration/PLAN.md](docs/migration/PLAN.md) (fases,
 > decisiones y criterios de aceptación) e [INVENTARIO.md](docs/migration/INVENTARIO.md)
@@ -29,7 +30,8 @@ Se sigue **gitflow** (desde la v1.0.0, 2026-10-21):
 - `hotfix/X.Y.Z`: desde `main` para arreglos urgentes; se fusiona en `main` y en `develop`.
 - `gh-pages`: la web publicada (`site/`, ver site/README.md).
 - `feature/rust-migration`: la migración a Rust, ya fusionada en `develop` (se conserva).
-- `codex/desktop-migration-study`: versión Python/Qt heredada (referencia de los fixtures).
+- `codex/desktop-migration-study`: versión Python/Qt heredada (referencia de los fixtures); su
+  código también está en el tag `v1.0.0`.
 
 ## Stack objetivo (Rust)
 
@@ -59,9 +61,11 @@ ui/                        frontend Svelte + TS: lecciones, controles, gráficos
 content/                   textos pedagógicos en Markdown (+KaTeX), uno por lección/pestaña,
                            y plantillas de código Python (code/*.py.j2, minijinja)
 docs/migration/            PLAN.md, INVENTARIO.md y un plan por módulo
-tests/parity/              fixtures "golden" generados desde la versión Python
-tools/export_golden.py     genera esos fixtures con la app Python
-mltutor/, tests/*.py       versión Python de referencia: congelada salvo bugs graves
+crates/mltutor-testkit/    solo para tests: MLTUTOR_BLESS (textos de plantillas en los fixtures)
+tests/parity/              fixtures "golden" generados con la versión Python (tag v1.0.0), CONGELADOS
+tools/                     verify_exports.py (CI), check_trees_platform.py (CI) y las
+                           transcripciones cart/knn/nn_reference.py; tools/data/seaborn/ = CSV
+                           de seaborn para ejecutar los scripts sin red
 ```
 
 ## Comandos
@@ -101,18 +105,23 @@ MLTUTOR_FACADE=fixture target/debug/mltutor  # solo en debug: datos de tests/par
 # F5c: redes_evaluacion_iris, redes_pesos_iris, redes_activaciones_5x256, redes_evaluacion_divergencia…
 #   (📈/🎯 necesitan el motor real: con MLTUTOR_FACADE=fixture solo se reproducen el historial y el diagnóstico)
 
-# Referencia Python (para comparar y generar fixtures)
-uv sync --locked --extra dev
-uv run python launcher_qt.py
-uv run pytest -q
-uv run python tools/export_golden.py      # --check en CI
-# F6: exportaciones (ONNX, paquetes) y plantillas de código contra onnxruntime/sklearn/Keras (job `exports`)
+# Fixtures de paridad (tests/parity): CONGELADOS. Los generó la app Python, que ya no está en el árbol.
+# Si cambias a propósito una plantilla content/code/*.j2, actualiza solo sus textos en los fixtures:
+MLTUTOR_BLESS=1 cargo test --workspace --all-targets   # reescribe los textos de plantilla que difieran
+git diff tests/parity                                  # revisa: solo deben cambiar textos de plantillas
+#   (repite si un test que lee esos textos corrió antes que el que los reescribe; después, cargo test sin BLESS)
+# Regenerar los fixtures numéricos exige la app Python: git worktree add ../mltutor-py v1.0.0 (o la rama
+# codex/desktop-migration-study), y allí uv sync --locked --extra dev && uv run python tools/export_golden.py
+# F6: exportaciones (ONNX, paquetes) y plantillas de código contra onnxruntime/sklearn/Keras (job `exports`);
+# es lo que garantiza que las plantillas siguen ejecutándose y coincidiendo con sklearn/Keras
 MLTUTOR_EXPORT_CORPUS=/tmp/corpus cargo test -p mltutor --bin mltutor export_corpus::export_corpus -- --ignored --exact
-uv run --no-project --python .venv/bin/python --with-requirements tools/verify_exports.lock.txt \
-  python tools/verify_exports.py /tmp/corpus   # en CI: --python 3.11
+uv run --no-project --python 3.11 --with-requirements tools/verify_exports.lock.txt \
+  python tools/verify_exports.py /tmp/corpus
 # el lock se regenera con: uv pip compile --universal --generate-hashes --python-version 3.11 \
 #   tools/verify_exports.requirements.txt -o tools/verify_exports.lock.txt
-uv run python tools/capture_qt.py         # capturas de referencia Qt
+# Árboles de los fixtures frente a scikit-learn de esta plataforma (en CI, Linux x86-64):
+uv run --no-project --python 3.11 --with numpy==1.26.4 --with pandas==2.3.3 --with scikit-learn==1.7.2 \
+  python tools/check_trees_platform.py
 
 # Sitio web (site/, HTML+CSS+JS sin compilar; ver site/README.md). Vista previa bajo /mltutor/:
 tmp=$(mktemp -d) && ln -s "$PWD/site" "$tmp/mltutor" && python3 -m http.server 8765 --directory "$tmp"
@@ -132,7 +141,7 @@ No ejecutes `release.sh`, no crees tags ni hagas push sin permiso explícito.
    documentados. Errores con `thiserror` en core; la capa Tauri los traduce a
    mensajes en español para el estudiante. Un panic no puede cerrar la app.
 4. **Determinismo:** todo lo aleatorio recibe semilla explícita (`StdRng::seed_from_u64`),
-   con `42` por defecto, como `random_state=42` en la versión Python.
+   con `42` por defecto, como `random_state=42` en la versión Python (y en scikit-learn).
 5. **`f64` en todo el core.** Comparaciones con tolerancia, nunca `==` en flotantes.
 6. **Sin red en tiempo de ejecución.** CSP estricta en `tauri.conf.json`; Plotly,
    KaTeX, fuentes y datasets van empaquetados (`include_bytes!` en el caso de los datasets).
@@ -150,8 +159,8 @@ No ejecutes `release.sh`, no crees tags ni hagas push sin permiso explícito.
 1. Las casillas correspondientes de `docs/migration/INVENTARIO.md` están marcadas.
 2. `cargo fmt`, clippy sin avisos, `cargo test --workspace` y `npm --prefix ui run check/test`
    en verde. Los tests de paridad cubren el cálculo nuevo.
-3. Hay una captura Rust comparada con la captura Qt equivalente, sin pérdidas de
-   contenido ni de vistosidad.
+3. Hay una captura Rust comparada con la captura Qt equivalente (`docs/migration/capturas/qt/`,
+   congeladas) o con la captura Rust anterior, sin pérdidas de contenido ni de vistosidad.
 4. Lo aprendido que no sea obvio está en MEMORY.md.
 5. Han revisado `rust-reviewer` y, si hay ML, `ml-correctness-reviewer`.
 
@@ -169,12 +178,11 @@ No ejecutes `release.sh`, no crees tags ni hagas push sin permiso explícito.
 
 | Agente | Úsalo para |
 |---|---|
-| `migration-porter` | Inventariar un módulo Python, planificar su port y generar fixtures de paridad |
+| `migration-porter` | Planificar un port y consultar la versión Python del tag `v1.0.0` (los fixtures están congelados) |
 | `rust-ml-engineer` | Algoritmos en `mltutor-core`/`mltutor-nn` con linfa, burn o implementación propia |
 | `tauri-ui-engineer` | Comandos Tauri, frontend Svelte, Plotly, estilos, IPC y tareas en segundo plano |
 | `ml-lesson-author` | Contenido pedagógico en `content/` y su presentación en lecciones |
 | `ml-correctness-reviewer` | Revisión de rigor de ML y de la paridad numérica (solo lectura) |
 | `rust-reviewer` | Revisión de código Rust: errores, panics, concurrencia, rendimiento (solo lectura) |
-| `packaging-release-engineer` | Bundler de Tauri, CI en tres plataformas, releases; también el PyInstaller heredado |
-| `test-runner` | Ejecutar cargo/npm/pytest y resumir fallos |
-| `qt-desktop-engineer` | Solo mantenimiento de la versión Python/Qt heredada |
+| `packaging-release-engineer` | Bundler de Tauri, CI en tres plataformas, releases |
+| `test-runner` | Ejecutar cargo/npm (y el verificador de exportaciones) y resumir fallos |

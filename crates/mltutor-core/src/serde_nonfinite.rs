@@ -4,7 +4,7 @@
 //! A diverged training (fase5-redes.md K1) has exactly those values in its history,
 //! so [`crate::nn_data::EpochLog`] uses this module: finite values stay numbers and
 //! the others become the strings `"nan"`, `"inf"` and `"-inf"` (the convention of the
-//! parity fixtures, `tools/golden_nn.py::_clean`). Reading accepts both forms, and
+//! parity fixtures, `v1.0.0:tools/golden_nn.py::_clean`). Reading accepts both forms, and
 //! also `null` as NaN.
 //!
 //! ```

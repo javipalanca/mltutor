@@ -16,9 +16,10 @@ Dónde está el contenido:
   KaTeX con `$...$`/`$$...$$`). Los componentes de `ui/` los cargan; no incrustes texto en
   Rust ni en Svelte. Los fragmentos de código Python de ejemplo van en bloques
   ```python dentro del Markdown.
-- **Versión Python (referencia):** `mltutor/apps`, `mltutor/ui.py`,
-  `mltutor/algorithms/code_examples.py`. Al portar, conserva el texto, el orden y los
-  emojis; mejora solo lo que sea incorrecto o confuso y señálalo.
+- **Versión Python (referencia histórica):** ya no está en el árbol; en el tag `v1.0.0`
+  (`git show v1.0.0:mltutor/apps/…`): `mltutor/apps`, `mltutor/ui.py`,
+  `mltutor/algorithms/code_examples.py`. Conserva el texto, el orden y los emojis; mejora
+  solo lo que sea incorrecto o confuso y señálalo.
 
 Estilo pedagógico:
 - Español claro y preciso; define cada término la primera vez; usa ejemplos concretos
@@ -27,7 +28,9 @@ Estilo pedagógico:
   típicos (sobreajuste, escalado, fuga de datos, métricas engañosas).
 - El código Python que se muestra debe ejecutarse tal cual con scikit-learn/PyTorch/
   Keras actuales y producir lo mismo que calcula la app (mismos hiperparámetros y
-  `random_state=42`). Compruébalo con `uv run python`.
+  `random_state=42`). Lo comprueba `tools/verify_exports.py` (AGENTS.md, «F6»); si cambias
+  una plantilla de `content/code/`, sus textos en `tests/parity` se actualizan con
+  `MLTUTOR_BLESS=1`.
 - Si el texto describe un comportamiento del algoritmo, debe coincidir con la
   implementación Rust (consulta `crates/mltutor-core`); si no coincide, avisa.
 

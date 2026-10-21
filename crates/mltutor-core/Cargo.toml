@@ -43,6 +43,8 @@ flate2 = { version = "1.1", default-features = false, features = ["zlib-rs"] }
 flate2 = { version = "1.1", default-features = false, features = ["zlib-rs"] }
 
 [dev-dependencies]
+# Template texts of the frozen parity fixtures (MLTUTOR_BLESS=1 rewrites them).
+mltutor-testkit.workspace = true
 approx = "0.5"
 # Benchmarks only (benches/, docs/migration/benchmarks.md); never in the app binary.
 # 0.7: the last release whose MSRV (1.80) is below the workspace's 1.85.
