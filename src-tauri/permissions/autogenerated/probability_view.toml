@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-probability-view"
+description = "Enables the probability_view command without any pre-configured scope."
+commands.allow = ["probability_view"]
+
+[[permission]]
+identifier = "deny-probability-view"
+description = "Denies the probability_view command without any pre-configured scope."
+commands.deny = ["probability_view"]

@@ -1,0 +1,72 @@
+{#- CORREGIDO (D40, Fase 3) de mltutor/algorithms/code_examples.py::TEXT_TREE_CODE.
+    Pestaña 📉 Visualización → 📝 Texto: show_code_with_download(código, "Código para obtener el texto
+    del árbol", "texto_arbol.py"). Sin variables.
+    Python llamaba a export_text sin class_names, así que las hojas decían "class: 0" (el código) en
+    lugar de "class: setosa", y el parámetro show_class_name de get_tree_text no hacía nada.
+    Aquí se pasan los nombres en el orden de model.classes_ (es lo que exige export_text). El literal
+    de Python queda en tests/parity/code/trees.json (python_text). Diferencias con ese literal:
+      def get_tree_text(model, feature_names, show_class_name=True)
+          -> def get_tree_text(model, feature_names, class_names=None)
+      docstring de show_class_name -> el de class_names
+      export_text(model, feature_names=feature_names, show_weights=True)
+          -> + class_names=nombres_clase (None en regresión)
+      tree_text = get_tree_text(tree_model, feature_names)
+          -> get_tree_text(tree_model, feature_names, class_names)
+    CORREGIDO (F6, 2026-10-20, tools/verify_exports.py): class_names es el diccionario
+    {valor de la clase: nombre} (nombre_clase de arbol_entrenamiento.py.j2), como en camino_decision y
+    visualizar_arbol. Con la lista en el orden de los códigos, un CSV con clases 1, 2, 3 daba IndexError o
+    el nombre de otra clase (model.classes_ guarda esos valores); una lista solo se acepta si las clases
+    son 0, 1, 2... y si no, ValueError con un mensaje claro. El ejemplo pasa nombre_clase.
+-#}
+from sklearn.tree import export_text
+
+def get_tree_text(model, feature_names, class_names=None):
+    """
+    Obtiene una representación de texto de un árbol de decisión.
+
+    Parameters:
+    -----------
+    model : DecisionTreeClassifier o DecisionTreeRegressor
+        Modelo de árbol entrenado
+    feature_names : list
+        Nombres de las características
+    class_names : dict, optional
+        Solo para clasificación: el diccionario {valor de la clase: nombre} (nombre_clase en el
+        script de entrenamiento). Una lista en el orden de los códigos solo se acepta si las
+        clases del modelo son 0, 1, 2...
+        Sin ellos, las hojas muestran el código de la clase ("class: 0").
+
+    Returns:
+    --------
+    str
+        Representación de texto del árbol
+    """
+    nombres_clase = None
+    if class_names is not None and hasattr(model, "classes_"):
+        if not isinstance(class_names, dict):
+            # Una lista (nombres en el orden de los códigos) solo vale si las clases del modelo
+            # son 0, 1, 2...; con otros valores (1, 2, 3 en un CSV) daría el nombre de otra clase
+            if model.classes_.tolist() != list(range(len(model.classes_))):
+                raise ValueError(
+                    "class_names es una lista, pero las clases del modelo son "
+                    f"{model.classes_.tolist()}: pasa el diccionario nombre_clase "
+                    "{valor de la clase: nombre} del script de entrenamiento")
+            class_names = dict(enumerate(class_names))
+        # export_text quiere un nombre por cada clase que vio el modelo, en el orden de classes_
+        nombres_clase = [str(class_names[c]) for c in model.classes_]
+    return export_text(
+        model,
+        feature_names=feature_names,
+        class_names=nombres_clase,
+        show_weights=True
+    )
+
+# Ejemplo de uso, a continuación del script de entrenamiento: tree_model es su modelo,
+# feature_names sus nombres y nombre_clase el diccionario {valor de la clase: nombre}
+# (None en regresión)
+tree_text = get_tree_text(tree_model, feature_names, nombre_clase)
+print(tree_text)
+
+# Para guardar a un archivo:
+# with open('arbol_texto.txt', 'w') as f:
+#     f.write(tree_text)

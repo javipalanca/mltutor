@@ -1,0 +1,161 @@
+{
+  "meta": {
+    "format_version": 1,
+    "generator": "tools/export_golden.py",
+    "generated": "2026-10-13",
+    "versions": {
+      "python": "3.11.14",
+      "numpy": "1.26.4",
+      "pandas": "2.3.3",
+      "scipy": "1.16.3",
+      "scikit-learn": "1.7.2",
+      "seaborn": "0.13.2",
+      "platform": "Darwin-arm64"
+    },
+    "seed": 42,
+    "tolerance": {
+      "data_abs": 0.0,
+      "hash": "exact"
+    },
+    "tolerance_rationale": "Static data: the embedded CSV must reproduce the matrix exactly. CSV floats use Python's shortest round-trip repr, so parsing them as f64 is lossless and data_sha256_f64 must match bit for bit."
+  },
+  "input": {
+    "app_label": "⛽ MPG - Consumo combustible (regresión)",
+    "source": "seaborn.load_dataset('mpg').dropna() -- NETWORK (cached in seaborn.get_data_home(), ~/Library/Caches/seaborn on macOS); the bundled mpg.csv / load_mpg_dataset() is NOT used by this path",
+    "d8": "Label columns are NOT features (decision D8): the app LabelEncodes them as features; the fixture keeps their original text in the CSV for exploration only. 'columns', 'shape', 'feature_names', 'data_sha256_f64' and 'dataset_info.features' exclude them."
+  },
+  "expected": {
+    "csv": "data/mpg.csv",
+    "csv_sha256": "395f15cffb89f65387527bf2482f0fd067e31ec1b3e16eb665c425a9221978ac",
+    "csv_bytes": 19794,
+    "data_sha256_f64": "a34acc9c31b5974862e7bbb52fcc721c1efda1822ef85aa1fb173c80820e13e8",
+    "data_sha256_f64_definition": "sha256 of row-major little-endian f64 values, each row = feature columns in 'columns' order followed by the target",
+    "shape": [
+      392,
+      7
+    ],
+    "columns": [
+      "cylinders",
+      "displacement",
+      "horsepower",
+      "weight",
+      "acceleration",
+      "model_year",
+      "origin"
+    ],
+    "label_columns": [
+      "name"
+    ],
+    "csv_columns": [
+      "cylinders",
+      "displacement",
+      "horsepower",
+      "weight",
+      "acceleration",
+      "model_year",
+      "origin",
+      "name",
+      "mpg"
+    ],
+    "dtypes": {
+      "cylinders": "int64",
+      "displacement": "float64",
+      "horsepower": "float64",
+      "weight": "int64",
+      "acceleration": "float64",
+      "model_year": "int64",
+      "origin": "int64"
+    },
+    "feature_names": [
+      "cylinders",
+      "displacement",
+      "horsepower",
+      "weight",
+      "acceleration",
+      "model_year",
+      "origin"
+    ],
+    "target_name": "mpg",
+    "target_dtype": "float64",
+    "class_names": null,
+    "task_type": "Regresión",
+    "dataset_info": {
+      "description": "MPG: 392 muestras limpias, 7 características, consumo de combustible (regresión)",
+      "target": "mpg",
+      "task_type": "Regresión",
+      "samples": 392,
+      "features": 7,
+      "classes": null
+    },
+    "target_summary": {
+      "min": 9.0,
+      "max": 46.6,
+      "mean": 23.445918367346938,
+      "std_ddof1": 7.8050074865717995,
+      "median": 22.75
+    },
+    "index_is_range": false,
+    "head": [
+      {
+        "features": [
+          8,
+          307.0,
+          130.0,
+          3504,
+          12.0,
+          70,
+          2
+        ],
+        "target": 18.0
+      },
+      {
+        "features": [
+          8,
+          350.0,
+          165.0,
+          3693,
+          11.5,
+          70,
+          2
+        ],
+        "target": 15.0
+      },
+      {
+        "features": [
+          8,
+          318.0,
+          150.0,
+          3436,
+          11.0,
+          70,
+          2
+        ],
+        "target": 18.0
+      },
+      {
+        "features": [
+          8,
+          304.0,
+          150.0,
+          3433,
+          12.0,
+          70,
+          2
+        ],
+        "target": 16.0
+      },
+      {
+        "features": [
+          8,
+          302.0,
+          140.0,
+          3449,
+          10.5,
+          70,
+          2
+        ],
+        "target": 17.0
+      }
+    ]
+  }
+}

@@ -1,4 +1,4 @@
-import streamlit.components.v1 as components
+from mltutor.desktop import ui as components
 import plotly.express as px
 import io
 import base64
@@ -6,30 +6,30 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import streamlit as st
+from mltutor.desktop import ui as st
 
-from utils import (
+from mltutor.utils import (
     get_image_download_link, generate_model_code, export_model_pickle, export_model_onnx,
     create_info_box, format_number, show_code_with_download
 )
-from viz.tree_visualizer import (
+from mltutor.viz.tree_visualizer import (
     render_tree_visualization,
     create_tree_visualization, get_tree_text
 )
-from ui import (
+from mltutor.ui import (
     setup_page, init_session_state, show_welcome_page, show_footer,
     display_feature_importance, display_model_export_options, create_prediction_interface
 )
 from sklearn.model_selection import train_test_split
 
-from viz.decision_boundary import plot_decision_boundary
-from algorithms.model_evaluation import evaluate_classification_model, evaluate_regression_model, show_detailed_evaluation
-from algorithms.model_training import train_decision_tree, predict_sample, train_linear_model, train_knn_model
-from dataset.dataset_manager import load_data, preprocess_data, create_dataset_selector, load_dataset_from_file
-from apps.decission_tree_app import run_decision_trees_app
-from apps.linear_regression_app import run_linear_regression_app
-from apps.knn_app import run_knn_app
-from apps.neural_network_app import run_neural_networks_app
+from mltutor.viz.decision_boundary import plot_decision_boundary
+from mltutor.algorithms.model_evaluation import evaluate_classification_model, evaluate_regression_model, show_detailed_evaluation
+from mltutor.algorithms.model_training import train_decision_tree, predict_sample, train_linear_model, train_knn_model
+from mltutor.dataset.dataset_manager import load_data, preprocess_data, create_dataset_selector, load_dataset_from_file
+from mltutor.apps.decission_tree_app import run_decision_trees_app
+from mltutor.apps.linear_regression_app import run_linear_regression_app
+from mltutor.apps.knn_app import run_knn_app
+from mltutor.apps.neural_network_app import run_neural_networks_app
 
 
 def main():

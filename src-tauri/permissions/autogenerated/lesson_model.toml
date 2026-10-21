@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-lesson-model"
+description = "Enables the lesson_model command without any pre-configured scope."
+commands.allow = ["lesson_model"]
+
+[[permission]]
+identifier = "deny-lesson-model"
+description = "Denies the lesson_model command without any pre-configured scope."
+commands.deny = ["lesson_model"]

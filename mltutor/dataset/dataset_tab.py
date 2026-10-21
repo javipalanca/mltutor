@@ -1,12 +1,12 @@
-import streamlit as st
+from mltutor.desktop import ui as st
 import pandas as pd
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-from dataset.dataset_manager import load_data, reset_moons_dataset
-from utils import create_info_box, get_image_download_link, show_code_with_download
-from algorithms.code_examples import SCATTERPLOT_MATRIX
+from mltutor.dataset.dataset_manager import load_data, reset_moons_dataset
+from mltutor.utils import create_info_box, get_image_download_link, show_code_with_download
+from mltutor.algorithms.code_examples import SCATTERPLOT_MATRIX
 
 
 def run_dataset_tab(active_tab, tips=None):

@@ -3,7 +3,7 @@ Este módulo contiene funciones para evaluar modelos de árboles de decisión.
 Incluye funciones para calcular métricas y visualizar resultados de clasificación y regresión.
 """
 
-import streamlit as st
+from mltutor.desktop import ui as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -15,8 +15,8 @@ from sklearn.metrics import (
 
 )
 
-from utils import get_image_download_link, show_code_with_download
-from algorithms.code_examples import (
+from mltutor.utils import get_image_download_link, show_code_with_download
+from mltutor.algorithms.code_examples import (
     CONFUSION_MATRIX_CODE,
     PRECISION_CODE,
     PRED_VS_REAL_CODE,

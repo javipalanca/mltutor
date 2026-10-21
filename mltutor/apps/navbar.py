@@ -1,4 +1,4 @@
-import streamlit as st
+from mltutor.desktop import ui as st
 
 
 def navbar(active_tab_str, prev_msg, next_msg, prev_note=None, next_note=None):

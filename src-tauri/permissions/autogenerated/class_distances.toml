@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-class-distances"
+description = "Enables the class_distances command without any pre-configured scope."
+commands.allow = ["class_distances"]
+
+[[permission]]
+identifier = "deny-class-distances"
+description = "Denies the class_distances command without any pre-configured scope."
+commands.deny = ["class_distances"]

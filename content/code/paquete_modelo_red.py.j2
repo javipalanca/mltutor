@@ -1,0 +1,130 @@
+{#- NUEVO (decisiones D1 y D75, Fase 5): script del "📦 Paquete Keras (.zip)" de 💾 Exportar en la lección
+    🧠 Redes Neuronales. Sustituye a los botones de Python "🤖 Modelo TensorFlow" (SavedModel ZIP, HDF5,
+    TFLite) y "📊 Modelo Completo" (pickle con modelo + scaler + label encoder + configuración), que Rust no
+    puede generar sin incluir TensorFlow. Reconstruye en Keras la MISMA red que ha entrenado MLTutor (API
+    funcional, mismos nombres de capa, mismos pesos), comprueba que da las mismas salidas que la app y la
+    guarda en todos esos formatos. Verificado ejecutándolo en tests/parity/nn/exact/*.json
+    (expected.export_package).
+    Variables (pásalas todas):
+      dataset     str   nombre del dataset (texto del usuario si es un CSV: va con pycomment)
+      task        str   "classification" o "regression"
+      json_name   str   "modelo.json"
+-#}
+"""
+Reconstruye en Keras la red neuronal entrenada en MLTutor y la guarda en varios formatos.
+
+Dataset: {{ dataset | pycomment }}
+
+Uso (en la carpeta donde has descomprimido el ZIP):
+    pip install tensorflow scikit-learn numpy
+    python reconstruir_modelo.py
+
+Genera:
+    modelo_red.keras            formato nativo de Keras 3 (keras.models.load_model)
+    modelo_red.h5               HDF5, el formato antiguo de Keras
+    modelo_red_savedmodel/      SavedModel de TensorFlow (TF Serving, conversores)
+    modelo_red.tflite           TensorFlow Lite (móviles y dispositivos pequeños)
+    scaler.pkl                  el StandardScaler: aplícalo a los datos antes de predecir
+    modelo_completo.pkl         modelo + scaler + configuración en un solo archivo (como MLTutor)
+"""
+import json
+import pickle
+
+import numpy as np
+import tensorflow as tf
+
+# Calcular en la CPU, como MLTutor. En los Mac con tensorflow-metal (GPU), model.predict puede
+# dar salidas distintas a las de la red (comprobado con tensorflow-metal 1.2.0).
+tf.config.set_visible_devices([], "GPU")
+import keras  # noqa: E402
+from sklearn.preprocessing import StandardScaler  # noqa: E402
+
+# 1. Leer la arquitectura, los pesos y el escalador que ha usado MLTutor
+with open("{{ json_name }}", encoding="utf-8") as f:
+    datos = json.load(f)
+
+# 2. Construir la misma red: Dense + Dropout por cada capa oculta y la capa de salida
+entrada = keras.layers.Input(shape=(len(datos["feature_names"]),), name="input_layer")
+x = entrada
+for i, capa in enumerate(datos["layers"][:-1], start=1):
+    x = keras.layers.Dense(capa["units"], activation=capa["activation"], name=capa["name"])(x)
+    x = keras.layers.Dropout(datos["dropout_rate"], name=f"dropout_{i}")(x)
+ultima = datos["layers"][-1]
+salida = keras.layers.Dense(ultima["units"], activation=ultima["activation"], name=ultima["name"])(x)
+modelo = keras.Model(inputs=entrada, outputs=salida, name="neural_network")
+
+# 3. Poner los pesos aprendidos (kernel y sesgo de cada capa densa) y compilar como MLTutor
+modelo.set_weights([np.array(w, dtype="float32") for capa in datos["layers"]
+                    for w in (capa["kernel"], capa["bias"])])
+optimizadores = {"adam": keras.optimizers.Adam, "sgd": keras.optimizers.SGD,
+                 "rmsprop": keras.optimizers.RMSprop}
+modelo.compile(optimizer=optimizadores[datos["optimizer"]["name"]](
+                   learning_rate=datos["optimizer"]["learning_rate"]),
+               loss=datos["loss"], metrics=[datos["metric"]])
+
+# 4. El escalador: media y desviación de cada característica (StandardScaler)
+scaler = StandardScaler()
+scaler.mean_ = np.array(datos["scaler"]["mean"], dtype=float)
+scaler.scale_ = np.array(datos["scaler"]["scale"], dtype=float)
+scaler.var_ = scaler.scale_ ** 2
+scaler.n_features_in_ = len(scaler.mean_)
+scaler.n_samples_seen_ = datos["scaler"]["n_samples"]
+
+# 5. Comprobar que la red reconstruida da las mismas salidas que MLTutor
+X = np.array(datos["check"]["X"], dtype=float)
+esperada = np.array(datos["check"]["output"], dtype=float)
+obtenida = modelo.predict(scaler.transform(X), verbose=0)
+# Keras calcula en float32 (unos 7 dígitos significativos): con salidas grandes (precios de cientos de
+# miles) la diferencia absoluta puede pasar de 0,01 aunque la red sea la misma. Por eso la tolerancia
+# es relativa al tamaño de la salida (y absoluta, 1e-4, para las salidas cercanas a 0).
+diferencia = np.abs(obtenida - esperada)
+error = float(np.max(diferencia))
+error_relativo = float(np.max(diferencia / np.maximum(1.0, np.abs(esperada))))
+if not np.allclose(obtenida, esperada, rtol=1e-5, atol=1e-4):
+    raise SystemExit(f"❌ La red reconstruida no coincide con MLTutor (error máximo {error:.2e}, "
+                     f"relativo {error_relativo:.2e}). Comprueba que modelo.json no se ha modificado.")
+print(f"✅ La red reconstruida da las mismas salidas que MLTutor (error máximo {error:.1e}, "
+      f"relativo {error_relativo:.1e})")
+
+# 6. Guardar en cada formato (si alguno falla en tu versión de TensorFlow, los demás siguen)
+def guardar(nombre, funcion):
+    try:
+        funcion()
+        print(f"💾 {nombre}")
+    except Exception as exc:  # noqa: BLE001 - se informa y se sigue con el siguiente formato
+        print(f"⚠️ No se pudo guardar {nombre}: {exc}")
+
+guardar("modelo_red.keras", lambda: modelo.save("modelo_red.keras"))
+guardar("modelo_red.h5", lambda: modelo.save("modelo_red.h5"))
+guardar("modelo_red_savedmodel/", lambda: modelo.export("modelo_red_savedmodel", verbose=False))
+
+
+def a_tflite():
+    import tensorflow as tf
+
+    convertidor = tf.lite.TFLiteConverter.from_saved_model("modelo_red_savedmodel")
+    with open("modelo_red.tflite", "wb") as f:
+        f.write(convertidor.convert())
+
+
+guardar("modelo_red.tflite", a_tflite)
+
+
+def a_pickle(nombre, objeto):
+    with open(nombre, "wb") as f:
+        pickle.dump(objeto, f)
+
+
+guardar("scaler.pkl", lambda: a_pickle("scaler.pkl", scaler))
+guardar("modelo_completo.pkl", lambda: a_pickle("modelo_completo.pkl", {
+    "model": modelo, "scaler": scaler, "feature_names": datos["feature_names"],
+    "class_names": datos["class_names"], "config": datos["config"]}))
+
+# Ejemplo de uso:
+# modelo = keras.models.load_model("modelo_red.keras")
+# with open("scaler.pkl", "rb") as f:
+#     scaler = pickle.load(f)
+# salida = modelo.predict(scaler.transform([[{% raw %}valor1, valor2, ...{% endraw %}]]))  # en el orden de datos["feature_names"]
+{%- if task == "classification" %}
+# Clase: np.argmax(salida, axis=1) con varias neuronas de salida, o (salida > 0.5) con una
+{%- endif %}

@@ -1,0 +1,206 @@
+# Textos cortos de la lección 🌲 Árboles de Decisión (mltutor/apps/decission_tree_app.py,
+# mltutor/algorithms/export.py::display_tree_export_options,
+# mltutor/algorithms/model_evaluation.py::show_prediction_path), literales.
+# {llaves} = valores que se sustituyen; formato numérico con la sintaxis de Python ({x:.4f}).
+# Cabecera, subtítulo, pestañas y navbar: content/inicio/navegacion.toml. Expander de la cabecera:
+# intro.md. Textos de los componentes compartidos (evaluación, ROC, residuos, frontera, formulario,
+# importancia, bloques de código): content/componentes/mensajes.toml.
+#
+# Marcas:  "NUEVO (Dnn)" = texto que no existe en Python, exigido por una decisión de
+# fase3-arboles.md §10.  "CORREGIDO (Dnn)" = el texto de Python era incorrecto; el literal
+# original queda en el comentario "Python:". Los tests de paridad de textos usan el literal de
+# Python solo para las claves sin marca.
+
+[entrenamiento]
+header = "Configuración del Modelo"                          # st.header
+info_titulo = "### Información del Dataset"
+# a continuación create_info_box(dataset_info) (igual que en Regresión, F2)
+tipo_titulo = "### Tipo de Árbol de Decisión"
+btn_clasificacion = "🏷️ Clasificación"                       # key btn_classification, primary si tree_type == "Clasificación"
+btn_clasificacion_help = "Para predecir categorías o clases"
+btn_regresion = "📈 Regresión"                               # key btn_regression
+btn_regresion_help = "Para predecir valores numéricos continuos"
+# st.warning debajo de los botones si tree_type != tarea del dataset. {tarea} = "Clasificación" o "Regresión"
+aviso_tipo = "Este dataset parece ser más adecuado para {tarea}. La selección actual podría no ofrecer resultados óptimos."
+error_carga = "Error al cargar el dataset: {error}"          # st.error
+parametros_titulo = "### Parámetros del Modelo"
+criterio_label = "Criterio de División:"                     # selectbox sin key, índice 0
+criterio_opciones_clasificacion = ["gini", "entropy"]
+criterio_opciones_regresion = ["squared_error", "friedman_mse", "absolute_error"]
+# CORREGIDO (Fase 3, revisión de contenido): el selector de regresión ofrece tres criterios y la
+# ayuda solo nombraba uno.
+# Python: "Medida de la calidad de una división. Gini o Entropy para clasificación, MSE para regresión."
+criterio_help = "Medida de la calidad de una división. Gini o Entropy para clasificación; MSE (squared_error), Friedman MSE o error absoluto (absolute_error) para regresión."
+# NUEVO (Fase 3): expanders cerrados debajo de los dos deslizadores de cada columna, antes del botón.
+criterios_expander = "ℹ️ ¿Cómo elige el árbol cada pregunta?"     # criterios.md
+parametros_expander = "ℹ️ Profundidad, muestras mínimas y sobreajuste"   # parametros.md
+profundidad_label = "Profundidad Máxima:"                    # slider 1..10, 3
+profundidad_help = "La profundidad máxima del árbol. A mayor profundidad, más complejo el modelo."
+min_muestras_label = "Muestras Mínimas para División:"       # slider 2..10, 2
+min_muestras_help = "Número mínimo de muestras para dividir un nodo."
+test_size_label = "Tamaño del Conjunto de Prueba:"           # slider 0.1..0.5 paso 0.05, 0.3
+test_size_help = "Proporción de datos que se usará para evaluar el modelo."
+btn_entrenar = "Entrenar Modelo"                             # primary, SIN key y sin emoji (en Regresión es "🚀 Entrenar Modelo")
+spinner = "Entrenando modelo..."
+exito = "¡Modelo entrenado con éxito! Ahora puedes explorar las otras pestañas."   # st.success
+# CORREGIDO (D49): la pestaña se llama "📉 Visualización".
+# Python: "👉 Ve a la pestaña '🌲 Visualización' para ver el árbol generado."
+ir_a_visualizacion = "👉 Ve a la pestaña '📉 Visualización' para ver el árbol generado."   # st.info
+error_entrenar = "Error al entrenar el modelo: {error}"      # st.error
+# NUEVO (D37): st.error en lugar de entrenar un clasificador con un objetivo continuo (Python
+# entrenaba 192 "clases" en Diabetes y fallaba en inglés en California: "Unknown label type:
+# continuous..."). {dataset} = nombre del dataset.
+error_clasificacion_regresion = "Un árbol de clasificación necesita una variable objetivo con clases. Elige 📈 Regresión o un dataset de clasificación."
+# NUEVO (D37): st.info debajo de aviso_tipo cuando se elige 📈 Regresión en un dataset de
+# clasificación (se permite entrenar, como en Python).
+aviso_regresion_en_clasificacion = "El árbol de regresión tratará los códigos de las clases (0, 1, 2…) como números: predecirá valores como 1,4 que no son ninguna clase y se evaluará con MSE y R², no con la exactitud. Sirve para comparar, pero para clasificar usa 🏷️ Clasificación."
+error_clasificacion_regresion_detalle = "En **{dataset}** el objetivo es un número continuo. Si se forzara la clasificación, cada valor distinto del objetivo se convertiría en una «clase» con uno o dos ejemplos (en 🩺 Diabetes saldrían cerca de 200) y el árbol no tendría sentido."   # st.info debajo del error
+# NUEVO (revisión ML de F3, 2026-10-15): st.error en lugar de entrenar con criterion="absolute_error" y
+# más de {max} filas de entrenamiento (src-tauri models.rs MAE_MAX_TRAIN = 20000). {n} = filas de
+# entrenamiento, {max} = el límite (enteros sin separador de miles). Python entrenaba y se quedaba
+# minutos sin responder (California: 14448 filas de entrenamiento, aún por debajo del límite).
+mae_limite = "El criterio absolute_error es muy lento con muchos datos: para elegir cada pregunta tiene que calcular la mediana de cada posible rama, y su coste crece con el cuadrado de las muestras del nodo. Con {n} muestras de entrenamiento (el máximo es {max}) tardaría demasiado. Usa squared_error, que es mucho más rápido y suele dar un árbol parecido, o aumenta el tamaño del conjunto de prueba para entrenar con menos filas."
+# NUEVO (revisión ML de F3, 2026-10-15): st.error en lugar de entrenar si alguna característica tiene
+# valores faltantes (celdas vacías de un CSV) o infinitos. {columnas} = nombres de esas columnas,
+# separados por ", ". Lo usan todas las lecciones (models.rs::missing_values_error). scikit-learn
+# >= 1.3 admite NaN en los árboles, pero MLTutor exige datos completos.
+error_nan = "El dataset tiene valores faltantes (celdas vacías) o no válidos (infinitos) en: {columnas}. MLTutor necesita que todas las características tengan un valor en cada fila para entrenar. Puedes eliminar las filas incompletas (en pandas, df.dropna()) o rellenar los huecos (imputar), por ejemplo con la mediana de la columna o con la categoría más frecuente. Si imputas, calcula esos valores solo con los datos de entrenamiento: usarlos también de la prueba es una fuga de datos. Después vuelve a cargar el CSV."
+
+[comun]
+# Python usa el mismo st.warning en las pestañas 2–6 sin modelo (Regresión usa st.info con otros textos).
+sin_entrenar = "Primero debes entrenar un modelo en la pestaña '🏋️ Entrenamiento'."
+# NUEVO (D32, de F2): los mismos textos que content/regresion/mensajes.toml [comun]
+# (modelo_entrenado_con, aviso_dataset_cambiado); se reutilizan desde allí.
+# NUEVO (D45): las pestañas 2–6 usan el modelo entrenado y su configuración, no los controles
+# actuales. `config_modelo` va debajo de modelo_entrenado_con; `aviso_config_cambiada` (st.warning)
+# solo si el tipo de árbol, el criterio, la profundidad, las muestras mínimas o el tamaño de
+# prueba de 🏋️ Entrenamiento ya no coinciden con los del modelo. {tarea} = "clasificación" o
+# "regresión"; {prueba_pct} = test_size·100 sin decimales (30).
+config_modelo = "🌲 Árbol de {tarea}: criterio `{criterio}`, profundidad máxima {max_depth}, muestras mínimas para división {min_samples_split}, prueba {prueba_pct} % · {nodos} nodos, {hojas} hojas, profundidad real {profundidad}"
+aviso_config_cambiada = "⚠️ Has cambiado la configuración en 🏋️ Entrenamiento, pero estas pestañas siguen mostrando el árbol entrenado con la anterior. Pulsa «Entrenar Modelo» para aplicarla."
+
+[evaluacion]
+header = "Evaluación del Modelo"
+
+[visualizacion]
+header = "Visualización del Árbol"
+tipo_titulo = "### Tipo de visualización"
+# Paneles de subvistas (create_button_panel): (etiqueta, valor, key)
+comunes = [["🌲 Árbol", "Árbol", "viz_tree"], ["📝 Texto", "Texto", "viz_text"]]
+clasificacion = [["🌈 Frontera de Decisión", "Frontera", "viz_boundary"], ["📉 Curva ROC", "ROC", "viz_roc"]]
+regresion = [["📈 Análisis de Residuos", "Residuos", "viz_residuals"], ["🌐 Superficie de Decisión", "Superficie", "viz_surface"]]
+ancho_label = "Ancho de figura:"                             # slider 8..20, 14 (pulgadas de matplotlib; en Rust, D41)
+alto_label = "Alto de figura:"                               # slider 6..15, 10
+descarga_arbol = "📥 Descargar visualización del árbol"      # arbol_decision.png (300 dpi)
+codigo_arbol = "Código para visualizar el árbol"             # visualizar_arbol.py (content/code/visualizar_arbol.py.j2)
+descarga_texto = "📥 Descargar texto del árbol"              # arbol_texto.txt
+# NUEVO (D40): st.caption encima del bloque de texto (Python mostraba los códigos, "class: 0").
+texto_nota = "Cada nivel de sangría es una pregunta: `<=` es la rama izquierda y `>` la derecha. En las hojas, `weights` son las muestras de entrenamiento de cada clase (o `value`, el valor predicho, en regresión) y `class`, la clase predicha."
+codigo_texto = "Código para obtener el texto del árbol"       # texto_arbol.py (content/code/texto_arbol.py.j2)
+residuos_titulo_pred = "### 📊 Gráfico de Predicciones vs Valores Reales"
+residuos_titulo = "### 📈 Análisis de Residuos"
+frontera_error = "Error al mostrar la visualización de frontera de decisión: {error}"   # st.error + st.info siguiente + st.exception
+frontera_error_info = """La frontera de decisión requiere:
+- Un modelo de clasificación entrenado
+- Exactamente 2 características para visualizar
+- Datos de entrenamiento válidos"""
+frontera_solo_clasificacion = "La visualización de frontera de decisión solo está disponible para modelos de clasificación."   # st.warning (inalcanzable)
+roc_error = "Error al mostrar las curvas ROC: {error}"       # st.error + st.info siguiente + st.exception
+roc_error_info = """Las curvas ROC requieren:
+- Un modelo de clasificación entrenado
+- Datos de prueba válidos
+- Modelo con método predict_proba"""
+roc_solo_clasificacion = "Las curvas ROC solo están disponibles para modelos de clasificación."   # st.warning (inalcanzable)
+# NUEVO (D41): ayuda bajo el diagrama SVG interactivo (la versión Python no tenía zoom).
+arbol_ayuda = "🖱️ Usa la rueda del ratón o los botones para acercar y alejar, y arrastra para moverte. Pasa el ratón por un nodo para ver sus detalles."
+# NUEVO (D42): segundo formato de descarga del diagrama.
+descarga_arbol_svg = "📥 Descargar el árbol como SVG"         # arbol_decision.svg
+# NUEVO (revisión de F3, 2026-10-15): tooltip del botón descarga_arbol (PNG) cuando está desactivado
+# porque el árbol no cabe en un PNG legible (límite del canvas: 16 000 px por lado a 3×).
+descarga_arbol_png_grande = "El árbol es demasiado grande para un PNG legible: las cajas saldrían diminutas. Descárgalo en SVG, que es vectorial y se puede ampliar sin perder nitidez."
+# NUEVO (D41): expander cerrado debajo de arbol_ayuda.
+leer_arbol_expander = "📖 Cómo leer el árbol"                 # leer-arbol.md
+
+[caracteristicas]
+header = "Importancia de Características"
+# El contenido es el componente C10 (content/componentes/mensajes.toml [importancia]).
+# NUEVO (D38): panel de dos subvistas; la primera es la de Python.
+panel = [["🌳 Importancia del modelo", "Nativa", "imp_native"], ["🔀 Importancia por permutación", "Permutacion", "imp_permutation"]]
+# NUEVO (D38): st.caption debajo del panel, distinto en cada subvista.
+panel_nativa_nota = "Cuánto ha reducido cada característica la impureza al construir el árbol, con los datos de entrenamiento. Suma 1."
+panel_permutacion_nota = "Cuánto empeora el modelo con los datos de prueba si se barajan los valores de cada característica (10 repeticiones, random_state=42)."
+# NUEVO (D38): expander cerrado al final de las dos subvistas, después del de componentes
+# [importancia] expander.
+comparar_expander = "⚖️ ¿Por qué no coinciden las dos importancias?"   # importancia.md
+
+[predicciones]
+header = "🔮 Predicciones con Nuevos Datos"
+# Formulario y tarjeta: content/componentes/mensajes.toml [prediccion]; camino_titulo = "### Camino de decisión"
+# show_prediction_path: una línea por nodo interno del camino (la hoja no se describe), unidas con "\n".
+# {valor} es la entrada convertida a float32; {umbral} el umbral float64 del nodo.
+camino_menor_igual = "- {nombre} = {valor:.4f} ≤ {umbral:.4f} ✅"
+camino_mayor = "- {nombre} = {valor:.4f} > {umbral:.4f} ✅"
+codigo_camino = "Código para generar el camino de decisión"   # camino_decision.py (content/code/camino_decision.py.j2)
+error_camino = "Error al mostrar el camino de decisión: {error}"
+error_camino_info = "Intenta reformatear los datos de entrada o verificar que el modelo sea compatible."
+# NUEVO (D46): última línea del camino y tabla de probabilidades de la hoja (clasificación).
+camino_hoja_clasificacion = "- 🍃 Hoja {nodo}: **{clase}** (probabilidad {probabilidad:.3f}, {muestras} muestras de entrenamiento)"
+camino_hoja_regresion = "- 🍃 Hoja {nodo}: **{valor:.4f}** (media de {muestras} muestras de entrenamiento)"
+camino_hoja_regresion_mediana = "- 🍃 Hoja {nodo}: **{valor:.4f}** (mediana de {muestras} muestras de entrenamiento)"   # absolute_error
+# NUEVO (D46): valor legible de las características categóricas en el camino, p. ej. "Sexo = 0 (Mujer)".
+camino_valor_categorico = "{codigo:g} ({etiqueta})"
+# NUEVO (D46): título de la tabla de probabilidades de la hoja (clasificación; reutiliza
+# ProbabilityTable de C9) y expander cerrado debajo del camino.
+probabilidades_titulo = "#### Probabilidades de la hoja"
+probabilidades_nota = "Proporción de cada clase entre las {muestras} muestras de entrenamiento que llegaron a la hoja {nodo}."
+hoja_expander = "📖 Cómo se obtiene la predicción"            # prediccion-hoja.md
+
+[exportar]
+header = "Exportar Modelo"
+formatos_titulo = "#### Formatos de Exportación"
+# Python: 3 columnas con botones; cada uno muestra un st.download_button al pulsarlo.
+btn_pickle = "📦 Exportar como Pickle"                       # → "Descargar Modelo (.pkl)", decision_tree_model.pkl (D43: lo sustituye el paquete Python)
+descargar_pickle = "Descargar Modelo (.pkl)"
+btn_reglas = "📝 Exportar Reglas como Texto"                 # → export_text(model, feature_names) SIN show_weights
+descargar_reglas = "Descargar Reglas (.txt)"                 # decision_tree_rules.txt
+btn_codigo = "🐍 Exportar como Código Python"                # → export_tree_as_python_code
+descargar_codigo = "Descargar Código Python (.py)"           # arbol_decision.py
+vista_previa_titulo = "#### 👀 Vista Previa del Código Python"
+vista_previa_expander = "Ver código Python del árbol"        # cerrado
+# st.info dentro del expander. {primeras} = las 3 primeras características unidas con ", " y "..." si hay más.
+info_codigo = """**Información del código generado:**
+- 🌳 **Nodos totales:** {nodos}
+- 🍃 **Nodos hoja:** {hojas}
+- 📏 **Profundidad máxima:** {profundidad}
+- 📊 **Características:** {n} ({primeras})
+- 🎯 **Tipo de tarea:** {tarea}
+
+Este código es completamente **autocontenido** y no requiere scikit-learn para ejecutarse."""
+codigo_uso = "Código para Usar el Modelo"                    # usar_modelo.py (content/code/usar_modelo_arbol.py.j2)
+# NUEVO (D43): botones de Rust (D1/D28), en la fila de "Formatos de Exportación".
+btn_onnx = "💾 Exportar a ONNX"                              # arbol_decision.onnx (TreeEnsembleClassifier/Regressor)
+btn_paquete = "📦 Paquete Python (.zip)"                     # modelo_arbol.zip: modelo.json + reconstruir_modelo.py + LEEME.txt
+exportado = "Guardado: {archivo}"                            # barra de estado / st.success tras el diálogo
+error_guardado = "Error al exportar el modelo: {error}"     # st.error (como F2)
+btn_onnx_help = "Guarda el árbol entrenado en formato ONNX, un estándar abierto que puedes usar desde Python (onnxruntime), C#, Java o JavaScript."
+btn_paquete_help = "ZIP con el árbol (modelo.json) y un script que lo reconstruye en scikit-learn sin reentrenar y lo guarda como decision_tree_model.pkl."
+btn_reglas_help = "Las reglas del árbol en texto («si… entonces…»), para leerlas o incluirlas en un informe."
+btn_codigo_help = "Una función de Python hecha solo de if/else, sin scikit-learn, que da las mismas predicciones que el árbol."
+archivo_onnx = "arbol_decision.onnx"
+archivo_paquete = "modelo_arbol.zip"
+archivo_reglas = "decision_tree_rules.txt"
+archivo_codigo = "arbol_decision.py"
+filtro_onnx = "Modelo ONNX (*.onnx)"                         # filtros del diálogo nativo de guardar
+filtro_zip = "Paquete Python (*.zip)"
+filtro_txt = "Texto (*.txt)"
+filtro_py = "Código Python (*.py)"
+ayuda_expander = "ℹ️ ¿Qué formato elijo?"                    # cerrado, debajo de los botones; exportar.md
+# NUEVO (D44): dentro del expander de la vista previa, debajo de info_codigo.
+umbrales_expander = "🔢 ¿Por qué los umbrales tienen tantos decimales?"   # umbrales-float32.md
+# NUEVO (Fase 3, como D29 de F2): script completo de entrenamiento (content/code/arbol_entrenamiento.py.j2).
+# Quinto botón de "Formatos de Exportación" o, si no cabe, bloque propio debajo de la vista previa.
+btn_entrenamiento = "📄 Código de Entrenamiento"
+btn_entrenamiento_help = "Script de Python que repite este entrenamiento con scikit-learn: mismos datos, mismo split, mismo árbol, mismas métricas e importancias."
+entrenamiento_titulo = "Código para entrenar este árbol con scikit-learn"   # título de show_code_with_download
+archivo_entrenamiento = "arbol_decision_entrenamiento.py"
+paquete_ayuda = "El paquete contiene el árbol en JSON y un script que lo reconstruye en scikit-learn y genera `decision_tree_model.pkl`, el archivo que usa el «Código para Usar el Modelo»."

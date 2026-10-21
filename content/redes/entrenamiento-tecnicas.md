@@ -1,0 +1,5 @@
+<!-- mltutor/apps/neural_network_app.py — st.markdown bajo "#### 📚 ¿Por qué usar estas técnicas?" en el expander "⚙️ Configuración Avanzada…" de ⚙️ Entrenamiento. NUEVO en Rust (revisión de contenido de F5, 2026-10-16): la viñeta "Recuperar los mejores pesos" (EarlyStopping con restore_best_weights=True restaura los pesos de la mejor época al terminar aunque no llegue a parar: según fase5-redes.md, en 13 de 18 casos de tests/parity/nn/exact el modelo final es el de la mejor época, no el de la última; fase5-redes.md §3 C21.7). -->
+- **Early Stopping**: Evita que la red memorice los datos (sobreajuste) parando cuando la performance en validación deja de mejorar
+- **Learning Rate Reduction**: Permite un ajuste fino hacia el final del entrenamiento cuando se está cerca del óptimo
+- **Recuperar los mejores pesos**: con Early Stopping activado, al terminar la red se queda con los pesos de la época con menor pérdida de validación, aunque no haya llegado a parar (puede no ser la última)
+- **Combinadas**: Estas técnicas trabajan juntas para lograr el mejor modelo posible automáticamente

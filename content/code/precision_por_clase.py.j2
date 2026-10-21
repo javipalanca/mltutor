@@ -1,0 +1,36 @@
+{#- CORREGIDO (F6, 2026-10-20) de mltutor/algorithms/code_examples.py::PRECISION_CODE. Sin variables.
+    Se ejecuta a continuación del script de entrenamiento de la lección, que define y_test, y_pred y
+    nombre_clase ({valor de la clase: nombre}). Python llamaba a classification_report sin labels=:
+    si una clase no aparecía ni en la prueba ni en las predicciones, target_names tenía más nombres que
+    clases y fallaba con ValueError. Ahora se pasan TODAS las clases (labels=sorted(nombre_clase)) y
+    zero_division=0 (precisión 0 en una clase que nunca se predice, como la app). El literal de Python
+    queda en tests/parity/code/regression.json. -#}
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.metrics import classification_report
+import pandas as pd
+
+# Todas las clases del dataset, en orden (nombre_clase es {valor de la clase: nombre}, del script
+# de entrenamiento)
+todas = sorted(nombre_clase)
+nombres_clases = [nombre_clase[c] for c in todas]
+
+# Obtener el reporte de clasificación
+report = classification_report(y_test, y_pred, labels=todas, target_names=nombres_clases,
+                               output_dict=True, zero_division=0)
+
+# Extraer precisión por clase
+prec_by_class = {
+    nombre: report[nombre]['precision'] for nombre in nombres_clases
+}
+
+# Crear el gráfico
+fig, ax = plt.subplots(figsize=(10, 5))
+sns.barplot(x=list(prec_by_class.keys()), y=list(prec_by_class.values()), ax=ax)
+ax.set_ylim(0, 1)
+ax.set_title('Precisión por clase')
+ax.set_ylabel('Precisión')
+ax.set_xlabel('Clase')
+
+plt.tight_layout()
+plt.show()

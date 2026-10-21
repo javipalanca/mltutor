@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-nn-activations"
+description = "Enables the nn_activations command without any pre-configured scope."
+commands.allow = ["nn_activations"]
+
+[[permission]]
+identifier = "deny-nn-activations"
+description = "Denies the nn_activations command without any pre-configured scope."
+commands.deny = ["nn_activations"]

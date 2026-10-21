@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-feature-importance"
+description = "Enables the feature_importance command without any pre-configured scope."
+commands.allow = ["feature_importance"]
+
+[[permission]]
+identifier = "deny-feature-importance"
+description = "Denies the feature_importance command without any pre-configured scope."
+commands.deny = ["feature_importance"]

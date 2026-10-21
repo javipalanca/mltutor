@@ -1,0 +1,56 @@
+{#- NUEVO (D75, Fase 5): "📝 Código Python" de 💾 Exportar. Sustituye a red_predictor_plantilla.py.j2 (la
+    plantilla de Python devolvía ceros y pedía "implementar los pesos"). Es la red entrenada escrita en
+    NumPy: lee modelo.json (el mismo del paquete Keras), escala la entrada y aplica cada capa
+    (entrada · kernel + sesgo y la activación). Va también en el ZIP como predecir_numpy.py.
+    Verificado ejecutándolo en tests/parity/nn/exact/*.json (expected.export_package.numpy).
+    Variables: dataset (str, pycomment), task ("classification" | "regression"), json_name ("modelo.json").
+-#}
+"""
+La red neuronal entrenada en MLTutor, en NumPy (sin TensorFlow).
+
+Dataset: {{ dataset | pycomment }}
+
+Uso:  python predecir_numpy.py   (con {{ json_name }} en la misma carpeta)
+"""
+import json
+
+import numpy as np
+
+with open("{{ json_name }}", encoding="utf-8") as f:
+    datos = json.load(f)
+
+
+def activar(z, nombre):
+    if nombre == "relu":
+        return np.maximum(z, 0.0)
+    if nombre == "tanh":
+        return np.tanh(z)
+    if nombre == "sigmoid":
+        return 1.0 / (1.0 + np.exp(-z))
+    if nombre == "softmax":
+        e = np.exp(z - z.max(axis=1, keepdims=True))
+        return e / e.sum(axis=1, keepdims=True)
+    return z  # linear
+
+
+def predecir(X):
+    """Salida de la red para una matriz de muestras SIN escalar (una fila por muestra)."""
+    a = (np.asarray(X, dtype=float) - datos["scaler"]["mean"]) / datos["scaler"]["scale"]
+    for capa in datos["layers"]:
+        # Cada neurona suma sus entradas multiplicadas por sus pesos, más su sesgo...
+        z = a @ np.array(capa["kernel"]) + np.array(capa["bias"])
+        # ...y aplica la función de activación. El dropout solo actúa al entrenar.
+        a = activar(z, capa["activation"])
+    return a
+
+
+salida = predecir(datos["check"]["X"])
+print("Salida de la red para las filas de comprobación:")
+print(np.round(salida, 4))
+{%- if task == "classification" %}
+clases = datos["class_names"]
+indices = np.argmax(salida, axis=1) if salida.shape[1] > 1 else (salida[:, 0] > 0.5).astype(int)
+print("Clases:", [clases[i] for i in indices])
+{%- endif %}
+print("Diferencia máxima con MLTutor:",
+      float(np.max(np.abs(salida - np.array(datos["check"]["output"])))))

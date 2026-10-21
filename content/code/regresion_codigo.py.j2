@@ -1,0 +1,14 @@
+import pickle
+
+# Guardar modelo
+with open('modelo_regresion_logistica.pkl', 'wb') as f:
+    pickle.dump(model, f)
+
+# Cargar modelo guardado
+with open('modelo_regresion_logistica.pkl', 'rb') as f:
+    modelo_cargado = pickle.load(f)
+
+# Ejemplo de uso para nuevas predicciones:
+nuevo_ejemplo = [valor1, valor2, valor3, ...]  # Reemplaza con tus valores
+nuevo_ejemplo = np.array(nuevo_ejemplo).reshape(1, -1)
+prediccion = modelo_cargado.predict(nuevo_ejemplo)

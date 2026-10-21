@@ -1,0 +1,80 @@
+# Dataset metadata for the 📊 Datos tab and the prediction form.
+# Generated from mltutor/dataset/{dataset_manager,additional_datasets,dataset_metadata}.py
+# and dataset_tab.py (2026-10-13). Ranges are over the full dataset; the form
+# computes them from X_train at runtime, as Python does.
+id = "penguins"
+label = "🐧 Pingüinos - Clasificación de especies"
+emoji = "🐧"
+name = "Pingüinos"
+task = "classification"
+task_label = "Clasificación"
+target = "species"
+samples = 333
+description = "Dataset Pingüinos: 333 pingüinos, 6 características, 3 especies"
+selector_blurb = "🐧 **Pingüinos**: Clasificación de especies con datos biológicos."
+selector_info = "333 pingüinos • 6 características • 3 especies • Clasificación"
+source = "mltutor/dataset/data/sample_datasets/penguins.csv via load_penguins_dataset()"
+fixture = "tests/parity/datasets/penguins.json"
+classes = ["Adelie", "Chinstrap", "Gentoo"]
+
+[[features]]
+column = "bill_length_mm"
+display = "Longitud_Pico"
+description = "Longitud del pico en milímetros"
+kind = "continuous"
+categorical_in_metadata = false
+min = 32.1
+max = 59.6
+mean = 43.99279279279279
+
+[[features]]
+column = "bill_depth_mm"
+display = "Profundidad_Pico"
+description = "Profundidad del pico en milímetros"
+kind = "continuous"
+categorical_in_metadata = false
+min = 13.1
+max = 21.5
+mean = 17.164864864864864
+
+[[features]]
+column = "flipper_length_mm"
+display = "Longitud_Aleta"
+description = "Longitud de la aleta en milímetros"
+kind = "continuous"
+categorical_in_metadata = false
+min = 172
+max = 231
+mean = 200.96696696696696
+
+[[features]]
+column = "body_mass_g"
+display = "Masa_Corporal"
+description = "Masa corporal en gramos"
+kind = "continuous"
+categorical_in_metadata = false
+min = 2700
+max = 6300
+mean = 4207.057057057057
+
+[[features]]
+column = "island_encoded"
+display = "Isla"
+description = "Isla donde fue observado"
+kind = "categorical"
+categorical_in_metadata = true
+min = 0
+max = 2
+mean = 0.6516516516516516
+values = { "0" = "Biscoe", "1" = "Dream", "2" = "Torgersen" }
+
+[[features]]
+column = "sex_encoded"
+display = "Sexo"
+description = "Sexo del pingüino"
+kind = "binary"
+categorical_in_metadata = true
+min = 0
+max = 1
+mean = 0.5045045045045045
+values = { "0" = "Hembra", "1" = "Macho" }

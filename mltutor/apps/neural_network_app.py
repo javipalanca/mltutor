@@ -1,19 +1,19 @@
 import tensorflow as tf
-import streamlit as st
+from mltutor.desktop import ui as st
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import plotly.express as px
 
-from dataset.dataset_manager import load_data
-from dataset.dataset_tab import run_select_dataset, show_dataset_info, run_explore_dataset_tab
-from utils import create_info_box, get_image_download_link, show_code_with_download
-from algorithms.code_examples import generate_neural_network_architecture_code, generate_neural_network_evaluation_code
-from algorithms.model_training import train_neural_network
-from algorithms.model_evaluation import show_detailed_evaluation, neural_network_diagnostics
-from algorithms.export import show_neural_network_export
-from viz.nn import (
+from mltutor.dataset.dataset_manager import load_data
+from mltutor.dataset.dataset_tab import run_select_dataset, show_dataset_info, run_explore_dataset_tab
+from mltutor.utils import create_info_box, get_image_download_link, show_code_with_download
+from mltutor.algorithms.code_examples import generate_neural_network_architecture_code, generate_neural_network_evaluation_code
+from mltutor.algorithms.model_training import train_neural_network
+from mltutor.algorithms.model_evaluation import show_detailed_evaluation, neural_network_diagnostics
+from mltutor.algorithms.export import show_neural_network_export
+from mltutor.viz.nn import (
     evaluate_nn,
     show_neural_network_evaluation,
     create_neural_network_visualization,
@@ -24,8 +24,8 @@ from viz.nn import (
     show_decision_surface_tab,
     show_layer_activations_tab
 )
-from ui import create_button_panel, create_prediction_interface
-from apps.navbar import navbar
+from mltutor.ui import create_button_panel, create_prediction_interface
+from mltutor.apps.navbar import navbar
 
 
 def run_neural_networks_app():

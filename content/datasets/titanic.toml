@@ -1,0 +1,137 @@
+# Dataset metadata for the 📊 Datos tab and the prediction form.
+# Generated from mltutor/dataset/{dataset_manager,additional_datasets,dataset_metadata}.py
+# and dataset_tab.py (2026-10-13). Ranges are over the full dataset; the form
+# computes them from X_train at runtime, as Python does.
+id = "titanic"
+label = "🚢 Titanic - Supervivencia"
+emoji = "🚢"
+name = "Titanic"
+task = "classification"
+task_label = "Clasificación"
+target = "survived"
+samples = 891
+description = "Dataset Titanic: 891 pasajeros, 11 características, supervivencia (binario)"
+selector_blurb = "🚢 **Titanic**: Predicción de supervivencia con datos categóricos y numéricos."
+selector_info = "891 pasajeros • 11 características • Supervivencia • Clasificación"
+source = "mltutor/dataset/data/sample_datasets/titanic.csv via load_titanic_dataset()"
+fixture = "tests/parity/datasets/titanic.json"
+classes = ["No_Sobrevivió", "Sobrevivió"]
+
+[[features]]
+column = "pclass"
+display = "Clase_Pasajero"
+description = "Clase de pasajero (1=Primera, 2=Segunda, 3=Tercera)"
+kind = "categorical"
+categorical_in_metadata = true
+min = 1
+max = 3
+mean = 2.308641975308642
+values = { "1" = "Primera Clase", "2" = "Segunda Clase", "3" = "Tercera Clase" }
+
+[[features]]
+column = "age"
+display = "Edad"
+description = "Edad en años del pasajero"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0.42
+max = 80
+mean = 29.36158249158249
+
+[[features]]
+column = "sibsp"
+display = "Hermanos_Conyuges"
+description = "Número de hermanos/esposos a bordo"
+kind = "categorical"
+categorical_in_metadata = false
+min = 0
+max = 8
+mean = 0.5230078563411896
+levels = [0, 1, 2, 3, 4, 5, 8]
+
+[[features]]
+column = "parch"
+display = "Padres_Hijos"
+description = "Número de padres/hijos a bordo"
+kind = "categorical"
+categorical_in_metadata = false
+min = 0
+max = 6
+mean = 0.38159371492704824
+levels = [0, 1, 2, 3, 4, 5, 6]
+
+[[features]]
+column = "fare"
+display = "Tarifa"
+description = "Tarifa pagada por el boleto"
+kind = "continuous"
+categorical_in_metadata = false
+min = 0
+max = 512.3292
+mean = 32.204207968574636
+
+[[features]]
+column = "sex_encoded"
+display = "Sexo"
+description = "Sexo del pasajero"
+kind = "binary"
+categorical_in_metadata = true
+min = 0
+max = 1
+mean = 0.6475869809203143
+values = { "0" = "Mujer", "1" = "Hombre" }
+
+[[features]]
+column = "embarked_encoded"
+display = "Puerto_Embarque"
+description = "Puerto de embarque"
+kind = "categorical"
+categorical_in_metadata = true
+min = 0
+max = 2
+mean = 1.5364758698092031
+values = { "0" = "Cherbourg", "1" = "Queenstown", "2" = "Southampton" }
+
+[[features]]
+column = "class_encoded"
+display = "Clase_Social"
+description = "Clase social del pasajero"
+kind = "categorical"
+categorical_in_metadata = true
+min = 0
+max = 2
+mean = 1.308641975308642
+values = { "0" = "Primera", "1" = "Segunda", "2" = "Tercera" }
+
+[[features]]
+column = "who_encoded"
+display = "Categoria_Persona"
+description = "Categoría de persona"
+kind = "categorical"
+categorical_in_metadata = true
+min = 0
+max = 2
+mean = 1.2109988776655443
+values = { "0" = "Niño", "1" = "Hombre", "2" = "Mujer" }
+
+[[features]]
+column = "adult_male"
+display = "Hombre_Adulto"
+description = "Si es hombre adulto"
+kind = "binary"
+categorical_in_metadata = true
+min = 0
+max = 1
+mean = 0.6026936026936027
+values = { "0" = "No", "1" = "Sí" }
+
+[[features]]
+column = "alone"
+display = "Solo"
+description = "Si viajaba solo"
+kind = "binary"
+categorical_in_metadata = true
+min = 0
+max = 1
+mean = 0.6026936026936027
+values = { "0" = "No", "1" = "Sí" }

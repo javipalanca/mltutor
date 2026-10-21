@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-nn-history"
+description = "Enables the nn_history command without any pre-configured scope."
+commands.allow = ["nn_history"]
+
+[[permission]]
+identifier = "deny-nn-history"
+description = "Denies the nn_history command without any pre-configured scope."
+commands.deny = ["nn_history"]

@@ -1,0 +1,336 @@
+{#- NUEVO (decisión D74, Fase 5; equivalente a D29 de F2 y a los scripts de F3/F4). Script de
+    "🐍 Código de entrenamiento" de 🏗️ Arquitectura y de 💾 Exportar → 📝 Código Python en la lección
+    🧠 Redes Neuronales. Sustituye a red_arquitectura.py.j2 (la salida literal de Python, con `X`
+    sin definir, un SyntaxError en binaria y la LR, las épocas y los callbacks fijos). Reproduce lo que
+    hace MLTutor: la misma carga del dataset, el mismo escalado (StandardScaler ajustado con TODAS
+    las filas antes de dividir: D72), el mismo split (test_size=0.2, random_state=42, estratificado en
+    clasificación), la misma red (API funcional con dense_1, dropout_1, ..., output_layer), la misma
+    pérdida y métrica que elige la app según la activación de salida, el optimizador con la LR, el
+    batch, las épocas, validation_split, EarlyStopping (restore_best_weights) y ReduceLROnPlateau con los
+    mismos parámetros. Keras no da exactamente los mismos números que MLTutor (otro generador de
+    números aleatorios para los pesos iniciales, el dropout y el orden de los batches; D69): las
+    métricas quedan en la misma banda (tests/parity/nn/stat/*.json). Verificado ejecutándolo
+    (tests/parity/code/nn_training.json).
+
+    Los bloques "import ... sklearn.datasets" y "1. Cargar los datos" son copia literal de
+    knn_entrenamiento.py.j2 / arbol_entrenamiento.py.j2 (con `task`); tools/golden_nn.py comprueba que
+    siguen siendo iguales. Si cambias uno, cambia los otros.
+
+    Se renderiza con minijinja (Rust) y con jinja2 (tools/export_golden.py). Filtros: `pyrepr` y
+    `pycomment`. Pasa SIEMPRE todas las variables, con null (None) las que no apliquen.
+
+    Variables:
+      dataset, dataset_label, csv_file, csv_target, csv_sep, csv_decimal, csv_encoding
+                        como en regresion_entrenamiento.py.j2.
+      task              str        "classification" o "regression" (la tarea del dataset).
+      architecture      list[int]  [entrada, ocultas..., salida] (salida 1 en binaria y regresión).
+      activation        str        relu | tanh | sigmoid (capas ocultas).
+      output_activation str        sigmoid | softmax | linear | tanh. Solo combinaciones que se pueden
+                                   entrenar (D71): binaria sigmoid/tanh, multiclase softmax/tanh,
+                                   regresión cualquiera.
+      loss              str        la de la app: binary_crossentropy | categorical_crossentropy | mse.
+      one_hot           bool       si y se codifica en one-hot (softmax o salida tanh multiclase).
+      dropout_rate      float      0.0..0.8.
+      optimizer         str        adam | sgd | rmsprop.
+      learning_rate     float      0.001 | 0.01 | 0.1 | 0.3.
+      batch_size        int        16..256.
+      epochs            int        10..500.
+      validation_split  float      0.1..0.4 (el % de la app / 100).
+      early_stopping    bool;  patience  int|null (5..50; null sin early stopping).
+      reduce_lr         bool;  lr_factor float|null (0.1..0.9; null sin reducción).
+      reduce_lr_patience int|null  max(1, patience // 2), o 5 sin early stopping (como la app).
+      feature_names     list[str]; class_names list[str]|null (classification).
+      sample            list[float]|null  valores del formulario 🔮 (null = la primera fila de prueba).
+      seed              int        la "🎲 Semilla" de ⚙️ Entrenamiento (1..9999; 42 por defecto, D70).
+                                   Va a keras.utils.set_random_seed: con la misma semilla Keras repite
+                                   su entrenamiento, pero no reproduce los pesos de MLTutor (D69).
+-#}
+"""
+MLTutor · 🧠 Redes Neuronales — entrenamiento reproducible con Keras
+
+Dataset: {{ dataset_label | pycomment }}
+Red:     {{ architecture | pyrepr }} · ocultas {{ activation }} · salida {{ output_activation }} · dropout {{ dropout_rate | pyrepr }}
+Entreno: {{ optimizer }} (lr={{ learning_rate | pyrepr }}), batch {{ batch_size }}, {{ epochs }} épocas, validación {{ validation_split | pyrepr }}, semilla {{ seed }}
+
+Este script hace lo mismo que la app: carga los datos, los escala, los divide en
+entrenamiento y prueba, construye la red, la entrena con los mismos callbacks y calcula las
+métricas de la pestaña 📈 Evaluación.
+
+Uso:
+    pip install tensorflow "scikit-learn>=1.6" pandas numpy{% if dataset in ["titanic", "tips", "penguins", "mpg", "diamonds"] %} seaborn{% endif %}
+{%- if dataset == "csv" %}
+    # Copia {{ csv_file | pycomment }} en la misma carpeta que este script
+{%- endif %}
+    python red_entrenamiento.py
+"""
+import numpy as np
+import pandas as pd
+{%- if dataset in ["titanic", "tips", "penguins", "mpg", "diamonds"] %}
+import seaborn as sns
+{%- endif %}
+{%- if dataset == "iris" %}
+from sklearn.datasets import load_iris
+{%- elif dataset == "wine" %}
+from sklearn.datasets import load_wine
+{%- elif dataset == "breast_cancer" %}
+from sklearn.datasets import load_breast_cancer
+{%- elif dataset == "digits" %}
+from sklearn.datasets import load_digits
+{%- elif dataset == "diabetes" %}
+from sklearn.datasets import load_diabetes
+{%- elif dataset == "california_housing" %}
+from sklearn.datasets import fetch_california_housing
+{%- elif dataset == "moons" %}
+from sklearn.datasets import make_moons
+{%- endif %}
+import tensorflow as tf
+
+# Calcular en la CPU, como MLTutor. En los Mac con tensorflow-metal (GPU), model.predict puede
+# dar salidas distintas a las de la red (comprobado con tensorflow-metal 1.2.0).
+tf.config.set_visible_devices([], "GPU")
+import keras  # noqa: E402
+{%- if task == "classification" %}
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+{%- else %}
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+{%- endif %}
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import {% if dataset in ["titanic", "tips", "penguins", "mpg", "diamonds", "csv"] %}LabelEncoder, {% endif %}StandardScaler
+
+# La semilla que elegiste en MLTutor (⚙️ Entrenamiento → 🎲 Semilla; 42 por defecto). Fija los pesos
+# iniciales, el dropout y el orden de los lotes: con la misma semilla, cada ejecución da el mismo
+# resultado. Keras usa otro generador de números aleatorios que MLTutor, así que las cifras serán
+# parecidas a las de la app, no idénticas.
+keras.utils.set_random_seed({{ seed }})
+
+# ---------------------------------------------------------------------------
+# 1. Cargar los datos (igual que MLTutor)
+# ---------------------------------------------------------------------------
+{%- if dataset in ["iris", "wine", "breast_cancer", "digits", "diabetes"] %}
+datos = load_{{ dataset }}(as_frame=True)  # incluido en scikit-learn, sin descargas
+X = datos.data
+y = datos.target
+{%- elif dataset == "california_housing" %}
+# La primera vez se descarga (unos 400 KB) y queda guardado en ~/scikit_learn_data
+datos = fetch_california_housing(as_frame=True)
+X = datos.data
+y = datos.target
+{%- elif dataset == "moons" %}
+# MLTutor usa siempre la misma muestra de Moons: semilla 42
+X_array, y = make_moons(n_samples=500, noise=0.2, random_state=42)
+X = pd.DataFrame(X_array, columns=["x1", "x2"])
+y = pd.Series(y, name="label")
+{%- elif dataset == "titanic" %}
+df = sns.load_dataset("titanic")  # se descarga la primera vez
+# Valores que faltan: mediana para la edad y la tarifa, 'S' (Southampton) para el puerto
+df["age"] = df["age"].fillna(df["age"].median())
+df["embarked"] = df["embarked"].fillna("S")
+df["fare"] = df["fare"].fillna(df["fare"].median())
+# Texto -> números (LabelEncoder numera las categorías por orden alfabético)
+for columna in ["sex", "embarked", "class", "who"]:
+    df[columna + "_encoded"] = LabelEncoder().fit_transform(df[columna])
+columnas = ["pclass", "age", "sibsp", "parch", "fare", "sex_encoded", "embarked_encoded",
+            "class_encoded", "who_encoded", "adult_male", "alone"]
+X = df[columnas].astype(float)  # adult_male y alone son booleanos: True -> 1.0
+y = df["survived"]
+{%- elif dataset == "tips" %}
+df = sns.load_dataset("tips")  # se descarga la primera vez
+# Texto -> números (LabelEncoder numera las categorías por orden alfabético)
+for columna in ["sex", "smoker", "day", "time"]:
+    df[columna + "_encoded"] = LabelEncoder().fit_transform(df[columna].astype(str))
+X = df[["total_bill", "size", "sex_encoded", "smoker_encoded", "day_encoded", "time_encoded"]]
+y = df["tip"]
+{%- elif dataset == "penguins" %}
+df = sns.load_dataset("penguins").dropna()  # se descarga la primera vez; quita filas incompletas
+df = df.reset_index(drop=True)
+# Texto -> números (LabelEncoder numera las categorías por orden alfabético)
+df["island_encoded"] = LabelEncoder().fit_transform(df["island"])
+df["sex_encoded"] = LabelEncoder().fit_transform(df["sex"])
+X = df[["bill_length_mm", "bill_depth_mm", "flipper_length_mm", "body_mass_g",
+        "island_encoded", "sex_encoded"]]
+y = pd.Series(LabelEncoder().fit_transform(df["species"]), name="species")
+{%- elif dataset == "mpg" %}
+df = sns.load_dataset("mpg").dropna().reset_index(drop=True)  # se descarga la primera vez
+df["origin"] = LabelEncoder().fit_transform(df["origin"])  # europe=0, japan=1, usa=2
+# 'name' (el modelo de coche) no es una característica: 301 nombres distintos no aportan
+X = df[["cylinders", "displacement", "horsepower", "weight", "acceleration", "model_year",
+        "origin"]]
+y = df["mpg"]
+{%- elif dataset == "diamonds" %}
+df = sns.load_dataset("diamonds")  # se descarga la primera vez (54 000 diamantes)
+# Texto -> números (LabelEncoder numera las categorías por orden alfabético, no por calidad)
+for columna in ["cut", "color", "clarity"]:
+    df[columna] = LabelEncoder().fit_transform(df[columna].astype(str))
+df = df.sample(8000, random_state=42)  # MLTutor trabaja con una muestra de 8000
+X = df.drop(columns=["price"])
+y = df["price"]
+{%- elif dataset == "csv" %}
+df = pd.read_csv({{ csv_file | pyrepr }}
+{%- if csv_sep and csv_sep != "," %}, sep={{ csv_sep | pyrepr }}{% endif %}
+{%- if csv_decimal and csv_decimal != "." %}, decimal={{ csv_decimal | pyrepr }}{% endif %}
+{%- if csv_encoding and csv_encoding != "utf-8" %}, encoding={{ csv_encoding | pyrepr }}{% endif %})
+objetivo = {{ csv_target | pyrepr }}
+X = df.drop(columns=[objetivo])
+y = df[objetivo]
+# Columnas de texto -> números (LabelEncoder numera las categorías por orden alfabético)
+for columna in X.select_dtypes(include=["object"]).columns:
+    X[columna] = LabelEncoder().fit_transform(X[columna].astype(str))
+X = X.astype(float)  # las columnas booleanas pasan a 0.0/1.0
+{%- if task == "classification" %}
+if y.dtype == object:  # clases de texto -> 0, 1, 2... (en orden alfabético)
+    y = pd.Series(LabelEncoder().fit_transform(y.astype(str)), name=objetivo)
+{%- endif %}
+{%- endif %}
+{%- if dataset == "csv" and task == "classification" %}
+# Keras necesita las clases numeradas 0, 1, 2... (to_categorical y la pérdida binaria fallan con 1, 2, 3).
+# LabelEncoder las numera como MLTutor: de menor a mayor (1, 2, 3 -> 0, 1, 2). `clases` traduce el
+# número que predice la red al nombre de la clase
+y = pd.Series(LabelEncoder().fit_transform(y), name=objetivo)
+{%- endif %}
+
+nombres = {{ feature_names | pyrepr }}  # nombres que muestra MLTutor
+{%- if task == "classification" %}
+clases = {{ class_names | pyrepr }}
+# Código de cada clase (0, 1, 2...: la neurona de salida) -> su nombre
+nombre_clase = dict(enumerate(clases))
+{%- endif %}
+print(f"Datos: {X.shape[0]} muestras y {X.shape[1]} características")
+
+# ---------------------------------------------------------------------------
+# 2. Escalar y dividir (igual que MLTutor)
+# ---------------------------------------------------------------------------
+# Las redes aprenden mejor con características de media 0 y desviación 1. Para coincidir con la
+# versión original de la app, MLTutor ajusta el escalador con TODAS las filas antes de dividir. Es
+# una fuga de datos: la media y la desviación de las filas de prueba entran en el preprocesado.
+# Fuera de la app, divide primero y ajusta el escalador solo con el entrenamiento:
+#     X_train, X_test, y_train, y_test = train_test_split(
+#         X, y, test_size=0.2, random_state=42{% if task == "classification" %}, stratify=y{% endif %})
+#     scaler = StandardScaler().fit(X_train)
+#     X_train, X_test = scaler.transform(X_train), scaler.transform(X_test)
+# (con scikit-learn, un Pipeline lo hace solo). El objetivo no se escala.
+scaler = StandardScaler()
+X_esc = scaler.fit_transform(X)
+X_train, X_test, y_train, y_test = train_test_split(
+    X_esc, y, test_size=0.2, random_state=42{% if task == "classification" %}, stratify=y{% endif %}
+)
+{%- if task == "classification" %}
+# stratify=y: cada clase tiene la misma proporción en entrenamiento y en prueba
+{%- endif %}
+n_val = len(X_train) - int(len(X_train) * (1 - {{ validation_split | pyrepr }}))
+print(f"Entrenamiento: {len(X_train) - n_val} · Validación: {n_val} (las últimas filas de "
+      f"entrenamiento) · Prueba: {len(X_test)}")
+{%- if task == "classification" %}
+{%- if one_hot %}
+# Una columna por clase (one-hot): la salida tiene {{ architecture[-1] }} neuronas
+Y_train = keras.utils.to_categorical(y_train, {{ architecture[-1] }})
+Y_test = keras.utils.to_categorical(y_test, {{ architecture[-1] }})
+{%- else %}
+# Clasificación binaria: una neurona de salida y la etiqueta 0/1
+Y_train, Y_test = np.asarray(y_train), np.asarray(y_test)
+{%- endif %}
+{%- else %}
+Y_train, Y_test = np.asarray(y_train, dtype=float), np.asarray(y_test, dtype=float)
+{%- endif %}
+
+# ---------------------------------------------------------------------------
+# 3. Construir la red (pestaña 🏗️ Arquitectura)
+# ---------------------------------------------------------------------------
+entrada = keras.layers.Input(shape=({{ architecture[0] }},), name="input_layer")
+x = entrada
+{%- for neurons in architecture[1:-1] %}
+x = keras.layers.Dense({{ neurons }}, activation={{ activation | pyrepr }}, name="dense_{{ loop.index }}")(x)
+x = keras.layers.Dropout({{ dropout_rate | pyrepr }}, name="dropout_{{ loop.index }}")(x)
+{%- endfor %}
+salida = keras.layers.Dense({{ architecture[-1] }}, activation={{ output_activation | pyrepr }}, name="output_layer")(x)
+modelo = keras.Model(inputs=entrada, outputs=salida, name="neural_network")
+modelo.summary()
+print(f"Parámetros: {modelo.count_params():,}")  # pesos + sesgos de cada capa densa
+
+# ---------------------------------------------------------------------------
+# 4. Compilar y entrenar (pestaña ⚙️ Entrenamiento)
+# ---------------------------------------------------------------------------
+modelo.compile(
+    optimizer=keras.optimizers.{{ {"adam": "Adam", "sgd": "SGD", "rmsprop": "RMSprop"}[optimizer] }}(learning_rate={{ learning_rate | pyrepr }}),
+    loss={{ loss | pyrepr }},
+    metrics=[{{ "accuracy" | pyrepr if task == "classification" else "mae" | pyrepr }}],
+)
+callbacks = []
+{%- if early_stopping %}
+# Para cuando la pérdida de validación lleva {{ patience }} épocas sin mejorar. Al terminar (pare o
+# no) recupera los pesos de la época con menor pérdida de validación, que puede no ser la última
+callbacks.append(keras.callbacks.EarlyStopping(
+    monitor="val_loss", patience={{ patience }}, restore_best_weights=True))
+{%- endif %}
+{%- if reduce_lr %}
+# Multiplica la LR por {{ lr_factor | pyrepr }} cuando la pérdida de validación lleva {{ reduce_lr_patience }} épocas sin mejorar
+callbacks.append(keras.callbacks.ReduceLROnPlateau(
+    monitor="val_loss", factor={{ lr_factor | pyrepr }}, patience={{ reduce_lr_patience }}, min_lr=1e-7))
+{%- endif %}
+historial = modelo.fit(
+    X_train, Y_train,
+    epochs={{ epochs }},
+    batch_size={{ batch_size }},
+    validation_split={{ validation_split | pyrepr }},  # las últimas filas de X_train, sin barajar
+    callbacks=callbacks,
+    verbose=2,
+)
+print(f"Épocas entrenadas: {len(historial.history['loss'])}")
+
+# ---------------------------------------------------------------------------
+# 5. Evaluar con el conjunto de prueba (pestaña 📈 Evaluación)
+# ---------------------------------------------------------------------------
+salida_test = modelo.predict(X_test, verbose=0)
+{%- if task == "classification" %}
+{%- if architecture[-1] == 1 %}
+y_pred = (salida_test.ravel() > 0.5).astype(int)  # una neurona: umbral 0,5
+{%- else %}
+y_pred = np.argmax(salida_test, axis=1)  # la neurona con la salida más alta
+{%- endif %}
+accuracy = accuracy_score(y_test, y_pred)
+print(f"\nExactitud (Accuracy): {accuracy:.4f}")
+print(classification_report(y_test, y_pred, labels=list(range(len(clases))), target_names=clases,
+                            digits=4, zero_division=0))
+print("Matriz de confusión (filas = real, columnas = predicción):")
+print(confusion_matrix(y_test, y_pred, labels=list(range(len(clases)))))
+{%- else %}
+y_pred = salida_test.ravel()
+mse = mean_squared_error(y_test, y_pred)
+rmse = np.sqrt(mse)
+mae = mean_absolute_error(y_test, y_pred)
+r2 = r2_score(y_test, y_pred)
+print(f"\nMSE: {mse:.4f} · RMSE: {rmse:.4f} · MAE: {mae:.4f} · R²: {r2:.4f}")
+{%- endif %}
+
+# ---------------------------------------------------------------------------
+# 6. Predecir una muestra nueva (pestaña 🔮 Predicciones)
+# ---------------------------------------------------------------------------
+{%- if sample %}
+muestra = np.array({{ sample | pyrepr }})  # valores del formulario de MLTutor
+{%- else %}
+muestra = scaler.inverse_transform(X_test[:1])[0]  # la primera muestra de prueba, sin escalar
+{%- endif %}
+# DataFrame con los nombres de las columnas: el escalador se ajustó con ellos
+salida_muestra = modelo.predict(scaler.transform(pd.DataFrame([muestra], columns=X.columns)), verbose=0)[0]
+{%- if task == "classification" %}
+{%- if architecture[-1] == 1 %}
+prediccion = int(salida_muestra[0] > 0.5)
+print(f"\nPredicción: {clases[prediccion]} (salida de la neurona: {salida_muestra[0]:.4f})")
+{%- else %}
+prediccion = int(np.argmax(salida_muestra))
+print(f"\nPredicción: {clases[prediccion]}")
+for nombre, valor in zip(clases, salida_muestra):
+    print(f"  {nombre}: {valor:.4f}")
+{%- endif %}
+{%- else %}
+prediccion = float(salida_muestra[0])
+print(f"\nPredicción: {prediccion:.4f}")
+{%- endif %}
+
+# ---------------------------------------------------------------------------
+# 7. Guardar el modelo y el escalador
+# ---------------------------------------------------------------------------
+modelo.save("modelo_red.keras")
+import pickle
+with open("scaler.pkl", "wb") as f:
+    pickle.dump(scaler, f)
+print("💾 Guardados 'modelo_red.keras' y 'scaler.pkl'")

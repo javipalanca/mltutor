@@ -1,0 +1,527 @@
+name: Rust app
+
+# Builds, tests and packages the Rust/Tauri version of MLTutor on the three platforms.
+# A `v*` tag also publishes the GitHub release (prerelease when the tag has a `-`, e.g.
+# v1.1.0-rc.1). This is the only workflow that publishes releases; the legacy Python
+# workflow (build-executables.yml) no longer reacts to tags.
+
+on:
+  push:
+    tags: ["v*"]
+    # Gitflow: CI on every push to the long-lived, release and feature branches.
+    branches: ["main", "develop", "release/**", "hotfix/**", "feature/**"]
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'crates/**'
+      - 'src-tauri/**'
+      - 'ui/**'
+      - 'content/**'
+      - 'tests/parity/**'
+      - 'tools/verify_exports.py'
+      - 'tools/verify_exports.requirements.txt'
+      - 'tools/verify_exports.lock.txt'
+      - 'mltutor/dataset/data/sample_datasets/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - 'clippy.toml'
+      - '.cargo/**'
+      - '.github/workflows/rust.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: '0'
+
+jobs:
+  build:
+    name: Tauri (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # size_budget: bytes of the download (F7), ~+15 % over the size after the CSVs were
+          # deflated (2026-10-20). macOS measured locally: zip 8 709 325 B (binary 16.10 → 13.37 MB).
+          # Windows estimated from the same binary delta: 21 755 392 − 2 724 040 ≈ 19.03 MB.
+          # AppImage ≈ 86.1 MB (squashfs already compressed the CSVs). Tighten Windows/Linux
+          # to the first CI value + 15 %; raise a budget only on purpose, noting why in MEMORY.md.
+          - os: ubuntu-22.04
+            platform: linux-x86_64
+            size_budget: 99000000
+          - os: windows-latest
+            platform: windows-x86_64
+            size_budget: 21900000
+          - os: macos-latest
+            platform: macos-arm64
+            size_budget: 10020000
+    steps:
+      # ts-rs writes LF; keep the checkout LF too so the bindings diff is meaningful on Windows.
+      - name: Disable CRLF conversion
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+
+      - name: Install the toolchain from rust-toolchain.toml
+        shell: bash
+        run: |
+          rustup toolchain install --profile minimal
+          rustup show active-toolchain
+          rustc --version
+          cargo --version
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.platform }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: System libraries for Tauri 2 and AppImage (Linux only)
+        if: runner.os == 'Linux'
+        run: |
+          # Third-party runner repos (packages.microsoft.com, …) sometimes answer 403;
+          # only Ubuntu's own archive is needed here.
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list /etc/apt/sources.list.d/azure-cli.list
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential curl wget file xdg-utils \
+            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev \
+            libxdo-dev libssl-dev patchelf libfuse2 \
+            xvfb xauth dbus-x11 libgl1-mesa-dri
+
+      - name: cargo fmt
+        run: cargo fmt --all --check
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: cargo test
+        # Doctests of the pure crates run in a separate invocation: with --workspace, cargo
+        # hands rustdoc the native link paths of every build script, and on Windows the
+        # Tauri build output (an msvcrt.lib stub) breaks linking the doctests.
+        run: |
+          cargo test --workspace --all-targets
+          cargo test --doc -p mltutor-core -p mltutor-nn -p mltutor-export
+
+      # The tree fixtures were generated on macOS arm64, whose scikit-learn wheel uses FMA;
+      # Rust (no FMA) matches them bit for bit. Check that scikit-learn on x86-64 (manylinux
+      # wheel, no FMA) grows the same trees, and that tools/cart_reference.py matches it.
+      - uses: astral-sh/setup-uv@v6
+        if: runner.os == 'Linux'
+      - name: Tree fixtures against scikit-learn on x86-64 (Linux only)
+        if: runner.os == 'Linux'
+        run: |
+          uv run --no-project --python 3.11 \
+            --with numpy==1.26.4 --with pandas==2.3.3 --with scikit-learn==1.7.2 \
+            python tools/check_trees_platform.py
+      - name: ts-rs bindings are up to date
+        shell: bash
+        run: |
+          git diff --exit-code -- ui/src/lib/bindings
+          untracked=$(git ls-files --others --exclude-standard -- ui/src/lib/bindings)
+          if [[ -n "$untracked" ]]; then
+            echo "::error::cargo test generated bindings that are not committed:"
+            echo "$untracked"
+            exit 1
+          fi
+
+      - name: npm ci
+        run: npm --prefix ui ci
+      - name: npm run check
+        run: npm --prefix ui run check
+      - name: npm test
+        run: npm --prefix ui run test -- --run
+
+      - name: Build the Tauri app
+        run: npm --prefix ui run tauri build
+
+      - name: Locate the build output
+        id: out
+        shell: bash
+        run: |
+          case "$RUNNER_OS" in
+            Windows) path=target/release/mltutor.exe ;;
+            macOS)   path=target/release/bundle/macos/MLTutor.app ;;
+            Linux)
+              shopt -s nullglob
+              images=(target/release/bundle/appimage/*.AppImage)
+              if [[ ${#images[@]} -ne 1 ]]; then
+                echo "::error::Expected exactly one AppImage, found ${#images[@]}"
+                ls -la target/release/bundle/appimage || true
+                exit 1
+              fi
+              path=${images[0]} ;;
+          esac
+          test -e "$path"
+          du -sh "$path"
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test (Linux, AppImage under Xvfb)
+        if: runner.os == 'Linux'
+        timeout-minutes: 8
+        env:
+          MLTUTOR_LOG_DIR: ${{ runner.temp }}/log-smoke
+          # No FUSE needed on the runner; also what students without libfuse2 can do.
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+          WEBKIT_DISABLE_DMABUF_RENDERER: '1'
+          WEBKIT_DISABLE_COMPOSITING_MODE: '1'
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          chmod +x "${{ steps.out.outputs.path }}"
+          status=0
+          xvfb-run -a --server-args="-screen 0 1600x1000x24" \
+            dbus-run-session -- "${{ steps.out.outputs.path }}" --smoke-test || status=$?
+          if [[ $status -ne 0 ]]; then
+            echo "::error::Smoke test failed with exit code $status"
+            tail -n 100 "$MLTUTOR_LOG_DIR/mltutor.log" || true
+            exit "$status"
+          fi
+      - name: Smoke test (macOS, packaged .app)
+        if: runner.os == 'macOS'
+        timeout-minutes: 8
+        env:
+          MLTUTOR_LOG_DIR: ${{ runner.temp }}/log-smoke
+        run: |
+          status=0
+          "${{ steps.out.outputs.path }}/Contents/MacOS/mltutor" --smoke-test || status=$?
+          if [[ $status -ne 0 ]]; then
+            echo "::error::Smoke test failed with exit code $status"
+            tail -n 100 "$MLTUTOR_LOG_DIR/mltutor.log" || true
+            exit "$status"
+          fi
+      - name: Smoke test (Windows)
+        if: runner.os == 'Windows'
+        timeout-minutes: 8
+        shell: pwsh
+        env:
+          MLTUTOR_LOG_DIR: ${{ runner.temp }}\log-smoke
+        run: |
+          # GUI subsystem binary: the exit code is only visible through Start-Process.
+          $p = Start-Process -FilePath "${{ steps.out.outputs.path }}" -ArgumentList "--smoke-test" -Wait -PassThru
+          if ($p.ExitCode -ne 0) {
+            Get-Content "$env:MLTUTOR_LOG_DIR\mltutor.log" -Tail 100 -ErrorAction SilentlyContinue
+            throw "Smoke test failed with exit code $($p.ExitCode)"
+          }
+
+      # Per-route/check timings (the frontend reports them in order, so each lap is the time
+      # of that step). The automation watchdog stops the run at 180 s (state.rs).
+      - name: Smoke test timings
+        if: always() && steps.out.outcome == 'success'
+        shell: bash
+        env:
+          # Byte-wise matching, the same on the three runners whatever their locale.
+          LC_ALL: C
+        run: |
+          log="$RUNNER_TEMP/log-smoke/mltutor.log"
+          test -f "$log" || { echo "No smoke-test log"; exit 0; }
+          # «name» … en N ms (total M ms)
+          sed -nE 's/.*smoke test: (comprobación )?«(.*)» (renderizada|superada).* en ([0-9]+) ms \(total ([0-9]+) ms\).*/\4 \5 \2/p' "$log" > timings.txt
+          sort -rn timings.txt | head -n 8
+          {
+            echo "### Smoke test (${{ matrix.platform }}): $(tail -n 1 timings.txt | cut -d' ' -f2) ms en total, límite 180 000 ms"
+            echo
+            echo "| Paso | ms |"
+            echo "|---|---:|"
+            while read -r lap _ name; do echo "| $name | $lap |"; done < timings.txt
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # D3: with no usable WebView2 the exe must explain it (message box in a normal session,
+      # log + exit 1 in automation modes) instead of vanishing. An empty fixed-runtime folder
+      # makes the WebView2 loader find nothing.
+      - name: Missing WebView2 is reported (Windows)
+        if: runner.os == 'Windows'
+        timeout-minutes: 4
+        shell: pwsh
+        env:
+          MLTUTOR_LOG_DIR: ${{ runner.temp }}\log-nowebview2
+        run: |
+          $empty = New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP\no-webview2"
+          $env:WEBVIEW2_BROWSER_EXECUTABLE_FOLDER = $empty.FullName
+          $p = Start-Process -FilePath "${{ steps.out.outputs.path }}" -ArgumentList "--smoke-test" -Wait -PassThru
+          $log = Get-Content "$env:MLTUTOR_LOG_DIR\mltutor.log" -Raw -ErrorAction SilentlyContinue
+          Write-Output $log
+          if ($p.ExitCode -ne 1) { throw "Expected exit code 1 without WebView2, got $($p.ExitCode)" }
+          if ($log -notmatch "WebView2" -or $log -notmatch "developer.microsoft.com/microsoft-edge/webview2") {
+            throw "The log does not explain the missing WebView2 Runtime"
+          }
+
+      # `--screenshot` on every platform: the start page (strict) and a full-page Plotly
+      # screen (best effort on Windows/Linux, see screenshot.rs). check_png.py rejects
+      # small, tiny or single-colour images.
+      - name: Screenshots (Linux, under Xvfb)
+        if: runner.os == 'Linux'
+        timeout-minutes: 6
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+          WEBKIT_DISABLE_DMABUF_RENDERER: '1'
+          WEBKIT_DISABLE_COMPOSITING_MODE: '1'
+          LIBGL_ALWAYS_SOFTWARE: '1'
+          MLTUTOR_LOG_DIR: ${{ runner.temp }}/log-screenshot
+        run: |
+          mkdir -p screenshots
+          shot() {
+            xvfb-run -a --server-args="-screen 0 1600x1000x24" \
+              dbus-run-session -- "${{ steps.out.outputs.path }}" --screenshot "$@"
+          }
+          # Absolute paths: the AppImage's AppRun changes the working directory.
+          shot "$PWD/screenshots/inicio.png"
+          shot "$PWD/screenshots/pairplot-pagina.png" --scenario datos_pairplot_kde_iris --full-page \
+            || echo "::warning::Full-page screenshot failed (best effort on Linux)"
+      - name: Screenshots (macOS)
+        if: runner.os == 'macOS'
+        timeout-minutes: 6
+        env:
+          MLTUTOR_LOG_DIR: ${{ runner.temp }}/log-screenshot
+        run: |
+          mkdir -p screenshots
+          bin="${{ steps.out.outputs.path }}/Contents/MacOS/mltutor"
+          "$bin" --screenshot screenshots/inicio.png
+          "$bin" --screenshot screenshots/pairplot-pagina.png --scenario datos_pairplot_kde_iris --full-page
+      - name: Screenshots (Windows)
+        if: runner.os == 'Windows'
+        timeout-minutes: 6
+        shell: pwsh
+        env:
+          MLTUTOR_LOG_DIR: ${{ runner.temp }}\log-screenshot
+        run: |
+          New-Item -ItemType Directory -Force -Path screenshots | Out-Null
+          $exe = "${{ steps.out.outputs.path }}"
+          $dir = (Resolve-Path screenshots).Path
+          # Start-Process joins the arguments with spaces: quote the paths.
+          $p = Start-Process -FilePath $exe -ArgumentList "--screenshot", "`"$dir\inicio.png`"" -Wait -PassThru
+          if ($p.ExitCode -ne 0) {
+            Get-Content "$env:MLTUTOR_LOG_DIR\mltutor.log" -Tail 60 -ErrorAction SilentlyContinue
+            throw "Screenshot failed with exit code $($p.ExitCode)"
+          }
+          $fullPage = "--screenshot", "`"$dir\pairplot-pagina.png`"", "--scenario", "datos_pairplot_kde_iris", "--full-page"
+          $p = Start-Process -FilePath $exe -ArgumentList $fullPage -Wait -PassThru
+          if ($p.ExitCode -ne 0) {
+            Get-Content "$env:MLTUTOR_LOG_DIR\mltutor.log" -Tail 60 -ErrorAction SilentlyContinue
+            Write-Output "::warning::Full-page screenshot failed with exit code $($p.ExitCode) (best effort on Windows)"
+          }
+      - name: Check the screenshots
+        shell: bash
+        run: |
+          py=$(command -v python3 || command -v python)
+          echo "### Capturas (${{ matrix.platform }})" >> "$GITHUB_STEP_SUMMARY"
+          "$py" -I .github/scripts/check_png.py screenshots/inicio.png --summary "$GITHUB_STEP_SUMMARY"
+          if [[ -f screenshots/pairplot-pagina.png ]]; then
+            # A full page is taller than the 920 px window; only a warning if it is not.
+            "$py" -I .github/scripts/check_png.py screenshots/pairplot-pagina.png \
+              --min-height 1200 --summary "$GITHUB_STEP_SUMMARY" \
+              || echo "::warning::The full-page screenshot did not pass the checks"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.out.outcome == 'success'
+        with:
+          name: screenshots-${{ matrix.platform }}
+          path: |
+            screenshots/
+            ${{ runner.temp }}/log-*/mltutor.log
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Package the portable download
+        id: package
+        shell: bash
+        run: |
+          src="${{ steps.out.outputs.path }}"
+          case "$RUNNER_OS" in
+            Windows) out=mltutor-${{ matrix.platform }}.exe; cp "$src" "$out" ;;
+            macOS)   out=mltutor-${{ matrix.platform }}.zip
+                     ditto -c -k --sequesterRsrc --keepParent "$src" "$out" ;;
+            Linux)   out=mltutor-${{ matrix.platform }}.AppImage; cp "$src" "$out"; chmod +x "$out" ;;
+          esac
+          if [[ "$RUNNER_OS" == macOS ]]; then
+            # The download must carry a sealed bundle signature (ad-hoc, signingIdentity "-");
+            # a linker-only signature makes Gatekeeper report the quarantined app as damaged.
+            check=$(mktemp -d)
+            ditto -x -k "$out" "$check"
+            codesign --verify --deep --strict --verbose=2 "$check/MLTutor.app"
+            "$check/MLTutor.app/Contents/MacOS/mltutor" --smoke-test
+          fi
+          ls -la "$out"
+          echo "out=$out" >> "$GITHUB_OUTPUT"
+      # F7 size budget: fail if the download grows more than planned (matrix.size_budget).
+      - name: Size budget
+        shell: bash
+        env:
+          BUDGET: ${{ matrix.size_budget }}
+        run: |
+          out="${{ steps.package.outputs.out }}"
+          src="${{ steps.out.outputs.path }}"
+          size=$(wc -c < "$out" | tr -d ' ')
+          unpacked=$(du -sk "$src" | cut -f1)
+          mib() { awk -v b="$1" 'BEGIN { printf "%.2f MiB", b / 1048576 }'; }
+          pct=$(awk -v s="$size" -v b="$BUDGET" 'BEGIN { printf "%.0f", 100 * s / b }')
+          {
+            echo "### Tamaño (${{ matrix.platform }})"
+            echo
+            echo "| Archivo | Tamaño | Presupuesto |"
+            echo "|---|---:|---:|"
+            echo "| \`$out\` (descarga) | $size B ($(mib "$size")) | $BUDGET B ($(mib "$BUDGET"), $pct % usado) |"
+            echo "| \`$src\` (sin comprimir) | $((unpacked * 1024)) B ($(mib $((unpacked * 1024)))) | |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "$out: $size bytes (budget $BUDGET, $pct %)"
+          if (( size > BUDGET )); then
+            echo "::error::$out is $size bytes, over the budget of $BUDGET bytes. Find what grew, or raise matrix.size_budget on purpose and note why in MEMORY.md."
+            exit 1
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mltutor-${{ matrix.platform }}
+          path: mltutor-${{ matrix.platform }}.*
+          retention-days: 14
+          if-no-files-found: error
+
+  # Phase 6: every ONNX and Python package the app exports, and every code template it
+  # shows, checked against Python (replaces the Python app's --verify-models). The corpus is
+  # written by the app's own code paths (src-tauri/src/export_corpus.rs); the verifier loads
+  # the ONNX files in onnxruntime, runs each package script and each template offline, and
+  # compares the predictions with Rust's (tolerances in tools/verify_exports.py).
+  exports:
+    name: Exports and code templates (Python cross-check)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the toolchain from rust-toolchain.toml
+        run: rustup toolchain install --profile minimal
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: exports-linux-x86_64
+      # src-tauri links WebKitGTK even in its unit tests.
+      - name: System libraries for Tauri 2
+        run: |
+          # Third-party runner repos (packages.microsoft.com, …) sometimes answer 403;
+          # only Ubuntu's own archive is needed here.
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list /etc/apt/sources.list.d/azure-cli.list
+          sudo apt-get update
+          sudo apt-get install -y build-essential libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev
+      - name: Write the export corpus with the app's code paths
+        run: |
+          MLTUTOR_EXPORT_CORPUS="$RUNNER_TEMP/export-corpus" \
+            cargo test -p mltutor --bin mltutor export_corpus::export_corpus -- --ignored --exact
+          du -sh "$RUNNER_TEMP/export-corpus"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: tools/verify_exports.lock.txt
+      - name: Verify the exports with onnxruntime, scikit-learn and Keras
+        # Explicit bash: -o pipefail, so that tee does not hide the verifier's exit status.
+        shell: bash
+        timeout-minutes: 25
+        run: |
+          uv run --no-project --python 3.11 \
+            --with-requirements tools/verify_exports.lock.txt \
+            python tools/verify_exports.py --timeout 300 "$RUNNER_TEMP/export-corpus" \
+            | tee verify_exports.txt
+          {
+            echo "### Exportaciones y plantillas"
+            echo '```'
+            tail -n 1 verify_exports.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: failure() || cancelled()
+        with:
+          name: export-corpus
+          path: |
+            ${{ runner.temp }}/export-corpus
+            verify_exports.txt
+          retention-days: 7
+
+  # F7: the criterion benchmarks must keep compiling, and the per-command time budgets
+  # (#[ignore] tests in crates/*/tests/bench_*.rs, 10–100× above the times measured in
+  # docs/migration/benchmarks.md) must hold in release. Pure crates only: no WebKitGTK.
+  benchmarks:
+    name: Benchmarks (compile) and time budgets
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the toolchain from rust-toolchain.toml
+        run: rustup toolchain install --profile minimal
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: benchmarks-linux-x86_64
+      - name: cargo bench --no-run
+        run: cargo bench --no-run -p mltutor-core -p mltutor-nn -p mltutor-export
+      - name: Time budgets (release)
+        # One test at a time: the budgets measure wall time, and parallel tests on a
+        # 4-vCPU runner would compete for the cores.
+        env:
+          # The budgets are calibrated on an M-series Mac; the runner is ~1.2–2× slower.
+          MLTUTOR_BUDGET_FACTOR: '3'
+        run: |
+          cargo test --release -p mltutor-core \
+            --test bench_trees --test bench_knn --test bench_regression --test bench_california \
+            -- --ignored --nocapture --test-threads=1
+          cargo test --release -p mltutor-nn --test bench_nn -- --ignored --nocapture --test-threads=1
+
+  release:
+    needs: [build, exports, benchmarks]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: src
+      - name: Tag matches the workspace version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version=$(python3 - <<'EOF'
+          import tomllib
+          with open("src/Cargo.toml", "rb") as f:
+              print(tomllib.load(f)["workspace"]["package"]["version"])
+          EOF
+          )
+          echo "Tag: $TAG · Cargo.toml: $version"
+          if [[ "$TAG" != "v$version" ]]; then
+            echo "::error::The tag $TAG does not match the workspace version v$version"
+            exit 1
+          fi
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Verify all three downloads and generate checksums
+        working-directory: dist
+        run: |
+          files="mltutor-windows-x86_64.exe mltutor-macos-arm64.zip mltutor-linux-x86_64.AppImage"
+          for f in $files; do
+            test -s "$f" || { echo "::error::Missing download $f"; exit 1; }
+          done
+          # shellcheck disable=SC2086
+          sha256sum $files > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/mltutor-windows-x86_64.exe
+            dist/mltutor-macos-arm64.zip
+            dist/mltutor-linux-x86_64.AppImage
+            dist/SHA256SUMS.txt
+          fail_on_unmatched_files: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          make_latest: ${{ !contains(github.ref_name, '-') }}
+          generate_release_notes: true
+          body: |
+            MLTutor de escritorio, nueva versión escrita en Rust (Tauri). Descargas portables: sin instalador, sin Python y sin permisos de administrador. Los modelos se entrenan en el propio programa, sin TensorFlow, por lo que la descarga es mucho más pequeña y arranca más rápido.
+
+            - **Windows x86_64**: abrir `mltutor-windows-x86_64.exe`. Usa Microsoft Edge WebView2, que ya viene de serie con Windows 10 y 11. Si un equipo no lo tuviera, hay que instalar el *WebView2 Runtime Evergreen* de Microsoft (https://developer.microsoft.com/microsoft-edge/webview2/), que se puede instalar sin permisos de administrador.
+            - **macOS Apple Silicon**: descomprimir el ZIP y abrir `MLTutor.app` desde esa carpeta. Todavía no tiene firma Developer ID ni notarización: la primera vez macOS puede bloquearla; se permite en *Ajustes del Sistema → Privacidad y seguridad → Abrir igualmente*, o desde Terminal con `xattr -dr com.apple.quarantine MLTutor.app`.
+            - **Linux x86_64** (Ubuntu 22.04 o compatible): AppImage. Dar permiso de ejecución (`chmod +x mltutor-linux-x86_64.AppImage`) y abrirlo. Si el sistema no tiene `libfuse2`, se puede ejecutar sin instalar nada con `./mltutor-linux-x86_64.AppImage --appimage-extract-and-run`.
+
+            Esta compilación supera las pruebas automáticas y la prueba de arranque en los tres sistemas. Las sumas de comprobación están en `SHA256SUMS.txt`.

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-nn-architecture"
+description = "Enables the nn_architecture command without any pre-configured scope."
+commands.allow = ["nn_architecture"]
+
+[[permission]]
+identifier = "deny-nn-architecture"
+description = "Denies the nn_architecture command without any pre-configured scope."
+commands.deny = ["nn_architecture"]

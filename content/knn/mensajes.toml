@@ -1,0 +1,237 @@
+# Textos cortos de la lección 🔍 K-Nearest Neighbors (mltutor/apps/knn_app.py,
+# mltutor/algorithms/export.py::display_model_export_options, mltutor/ui.py::create_prediction_interface),
+# literales. {llaves} = valores que se sustituyen; formato numérico con la sintaxis de Python ({x:.3f}).
+# Cabecera, subtítulo, pestañas y navbar: content/inicio/navegacion.toml [lessons.knn]. Expander de la
+# cabecera: intro.md. Textos de los componentes compartidos (evaluación, ROC, probabilidades, umbrales,
+# residuos, frontera, formulario, importancia, bloques de código): content/componentes/mensajes.toml.
+#
+# Marcas:  "NUEVO (Dnn)" = texto que no existe en Python, exigido por una decisión de
+# fase4-knn.md §10.  "CORREGIDO (Dnn)" = el texto de Python era incorrecto; el literal original
+# queda en el comentario "Python:". Los tests de paridad de textos usan el literal de Python solo
+# para las claves sin marca. Las claves marcadas como (inalcanzable) existen en el código Python
+# pero el estudiante nunca las ve (§12 de fase4-knn.md).
+
+[entrenamiento]
+header = "Configuración del Modelo KNN"                      # st.header
+# En Python solo aparece en el PRIMER render tras cambiar de dataset (se pinta dentro del bloque que
+# carga los datos); al pulsar "🚀 Entrenar Modelo KNN" desaparece. D60: en Rust, siempre.
+info_titulo = "### Información del Dataset"
+# a continuación create_info_box(dataset_info) (igual que en Regresión, F2)
+error_carga = "Error al cargar el dataset: {error}"          # st.error
+parametros_titulo = "### Parámetros del Modelo"
+parametros_texto = "Configura los hiperparámetros del modelo KNN:"
+# 4 columnas: K, pesos, métrica, tamaño de prueba
+k_label = "Vecinos (K)"                                      # number_input 1..20, paso 1, 5, key knn_n_neighbors
+pesos_label = "Pesos"                                        # selectbox, key knn_weights
+pesos_opciones = ["uniform", "distance"]                     # sin traducir, índice 0
+metrica_label = "Métrica"                                    # selectbox, key knn_metric
+metrica_opciones = ["minkowski", "euclidean", "manhattan"]   # sin traducir, índice 0 (minkowski con p=2 = euclidean)
+test_size_label = "Tamaño del Conjunto de Prueba:"           # slider 0.1..0.5 paso 0.05, 0.3, SIN key
+test_size_help = "Proporción de datos que se usará para evaluar el modelo."
+btn_entrenar = "🚀 Entrenar Modelo KNN"                      # primary, key train_knn_button
+spinner = "Entrenando modelo..."
+exito = "¡Modelo KNN entrenado correctamente!"               # st.success
+ir_a_evaluacion = "👉 Ve a la pestaña '📈 Evaluación' para ver los resultados del modelo."   # st.info
+error_entrenar = "Error al entrenar el modelo: {error}"      # st.error
+sin_datos = "Primero selecciona y carga un dataset en la pestaña de Datos."   # st.info (inalcanzable: knn_X siempre se carga)
+# NUEVO (D59): st.error en lugar de entrenar con más vecinos que muestras de entrenamiento. Python
+# entrenaba (fit no lo comprueba) y todas las vistas fallaban con "Expected n_neighbors <=
+# n_samples_fit, but n_neighbors = 20, n_samples_fit = 15, n_samples = 15" (en inglés).
+# {k} = K elegido, {n} = muestras de entrenamiento.
+error_k_mayor = "K = {k} es mayor que el número de muestras de entrenamiento ({n}): no hay {k} vecinos que consultar. Elige un K de {n} o menos, o reduce el tamaño del conjunto de prueba."
+# Valores faltantes: content/arboles/mensajes.toml [entrenamiento] error_nan (común a todas las lecciones).
+# NUEVO (Fase 4, como [entrenamiento] parametros_expander de Árboles): tres expanders cerrados debajo de los
+# 4 controles, en este orden. Python no tenía ninguno.
+parametros_expander = "ℹ️ K, pesos y métrica: cómo elegirlos"    # parametros.md
+escala_expander = "📏 KNN sin escalar: por qué importa la escala"  # escala.md (D62)
+empates_expander = "🤝 Empates entre vecinos"                     # empates.md (D52)
+# NUEVO (D62): st.caption debajo de "Configura los hiperparámetros del modelo KNN:".
+nota_sin_escalar = "MLTutor usa los datos sin escalar, como la versión original: las características con valores más grandes pesan más en la distancia (lo explica «📏 KNN sin escalar»)."
+
+[comun]
+# Python usa st.info en las pestañas 2, 3, 5 y 6 sin modelo (la 4 tiene su propio texto).
+sin_entrenar = "Primero entrena un modelo KNN."
+sin_entrenar_caracteristicas = "Primero entrena un modelo KNN para ver la importancia de características."
+sin_datos_evaluacion = "No se encontraron los datos necesarios para la evaluación."   # st.error (inalcanzable)
+# NUEVO (D32/D45, como en F2 y F3): los textos modelo_entrenado_con y aviso_dataset_cambiado de
+# content/regresion/mensajes.toml [comun] se reutilizan. `config_modelo` va debajo de
+# modelo_entrenado_con; `aviso_config_cambiada` (st.warning) solo si K, pesos, métrica o tamaño de
+# prueba ya no coinciden con los del modelo. {tarea} = "clasificación" o "regresión";
+# {prueba_pct} = test_size·100 sin decimales.
+config_modelo = "🔍 KNN de {tarea}: K = {k}, pesos `{weights}`, métrica `{metric}`, prueba {prueba_pct} % · {n_train} muestras de entrenamiento"
+aviso_config_cambiada = "⚠️ Has cambiado la configuración en 🏋️ Entrenamiento, pero estas pestañas siguen mostrando el modelo entrenado con la anterior. Pulsa «🚀 Entrenar Modelo KNN» para aplicarla."
+
+[evaluacion]
+header = "📈 Evaluación del Modelo KNN"
+# Contenido: C1/C2 + C3 (show_detailed_evaluation), como en Regresión y Árboles.
+
+[visualizacion]
+header = "📉 Visualización de KNN"
+opciones_titulo = "### Opciones de Visualización"
+# Paneles de subvistas (create_button_panel): (etiqueta, valor, key)
+clasificacion = [["📊 Distribución de Probabilidades", "Probabilidades", "viz_prob"], ["📉 Curva ROC", "ROC", "viz_roc"], ["🌈 Frontera de Decisión", "Frontera", "viz_boundary"], ["🎮 Visualización Interactiva", "Interactiva", "viz_interactive"], ["📏 Análisis de Distancias", "Distancias", "viz_distances"]]
+regresion = [["📊 Distribución de Predicciones", "Predicciones", "viz_predictions"], ["🌐 Superficie de Predicción", "Superficie", "viz_surface"]]
+probabilidades_titulo = "### 📊 Distribución de Probabilidades"   # y después C5 (+ C6 en binaria)
+predicciones_titulo = "### 📊 Gráfico de Predicciones vs Valores Reales"   # C7a
+residuos_titulo = "### 📈 Análisis de Residuos"               # C7b
+sin_entrenar_frontera = "Primero debes entrenar un modelo en la pestaña '🏋️ Entrenamiento'."   # st.warning (inalcanzable)
+
+[interactiva]
+# create_interactive_knn_visualization (🎮 Visualización Interactiva). D54: componente nativo.
+titulo = "### Visualización Interactiva de KNN"
+texto = "Explora cómo el algoritmo KNN toma decisiones en tiempo real"
+f1_label = "Primera característica:"                         # selectbox, key interactive_feature1, índice 0
+f2_label = "Segunda característica:"                         # selectbox, key interactive_feature2, índice min(1, n−1)
+misma_caracteristica = "Por favor selecciona dos características diferentes."   # st.warning
+# Textos visibles del lienzo HTML de Python (components.html, 800 px de alto)
+caja_titulo = "🎯 Visualización Interactiva KNN"
+caja_texto = "Haz click en cualquier parte del área gris para agregar puntos de prueba y ver cómo el algoritmo los clasifica."
+k_label = "Valor K:"                                         # <input type=range> 1..15 (D55), valor inicial = K del modelo
+metrica_label = "Métrica:"
+metrica_opciones = [["euclidean", "Euclidean"], ["manhattan", "Manhattan"], ["minkowski", "Minkowski"]]   # (valor, etiqueta)
+pesos_label = "Pesos:"
+pesos_opciones = [["uniform", "Uniforme"], ["distance", "Por distancia"]]
+confianza_label = "Mostrar confianza:"                       # checkbox, marcado
+distancias_label = "Mostrar distancias:"                     # checkbox, marcado
+btn_limpiar = "🗑️ Limpiar Puntos"
+leyenda_titulo = "Leyenda:"
+leyenda_prueba = "Puntos de Prueba"                          # rombo dorado #FFD700
+stat_puntos = "Puntos de Prueba"
+stat_confianza = "Confianza Promedio"                        # "{:.0f}%" (Math.round)
+stat_k = "Valor K Actual"
+etiqueta_clase = "Clase {codigo}"                            # nombre de clase cuando no hay class_names
+como_usar = "interactiva-como-usar.md"                       # st.info debajo del lienzo cuando no hay puntos
+guia_expander = "📚 Guía de la Visualización Interactiva"     # cerrado; interactiva-guia.md
+# Tabla y métricas de los puntos de prueba: (inalcanzable) en Python, porque los clics del lienzo
+# nunca llegan a session_state.test_points. D54 las hace visibles con los puntos del componente.
+analisis_titulo = "### 📊 Análisis de Puntos de Prueba"
+columnas = ["Punto", "{f1}", "{f2}", "Predicción", "Confianza", "Distancia Promedio"]   # {:.3f}, {:.3f}, nombre, {:.1%}, {:.3f}
+metrica_total = "Total de Puntos"
+metrica_confianza = "Confianza Promedio"                     # {:.1%}
+metrica_parametros = "Parámetros"
+metrica_parametros_valor = "K={k}, {metric}"
+# Respaldo de Python si falla el HTML (inalcanzable). D54 convierte los dos campos en el modo
+# "valores exactos" del componente nativo.
+error_html = "Error en la visualización interactiva: {error}"   # st.error
+respaldo_info = "Fallback: Usando controles manuales"        # st.info
+valor_label = "Valor {feature}:"                             # number_input min..max de los ejes, valor = centro, paso 0.1
+btn_agregar = "➕ Agregar Punto"                              # primary
+# NUEVO (D54): textos del componente nativo que Python no tenía.
+modo_exacto = "✏️ Añadir un punto con valores exactos"        # expander cerrado con los dos campos valor_label y btn_agregar
+punto_editar = "Arrastra un punto de prueba para moverlo o edita sus valores en la tabla."   # st.caption bajo el gráfico
+vecino_tooltip = "Vecino {orden}: {clase}, distancia {distancia:.3f}"
+nota_modelo_2d = "El lienzo usa un KNN con solo estas dos características y TODAS las muestras del dataset (como la 🌈 Frontera de Decisión), con el K, los pesos y la métrica de los controles. Puede clasificar distinto que el modelo entrenado, que usa todas las características."   # st.caption
+
+[distancias]
+# 📏 Análisis de Distancias
+titulo = "### Análisis de Distancias entre Clases"
+expander = "ℹ️ Cómo interpretar este análisis"               # cerrado; distancias-interpretar.md con {metrica}
+grafico_title = "Distancias Promedio entre Clases\n(Métrica: {metrica})"   # imshow viridis, 8×6 in; texto {:.2f} blanco fuera de la diagonal
+grafico_colorbar = "Distancia Promedio"
+etiqueta_clase = "Clase {codigo}"                            # cuando no hay class_names
+separabilidad_titulo = "### Análisis de Separabilidad"
+metrica_min = "Distancia Mínima"                             # {:.3f}
+metrica_max = "Distancia Máxima"                             # {:.3f}
+metrica_ratio = "Ratio Max/Min"                              # {:.2f}
+# Veredictos de Python (por el ratio Max/Min). CORREGIDO (J2, revisión ML de F4): Rust ya NO los muestra; el
+# veredicto usa la separación (veredicto_* más abajo). Se conservan como literales de Python para los tests
+# de paridad de textos. El ratio no mide la separabilidad: Iris da 2,53 («moderada») aunque versicolor y
+# virginica se solapan; 🔢 Dígitos da 1,35 («muy próximas») aunque K = 5 acierta el 99,3 %; y tres nubes
+# bien separadas en los vértices de un triángulo equilátero dan 1,02 («muy próximas»).
+bien_separadas = "🟢 Las clases están bien separadas (ratio > 5)"         # st.success (Python)
+separacion_moderada = "🟡 Separación moderada entre clases (2 < ratio ≤ 5)"   # st.warning (Python)
+muy_proximas = "🔴 Las clases están muy próximas (ratio ≤ 2)"             # st.error (Python)
+pocas_clases = "Se necesitan al menos 2 clases para el análisis de distancias."   # st.info
+# NUEVO (D56): st.caption debajo de la matriz. {n} = muestras de entrenamiento usadas.
+nota_datos = "Calculado con las {n} muestras de entrenamiento del modelo."
+# NUEVO (J2, revisión ML de F4; D67 generalizado a binaria y multiclase): veredicto por la SEPARACIÓN,
+#   separación = min_{i≠j} M[i,j] / max(W_i, W_j),
+# con M[i,j] la distancia media entre las clases i y j y W_i la distancia media entre muestras distintas de
+# la clase i (la diagonal). ≥ 2 → separadas (st.success), ≥ 1 → moderadas (st.warning), < 1 → próximas
+# (st.error). {separacion} = ese cociente. separacion_titulo va encima del veredicto, debajo de las tres
+# métricas de Python (que se mantienen como dato informativo, seguidas de ratio_informativo).
+# Cifras (euclídea, K = 5, prueba 0,3, todas las filas de entrenamiento): 🌸 Iris 1,58 (versicolor/virginica:
+# 1,90 frente a 1,20) → moderadas; 🔢 Dígitos 1,11 (1 y 8) → moderadas; 🔬 Cáncer 1,26; 🍷 Vino 1,04; tres
+# nubes de 100 puntos (make_blobs, cluster_std=1, centros a 10 de distancia) 5,77 → separadas.
+separacion_titulo = "#### Separación entre clases"
+veredicto_separadas = "🟢 Las clases están separadas (separación {separacion:.2f} ≥ 2). La separación divide la distancia media entre las dos clases más próximas por la dispersión de la más dispersa de las dos (su distancia media interna, en la diagonal): incluso ese par está, en promedio, al menos el doble de lejos entre sí que las muestras dentro de cada clase."
+veredicto_moderadas = "🟡 Separación moderada entre clases (separación {separacion:.2f}, entre 1 y 2). La separación divide la distancia media entre las dos clases más próximas por la dispersión de la más dispersa de las dos (su distancia media interna, en la diagonal): ese par está más lejos entre sí que dentro de cada clase, pero menos del doble, así que sus nubes probablemente se tocan. Es una medida global con promedios: el KNN decide con los vecinos más cercanos y puede acertar mucho igualmente (en 🔢 Dígitos sale 1,11 y K = 5 acierta el 99,3 %); mira también la matriz de confusión."
+veredicto_proximas = "🔴 Las clases están muy próximas (separación {separacion:.2f} < 1). La separación divide la distancia media entre las dos clases más próximas por la dispersión de la más dispersa de las dos (su distancia media interna, en la diagonal): la distancia media entre ese par es menor que la distancia media dentro de la más dispersa, cuyas muestras están, en promedio, más cerca de la otra clase que entre sí: señal de que se solapan. Revisa la matriz de confusión y prueba a escalar las características."
+# {max} = filas por clase a partir de las cuales se muestrea (st.caption debajo de nota_datos, solo si alguna
+# clase de entrenamiento tiene más de {max} muestras). La regla exacta del muestreo es la del core.
+aviso_muestreo = "Para que el cálculo sea rápido, en las clases con más de {max} muestras de entrenamiento el análisis usa una muestra de {max} filas por clase: las distancias medias son una estimación."
+# st.caption debajo de las métricas Distancia Mínima / Máxima / Ratio Max/Min (con 2 clases se usa
+# [distancias_nuevo] binaria en su lugar).
+ratio_informativo = "El ratio Max/Min es el criterio de la versión original y se muestra solo como dato: compara el par de clases más alejado con el más próximo, así que mide lo desiguales que son las distancias entre clases, no si se solapan (en 🌸 Iris vale 2,53 aunque versicolor y virginica se confunden). El veredicto usa la separación."
+
+[caracteristicas]
+header = "🔍 Importancia de Características"
+# El contenido es el componente C10 en modo permutación (content/componentes/mensajes.toml
+# [importancia]: calculando, spinner, metodo_perm, perm_explicacion, permutacion, consejos).
+# NUEVO (fase4-knn.md §9.3.4): en KNN, `permutacion` sustituye a la de [importancia], cuyo ejemplo es un
+# árbol de Diabetes con profundidad 10. Mismo texto con un ejemplo de KNN:
+# tests/parity/knn/diabetes_k5_uniform_minkowski.json, s1 = −0,0224 ± 0,0249.
+permutacion = """**Permutation Importance:**
+- Mide cuánto empeora el modelo cuando se "rompe" cada característica
+- Valores más altos = el modelo depende más de esa característica
+- Valores pueden ser negativos: si son menores (en valor absoluto) que su desviación estándar, como s1 en 🩺 Diabetes con K = 5 (−0,022 ± 0,025), barajarla no empeora el modelo y la pequeña mejora es azar
+- La desviación estándar indica la estabilidad de la medición"""
+# NUEVO (D62): st.caption debajo de la tabla. En 🍷 Vino (K = 5) proline tiene 0,370, magnesium 0,043 y las
+# otras 11 están entre −0,002 y 0,002 (tests/parity/knn/wine_k5_uniform_minkowski.json).
+nota_escala = "Con los datos sin escalar, las características con valores más grandes dominan la distancia y suelen salir como las más importantes: en 🍷 Vino, casi toda la importancia es de proline (de 278 a 1680). Lo explica «📏 KNN sin escalar» en 🏋️ Entrenamiento."
+
+[predicciones]
+header = "🔮 Predicciones con Nuevos Datos"
+# Formulario y tarjeta: content/componentes/mensajes.toml [prediccion].
+info_modelo_titulo = "### Información del modelo KNN"
+info_modelo = """**Modelo KNN**
+- K: {k}
+- Pesos: {weights}
+- Métrica: {metric}"""                                       # st.info (clasificación y regresión)
+# NUEVO (D58): probabilidades (clasificación) y los K vecinos de la muestra, debajo de info_modelo.
+probabilidades_titulo = "#### Probabilidades"
+probabilidades_nota_uniform = "Proporción de cada clase entre los {k} vecinos más cercanos."
+probabilidades_nota_distance = "Votos de cada clase ponderados por 1/distancia, divididos por la suma de los pesos."
+vecinos_titulo = "#### 👥 Los {k} vecinos más cercanos"
+vecinos_columnas_clasificacion = ["Vecino", "Distancia", "Clase", "Peso"]   # + una columna por característica
+vecinos_columnas_regresion = ["Vecino", "Distancia", "Valor", "Peso"]
+vecinos_nota_cero = "La muestra coincide exactamente con {n} muestra(s) de entrenamiento: con pesos por distancia solo cuentan esas (las demás pesan 0)."
+vecinos_expander = "ℹ️ Cómo ha decidido el KNN"                # cerrado, debajo de la tabla; prediccion-vecinos.md
+# NUEVO (D52): st.caption debajo de la tabla, solo si hay muestras de entrenamiento FUERA de la tabla a la misma
+# distancia que el K-ésimo vecino. {n} = muestras a esa distancia (dentro y fuera), {huecos} = cuántas de
+# ellas entran en la tabla, {distancia} = la distancia del K-ésimo vecino. Si el backend no da este dato,
+# omitir la nota (empates.md lo explica en 🏋️ Entrenamiento).
+vecinos_nota_empate = "Hay {n} muestras de entrenamiento a la distancia del último vecino ({distancia:.4f}) y solo caben {huecos}: entran las que encuentra antes la búsqueda de scikit-learn. Ver «🤝 Empates entre vecinos» en 🏋️ Entrenamiento."
+
+[exportar]
+header = "💾 Exportar Modelo"
+# Python: display_model_export_options(model) de mltutor/algorithms/export.py, la MISMA función que
+# usa Regresión (fase2-regresion.md §2.7): 2 columnas.
+btn_codigo = "📄 Generar Código"                             # key generate_code_lr → st.code(regresion_codigo.py.j2) + descarga
+btn_codigo_descarga = "📥 Descargar código"                  # regression_code.py
+btn_pickle = "📥 Descargar Modelo (Pickle)"                  # key download_pickle_lr
+btn_pickle_descarga = "Descargar modelo.pkl"                 # linear_regression_model.pkl (también para KNN)
+# NUEVO (D57, como D28/D43): botones de Rust.
+intro = "Llévate el modelo fuera de MLTutor: el código para reentrenarlo, el modelo listo para usar en formato ONNX o un paquete que lo reconstruye en scikit-learn."
+btn_entrenamiento = "📄 Código de Entrenamiento"
+btn_entrenamiento_help = "Script de Python que repite este entrenamiento con scikit-learn: mismos datos, mismo split, mismos vecinos, mismas métricas e importancias."
+entrenamiento_titulo = "Código para entrenar este modelo KNN con scikit-learn"   # título de show_code_with_download
+archivo_entrenamiento = "knn_entrenamiento.py"
+btn_onnx = "💾 Exportar a ONNX"
+btn_onnx_help = "Guarda el modelo en formato ONNX, un estándar abierto que puedes usar desde Python (onnxruntime), C#, Java o JavaScript. Incluye las muestras de entrenamiento, porque un KNN las necesita para predecir."
+archivo_onnx = "knn.onnx"
+btn_paquete = "📦 Paquete Python (.zip)"
+btn_paquete_help = "ZIP con las muestras de entrenamiento y los hiperparámetros (modelo.json) y un script que reconstruye el KNN en scikit-learn, comprueba que elige los mismos vecinos y lo guarda como modelo_knn.pkl."
+archivo_paquete = "modelo_knn.zip"
+filtro_onnx = "Modelo ONNX (*.onnx)"
+filtro_zip = "Paquete Python (*.zip)"
+# exito_guardado / error_guardado: content/regresion/mensajes.toml [exportar].
+ayuda_expander = "ℹ️ ¿Qué formato elijo?"                    # cerrado, debajo de los tres botones; exportar.md
+
+[distancias_nuevo]
+# NUEVO (D67): con 2 clases, st.info (Python: siempre "🔴 Las clases están muy próximas (ratio ≤ 2)",
+# porque la matriz solo tiene dos celdas iguales y el ratio vale 1,00). CORREGIDO (J2): con el veredicto por
+# la separación, también hay veredicto en binaria; este texto sustituye a [distancias] ratio_informativo
+# debajo de las métricas de Python.
+binaria = "Con dos clases solo hay una distancia entre clases, así que el ratio Max/Min siempre vale 1 y no mide la separación. Por eso el veredicto compara esa distancia con la distancia media dentro de cada clase (la diagonal)."
+diagonal_nota = "La diagonal muestra la distancia media entre las muestras de una misma clase."   # st.caption

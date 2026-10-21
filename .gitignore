@@ -79,3 +79,13 @@ env/
 # Logs
 *.log
 olds/
+# Isolated desktop migration environment
+.venv-qt/
+
+# Rust / Tauri / frontend build outputs
+target/
+ui/node_modules/
+ui/dist/
+src-tauri/gen/
+# The Python "lib/" rule above would hide the frontend sources
+!ui/src/lib/

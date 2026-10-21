@@ -1,0 +1,29 @@
+{
+  "meta": {
+    "format_version": 1,
+    "generator": "tools/export_golden.py",
+    "generated": "2026-10-13",
+    "versions": {
+      "python": "3.11.14",
+      "numpy": "1.26.4",
+      "pandas": "2.3.3",
+      "scipy": "1.16.3",
+      "scikit-learn": "1.7.2",
+      "seaborn": "0.13.2",
+      "platform": "Darwin-arm64"
+    },
+    "seed": 42,
+    "tolerance": {
+      "values": "exact"
+    },
+    "tolerance_rationale": "Parsing and encoding are discrete; numeric values round-trip exactly."
+  },
+  "input": {
+    "function": "pandas.read_csv(uploaded) + create_dataset_selector validations + load_dataset_from_file(path, target, task) for each task option",
+    "csv_text": "a;b;c\n1;2;3\n4;5;6\n",
+    "csv_base64": "YTtiO2MKMTsyOzMKNDs1OzYK"
+  },
+  "expected": {
+    "validation_error": "❌ El archivo debe tener al menos 2 columnas (características + objetivo)"
+  }
+}

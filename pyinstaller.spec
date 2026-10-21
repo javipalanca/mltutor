@@ -1,157 +1,54 @@
-# PyInstaller spec para MLTutor (launcher + Streamlit + app)
-# Build: uv run pyinstaller pyinstaller.spec
-#
-# Nota: mltutor/ se incluye como datos (Streamlit ejecuta app.py como
-# fichero), por lo que PyInstaller no puede rastrear sus imports. Todas
-# las librerías que usa la app deben forzarse aquí con collect_all.
-
+# Portable Qt build: Windows/Linux single executable; macOS application bundle.
+# uv run pyinstaller pyinstaller.spec --noconfirm
 import os
 import sys
 import tomllib
+from importlib.util import find_spec
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
-from PyInstaller.building.api import COLLECT, EXE, PYZ
-from PyInstaller.building.build_main import Analysis
-from PyInstaller.building.datastruct import Tree
-from PyInstaller.utils.hooks import collect_all
+for required in ('tensorflow', 'PySide6', 'sklearn', 'onnx', 'skl2onnx'):
+    if find_spec(required) is None:
+        raise RuntimeError(f'Falta {required} en el entorno de compilación. Comprueba las dependencias y la arquitectura de Python.')
 
-project_root = os.path.abspath('.')
+project_root = SPECPATH
+with open(os.path.join(project_root, 'pyproject.toml'), 'rb') as file:
+    version = tomllib.load(file)['project']['version']
 
-# Versión única desde pyproject.toml
-with open(os.path.join(project_root, 'pyproject.toml'), 'rb') as f:
-    APP_VERSION = tomllib.load(f)['project']['version']
+datas = [(os.path.join(project_root, 'mltutor', 'assets'), 'mltutor/assets'),
+         (os.path.join(project_root, 'mltutor', 'dataset', 'data'), 'mltutor/dataset/data')]
+for package in ('plotly', 'matplotlib', 'seaborn', 'certifi'):
+    datas += collect_data_files(package)
+if os.path.isdir(os.path.join(project_root, 'data')):
+    datas.append((os.path.join(project_root, 'data'), 'data'))
 
-datas = []
-binaries = []
-hiddenimports = []
+# Markdown extensions and TensorFlow's dynamic imports are not all discoverable.
+hiddenimports = collect_submodules('markdown.extensions')
+hiddenimports += ['sklearn.utils._typedefs', 'sklearn.neighbors._quad_tree',
+                  'sklearn.tree._utils', 'h5py', 'tensorflow', 'keras',
+                  'PySide6.QtWebEngineCore', 'PySide6.QtWebEngineWidgets',
+                  'PySide6.QtPrintSupport']
 
-# Paquetes que usa la app (importados desde app.py, que es un "dato")
-collect_pkgs = [
-    'streamlit',
-    'altair',
-    'pyarrow',
-    'sklearn',
-    'scipy',
-    'matplotlib',
-    'seaborn',
-    'numpy',
-    'pandas',
-    'PIL',
-    'pydot',
-    'onnx',
-    'skl2onnx',
-    'onnxconverter_common',
-    'mpld3',
-    'plotly',
-    'joblib',
-    'tensorflow',
-    'keras',
-    'rich',
-    'dotenv',
-    # pywebview (ventana nativa de escritorio)
-    'webview',
-    # CAs para HTTPS en el ejecutable congelado (descarga de datasets)
-    'certifi',
-]
+a = Analysis([os.path.join(project_root, 'launcher_qt.py')],
+    pathex=[project_root], binaries=[], datas=datas,
+    hiddenimports=hiddenimports, hookspath=[], hooksconfig={}, runtime_hooks=[],
+    excludes=['streamlit', 'webview', 'qtpy', 'tkinter', 'pytest', 'IPython',
+              'PyQt5', 'PyQt6', 'PySide2'], noarchive=False)
+pyz = PYZ(a.pure)
 
-for pkg in collect_pkgs:
-    try:
-        ca_datas, ca_binaries, ca_hidden = collect_all(pkg)
-        datas += ca_datas
-        binaries += ca_binaries
-        hiddenimports += ca_hidden
-    except Exception:
-        print(f'[spec] aviso: no se pudo recolectar {pkg}')
-
-# Backend de pywebview en Linux y Windows: Qt WebEngine vía qtpy/PySide6
-# (importados dinámicamente, PyInstaller no los detecta solo). En Windows
-# NO se usa el backend WinForms/.NET: crashea bajo PyInstaller (0xE0434352).
-if sys.platform.startswith('linux') or sys.platform == 'win32':
-    hiddenimports += [
-        'qtpy',
-        'PySide6.QtCore',
-        'PySide6.QtGui',
-        'PySide6.QtWidgets',
-        'PySide6.QtNetwork',
-        'PySide6.QtWebChannel',
-        'PySide6.QtWebEngineCore',
-        'PySide6.QtWebEngineWidgets',
-        'PySide6.QtPrintSupport',
-    ]
-
-# Código fuente de la app como datos (sin caches); se añade en COLLECT,
-# ya que Tree no es compatible con el formato de datas de Analysis
-app_tree = Tree(
-    os.path.join(project_root, 'mltutor'),
-    prefix='mltutor',
-    excludes=['__pycache__', '*.pyc', '.DS_Store'],
-)
-
-# Conservar los datos adicionales del empaquetado local, si existen.
-if os.path.exists(os.path.join(project_root, 'data')):
-    datas += [(os.path.join(project_root, 'data'), 'data')]
-
-a = Analysis(
-    ['launcher_rich.py'],
-    pathex=[project_root],
-    binaries=binaries,
-    datas=datas,
-    hiddenimports=hiddenimports,
-    hookspath=[],
-    hooksconfig={},
-    runtime_hooks=[],
-    excludes=['tkinter', 'pytest', 'IPython'],
-    noarchive=False,
-)
-
-pyz = PYZ(a.pure, a.zipped_data)
-
-exe = EXE(
-    pyz,
-    a.scripts,
-    [],
-    exclude_binaries=True,
-    name='mltutor',
-    debug=False,
-    bootloader_ignore_signals=False,
-    strip=False,
-    upx=False,
-    # App de escritorio: sin consola en Windows (la salida va a
-    # ~/.mltutor/mltutor.log). En Linux se mantiene la consola porque el
-    # binario se lanza desde terminal y sirve de diagnóstico; en macOS el
-    # flag solo afecta al binario suelto (la distribución es MLTutor.app).
-    console=sys.platform != 'win32',
-    disable_windowed_traceback=False,
-    target_arch=None,
-    codesign_identity=None,
-    entitlements_file=None,
-    icon=os.path.join(project_root, 'assets', 'icon.ico') if sys.platform == 'win32' else None,
-)
-
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
-    app_tree,
-    strip=False,
-    upx=False,
-    name='mltutor',
-)
-
-# En macOS, además del directorio dist/mltutor se genera un bundle
-# MLTutor.app con doble clic nativo (sin terminal)
 if sys.platform == 'darwin':
-    from PyInstaller.building.osx import BUNDLE
-
-    app = BUNDLE(
-        coll,
-        name='MLTutor.app',
+    # Apple app bundles already appear as a single application in Finder. Onedir
+    # avoids unpacking TensorFlow at every launch and supports code signing.
+    exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name='MLTutor',
+              console=False, upx=False, argv_emulation=False)
+    coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name='MLTutor')
+    app = BUNDLE(coll, name='MLTutor.app',
         icon=os.path.join(project_root, 'assets', 'icon.icns'),
         bundle_identifier='es.upv.mltutor',
-        info_plist={
-            'CFBundleName': 'MLTutor',
-            'CFBundleDisplayName': 'MLTutor',
-            'CFBundleShortVersionString': APP_VERSION,
-            'NSHighResolutionCapable': True,
-        },
-    )
+        info_plist={'CFBundleName': 'MLTutor', 'CFBundleDisplayName': 'MLTutor',
+                    'CFBundleShortVersionString': version, 'NSHighResolutionCapable': True})
+else:
+    # Onefile extracts only into the user's temporary directory; no installer,
+    # administrative privileges, Python installation or Qt installation required.
+    exe = EXE(pyz, a.scripts, a.binaries, a.datas, [], name='MLTutor',
+              console=False, upx=False,
+              icon=os.path.join(project_root, 'assets', 'icon.ico') if sys.platform == 'win32' else None)

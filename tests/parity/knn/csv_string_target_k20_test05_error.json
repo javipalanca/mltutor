@@ -1,0 +1,317 @@
+{
+  "meta": {
+    "format_version": 1,
+    "generator": "tools/export_golden.py",
+    "generated": "2026-10-15",
+    "versions": {
+      "python": "3.11.14",
+      "numpy": "1.26.4",
+      "pandas": "2.3.3",
+      "scipy": "1.16.3",
+      "scikit-learn": "1.7.2",
+      "seaborn": "0.13.2",
+      "platform": "Darwin-arm64"
+    },
+    "seed": 42,
+    "tolerance": {
+      "texts": "exact"
+    },
+    "tolerance_rationale": "K larger than the training set: the app trains (fit does not check) and every view that predicts fails."
+  },
+  "input": {
+    "csv_fixture": "csv/string_target.json",
+    "target": "especie",
+    "task": "auto",
+    "app_label": "📄 string_target.csv",
+    "n_neighbors": 20,
+    "weights": "uniform",
+    "metric": "minkowski",
+    "test_size": 0.5,
+    "scaling": null,
+    "function": "mltutor.apps.knn_app.run_knn_app, rendered headlessly by tools/golden_render.py"
+  },
+  "expected": {
+    "trained": true,
+    "n_train": 15,
+    "views": {
+      "train": {
+        "kind": "page",
+        "children": [
+          {
+            "kind": "heading",
+            "text": "📊 Selección y Preparación de Datos",
+            "level": 1
+          },
+          {
+            "kind": "text",
+            "text": "### 🎯 Selección de Dataset",
+            "html": false
+          },
+          {
+            "kind": "select",
+            "label": "Dataset:",
+            "key": "unified_dataset_selector",
+            "value": "📄 string_target.csv",
+            "options": ["🌸 Iris - Clasificación de flores", "🍷 Vino - Clasificación de vinos", "🔬 Cáncer - Diagnóstico binario", "🔢 Dígitos - Clasificación de dígitos", "🩺 Diabetes - Progresión (regresión)", "💎 Diamantes - Precio (regresión)", "⛽ MPG - Consumo combustible (regresión)", "🌙 Moons - Clasificación sintética", "🚢 Titanic - Supervivencia", "💰 Propinas - Predicción de propinas", "🏠 Viviendas California - Precios", "🐧 Pingüinos - Clasificación de especies", "📄 string_target.csv"],
+            "display": ["🌸 Iris - Clasificación de flores", "🍷 Vino - Clasificación de vinos", "🔬 Cáncer - Diagnóstico binario", "🔢 Dígitos - Clasificación de dígitos", "🩺 Diabetes - Progresión (regresión)", "💎 Diamantes - Precio (regresión)", "⛽ MPG - Consumo combustible (regresión)", "🌙 Moons - Clasificación sintética", "🚢 Titanic - Supervivencia", "💰 Propinas - Predicción de propinas", "🏠 Viviendas California - Precios", "🐧 Pingüinos - Clasificación de especies", "📄 string_target.csv"],
+            "help": "El dataset seleccionado se mantendrá entre las pestañas de Exploración y Entrenamiento"
+          },
+          {
+            "kind": "text",
+            "text": "---",
+            "html": false
+          },
+          {
+            "kind": "heading",
+            "text": "Configuración del Modelo KNN",
+            "level": 1
+          },
+          {
+            "kind": "text",
+            "text": "### Parámetros del Modelo",
+            "html": false
+          },
+          {
+            "kind": "text",
+            "text": "Configura los hiperparámetros del modelo KNN:",
+            "html": false
+          },
+          {
+            "kind": "row",
+            "weights": [1, 1, 1, 1],
+            "children": [
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "number",
+                    "label": "Vecinos (K)",
+                    "key": "knn_n_neighbors",
+                    "value": 20,
+                    "min_value": 1,
+                    "max_value": 20,
+                    "step": 1
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "select",
+                    "label": "Pesos",
+                    "key": "knn_weights",
+                    "value": "uniform",
+                    "options": ["uniform", "distance"],
+                    "display": ["uniform", "distance"]
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "select",
+                    "label": "Métrica",
+                    "key": "knn_metric",
+                    "value": "minkowski",
+                    "options": ["minkowski", "euclidean", "manhattan"],
+                    "display": ["minkowski", "euclidean", "manhattan"]
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "slider",
+                    "label": "Tamaño del Conjunto de Prueba:",
+                    "key": null,
+                    "value": 0.5,
+                    "min_value": 0.1,
+                    "max_value": 0.5,
+                    "step": 0.05,
+                    "help": "Proporción de datos que se usará para evaluar el modelo."
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "button",
+            "key": "train_knn_button",
+            "label": "🚀 Entrenar Modelo KNN",
+            "type": "primary"
+          },
+          {
+            "kind": "notice",
+            "text": "¡Modelo KNN entrenado correctamente!",
+            "severity": "success"
+          },
+          {
+            "kind": "notice",
+            "text": "👉 Ve a la pestaña '📈 Evaluación' para ver los resultados del modelo.",
+            "severity": "info"
+          }
+        ]
+      },
+      "tab_2": {
+        "app_error": "ValueError: Expected n_neighbors <= n_samples_fit, but n_neighbors = 20, n_samples_fit = 15, n_samples = 15"
+      },
+      "tab_3": {
+        "app_error": "ValueError: Expected n_neighbors <= n_samples_fit, but n_neighbors = 20, n_samples_fit = 15, n_samples = 15"
+      },
+      "tab_4": {
+        "kind": "page",
+        "children": [
+          {
+            "kind": "notice",
+            "text": "📊 **Dataset actual:** 📄 string_target.csv",
+            "severity": "info"
+          },
+          {
+            "kind": "text",
+            "text": "---",
+            "html": false
+          },
+          {
+            "kind": "heading",
+            "text": "🔍 Importancia de Características",
+            "level": 1
+          },
+          {
+            "kind": "text",
+            "text": "### Importancia de Características",
+            "html": false
+          },
+          {
+            "kind": "notice",
+            "text": "🔄 Calculando Permutation Importance... Esto puede tomar unos segundos.",
+            "severity": "info"
+          },
+          {
+            "kind": "notice",
+            "text": "Error al calcular Permutation Importance: Expected n_neighbors <= n_samples_fit, but n_neighbors = 20, n_samples_fit = 15, n_samples = 15",
+            "severity": "error"
+          },
+          {
+            "kind": "notice",
+            "text": "💡 Asegúrate de que el modelo esté entrenado y los datos de prueba sean válidos.",
+            "severity": "info"
+          }
+        ]
+      },
+      "tab_5": {
+        "kind": "page",
+        "children": [
+          {
+            "kind": "notice",
+            "text": "📊 **Dataset actual:** 📄 string_target.csv",
+            "severity": "info"
+          },
+          {
+            "kind": "text",
+            "text": "---",
+            "html": false
+          },
+          {
+            "kind": "heading",
+            "text": "🔮 Predicciones con Nuevos Datos",
+            "level": 1
+          },
+          {
+            "kind": "text",
+            "text": "### Ingresa valores para predecir",
+            "html": false
+          },
+          {
+            "kind": "row",
+            "weights": [1, 1],
+            "children": [
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "slider",
+                    "label": "largo",
+                    "key": "feature_0",
+                    "value": 3.8243333333333336,
+                    "min_value": 1.22,
+                    "max_value": 6.91,
+                    "step": 0.056900000000000006
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "slider",
+                    "label": "ancho",
+                    "key": "feature_1",
+                    "value": 1.5186666666666666,
+                    "min_value": 0.05,
+                    "max_value": 2.81,
+                    "step": 0.027600000000000003
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "button",
+            "key": null,
+            "label": "Realizar predicción",
+            "type": "primary"
+          }
+        ]
+      },
+      "tab_6": {
+        "kind": "page",
+        "children": [
+          {
+            "kind": "notice",
+            "text": "📊 **Dataset actual:** 📄 string_target.csv",
+            "severity": "info"
+          },
+          {
+            "kind": "text",
+            "text": "---",
+            "html": false
+          },
+          {
+            "kind": "heading",
+            "text": "💾 Exportar Modelo",
+            "level": 1
+          },
+          {
+            "kind": "row",
+            "weights": [1, 1],
+            "children": [
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "button",
+                    "key": "generate_code_lr",
+                    "label": "📄 Generar Código"
+                  }
+                ]
+              },
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "button",
+                    "key": "download_pickle_lr",
+                    "label": "📥 Descargar Modelo (Pickle)"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

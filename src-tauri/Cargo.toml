@@ -1,0 +1,67 @@
+[package]
+name = "mltutor"
+description = "MLTutor: aplicación educativa para aprender Machine Learning"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+default-run = "mltutor"
+
+[[bin]]
+name = "mltutor"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2.7", features = [] }
+
+[dependencies]
+tauri = { version = "2.12", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+log = { version = "0.4", features = ["std"] }
+humantime = "2"
+dirs = "6"
+ts-rs = "11"
+tauri-plugin-dialog = "2"
+indexmap = "2"
+csv = "1"
+toml = { version = "0.8", default-features = false, features = ["parse"] }
+mltutor-core.workspace = true
+mltutor-export.workspace = true
+mltutor-nn.workspace = true
+ndarray = "0.16"
+# The private folder of the automation modes (0700, random name).
+tempfile = "3"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSData", "NSDictionary", "NSError", "NSGeometry", "NSString"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "objc2-core-foundation", "NSBitmapImageRep", "NSGraphics", "NSImage", "NSImageRep", "NSResponder", "NSView"] }
+objc2-web-kit = { version = "0.3", default-features = false, features = ["std", "block2", "objc2-app-kit", "objc2-core-foundation", "WKWebView", "WKSnapshotConfiguration"] }
+block2 = "0.6"
+objc2-core-foundation = { version = "0.3", default-features = false, features = ["std", "CFCGTypes"] }
+
+# D3 (WebView2 missing: native message box) and `--screenshot` (CapturePreview / DevTools
+# protocol). Same versions as wry's, so that the COM types match.
+[target.'cfg(windows)'.dependencies]
+webview2-com = "0.39"
+# The DevTools protocol returns the full-page PNG in base64.
+base64 = "0.22"
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_System_Com", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+
+# `--screenshot` on Linux: `webkit_web_view_get_snapshot` returns a cairo surface.
+[target.'cfg(target_os = "linux")'.dependencies]
+webkit2gtk = { version = "2.0", features = ["v2_40"] }
+cairo-rs = { version = "0.18", features = ["png"] }
+
+[dev-dependencies]
+# Tests of the DevTools screenshot decoder, which run on every platform.
+base64 = "0.22"
+# Reads back the Python package in the export tests (same version as mltutor-export).
+zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+
+[lints]
+workspace = true

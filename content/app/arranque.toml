@@ -1,0 +1,41 @@
+# Mensajes nativos del arranque (cuadro de diálogo del sistema, no la interfaz web).
+# Los lee src-tauri/src/webview_runtime.rs ANTES de crear la ventana, así que no pueden
+# pasar por Markdown ni por la interfaz: texto plano, con saltos de línea literales.
+# NUEVO (D3): no existe en la versión Python.
+#
+# Marcadores: {url} = página de descarga de WebView2, {detalle} = error técnico,
+# {registro} = ruta del archivo de registro.
+
+[webview2]
+url = "https://developer.microsoft.com/microsoft-edge/webview2/"
+titulo = "MLTutor no puede arrancar: falta Microsoft Edge WebView2"
+mensaje = """
+MLTutor necesita el componente «Microsoft Edge WebView2 Runtime» para mostrar su ventana, y no se ha encontrado en este equipo.
+
+Viene de serie con Windows 10 y Windows 11, pero puede haberse desinstalado o estar bloqueado.
+
+Cómo solucionarlo (no hace falta ser administrador):
+  1. Abre la página de descarga de Microsoft:
+     {url}
+  2. Descarga el instalador «Evergreen Bootstrapper» y ejecútalo. Sin permisos de administrador se instala solo para tu usuario.
+  3. Vuelve a abrir MLTutor.
+
+Si no puedes instalar nada: descarga en esa misma página la versión «Fixed Version» (x64), descomprímela en una carpeta llamada WebView2 junto a mltutor.exe y vuelve a abrir MLTutor.
+
+Detalle técnico: {detalle}
+Registro: {registro}
+
+¿Quieres abrir ahora la página de descarga?"""
+
+[ventana]
+titulo = "MLTutor no ha podido abrir su ventana"
+mensaje = """
+MLTutor no ha podido crear su ventana.
+
+En Windows, la causa más habitual es que el componente «Microsoft Edge WebView2 Runtime» falte o esté dañado. Puedes instalarlo o repararlo, sin permisos de administrador, desde:
+{url}
+
+Detalle técnico: {detalle}
+Registro: {registro}
+
+¿Quieres abrir ahora la página de descarga?"""

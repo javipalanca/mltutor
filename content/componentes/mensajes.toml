@@ -1,0 +1,309 @@
+# Textos cortos de los componentes compartidos de evaluación y visualización, literales.
+# Los usan Regresión (F2) y, con los mismos textos, Árboles, KNN y Redes (F3–F5).
+# Origen: mltutor/algorithms/model_evaluation.py, mltutor/viz/{roc,residual,decision_boundary,features}.py,
+# mltutor/ui.py::create_prediction_interface y mltutor/utils.py. {x:.4f} = formato de Python.
+# Textos largos (expanders): los .md de esta carpeta.
+#
+# Marcas:  "NUEVO (Dnn)" = texto que no existe en Python, exigido por una decisión de
+# fase2-regresion.md §10.  "CORREGIDO" = el texto de Python era incorrecto; el literal original
+# queda en el comentario "Python:". Los tests de paridad de textos deben usar el literal de Python
+# solo para las claves que no llevan estas marcas.
+
+[codigo]   # utils.show_code_with_download(code, title, filename)
+titulo = "#### {titulo}"
+expander = "Ver código"                                    # cerrado
+descargar = "📥 Descargar código"
+copiar_info = "Usa el botón de copia en la esquina superior derecha del bloque de código para copiarlo"   # st.info
+
+[clasificacion]   # show_detailed_evaluation(..., "Clasificación")
+accuracy = "Exactitud (Accuracy)"                          # {:.4f}
+accuracy_help = "Proporción total de predicciones correctas"
+accuracy_niveles = [[0.9, "success", "🌟", "Excelente"], [0.8, "info", "👍", "Muy bueno"], [0.7, "warning", "⚠️", "Bueno"], [0.0, "warning", "❌", "Necesita mejora"]]   # umbral ≥, tipo, icono (Qt lo descarta: solo se ve el texto), texto
+precision = "Precisión media"                               # weighted avg, {:.4f}
+precision_help = "Media ponderada de la precisión de cada clase"
+recall = "Exhaustividad media (Recall)"
+recall_help = "Media ponderada de la exhaustividad de cada clase"
+f1 = "F1-Score medio"
+f1_help = "Media armónica de precisión y exhaustividad"
+f1_niveles = [[0.8, "success", "🌟 Excelente balance"], [0.7, "info", "👍 Buen balance"], [0.0, "warning", "⚠️ Balance mejorable"]]
+matriz_titulo = "### ⚖️ Matriz de Confusión"
+matriz_title = "Matriz de Confusión"                        # heatmap Blues, anotaciones enteras
+matriz_xlabel = "Predicción"
+matriz_ylabel = "Real"
+matriz_descarga = "📥 Descargar matriz de confusión"       # matriz_confusion.png
+matriz_codigo = "Código para generar la matriz de confusión"   # matriz_confusion.py
+informe_columnas = ["precision", "recall", "f1-score", "support"]   # filas = clases; Python formatea {:.4f}/{:.0f} con Styler, que Qt descarta (se ve .6g)
+metricas_expander = "📊 Explicación de métricas"           # metricas-clasificacion.md
+predicciones_titulo = "### Visualización de Predicciones"
+correctas_titulo = "#### Muestras correctamente clasificadas"
+incorrectas_titulo = "#### Muestras incorrectamente clasificadas"
+columnas_muestras = ["Real", "Predicción", "Correcto"]     # head(10) de cada grupo, índice = posición en el test
+todas_correctas = "¡Todas las muestras fueron clasificadas correctamente!"   # st.info
+precision_clase_title = "Precisión por clase"               # barras seaborn #3274a1, y 0..1
+precision_clase_ylabel = "Precisión"
+precision_clase_xlabel = "Clase"
+precision_clase_descarga = "📥 Descargar gráfico de precisión"   # precision_por_clase.png
+precision_clase_codigo = "Código para generar el gráfico de precisión"   # precision_por_clase.py
+
+[regresion]   # show_detailed_evaluation(..., "Regresión")
+mse = "Error Cuadrático Medio (MSE)"                         # {:.4f}
+mse_help = "Promedio de los errores al cuadrado. Penaliza más los errores grandes."
+rmse = "RMSE"
+rmse_help = "Raíz cuadrada del MSE. En las mismas unidades que la variable objetivo."
+mae = "Error Absoluto Medio (MAE)"
+mae_help = "Promedio de los errores absolutos. Menos sensible a valores atípicos."
+r2 = "R² Score"
+r2_help = "Proporción de la varianza explicada por el modelo. 1 es predicción perfecta."
+pred_title = "Predicciones vs Valores reales"               # scatter alpha 0.5, color = |error| viridis; diagonal 'r--' de min a max de y_test
+pred_xlabel = "Valores reales"
+pred_ylabel = "Predicciones"
+pred_colorbar = "Error absoluto"
+descarga = "📥 Descargar gráfico"                          # predicciones_vs_reales.png / distribucion_errores.png
+codigo = "Código para generar este gráfico"                # predicciones_vs_reales.py / distribucion_errores.py
+errores_title = "Distribución de errores"                  # sns.histplot(bins='auto', kde=True), línea x=0 'r--'
+errores_xlabel = "Error (Real - Predicción)"                # eje y "Count" (seaborn, en inglés)
+metricas_expander = "📊 Explicación de métricas de regresión"   # metricas-regresion.md
+
+[interpretacion]
+titulo = "### 🔍 Interpretación de Resultados"
+# Regresión (st.info, líneas unidas con "\n"):
+# CORREGIDO (revisión ML de F5c/F5d, 2026-10-16): vale para todas las lecciones (Regresión, Árboles, KNN, Redes).
+# Python: "- Tu modelo de regresión lineal explica …".
+reg = ["**Resumen del Modelo:**", "- Tu modelo explica **{r2_pct:.1f}%** de la variabilidad en los datos", "- En promedio, las predicciones se desvían **{mae:.2f} unidades** del valor real (MAE)", "- La raíz del error cuadrático medio es **{rmse:.2f} unidades** (RMSE)"]
+reg_rmse_mayor = "\n- ⚠️ El RMSE es significativamente mayor que el MAE, lo que indica la presencia de algunos errores grandes"   # si rmse > 1.5·mae
+# NUEVO: si r2 < 0 se añade esta línea (después de reg_rmse_mayor, si aparece). Python decía
+# "explica **-12.3%** de la variabilidad" sin más.
+reg_r2_negativo = "\n- ⚠️ El R² es negativo: con los datos de prueba, el modelo predice peor que si diera siempre la media del objetivo"
+# Clasificación (st.info): cada línea termina en "\n"
+cls = ["**Resumen del Modelo:**", "- Tu modelo clasifica correctamente **{acc_pct:.1f}%** de los casos", "- De las predicciones positivas, **{prec_pct:.1f}%** son correctas (Precisión)", "- Detecta **{rec_pct:.1f}%** de todos los casos positivos reales (Recall)"]
+cls_f1 = "- El F1-Score (balance entre precisión y recall) es **{f1:.3f}**\n\n"   # si f1 > 0
+cls_mas_preciso = "- ⚖️ **Balance:** El modelo es más preciso pero menos sensible (más conservador)\n- 💡 **Sugerencia:** Si es importante detectar todos los casos positivos, considera ajustar el umbral de decisión\n\n"   # |p − r| > 0.1 y p > r
+cls_mas_sensible = "- ⚖️ **Balance:** El modelo es más sensible pero menos preciso (más liberal)\n- 💡 **Sugerencia:** Si es importante evitar falsos positivos, considera ajustar el umbral de decisión\n\n"
+cls_equilibrio = "- ⚖️ **Balance:** Buen equilibrio entre precisión y recall\n\n"
+cls_mejorar = "🔍 **Recomendaciones para mejorar:**\n- Revisar la calidad y cantidad de datos de entrenamiento\n- Considerar ingeniería de características adicionales\n- Probar diferentes algoritmos de clasificación\n- Verificar si hay desbalance de clases\n"   # si accuracy < 0.6
+
+[roc]   # viz/roc.py
+titulo_binaria = "### 📈 Curvas de Rendimiento"
+titulo_multiclase = "### 📈 Curvas de Rendimiento Multi-clase"
+opciones_titulo = "### ⚙️ Opciones de Visualización"         # solo multiclase
+por_clase = "Mostrar curvas por clase individual"             # checkbox, True
+promediado = "Métodos de promediado:"                         # multiselect ["macro", "micro"], ambos; vacío → ["macro"]
+roc_title_binaria = "Curva ROC"
+roc_title_multiclase = "Curvas ROC Multi-clase"
+roc_xlabel = "Tasa de Falsos Positivos"
+roc_ylabel = "Tasa de Verdaderos Positivos"
+pr_title_binaria = "Curva Precision-Recall"
+pr_title_multiclase = "Curvas Precision-Recall Multi-clase"
+pr_xlabel = "Recall (Sensibilidad)"
+pr_ylabel = "Precision (Precisión)"
+leyenda_roc = "Curva ROC (AUC = {auc:.3f})"                  # darkorange
+leyenda_aleatorio = "Clasificador Aleatorio"                  # binaria: navy '--'; multiclase: 'k--' alpha 0.5
+leyenda_pr = "Curva P-R (AP = {ap:.3f})"                      # darkgreen
+leyenda_baseline = "Baseline ({baseline:.3f})"                # navy '--', y = proporción de positivos
+# NUEVO: st.caption bajo el título de las curvas binarias. En 🔬 Cáncer la clase 1 es *benign*: sin
+# esta nota parece que la ROC mide la detección del tumor maligno.
+clase_positiva = "La clase positiva es **{clase}** (la de código 1): las curvas miden lo bien que el modelo la distingue de **{clase_negativa}**."
+# NUEVO (D20): multiclase, si alguna clase del modelo no tiene muestras en el conjunto de prueba.
+# Python desalineaba las columnas de predict_proba; Rust usa las clases del modelo y omite estas.
+clases_ausentes = "ℹ️ Sin muestras de prueba de: {clases}. Sus curvas ROC y Precision-Recall no se pueden calcular y no entran en los promedios."   # {clases} = nombres separados por ", "
+leyenda_clase_roc = "{clase} (AUC = {auc:.3f})"
+leyenda_clase_pr = "{clase} (AP = {ap:.3f})"
+leyenda_micro_roc = "Micro-promedio (AUC = {auc:.3f})"       # deeppink ':' ancho 4
+leyenda_micro_pr = "Micro-promedio (AP = {ap:.3f})"
+leyenda_macro_roc = "Macro-promedio (AUC = {auc:.3f})"       # navy '--' ancho 4
+leyenda_macro_pr = "Macro-promedio (AP = {ap:.3f})"          # línea horizontal (axhline), no curva
+colores_clases = ["aqua", "darkorange", "cornflowerblue", "red", "green", "purple", "brown", "pink", "gray", "olive"]   # cíclicos
+interp_titulo_binaria = "### 📋 Interpretación de las Curvas"
+interp_roc = "**Curva ROC:**"
+interp_pr = "**Curva Precision-Recall:**"
+binaria_auc = [[0.9, "success", "🎯 Excelente discriminación (AUC = {auc:.3f})"], [0.8, "info", "👍 Buena discriminación (AUC = {auc:.3f})"], [0.7, "warning", "⚠️ Discriminación moderada (AUC = {auc:.3f})"], [0.0, "error", "❌ Discriminación pobre (AUC = {auc:.3f})"]]
+binaria_ap = [["baseline + 0.3", "success", "🎯 Excelente (AP = {ap:.3f})"], ["baseline + 0.1", "info", "👍 Buena mejora sobre baseline (AP = {ap:.3f})"], ["baseline", "warning", "⚠️ Mejora marginal (AP = {ap:.3f})"], ["-", "error", "❌ Por debajo del baseline (AP = {ap:.3f})"]]
+interp_titulo_multiclase = "### 📋 Interpretación de Métricas Multi-clase"
+promedio_titulo = "#### {Metodo}-promedio"                    # "Macro" / "Micro" (str.title()), en el orden del multiselect
+interp_roc_auc = "**ROC AUC:**"
+interp_ap = "**Average Precision:**"
+multiclase_auc = [[0.9, "success", "🎯 Excelente (AUC = {auc:.3f})"], [0.8, "info", "👍 Buena (AUC = {auc:.3f})"], [0.7, "warning", "⚠️ Moderada (AUC = {auc:.3f})"], [0.0, "error", "❌ Pobre (AUC = {auc:.3f})"]]
+multiclase_ap = [[0.8, "success", "🎯 Excelente (AP = {ap:.3f})"], [0.6, "info", "👍 Buena (AP = {ap:.3f})"], [0.4, "warning", "⚠️ Moderada (AP = {ap:.3f})"], [0.0, "error", "❌ Pobre (AP = {ap:.3f})"]]
+por_clase_titulo = "#### 📊 Métricas por Clase"               # solo si se muestran las curvas por clase
+por_clase_columnas = ["Clase", "ROC AUC", "Average Precision"]   # round(·, 3)
+macro_micro_expander = "ℹ️ ¿Macro vs Micro promedio?"        # roc-macro-micro.md
+interpretar_expander = "ℹ️ ¿Cómo interpretar las Curvas de Rendimiento?"   # roc-interpretar.md
+
+[probabilidades]   # viz/roc.py::plot_threshold_analysis
+expander_binaria = "ℹ️ ¿Cómo interpretar la Distribución de Probabilidades?"   # probabilidades-binaria.md
+title_binaria = "Distribución de Probabilidades Predichas por Clase Real"
+xlabel_binaria = "Probabilidad de Clase Positiva"
+ylabel = "Frecuencia"
+leyenda_clase = "Clase {clase} (Real)"                        # clase 0 lightcoral, clase 1 lightblue; 20 bins entre min y max de cada grupo
+leyenda_umbral = "Umbral de decisión (0.5)"                   # red '--'
+metric_incierta = "Muestras en zona incierta"                 # "{n}/{total}", 0.3 < p < 0.7
+metric_pct = "Porcentaje de incertidumbre"                    # {:.1%}
+metric_confiables = "Predicciones confiables"                 # "{n}/{total}", p < 0.2 o p > 0.8
+separacion = [[0.2, "success", "✅ Excelente separación entre clases - El modelo está muy confiado en sus predicciones"], [0.4, "info", "👍 Buena separación entre clases"], [1.0, "warning", "⚠️ Las clases se superponen significativamente - Considera ajustar el umbral de decisión"]]   # umbral <
+nota_multiclase = "**Nota:** Clasificación multiclase detectada. Mostrando distribución de probabilidades para cada clase."   # st.info
+expander_multiclase = "ℹ️ ¿Cómo interpretar la Distribución de Probabilidades Multiclase?"   # probabilidades-multiclase.md
+title_multiclase = "Probabilidades para {clase}"              # una figura por clase, 3 columnas, color Set3(i)
+xlabel_multiclase = "Probabilidad"
+error_insuficientes = "Error: Datos de clasificación insuficientes para crear la visualización"
+error_sin_probs = "Error: No hay probabilidades predichas disponibles. Asegúrate de que el modelo esté entrenado correctamente."
+
+[umbrales]   # plot_threshold_analysis, solo binaria
+titulo = "### 🎯 Análisis de Umbrales de Decisión"
+expander = "ℹ️ ¿Cómo interpretar el Análisis de Umbrales?"   # umbrales.md
+actual = "Umbral Actual"                                       # valor fijo "0.50"
+optimo = "Umbral Óptimo (F1)"                                  # {:.2f}
+consejo = "💡 Considera ajustar el umbral a {umbral:.2f} para mejorar el F1-Score"   # si |óptimo − 0.5| > 0.1
+# NUEVO (revisión ML de F2, 2026-10-14): st.caption justo debajo de `consejo` (mismas
+# condiciones). El umbral óptimo se calcula con el conjunto de prueba: elegirlo así es fuga de datos.
+consejo_aviso = "⚠️ Este umbral se ha elegido mirando el conjunto de prueba, así que su F1 sale optimista. En un proyecto real, elígelo con datos de **validación** (o validación cruzada), no con la prueba, y usa la prueba solo para la evaluación final."
+tabla_titulo = "**Comparación de Umbrales:**"
+tabla_columnas = ["Umbral", "Accuracy", "Precision", "Recall", "F1-Score"]   # Umbral {:.1f} (Python no lo formateaba: con D21 saldría 0.30000000000000004), resto {:.3f}
+# D21: filas 0.3, 0.5 y 0.7, como pretendía el código (en Python, por la coma flotante de
+# np.arange, solo aparecía la fila 0.5). Si un umbral predice una sola clase, no tiene fila.
+# NUEVO (D21): st.caption debajo de la tabla.
+tabla_nota = "Cada fila clasifica como positiva toda muestra con probabilidad ≥ umbral y recalcula las métricas con el conjunto de prueba."
+
+[residuos]   # viz/residual.py
+expander_pred = "ℹ️ ¿Cómo interpretar estas visualizaciones?"   # predicciones-vs-reales.md
+pred_title = "Predicciones vs Valores Reales"                   # scatter alpha 0.6, s 50, borde negro 0.5
+pred_xlabel = "Valores Reales"
+pred_ylabel = "Predicciones"
+pred_leyenda = "Predicción Perfecta"                            # 'r--', de min(y, ŷ) a max(y, ŷ)
+pred_r2 = "R² = {r2:.4f}"                                       # caja wheat. D22: el R² real del test (en Python SIEMPRE 0.0000: leía metrics_lr, que no existe)
+expander_residuos = "ℹ️ ¿Cómo interpretar el análisis de residuos?"   # residuos-interpretar.md
+res_title = "Residuos vs Predicciones"
+res_xlabel = "Predicciones"
+res_ylabel = "Residuos (Real - Predicción)"
+res_leyenda = "Residuo = 0"                                     # 'r--'
+res_desv = "Desv. Estándar: {std:.3f}"                          # caja lightblue; std con ddof=1
+hist_title = "Distribución de Residuos"                         # 20 bins skyblue alpha 0.7
+hist_xlabel = "Residuos"
+hist_ylabel = "Frecuencia"
+hist_media = "Media: {media:.3f}"                               # red '--'
+hist_ideal = "Ideal (0)"                                        # green, alpha 0.7
+interp_titulo = "### 🔍 Interpretación de los Residuos"
+media_ok = "✅ **Media de residuos cercana a 0:** El modelo está bien calibrado"   # |media| < 0.1·std
+media_mal = "⚠️ **Media de residuos alejada de 0:** El modelo puede tener sesgo sistemático"
+# CORREGIDO: la prueba es una correlación LINEAL (Pearson) entre ŷ y los residuos. Detecta un sesgo
+# que crece o decrece con la predicción, pero no una curva (un patrón en U tiene r ≈ 0), así que
+# no demuestra un "buen ajuste lineal" ni indica por sí sola relaciones no lineales.
+# Python: "✅ **Sin correlación entre residuos y predicciones:** Buen ajuste lineal" y
+# "⚠️ **Correlación detectada en residuos:** Puede haber relaciones no lineales".
+corr_ok = "✅ **Sin correlación entre residuos y predicciones:** el error no aumenta ni disminuye de forma sistemática con el valor predicho"   # n > 10 y |r| < 0.1 (linregress(ŷ, residuos))
+corr_mal = "⚠️ **Correlación detectada en residuos:** el modelo se equivoca de forma sistemática según el valor predicho (por ejemplo, se queda corto en los valores altos)"
+# NUEVO (§4, caso n ≤ 10): Python lanzaba NameError; Rust omite la viñeta de correlación y muestra esta.
+corr_pocas_muestras = "ℹ️ **Correlación de los residuos:** con 10 muestras de prueba o menos no se comprueba"
+# CORREGIDO: solo se mide la asimetría (|skew| < 1); una distribución simétrica puede no ser normal
+# (dos picos, colas largas). Python: "✅ **Distribución de residuos aproximadamente normal**".
+normal_ok = "✅ **Distribución de residuos aproximadamente simétrica**"   # |skew| < 1 (scipy, sesgado)
+normal_mal = "⚠️ **Distribución de residuos sesgada:** Revisar outliers o transformaciones"
+item = "- {texto}"
+sugerencias = "💡 **Sugerencias de mejora:** Considera probar transformaciones de variables, añadir características polinómicas, o usar modelos no lineales."   # st.info si falla alguna de las tres
+
+[frontera]   # viz/decision_boundary.py (plot_decision_boundary y plot_decision_surface)
+titulo = "### Selección de Características"
+texto = "Selecciona 2 características para visualizar:"
+primera = "Primera característica:"                            # key viz_feature1, índice 0
+segunda = "Segunda característica:"                            # key viz_feature2, índice min(1, n−1)
+# NUEVO (§4): si las dos son iguales, Python no dibujaba nada y no decía nada.
+misma_caracteristica = "ℹ️ Elige dos características distintas para dibujar el gráfico."
+spinner_frontera = "Generando frontera de decisión..."
+spinner_superficie = "Generando superficie de decisión..."
+spinner_malla = "Calculando predicciones en {n:,} puntos..."
+# Frontera: tres st.info/st.warning separados. Superficie: un único st.info con las líneas unidas por "\n".
+malla = "Malla creada: {filas} x {columnas} = {n:,} puntos"                       # superficie: "- " delante
+malla_grande = "⚠️ La malla es muy grande ({n:,} puntos). Reduciendo resolución..."   # superficie: "\n - " delante
+malla_nueva = "Nueva resolución: {filas} x {columnas} = {n:,} puntos"              # superficie: "\n - " delante
+malla_pequena = "❌ Error: La malla resultante es demasiado pequeña: {shape}"
+malla_pequena_info = "💡 Aumenta el rango de datos o ajusta los parámetros."
+memoria = "❌ Error de memoria. El dataset es demasiado grande para esta resolución."                  # frontera
+memoria_superficie = "❌ Error de memoria. El dataset es demasiado grande para KNN con esta resolución."   # superficie
+memoria_info = "💡 Sugerencias: Prueba con un dataset más pequeño o usa un algoritmo menos intensivo como Decision Trees."
+title_frontera = "Frontera de Decisión para {f1} vs {f2}"
+leyenda_clases = "Clases"
+descarga_frontera = "📥 Descargar visualización de frontera"   # frontera_decision.png
+aviso_2d = "⚠️ Esta visualización solo muestra 2 características seleccionadas. Se entrena un nuevo modelo \nsimplificado solo con estas 2 características para poder visualizar la frontera de decisión. \nEl modelo real utiliza todas las características y puede tener diferentes decisiones."   # st.warning si hay más de 2 características
+codigo_frontera = "Código para generar la frontera de decisión"   # frontera_decision.py (content/code/frontera_decision.py.j2)
+error_frontera = "Error al crear la visualización de frontera de decisión: {error}"
+title_superficie = "Superficie de Predicción para {f1} vs {f2}"
+colorbar_superficie = "Valor Objetivo"
+
+[prediccion]   # ui.py::create_prediction_interface
+titulo = "### Ingresa valores para predecir"
+etiqueta_con_descripcion = "**{nombre}**\n\n*{descripcion}*"   # si hay descripción en los metadatos; si no, solo el nombre
+boton = "Realizar predicción"                                   # primary, sin key
+resultado_titulo = "Resultado de la predicción"                 # tarjeta #E8F5E9, radio 10, centrada; valor en #2E7D32 24px negrita
+resultado_clase = "Clase: {clase}"
+resultado_valor = "Valor: {valor:.4f}"
+resultado_prob_positiva = "Probabilidad clase positiva: {p:.4f}"   # solo redes binarias (F5)
+prob_columnas = ["Clase", "Probabilidad"]                       # logística y redes; {:.4f} (Qt muestra .6g)
+error = "Error durante la predicción: {error}"
+coef_titulo = "### Coeficientes"                                # regresión lineal: tabla Característica/Coeficiente
+camino_titulo = "### Camino de decisión"                        # árboles (F3)
+knn_titulo = "### Información del modelo KNN"                   # KNN (F4)
+knn_info = """**Modelo KNN**
+- K: {k}
+- Pesos: {pesos}
+- Métrica: {metrica}"""
+
+[importancia]   # viz/features.py::display_feature_importance (no la usa Regresión; Árboles y KNN en F3/F4)
+titulo = "### Importancia de Características"
+metodo_nativo = "Importancia Nativa del Modelo"
+# CORREGIDO (Fase 3, revisión de contenido): con criterion="absolute_error" la impureza es el error
+# absoluto medio, no la varianza; y la reducción se mide con los datos de entrenamiento (D38).
+# Python: "Basada en la reducción de impureza (Gini/Entropy) o varianza (MSE) durante la construcción del árbol."
+metodo_nativo_desc = "Basada en la reducción de impureza (Gini/Entropy) o del error (varianza con MSE, error absoluto con absolute_error) durante la construcción del árbol, con los datos de entrenamiento."
+calculando = "🔄 Calculando Permutation Importance... Esto puede tomar unos segundos."   # st.info
+spinner = "Calculando importancia por permutación..."
+metodo_perm = "Permutation Importance"                          # permutation_importance(n_repeats=10, random_state=42, n_jobs=1)
+metodo_perm_desc = "Mide cuánto disminuye el rendimiento del modelo cuando se permutan aleatoriamente los valores de cada característica."
+perm_explicacion = """**Método utilizado:** {metodo}
+
+{descripcion}
+
+📊 **Interpretación:**
+- Valores más altos = mayor importancia
+- Se calculó con 10 repeticiones para mayor robustez
+- Las barras de error muestran la variabilidad entre repeticiones"""
+error_perm = "Error al calcular Permutation Importance: {error}"
+error_perm_info = "💡 Asegúrate de que el modelo esté entrenado y los datos de prueba sean válidos."
+sin_importancia = """⚠️ **No se puede calcular la importancia de características**
+
+Este modelo no tiene importancia nativa y no se proporcionaron datos de prueba.
+
+**Para ver la importancia de características necesitas:**
+- Modelos con importancia nativa (Árboles de Decisión, Random Forest, etc.), O
+- Datos de prueba (X_test, y_test) para calcular Permutation Importance"""
+grafico_title = "Importancia de Características\n({metodo})"   # barh viridis por orden ascendente; xerr = std si es permutación
+grafico_xlabel = "Importancia"
+valores_titulo = "### Valores Detallados"
+columnas = ["Característica", "Importancia"]                    # + "Desv. Estándar"; round(4); orden descendente
+expander = "📖 Cómo interpretar estos resultados"
+# CORREGIDO (revisión ML de F3, 2026-10-15): un árbol de una sola hoja no reduce ninguna impureza y
+# scikit-learn devuelve todas las importancias a 0, que no suman 1.
+# Python, tercera línea: "- La suma de todas las importancias = 1.0"
+nativa_clasificacion = """**Importancia Nativa - Clasificación:**
+- Mide cuánto contribuye cada característica a reducir la impureza (Gini o Entropy)
+- Valores más altos = más útiles para separar las clases
+- La suma de todas las importancias = 1.0 (si el árbol es una sola hoja, sin ninguna pregunta, todas valen 0)"""
+# CORREGIDO (Fase 3, revisión de contenido): ídem. Python, segunda línea:
+# "- Mide cuánto contribuye cada característica a reducir la varianza (MSE)"
+# CORREGIDO (revisión ML de F3, 2026-10-15): como en nativa_clasificacion, la última línea añade el
+# caso del árbol de una sola hoja. Python: "- La suma de todas las importancias = 1.0"
+nativa_regresion = """**Importancia Nativa - Regresión:**
+- Mide cuánto contribuye cada característica a reducir el error de las predicciones (la varianza con MSE o Friedman MSE, el error absoluto con absolute_error)
+- Valores más altos = más útiles para predecir el valor objetivo
+- La suma de todas las importancias = 1.0 (si el árbol es una sola hoja, sin ninguna pregunta, todas valen 0)"""
+# CORREGIDO (revisión ML de F3, 2026-10-15): un valor negativo pequeño (compatible con 0 según su
+# desviación) no indica que la característica "confunda" al modelo, sino que barajarla no lo empeora y
+# la pequeña mejora es azar. Python, cuarta línea:
+# "- Valores pueden ser negativos (característica confunde al modelo)"
+permutacion = """**Permutation Importance:**
+- Mide cuánto empeora el modelo cuando se "rompe" cada característica
+- Valores más altos = el modelo depende más de esa característica
+- Valores pueden ser negativos: si son menores (en valor absoluto) que su desviación estándar, como s1 en 🩺 Diabetes con profundidad 10 (−0,050 ± 0,066), barajarla no empeora el modelo y la pequeña mejora es azar
+- La desviación estándar indica la estabilidad de la medición"""
+consejos = """**Consejos generales:**
+- Características con importancia muy baja pueden ser eliminadas
+- Características con alta importancia son críticas para el modelo
+- Usar estos resultados para selección de características o interpretabilidad"""

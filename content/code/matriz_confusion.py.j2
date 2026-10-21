@@ -1,0 +1,29 @@
+{#- CORREGIDO (F6, 2026-10-20) de mltutor/algorithms/code_examples.py::CONFUSION_MATRIX_CODE. Sin variables.
+    Se ejecuta a continuación del script de entrenamiento de la lección, que define y_test, y_pred y
+    nombre_clase ({valor de la clase: nombre}). Python llamaba a confusion_matrix(y_test, y_pred) sin
+    labels= y ponía class_names en los ejes: si una clase no aparecía ni en la prueba ni en las
+    predicciones, la matriz tenía una fila menos y las etiquetas quedaban desplazadas. Ahora se pasan
+    TODAS las clases del dataset en orden (labels=sorted(nombre_clase), como los scripts de
+    entrenamiento y la app). El literal de Python queda en tests/parity/code/regression.json. -#}
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.metrics import confusion_matrix
+
+# Todas las clases del dataset, en orden (nombre_clase es {valor de la clase: nombre}, del script
+# de entrenamiento): una clase que no aparezca en la prueba sale con su fila y su columna a cero
+todas = sorted(nombre_clase)
+nombres_clases = [nombre_clase[c] for c in todas]
+
+# Calcular la matriz de confusión
+cm = confusion_matrix(y_test, y_pred, labels=todas)
+
+# Crear el gráfico
+fig, ax = plt.subplots(figsize=(8, 6))
+sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax,
+            xticklabels=nombres_clases, yticklabels=nombres_clases)
+ax.set_xlabel('Predicción')
+ax.set_ylabel('Real')
+ax.set_title('Matriz de Confusión')
+
+plt.tight_layout()
+plt.show()

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-selected-dataset"
+description = "Enables the get_selected_dataset command without any pre-configured scope."
+commands.allow = ["get_selected_dataset"]
+
+[[permission]]
+identifier = "deny-get-selected-dataset"
+description = "Denies the get_selected_dataset command without any pre-configured scope."
+commands.deny = ["get_selected_dataset"]

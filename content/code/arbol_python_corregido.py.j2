@@ -1,0 +1,41 @@
+{#- CORREGIDO (D44, Fase 3) de export_tree_as_python_code (export.py). Python generaba código que no
+    compila con nombres como "sepal length (cm)", devolvía el código de la clase ("0") en lugar de su
+    nombre, dejaba el if/else en la columna 0 (fuera de la función) y redondeaba los umbrales a 6
+    decimales (una muestra muy cerca del umbral podía ir por la otra rama). Aquí: identificadores
+    válidos, cuerpo dentro de la función, nombres de clase y umbrales exactos: scikit-learn convierte
+    cada valor a float32 antes de compararlo, así que se escribe repr(w), con w el mayor float64 tal
+    que x <= w equivale a float32(x) <= umbral (fase3-arboles.md §3 C15).
+    Variables (pásalas todas):
+      function_name  str        "predecir_clase" o "predecir_valor"
+      params         list[str]  identificadores Python (regla en fase3-arboles.md §3 C15)
+      display_names  list[str]  nombres legibles, en el mismo orden (texto del usuario: pycomment)
+      classifier     bool
+      n_features, max_depth, node_count   int
+      body           str        como en arbol_python.py.j2, pero empezando con 4 espacios (nivel 1),
+                                con los identificadores, umbrales
+                                con repr(float) y hojas de clasificación "return {repr(nombre)}  #
+                                Probabilidad: {p:.3f}" y de regresión "return {repr(valor)}"
+-#}
+def {{ function_name }}({{ params | join(", ") }}):
+    """
+    Función generada automáticamente que implementa el árbol de decisión entrenado.
+
+    Parameters:
+{% for p in params %}        {{ p }}: float - {{ display_names[loop.index0] | pycomment }}
+{% endfor %}
+    Returns:
+        {% if classifier %}str - La clase predicha{% else %}float - El valor predicho{% endif %}
+
+    Árbol entrenado para {% if classifier %}clasificación{% else %}regresión{% endif %} con {{ n_features }} características.
+    Profundidad máxima: {{ max_depth }}
+    Número de nodos: {{ node_count }}
+
+    Los umbrales tienen muchos decimales porque scikit-learn compara los valores en float32;
+    así esta función da exactamente las mismas predicciones que el modelo.
+    """
+{{ body }}
+
+
+# Ejemplo de uso:
+# resultado = {{ function_name }}({% for p in params %}{{ p }}=valor_{{ loop.index }}{% if not loop.last %}, {% endif %}{% endfor %})
+# print(f"Predicción: {resultado}")
