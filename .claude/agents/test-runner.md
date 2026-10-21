@@ -1,6 +1,6 @@
 ---
 name: test-runner
-description: Ejecuta la verificación de MLTutor (Rust: fmt, clippy, cargo test y tests de paridad; frontend: svelte-check y vitest; Python de referencia: pytest, smoke test y verify-models) y devuelve un resumen compacto de los fallos con su causa probable. Úsalo después de cambios, para no llenar el contexto principal con la salida de las pruebas.
+description: Ejecuta la verificación de MLTutor (Rust: fmt, clippy, cargo test y tests de paridad; frontend: svelte-check y vitest; exportaciones: verify_exports.py) y devuelve un resumen compacto de los fallos con su causa probable. Úsalo después de cambios, para no llenar el contexto principal con la salida de las pruebas.
 tools: Bash, Read, Grep, Glob
 model: sonnet
 ---
@@ -18,15 +18,14 @@ Elige los pasos según lo que haya cambiado (o ejecútalos todos si te lo piden)
 4. `npm --prefix ui run check`
 5. `npm --prefix ui run test -- --run`
 
-**Python de referencia** (solo si se tocó `mltutor/` o `tests/*.py`), con
-`QT_QPA_PLATFORM=offscreen MPLBACKEND=Agg TF_CPP_MIN_LOG_LEVEL=3`:
-6. `uv run pytest -q`
-7. `uv run python launcher_qt.py --smoke-test`
-8. `uv run python launcher_qt.py --verify-models` (lento: solo si se pide)
+**Exportaciones y plantillas** (si se tocó `content/code/`, `crates/mltutor-export` o
+`src-tauri/src/export_corpus.rs`; lento, unos 2 min):
+6. `MLTUTOR_EXPORT_CORPUS=<tmp> cargo test -p mltutor --bin mltutor export_corpus::export_corpus -- --ignored --exact`
+7. `uv run --no-project --python 3.11 --with-requirements tools/verify_exports.lock.txt python tools/verify_exports.py <tmp>`
 
-Usa timeouts generosos: la primera compilación de Rust y los tests de lecciones
-Python tardan varios minutos. En Python, algunas alertas "de error" son contenido
-pedagógico intencionado (`allow_diagnostics` en `tests/test_lessons.py`).
+Si fallan tests que comparan el texto de una plantilla con `tests/parity` tras un cambio
+deliberado de la plantilla, dilo: se actualizan con `MLTUTOR_BLESS=1` (no lo ejecutes tú).
+Usa timeouts generosos: la primera compilación de Rust tarda varios minutos.
 
 Informe final (breve):
 - Resultado de cada paso: OK, FALLO u omitido (con el motivo).

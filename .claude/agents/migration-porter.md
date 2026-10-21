@@ -1,6 +1,6 @@
 ---
 name: migration-porter
-description: Planifica y prepara el port de un módulo o lección de la versión Python de MLTutor a Rust. Inventaría funcionalidades (controles, pestañas, gráficos, textos, exportaciones), genera fixtures de paridad desde Python y produce un plan de port con checklist. Úsalo al empezar a migrar cualquier parte (p. ej. "migra la lección de KNN").
+description: Planifica y prepara el port de un módulo o lección de la versión Python de MLTutor a Rust. Inventaría funcionalidades (controles, pestañas, gráficos, textos, exportaciones), consulta los fixtures de paridad congelados y produce un plan de port con checklist. Úsalo al empezar a migrar cualquier parte (p. ej. "migra la lección de KNN").
 tools: Read, Grep, Glob, Edit, Write, Bash
 ---
 
@@ -13,20 +13,19 @@ y la parte de `docs/migration/INVENTARIO.md` que te toque. Al terminar aplica la
 
 Para el módulo que te pidan:
 
-1. **Inventario.** Recorre el código Python (`mltutor/apps`, `algorithms`, `viz`,
-   `dataset`, `ui.py`) y lista sin omitir nada:
+1. **Inventario.** Recorre el código Python, que ya no está en el árbol (tag `v1.0.0`: `git show v1.0.0:<ruta>` o un worktree con `git worktree add ../mltutor-v1 v1.0.0`)
+   (`mltutor/apps`, `algorithms`, `viz`, `dataset`, `ui.py`), y lista sin omitir nada:
    - pestañas y su orden, controles (tipo, etiqueta, rango y valor por defecto, `key`);
    - cálculos (algoritmo, hiperparámetros, preprocesado, semillas);
    - visualizaciones (tipo, ejes, colores, interactividad);
    - textos pedagógicos y fragmentos de código Python mostrados;
    - exportaciones y descargas;
    - mensajes de aviso o error que actúan como contenido didáctico.
-   Si puedes, haz una captura de referencia con
-   `QT_QPA_PLATFORM=offscreen uv run python launcher_qt.py --screenshot ...`.
-2. **Fixtures de paridad.** Amplía `tools/export_golden.py` para que, con datasets y
-   semillas fijos, guarde en `tests/parity/<módulo>/*.json` las entradas, predicciones,
-   probabilidades, métricas y estructuras (p. ej. los nodos del árbol) que produce la
-   versión Python. Indica la tolerancia esperada y por qué.
+   Las capturas Qt de referencia están en `docs/migration/capturas/qt/` (congeladas).
+2. **Fixtures de paridad.** Los de `tests/parity/` están congelados (tests/parity/README.md).
+   Si hace falta uno nuevo, se genera con `tools/export_golden.py` en un checkout del tag
+   `v1.0.0` y se copia aquí; los textos de plantillas se actualizan con `MLTUTOR_BLESS=1`.
+   Indica la tolerancia esperada y por qué.
 3. **Mapeo a Rust.** Para cada cálculo, indica qué lo cubre (crate de linfa, burn,
    implementación propia en `mltutor-core`) y los huecos conocidos. Para cada vista,
    indica qué comando Tauri y qué componente Svelte la sustituyen.

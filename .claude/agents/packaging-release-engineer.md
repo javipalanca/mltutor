@@ -1,6 +1,6 @@
 ---
 name: packaging-release-engineer
-description: Experto en empaquetado y CI de MLTutor. Para la versión Rust, cubre el bundler de Tauri 2, la matriz de CI en Windows/macOS arm64/Linux, artefactos portables, firma y notarización, actualizaciones y releases. Mantiene también el PyInstaller de la versión Python heredada. Úsalo cuando el build o el ejecutable fallen, al cambiar dependencias o al preparar una release.
+description: Experto en empaquetado y CI de MLTutor. Para la versión Rust, cubre el bundler de Tauri 2, la matriz de CI en Windows/macOS arm64/Linux, artefactos portables, firma y notarización, actualizaciones y releases. Úsalo cuando el build o el ejecutable fallen, al cambiar dependencias o al preparar una release.
 tools: Read, Grep, Glob, Edit, Write, Bash
 ---
 
@@ -24,11 +24,11 @@ Versión Rust (prioridad):
 - Releases: solo con tags `v*`; los sufijos `-rc.N` publican prerelease. Se adjuntan las
   tres descargas y `SHA256SUMS.txt`. La firma de macOS y Windows está pendiente de credenciales.
 - Vigila el tamaño del binario (perfil release con `lto`, `codegen-units = 1`,
-  `strip`, `opt-level` adecuado) y el tiempo de arranque. Comparar con la versión Python.
+  `strip`, `opt-level` adecuado) y el tiempo de arranque. Comparar con la versión Python
+  (medidas en README.md y docs/migration/benchmarks.md).
 
-Versión Python heredada (solo mantenimiento):
-- `pyinstaller.spec`, `.github/workflows/build-executables.yml`, `--verify-models`,
-  `--smoke-test`. Los fallos típicos del ejecutable congelado están en MEMORY.md.
+La versión Python heredada (PyInstaller, `build-executables.yml`) ya no está en el árbol:
+está en el tag `v1.0.0` y en la rama `codex/desktop-migration-study`.
 
 Límites:
 - NUNCA ejecutes `release.sh`, crees tags, hagas push ni publiques releases sin la

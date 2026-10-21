@@ -44,7 +44,7 @@ ui/                 Svelte 5 + TS + Vite: shell, navegación, pestañas, control
                     gráficos (Plotly), Markdown + KaTeX, resaltado de código
 content/            textos pedagógicos (.md) y plantillas de código Python (.py.j2)
 tests/parity/       fixtures JSON generados desde la versión Python
-tools/              export_golden.py, scripts de capturas
+tools/              export_golden.py, scripts de capturas (retirados tras la v1.0.0; ver Fase 8)
 docs/migration/     este plan, el inventario y los planes por módulo
 ```
 
@@ -266,10 +266,14 @@ Cada subfase se cierra con el CI y la revisión.
       profesores, con descargas, primer arranque por sistema, WebView2 (D3), requisitos, registro y tamaños
       medidos frente a la `v0.3.0-rc.4`; BUILD para desarrolladores, con requisitos, build, pruebas, paridad,
       verificador de exportaciones, smoke test, capturas, CI, releases y firma. Falta la licencia (TODO del autor).)*
-- [ ] Retirada del código Python del árbol principal. Se conserva en un tag
-      `python-final` y en `tools/` lo necesario para generar los fixtures.
-- [ ] Se sustituye `build-executables.yml` por `rust.yml` y se publica la `v0.4.0` estable
-      (desde `main`, tras el merge, con confirmación del usuario).
+- [x] Retirada del código Python del árbol principal. *(2026-10-21, rama `feature/remove-python`: se
+      conserva en el tag `v1.0.0` y la rama `codex/desktop-migration-study` (sin tag `python-final`
+      todavía). Los generadores de fixtures se retiraron con la app, porque la importaban: `tests/parity`
+      queda congelado y sus textos de plantillas se actualizan con `MLTUTOR_BLESS=1`. En `tools/` quedan
+      `verify_exports.py`, `check_trees_platform.py`, `cart/knn/nn_reference.py` y `data/seaborn/`.)*
+- [x] Se sustituye `build-executables.yml` por `rust.yml` y se publica la `v0.4.0` estable
+      (desde `main`, tras el merge, con confirmación del usuario). *(La estable fue la `v1.0.0`,
+      2026-10-21; `build-executables.yml` se borró del árbol en `feature/remove-python`.)*
 
 ## Paralelización con subagentes
 

@@ -22,11 +22,11 @@ Revisa, según el cambio:
   en MEMORY.md.
 - **Visualizaciones:** las fronteras de decisión aplican las mismas transformaciones que
   el modelo; ejes y leyendas que no engañen.
-- **Código Python mostrado** (`content/`, `code_examples.py`): se ejecuta y reproduce el
-  resultado de la app.
+- **Código Python mostrado** (`content/code/*.j2`): se ejecuta y reproduce el resultado
+  de la app (`tools/verify_exports.py`).
 - **Texto pedagógico:** definiciones, fórmulas e intuiciones correctas.
 
-Puedes comprobar sospechas con `uv run python -c ...` o `cargo test -p mltutor-core <filtro>`.
+Puedes comprobar sospechas con `uv run --no-project --with scikit-learn python -c ...` o `cargo test -p mltutor-core <filtro>`.
 
 Comprueba también que el cambio cumple las decisiones de `docs/migration/PLAN.md`
 y que no se pierde nada de lo listado en `docs/migration/INVENTARIO.md` para ese módulo.

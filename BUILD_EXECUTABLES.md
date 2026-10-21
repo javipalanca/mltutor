@@ -15,11 +15,13 @@ Cargo.toml                 workspace (versión en [workspace.package])
 crates/mltutor-core/       algoritmos, métricas, preprocesado y datasets incrustados (sin UI)
 crates/mltutor-nn/         MLP propio (entrenamiento con las fórmulas de Keras)
 crates/mltutor-export/     ONNX nativo y paquetes Python
+crates/mltutor-testkit/    solo para tests: MLTUTOR_BLESS (textos de plantillas de los fixtures)
 src-tauri/                 app Tauri: comandos IPC, tareas, diálogos, registro, --smoke-test, --screenshot
 ui/                        frontend Svelte + TS
 content/                   textos pedagógicos (.md/.toml) y plantillas de código Python (code/*.j2)
-tests/parity/              fixtures generados con la versión Python de referencia
-tools/                     export_golden.py, verify_exports.py, capture_qt.py y referencias en Python
+tests/parity/              fixtures generados con la versión Python (tag v1.0.0), congelados
+tools/                     verify_exports.py, check_trees_platform.py, transcripciones en Python de
+                           sklearn/Keras (cart/knn/nn_reference.py) y data/seaborn/ (CSV sin red)
 ```
 
 ## Requisitos
@@ -32,8 +34,8 @@ En todos los sistemas:
   es la 1.85 (`rust-version` en `Cargo.toml`).
 - **Node.js LTS** con npm (el CI usa `lts/*`; en local se usa Node 24). La CLI de
   Tauri es una devDependency de `ui/`, así que no hace falta instalar `cargo-tauri`.
-- Para la paridad y la validación de exportaciones (opcional):
-  [uv](https://docs.astral.sh/uv/) y Python 3.11 o 3.12.
+- Para la validación de exportaciones y la comprobación de árboles (opcional):
+  [uv](https://docs.astral.sh/uv/); uv descarga Python 3.11 si no lo hay.
 
 Además, por sistema:
 
@@ -125,13 +127,20 @@ npm --prefix ui run test -- --run                  # vitest (sin --run se queda 
 ### Paridad con la versión Python
 
 Los tests de paridad (`cargo test`) comparan con los fixtures de `tests/parity/`,
-que se generan con la versión Python de referencia:
+generados con la versión Python de referencia. Esa versión ya no está en el árbol
+(está en el tag `v1.0.0`), así que los fixtures están **congelados**. La única
+excepción son los textos de las plantillas `content/code/*.j2`: si cambias una a
+propósito, se actualizan desde Rust y se revisa el diff:
 
 ```sh
-uv sync --locked --extra dev
-uv run python tools/export_golden.py           # regenera los fixtures
-uv run python tools/export_golden.py --check   # sale con 1 si algún fixture cambiaría
+MLTUTOR_BLESS=1 cargo test --workspace --all-targets   # reescribe solo los textos de plantilla
+git diff tests/parity
 ```
+
+Que esos scripts sigan funcionando y coincidan con scikit-learn/Keras lo comprueba
+`tools/verify_exports.py` (abajo). Para regenerar los fixtures numéricos hay que
+usar la app Python del tag `v1.0.0`; los pasos están en
+[tests/parity/README.md](tests/parity/README.md).
 
 El CI de Linux comprueba además que scikit-learn en x86-64 construye los mismos
 árboles que los fixtures (generados en arm64):
@@ -145,16 +154,16 @@ uv run --no-project --python 3.11 \
 ### Validación de exportaciones y plantillas de código
 
 Cada ONNX, paquete Python y plantilla de `content/code/` que ofrece la app se
-comprueba con onnxruntime, scikit-learn y Keras (sustituye al `--verify-models`
-de la versión Python). Primero se escribe el corpus con el código de la propia app
+comprueba con onnxruntime, scikit-learn y Keras. Los scripts leen los datasets de
+seaborn de `tools/data/seaborn/` (`SEABORN_DATA`), sin red. Primero se escribe el corpus con el código de la propia app
 (`src-tauri/src/export_corpus.rs`) y después se verifica sin red:
 
 ```sh
 MLTUTOR_EXPORT_CORPUS=/tmp/corpus \
   cargo test -p mltutor --bin mltutor export_corpus::export_corpus -- --ignored --exact
 
-uv run --no-project --python .venv/bin/python --with-requirements tools/verify_exports.lock.txt \
-  python tools/verify_exports.py /tmp/corpus     # en CI: --python 3.11 y --timeout 300
+uv run --no-project --python 3.11 --with-requirements tools/verify_exports.lock.txt \
+  python tools/verify_exports.py /tmp/corpus     # en CI, además, --timeout 300
 # opciones: --only <subcadena>, --jobs N, --timeout S, --keep
 ```
 
@@ -199,9 +208,9 @@ Los escenarios están en `ui/src/lib/scenarios.ts` y en
 `ui/src/lib/lessons/*/scenarios.ts`; los de CSV llevan la ruta
 (`csv_cargado_clasificacion:<ruta.csv>`). `--full-page` es fiable en macOS; en
 Windows y Linux es de mejor esfuerzo (en Linux, solo si el gestor de ventanas deja
-crecer la ventana). Las capturas de referencia están en
-`docs/migration/capturas/qt/` (se regeneran con `uv run python tools/capture_qt.py`)
-y las de la versión Rust en `docs/migration/capturas/rust/`.
+crecer la ventana). Las capturas de referencia de la versión Qt están en
+`docs/migration/capturas/qt/` (congeladas; las generaba `tools/capture_qt.py` del tag
+`v1.0.0`) y las de la versión Rust en `docs/migration/capturas/rust/`.
 
 ### Benchmarks y presupuestos de tiempo
 
@@ -250,9 +259,6 @@ Presupuestos:
   25–46 s) y un `timeout-minutes` de 8 por paso. Los jobs tienen un límite de 90
   (`build`), 45 (`exports`) y 40 minutos (`benchmarks`).
 
-`build-executables.yml` es el workflow de la versión Python heredada: ya no
-reacciona a los tags y no publica desde esta rama.
-
 ## Releases
 
 **Solo se publica una release con la aprobación explícita del responsable del
@@ -300,13 +306,12 @@ prerelease y no pasan a ser la última versión.
   de empaquetarlo y comprobarlo con `signtool verify`.
 - **Linux:** el AppImage no se firma.
 
-## Versión Python heredada
+## Versiones anteriores
 
 La versión Python/Qt (PySide6, scikit-learn y TensorFlow, empaquetada con
-PyInstaller) es la referencia funcional de la migración y solo recibe correcciones
-de errores graves. Su código, `pyinstaller.spec`, `build-executables.yml` y sus
-instrucciones de compilación están en la rama
-[`codex/desktop-migration-study`](https://github.com/javipalanca/mltutor/tree/codex/desktop-migration-study).
-En esta rama solo se usa para generar fixtures y capturas de referencia
-(`uv sync --locked --extra dev`, `uv run python launcher_qt.py`). La versión
-Streamlit original y su despliegue web están en `main`.
+PyInstaller), con `pyinstaller.spec`, `build-executables.yml`, la versión Streamlit
+y su despliegue web (Docker, Swarm, nginx), se retiró del árbol tras la v1.0.0
+(2026-10-21). Está en el tag
+[`v1.0.0`](https://github.com/javipalanca/mltutor/tree/v1.0.0) y en la rama
+[`codex/desktop-migration-study`](https://github.com/javipalanca/mltutor/tree/codex/desktop-migration-study),
+que es donde se generan los fixtures y las capturas de referencia.
