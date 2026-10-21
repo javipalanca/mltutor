@@ -251,7 +251,7 @@ export function initDownloads({ cards, status, heroButton, heroLabel, osNote, ta
     const content = [
       "🚧 ",
       el("strong", { textContent: "Próximamente." }),
-      " La versión 0.4.0 de MLTutor está a punto de publicarse.",
+      " La versión 1.0.0 de MLTutor está a punto de publicarse.",
     ];
     content.push(" ", link(RELEASES_PAGE, "Ver todas las releases"));
     setStatus(status, "soon", ...content);
