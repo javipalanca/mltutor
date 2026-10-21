@@ -131,7 +131,9 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
 - **D3 implementado (2026-10-20):** ver la entrada de F7, empaquetado.
 - **Sin releases intermedias (2026-10-13, usuario):** no se publica ninguna versión hasta que
   la funcionalidad esté completa o casi. Durante la migración se valida con los artefactos
-  del CI. `rust.yml` se ejecuta en cada push a `feature/rust-migration`.
+  del CI. Desde la v1.0.0 (2026-10-21) se sigue gitflow y `rust.yml` se ejecuta en cada push a
+  `main`, `develop`, `release/**`, `hotfix/**` y `feature/**`. `release.sh` solo crea versiones
+  estables desde `main` (tras fusionar `release/X.Y.Z` con `--no-ff`).
 - **Fase 1, hallazgos de la versión Python (2026-10-13; detalle en `docs/migration/fase1-shell-datos.md` §11):**
   - `selected_dataset` es global en session_state y lo comparten las lecciones y la página
     CSV. Al cargar un CSV, pasa a ser `"📄 {archivo}"`.

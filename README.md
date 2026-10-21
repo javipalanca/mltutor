@@ -9,9 +9,8 @@ Funciona **sin conexión, sin instalador y sin permisos de administrador**: se
 descarga, se abre y listo. Pensada para estudiantes y para usarla en clase o en
 laboratorios.
 
-> **Estado:** esta es la nueva versión, escrita en Rust (Tauri). Está en fase de
-> pruebas (`0.4.0-rc`). La versión Python anterior sigue disponible (ver
-> [Versiones anteriores](#versiones-anteriores)).
+> **Versión 1.0.0**, escrita en Rust (Tauri). La versión Python anterior sigue
+> disponible (ver [Versiones anteriores](#versiones-anteriores)).
 
 ## 📚 Lecciones
 
@@ -57,7 +56,7 @@ sistema:
 
 Junto a ellas está `SHA256SUMS.txt`, con las sumas de comprobación. Las releases
 `v0.3.x` y anteriores son de la versión Python; la versión Rust empieza en la
-`v0.4.0`.
+`v1.0.0`.
 
 Todavía no hay firma de desarrollador en Windows ni en macOS, así que la primera
 vez el sistema avisa de que no conoce la aplicación. Es normal; abajo se explica

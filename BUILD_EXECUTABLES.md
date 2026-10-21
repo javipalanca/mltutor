@@ -224,7 +224,7 @@ multiplica (el CI usa 3).
 
 ## Integración continua (`.github/workflows/rust.yml`)
 
-Se ejecuta en cada push a `feature/rust-migration`, en las pull requests que tocan
+Se ejecuta en cada push a `main`, `develop`, `release/**`, `hotfix/**` y `feature/**`, en las pull requests que tocan
 el código Rust, la UI, el contenido o los fixtures, con `workflow_dispatch` y con
 los tags `v*`. Caché de cargo (`Swatinem/rust-cache`) y de npm.
 
@@ -264,9 +264,9 @@ La versión vive en `Cargo.toml` (`[workspace.package]`) y debe coincidir con
 el test `versions_are_in_sync`). `release.sh` se encarga de todo:
 
 ```sh
-./release.sh 0.4.0-rc.2 --dry-run   # comprueba, enseña el diff de versiones y restaura los archivos
-./release.sh 0.4.0-rc.2             # prerelease (desde cualquier rama)
-./release.sh 0.4.0                  # estable (solo desde main)
+./release.sh 1.1.0-rc.1 --dry-run   # comprueba, enseña el diff de versiones y restaura los archivos
+./release.sh 1.1.0-rc.1            # prerelease (desde cualquier rama)
+./release.sh 1.1.0                  # estable (solo desde main, tras fusionar release/1.1.0)
 ```
 
 1. Comprueba la rama (las estables solo desde `main`), que el árbol esté limpio y
@@ -283,7 +283,7 @@ Necesita `git`, `cargo`, `npm`, `python3` y GitHub CLI (`gh`) autenticado; con
 
 El job `release` comprueba que el tag es `v` + la versión de `Cargo.toml`, exige
 las tres descargas, genera `SHA256SUMS.txt` y publica la release con notas para
-los estudiantes. Los tags con `-` (por ejemplo `v0.4.0-rc.1`) se publican como
+los estudiantes. Los tags con `-` (por ejemplo `v1.1.0-rc.1`) se publican como
 prerelease y no pasan a ser la última versión.
 
 ## Firma

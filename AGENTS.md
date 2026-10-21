@@ -19,9 +19,17 @@ velocidad, tamaño y estabilidad.
 
 ## Ramas
 
-- `feature/rust-migration`: migración a Rust. **Aquí se trabaja.**
-- `codex/desktop-migration-study`: versión Python/Qt de referencia (solo bugs).
-- `main`: versión original Streamlit y su despliegue web (Docker, Swarm, nginx).
+Se sigue **gitflow** (desde la v1.0.0, 2026-10-21):
+
+- `main`: versiones publicadas. Solo recibe merges de `release/*` y `hotfix/*`, y cada
+  merge lleva su tag `vX.Y.Z` (lo crea `release.sh` desde `main`).
+- `develop`: integración. **Aquí se parte para trabajar.**
+- `feature/<nombre>`: desde `develop`, y vuelve a `develop` con `--no-ff`.
+- `release/X.Y.Z`: desde `develop` para preparar una versión; se fusiona en `main` y en `develop`.
+- `hotfix/X.Y.Z`: desde `main` para arreglos urgentes; se fusiona en `main` y en `develop`.
+- `gh-pages`: la web publicada (`site/`, ver site/README.md).
+- `feature/rust-migration`: la migración a Rust, ya fusionada en `develop` (se conserva).
+- `codex/desktop-migration-study`: versión Python/Qt heredada (referencia de los fixtures).
 
 ## Stack objetivo (Rust)
 
