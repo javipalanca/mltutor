@@ -541,10 +541,10 @@ fn training_script_matches_the_fixture() {
             *context,
             "{name}: context"
         );
-        assert_eq!(
-            render_training(&ours).unwrap(),
-            case["script"].as_str().unwrap(),
-            "{name}"
+        mltutor_testkit::assert_template_text(
+            "code/nn_training.json",
+            &format!("/expected/{name}/script"),
+            &render_training(&ours).unwrap(),
         );
         checked += 1;
     }

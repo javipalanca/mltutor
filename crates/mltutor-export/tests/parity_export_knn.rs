@@ -324,8 +324,17 @@ fn knn_python_package_matches_the_fixture() {
             x_test: c.x_test.view(),
         };
         let pkg = package::python_package(&input).unwrap();
-        assert_eq!(pkg.script, ep["script"].as_str().unwrap(), "{name}: script");
-        assert_eq!(pkg.readme, ep["leeme"].as_str().unwrap(), "{name}: LEEME");
+        let fixture = format!("knn/{name}.json");
+        mltutor_testkit::assert_template_text(
+            &fixture,
+            "/expected/export_package/script",
+            &pkg.script,
+        );
+        mltutor_testkit::assert_template_text(
+            &fixture,
+            "/expected/export_package/leeme",
+            &pkg.readme,
+        );
         assert_eq!(package::zip_name(&c.knn), ep["zip_name"].as_str().unwrap());
         let mut ours: Value = serde_json::from_str(&pkg.model_json).unwrap();
         let want = &ep["model_json"];

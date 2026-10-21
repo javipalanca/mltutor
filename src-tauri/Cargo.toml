@@ -58,6 +58,8 @@ webkit2gtk = { version = "2.0", features = ["v2_40"] }
 cairo-rs = { version = "0.18", features = ["png"] }
 
 [dev-dependencies]
+# Template texts of the frozen parity fixtures (MLTUTOR_BLESS=1 rewrites them).
+mltutor-testkit.workspace = true
 # Tests of the DevTools screenshot decoder, which run on every platform.
 base64 = "0.22"
 # Reads back the Python package in the export tests (same version as mltutor-export).

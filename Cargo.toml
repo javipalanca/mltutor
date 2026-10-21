@@ -4,6 +4,7 @@ members = [
     "crates/mltutor-core",
     "crates/mltutor-nn",
     "crates/mltutor-export",
+    "crates/mltutor-testkit",
     "src-tauri",
 ]
 
@@ -20,6 +21,7 @@ publish = false
 mltutor-core = { path = "crates/mltutor-core" }
 mltutor-nn = { path = "crates/mltutor-nn" }
 mltutor-export = { path = "crates/mltutor-export" }
+mltutor-testkit = { path = "crates/mltutor-testkit" }
 
 [workspace.lints.rust]
 unsafe_op_in_unsafe_fn = "deny"

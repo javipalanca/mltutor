@@ -190,7 +190,11 @@ fn python_package_matches_the_fixture() {
             x_test: c.x_test.view(),
         };
         let pkg = package::python_package(&input).unwrap();
-        assert_eq!(pkg.script, ep["script"].as_str().unwrap(), "{name}: script");
+        mltutor_testkit::assert_template_text(
+            &format!("linear_models/{name}.json"),
+            "/expected/export_package/script",
+            &pkg.script,
+        );
         let ours: Value = serde_json::from_str(&pkg.model_json).unwrap();
         let want = &ep["model_json"];
         let keys = |v: &Value| v.as_object().unwrap().keys().cloned().collect::<Vec<_>>();

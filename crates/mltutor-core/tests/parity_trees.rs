@@ -488,7 +488,8 @@ fn python_code_literal_and_corrected_are_exact() {
         let names = strings(&case.expected()["feature_names"]);
         let lit = codegen::tree_python_literal_context(&t, &names, None);
         let text = codegen::render(CodeTemplate::TreePythonLiteral, &lit).unwrap();
-        assert_eq!(text, e["app_text"].as_str().unwrap(), "{name}: literal");
+        let fixture = format!("trees/{name}.json");
+        mltutor_testkit::assert_template_text(&fixture, "/expected/python_code/app_text", &text);
         let cn = case.expected()["class_names"]
             .as_array()
             .map(|_| strings(&case.expected()["class_names"]));
@@ -497,10 +498,10 @@ fn python_code_literal_and_corrected_are_exact() {
             serde_json::from_value(e["corrected_context"].clone()).unwrap();
         assert_eq!(cor, want_ctx, "{name}: corrected context");
         let text = codegen::render(CodeTemplate::TreePython, &cor).unwrap();
-        assert_eq!(
-            text,
-            e["corrected_text"].as_str().unwrap(),
-            "{name}: corrected"
+        mltutor_testkit::assert_template_text(
+            &fixture,
+            "/expected/python_code/corrected_text",
+            &text,
         );
     }
 }
@@ -511,12 +512,11 @@ fn tree_templates_match_jinja2() {
     let fx = common::fixture("code/trees.json");
     let mut n = 0;
     for (name, case) in fx["expected"].as_object().unwrap() {
-        let text = case["text"].as_str().unwrap();
         let rendered = codegen::render_named(name, &case["context"]).unwrap();
-        assert_eq!(
-            rendered.trim_matches('\n'),
-            text.trim_matches('\n'),
-            "{name}"
+        mltutor_testkit::assert_template_text_trimmed(
+            "code/trees.json",
+            &format!("/expected/{name}/text"),
+            &rendered,
         );
         n += 1;
     }

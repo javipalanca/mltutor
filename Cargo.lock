@@ -2206,6 +2206,7 @@ dependencies = [
  "mltutor-core",
  "mltutor-export",
  "mltutor-nn",
+ "mltutor-testkit",
  "ndarray",
  "objc2",
  "objc2-app-kit",
@@ -2244,6 +2245,7 @@ dependencies = [
  "linfa",
  "linfa-logistic",
  "minijinja",
+ "mltutor-testkit",
  "ndarray",
  "proptest",
  "rand_mt",
@@ -2266,6 +2268,7 @@ dependencies = [
  "criterion",
  "mltutor-core",
  "mltutor-nn",
+ "mltutor-testkit",
  "ndarray",
  "prost",
  "serde",
@@ -2286,6 +2289,13 @@ dependencies = [
  "ndarray",
  "rayon",
  "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "mltutor-testkit"
+version = "1.0.0"
+dependencies = [
  "serde_json",
 ]
 

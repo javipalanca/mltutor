@@ -307,7 +307,11 @@ fn tree_python_package_matches_the_fixture() {
             x_test: c.x_test.view(),
         };
         let pkg = package::python_package(&input).unwrap();
-        assert_eq!(pkg.script, ep["script"].as_str().unwrap(), "{name}: script");
+        mltutor_testkit::assert_template_text(
+            &format!("trees/{name}.json"),
+            "/expected/export_package/script",
+            &pkg.script,
+        );
         let ours: Value = serde_json::from_str(&pkg.model_json).unwrap();
         close(&ours, &ep["model_json"], name);
         assert!(pkg.readme.contains("Árbol:"), "{name}");

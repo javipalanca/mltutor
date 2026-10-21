@@ -358,17 +358,18 @@ fn keras_package_matches() {
         let out = keras_package(&input).unwrap();
         let ours: Value = serde_json::from_str(&out.model_json).unwrap();
         same_json(&ours, m, name);
-        assert_eq!(
-            out.script,
-            pkg["script"].as_str().unwrap(),
-            "{name}: script"
-        );
-        assert_eq!(
-            out.numpy_script,
-            pkg["numpy_script"].as_str().unwrap(),
-            "{name}: numpy"
-        );
-        assert_eq!(out.readme, pkg["leeme"].as_str().unwrap(), "{name}: LEEME");
+        let fixture = format!("nn/exact/{name}.json");
+        for (field, text) in [
+            ("script", &out.script),
+            ("numpy_script", &out.numpy_script),
+            ("leeme", &out.readme),
+        ] {
+            mltutor_testkit::assert_template_text(
+                &fixture,
+                &format!("/expected/export_package/{field}"),
+                text,
+            );
+        }
         let zip = out.to_zip().unwrap();
         assert_eq!(zip, out.to_zip().unwrap());
         n += 1;

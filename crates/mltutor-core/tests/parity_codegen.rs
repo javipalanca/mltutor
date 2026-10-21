@@ -1,27 +1,26 @@
 //! C12: `content/code/*.j2` rendered with minijinja equals jinja2's output
 //! (`tests/parity/code/regression.json`, `regression_training.json`).
+//! The texts were generated with the Python app (tag v1.0.0); after a deliberate
+//! template change, `MLTUTOR_BLESS=1` rewrites them (`mltutor-testkit`).
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod common;
 
 use common::fixture;
 use mltutor_core::codegen::{self, CodeTemplate, RegressionTrainingContext};
+use mltutor_testkit::{assert_template_text, assert_template_text_trimmed};
 
 #[test]
 fn regression_templates_match_jinja2() {
     let fx = fixture("code/regression.json");
     let mut n = 0;
     for (name, case) in fx["expected"].as_object().unwrap() {
-        let text = case["text"].as_str().unwrap();
         let rendered = codegen::render_named(name, &case["context"]).unwrap();
+        let pointer = format!("/expected/{name}/text");
         if case["compare"].as_str().unwrap().contains("strip") {
-            assert_eq!(
-                rendered.trim_matches('\n'),
-                text.trim_matches('\n'),
-                "{name}"
-            );
+            assert_template_text_trimmed("code/regression.json", &pointer, &rendered);
         } else {
-            assert_eq!(rendered, text, "{name}");
+            assert_template_text("code/regression.json", &pointer, &rendered);
         }
         n += 1;
     }
@@ -35,7 +34,11 @@ fn training_script_matches_jinja2_exactly() {
         // Through the typed context: every key, nulls included (strict mode).
         let ctx: RegressionTrainingContext = serde_json::from_value(v["context"].clone()).unwrap();
         let rendered = codegen::render(CodeTemplate::RegressionTraining, &ctx).unwrap();
-        assert_eq!(rendered, v["text"].as_str().unwrap(), "{case}");
+        assert_template_text(
+            "code/regression_training.json",
+            &format!("/expected/{case}/text"),
+            &rendered,
+        );
     }
 }
 
@@ -66,7 +69,11 @@ fn tree_training_script_matches_jinja2_exactly() {
     for (case, v) in fx["expected"].as_object().unwrap() {
         let ctx: TreeTrainingContext = serde_json::from_value(v["context"].clone()).unwrap();
         let rendered = codegen::render(CodeTemplate::TreeTraining, &ctx).unwrap();
-        assert_eq!(rendered, v["text"].as_str().unwrap(), "{case}");
+        assert_template_text(
+            "code/trees_training.json",
+            &format!("/expected/{case}/text"),
+            &rendered,
+        );
         n += 1;
     }
     assert_eq!(n, 16);
@@ -112,7 +119,11 @@ fn knn_training_script_matches_jinja2_exactly() {
         // Round trip: every key is sent (strict templates).
         assert_eq!(serde_json::to_value(&ctx).unwrap(), v["context"], "{case}");
         let rendered = codegen::render(CodeTemplate::KnnTraining, &ctx).unwrap();
-        assert_eq!(rendered, v["text"].as_str().unwrap(), "{case}");
+        assert_template_text(
+            "code/knn_training.json",
+            &format!("/expected/{case}/text"),
+            &rendered,
+        );
         n += 1;
     }
     assert_eq!(n, 19);
@@ -132,14 +143,22 @@ fn knn_boundary_all_rows_matches_jinja2() {
             Some(DecisionBoundaryContext::ALL_ROWS)
         );
         let rendered = codegen::render(CodeTemplate::DecisionBoundary, &ctx).unwrap();
-        assert_eq!(rendered, v["text"].as_str().unwrap(), "{case}");
+        assert_template_text(
+            "code/knn_boundary.json",
+            &format!("/expected/{case}/text"),
+            &rendered,
+        );
         let plain = DecisionBoundaryContext::new(
             ctx.feature_indices,
             ctx.feature_names.clone(),
             ctx.class_names.clone(),
         );
         let rendered = codegen::render(CodeTemplate::DecisionBoundary, &plain).unwrap();
-        assert_eq!(rendered, v["default_text"].as_str().unwrap(), "{case}");
+        assert_template_text(
+            "code/knn_boundary.json",
+            &format!("/expected/{case}/default_text"),
+            &rendered,
+        );
         let again = plain.clone().all_rows();
         assert_eq!(again, ctx);
         n += 1;
@@ -220,7 +239,11 @@ fn nn_training_script_matches_exactly() {
         let ctx = NnTrainingContext::new(data, task, n_classes, &arch, &training).unwrap();
         assert_eq!(&serde_json::to_value(&ctx).unwrap(), c, "{case}: context");
         let rendered = codegen::render(CodeTemplate::NnTraining, &ctx).unwrap();
-        assert_eq!(rendered, v["script"].as_str().unwrap(), "{case}: script");
+        assert_template_text(
+            "code/nn_training.json",
+            &format!("/expected/{case}/script"),
+            &rendered,
+        );
         n += 1;
     }
     assert_eq!(n, 8);

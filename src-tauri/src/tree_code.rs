@@ -155,10 +155,10 @@ mod tests {
                 class_names: (!classes.is_empty()).then_some(classes.as_slice()),
             };
             let text = render(CodeTemplate::TreeTraining, &input).unwrap();
-            assert_eq!(
-                text.trim_matches('\n'),
-                case["text"].as_str().unwrap().trim_matches('\n'),
-                "{name}"
+            mltutor_testkit::assert_template_text_trimmed(
+                "code/trees_training.json",
+                &format!("/expected/{name}/text"),
+                &text,
             );
             checked += 1;
         }
