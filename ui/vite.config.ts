@@ -73,5 +73,8 @@ export default defineConfig({
     include: ["src/**/*.test.ts"],
     // jsdom has no canvas/WebGL; charts are tested through their figure builders.
     css: false,
+    // The 5 s default is too tight for the component tests on the Windows CI runner
+    // (three of them timed out on the v1.0.0 tag build and passed on a re-run).
+    testTimeout: 20_000,
   },
 });
