@@ -10,8 +10,8 @@ Actualiza o elimina entradas obsoletas en lugar de duplicarlas.
   quitaron la app Python/Qt/Streamlit (`mltutor/`), launchers, PyInstaller, `pyproject.toml`/`uv.lock`,
   el instalador, el despliegue web (Docker/Swarm/nginx), los tests pytest, `build-executables.yml`, el
   agente `qt-desktop-engineer` y los generadores de fixtures (`export_golden.py`, `golden_*.py`,
-  `capture_qt.py`). Todo sigue en el tag `v1.0.0` y en la rama `codex/desktop-migration-study` (aún no
-  hay tag `python-final`). Consecuencias:
+  `capture_qt.py`). Todo sigue en los tags `python-final` y `v1.0.0` (el mismo commit, creado el 2026-10-22) y en la rama
+  `codex/desktop-migration-study`. Consecuencias:
   - `tests/parity/` está **congelado**; regenerarlo exige un checkout de `v1.0.0` (tests/parity/README.md).
   - Los textos de plantillas en los fixtures (`code/*.json`, `python_code.*`, `export_package.script`/
     `leeme`/`numpy_script`) se reescriben con `MLTUTOR_BLESS=1 cargo test --workspace --all-targets`

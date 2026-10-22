@@ -8,7 +8,7 @@ a las funciones de la app (`load_builtin_dataset`, `preprocess_data`, `train_lin
 
 ## Fixtures congelados (desde 2026-10-21)
 
-La app Python y esos generadores **ya no están en el árbol**: viven en el tag `v1.0.0` y en
+La app Python y esos generadores **ya no están en el árbol**: viven en los tags `python-final` y `v1.0.0` (el mismo commit) y en
 la rama `codex/desktop-migration-study`. Estos archivos son referencias congeladas: no se
 editan a mano y ningún test los reescribe, salvo los textos de plantillas (abajo). Las
 rutas `mltutor/…` que aparecen en ellos (y en los comentarios de `content/`) se refieren
