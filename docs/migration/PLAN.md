@@ -267,8 +267,8 @@ Cada subfase se cierra con el CI y la revisión.
       medidos frente a la `v0.3.0-rc.4`; BUILD para desarrolladores, con requisitos, build, pruebas, paridad,
       verificador de exportaciones, smoke test, capturas, CI, releases y firma. Falta la licencia (TODO del autor).)*
 - [x] Retirada del código Python del árbol principal. *(2026-10-21, rama `feature/remove-python`: se
-      conserva en el tag `v1.0.0` y la rama `codex/desktop-migration-study` (sin tag `python-final`
-      todavía). Los generadores de fixtures se retiraron con la app, porque la importaban: `tests/parity`
+      conserva en los tags `python-final` y `v1.0.0` (el mismo commit) y en la rama
+      `codex/desktop-migration-study`. Los generadores de fixtures se retiraron con la app, porque la importaban: `tests/parity`
       queda congelado y sus textos de plantillas se actualizan con `MLTUTOR_BLESS=1`. En `tools/` quedan
       `verify_exports.py`, `check_trees_platform.py`, `cart/knn/nn_reference.py` y `data/seaborn/`.)*
 - [x] Se sustituye `build-executables.yml` por `rust.yml` y se publica la `v0.4.0` estable

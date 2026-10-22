@@ -3,7 +3,7 @@
 MLTutor es una aplicación educativa de escritorio para aprender Machine Learning
 en español, escrita en Rust (Tauri 2 + Svelte) desde la v1.0.0. La versión anterior en
 Python (PySide6 + scikit-learn + TensorFlow) fue la referencia funcional y visual de la
-migración; **ya no está en el árbol** (2026-10-21): se conserva en el tag `v1.0.0` y en la
+migración; **ya no está en el árbol** (2026-10-21): se conserva en los tags `python-final` y `v1.0.0` (el mismo commit) y en la
 rama `codex/desktop-migration-study`. Sus resultados siguen aquí como fixtures congelados
 en `tests/parity/`.
 
